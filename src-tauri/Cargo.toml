@@ -1,7 +1,7 @@
 [package]
-name = "youtube-music-mac"
-version = "0.1.0"
-description = "A lightweight macOS desktop app for YouTube Music."
+name = "youtube-music-app"
+version = "0.1.1"
+description = "A lightweight desktop app for YouTube Music."
 authors = ["Sayarinu"]
 edition = "2021"
 license = "MIT"

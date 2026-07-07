@@ -1,6 +1,6 @@
 {
-  "name": "youtube-music-mac",
-  "version": "0.1.0",
+  "name": "youtube-music-app",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
