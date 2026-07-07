@@ -1,0 +1,18 @@
+{
+  "name": "youtube-music-mac",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:app": "tauri build --bundles app",
+    "build:dmg": "tauri build --bundles dmg",
+    "build:macos": "tauri build --config platforms/macos/tauri.conf.json --bundles app,dmg",
+    "build:windows": "tauri build --config platforms/windows/tauri.conf.json --bundles nsis,msi",
+    "build:linux": "tauri build --config platforms/linux/tauri.conf.json --bundles appimage,deb,rpm"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0"
+  }
+}

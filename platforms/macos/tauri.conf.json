@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "category": "Music",
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
+  }
+}
