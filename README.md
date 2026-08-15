@@ -54,3 +54,5 @@ sudo pacman -U ./youtube-music-app-*.pkg.tar.zst
 ```
 
 The package pulls in `webkit2gtk-4.1`, `gst-plugins-base`, `gst-plugins-good`, `gst-plugins-bad`, and `gst-libav`, including the MP4, Matroska, H.264, AAC, and Opus support YouTube Music needs. It keeps the existing `com.carter.youtube-music` profile, so signing in again is normally unnecessary.
+
+On Wayland desktops with XWayland available, the packaged launcher selects GTK's X11 backend automatically. This avoids compositor-specific GTK/WebKit protocol errors while retaining the same application profile and functionality.

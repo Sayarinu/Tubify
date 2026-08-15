@@ -14,4 +14,6 @@ The package is written to `dist/` and depends on Arch's `webkit2gtk-4.1`, `gst-p
 ./scripts/doctor-arch-media.sh
 ```
 
+The installed launcher automatically uses XWayland when a Wayland session provides it. This avoids known compositor-specific GTK/WebKit protocol errors.
+
 Tagging `v<package-version>` runs `.github/workflows/release-linux.yml`, which builds the package in an Arch container and attaches it plus `SHA256SUMS` to the GitHub Release.

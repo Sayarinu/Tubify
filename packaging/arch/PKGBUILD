@@ -37,6 +37,8 @@ check() {
 package() {
   cd "${srcdir}/${pkgname}-${pkgver}"
   install -Dm755 "src-tauri/target/release/${pkgname}" \
+    "${pkgdir}/usr/lib/${pkgname}/${pkgname}"
+  install -Dm755 "packaging/arch/${pkgname}.sh" \
     "${pkgdir}/usr/bin/${pkgname}"
   install -Dm644 "packaging/arch/${pkgname}.desktop" \
     "${pkgdir}/usr/share/applications/${pkgname}.desktop"
