@@ -1,51 +1,92 @@
-name: Release Linux
+name: Build and Release Arch Linux
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  linux:
-    name: Linux
+  build-arch:
+    name: Build Arch package
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux Tauri dependencies
+      - name: Validate release version
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
+          test "${GITHUB_REF_NAME#v}" = "$(node -p "require('./package.json').version")"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Build native Arch package
+        run: |
+          docker run --rm \
+            --volume "${GITHUB_WORKSPACE}:/workspace" \
+            --workdir /workspace \
+            archlinux:latest \
+            bash -lc '
+              set -euo pipefail
+              pacman -Syu --noconfirm --needed \
+                base-devel \
+                git \
+                nodejs \
+                npm \
+                rust \
+                pkgconf \
+                webkit2gtk-4.1 \
+                librsvg \
+                libayatana-appindicator \
+                gst-plugins-good \
+                gst-plugins-bad \
+                gst-libav
+              useradd --create-home builder
+              chown -R builder:builder /workspace
+              su --shell /bin/bash builder --command "./scripts/build-arch-package.sh"
+              ./scripts/doctor-arch-media.sh
+            '
 
-      - name: Build Linux packages
-        run: npm run build:linux
+      - name: Upload Arch package
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-package
+          path: dist/*.pkg.tar.zst
+          if-no-files-found: error
 
-      - name: Upload release assets
+  release:
+    name: Publish Arch package
+    needs: build-arch
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Arch package
+        uses: actions/download-artifact@v4
+        with:
+          name: arch-package
+          path: release
+
+      - name: Create checksums
+        working-directory: release
+        run: sha256sum *.pkg.tar.zst > SHA256SUMS
+
+      - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            src-tauri/target/release/bundle/appimage/*.AppImage
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/rpm/*.rpm
+            release/*.pkg.tar.zst
+            release/SHA256SUMS

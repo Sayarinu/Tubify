@@ -3,3 +3,8 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/icons/AppIcon.iconset/
 .DS_Store
+dist/
+packaging/arch/*.tar.gz
+packaging/arch/pkg/
+packaging/arch/src/
+packaging/arch/*.pkg.tar.*

@@ -1,6 +1,5 @@
 {
   "bundle": {
-    "targets": ["appimage", "deb", "rpm"],
     "category": "Music"
   }
 }

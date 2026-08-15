@@ -1,0 +1,44 @@
+pkgname=youtube-music-app
+pkgver=0.1.2
+pkgrel=1
+pkgdesc='Native desktop wrapper for YouTube Music'
+arch=('x86_64')
+url='https://github.com/Sayarinu/YouTube-Music-App'
+license=('MIT')
+options=('!debug')
+depends=(
+  'webkit2gtk-4.1'
+  'gst-plugins-good'
+  'gst-plugins-bad'
+  'gst-libav'
+)
+makedepends=(
+  'rust'
+  'nodejs'
+  'npm'
+  'pkgconf'
+  'librsvg'
+  'libayatana-appindicator'
+)
+source=("${pkgname}-${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  npm ci --cache "${srcdir}/npm-cache" --prefer-offline
+  npx tauri build --config platforms/linux/tauri.conf.json --no-bundle
+}
+
+check() {
+  test -x "${srcdir}/${pkgname}-${pkgver}/src-tauri/target/release/${pkgname}"
+}
+
+package() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  install -Dm755 "src-tauri/target/release/${pkgname}" \
+    "${pkgdir}/usr/bin/${pkgname}"
+  install -Dm644 "packaging/arch/${pkgname}.desktop" \
+    "${pkgdir}/usr/share/applications/${pkgname}.desktop"
+  install -Dm644 "src-tauri/icons/128x128.png" \
+    "${pkgdir}/usr/share/icons/hicolor/128x128/apps/${pkgname}.png"
+}
