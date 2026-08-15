@@ -8,6 +8,7 @@ license=('MIT')
 options=('!debug')
 depends=(
   'webkit2gtk-4.1'
+  'gst-plugins-base'
   'gst-plugins-good'
   'gst-plugins-bad'
   'gst-libav'

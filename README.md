@@ -53,4 +53,4 @@ sha256sum -c SHA256SUMS
 sudo pacman -U ./youtube-music-app-*.pkg.tar.zst
 ```
 
-The package pulls in `webkit2gtk-4.1`, `gst-plugins-good`, `gst-plugins-bad`, and `gst-libav`, including the MP4, Matroska, H.264, AAC, and Opus support YouTube Music needs. It keeps the existing `com.carter.youtube-music` profile, so signing in again is normally unnecessary.
+The package pulls in `webkit2gtk-4.1`, `gst-plugins-base`, `gst-plugins-good`, `gst-plugins-bad`, and `gst-libav`, including the MP4, Matroska, H.264, AAC, and Opus support YouTube Music needs. It keeps the existing `com.carter.youtube-music` profile, so signing in again is normally unnecessary.

@@ -49,6 +49,7 @@ jobs:
                 webkit2gtk-4.1 \
                 librsvg \
                 libayatana-appindicator \
+                gst-plugins-base \
                 gst-plugins-good \
                 gst-plugins-bad \
                 gst-libav

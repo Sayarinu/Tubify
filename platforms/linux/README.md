@@ -8,7 +8,7 @@ Build from a clean checkout on Arch:
 ./scripts/build-arch-package.sh --syncdeps --install
 ```
 
-The package is written to `dist/` and depends on Arch's `webkit2gtk-4.1`, `gst-plugins-good`, `gst-plugins-bad`, and `gst-libav`. Verify the media plugins with:
+The package is written to `dist/` and depends on Arch's `webkit2gtk-4.1`, `gst-plugins-base`, `gst-plugins-good`, `gst-plugins-bad`, and `gst-libav`. Verify the media plugins with:
 
 ```sh
 ./scripts/doctor-arch-media.sh
