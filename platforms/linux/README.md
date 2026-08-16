@@ -1,19 +1,19 @@
-# Linux Release
+# Arch Linux Release
 
-Builds Linux AppImage, deb, and rpm packages.
+Linux distribution is intentionally limited to Arch Linux x86_64. The release is a native `youtube-music-app-*.pkg.tar.zst` package, rather than an AppImage with an embedded GStreamer runtime.
+
+Build from a clean checkout on Arch:
 
 ```sh
-npm run build:linux
+./scripts/build-arch-package.sh --syncdeps --install
 ```
 
-Outputs:
+The package is written to `dist/` and depends on Arch's `webkit2gtk-4.1`, `gst-plugins-base`, `gst-plugins-good`, `gst-plugins-bad`, and `gst-libav`. Verify the media plugins with:
 
-- `src-tauri/target/release/bundle/appimage/*.AppImage`
-- `src-tauri/target/release/bundle/deb/*.deb`
-- `src-tauri/target/release/bundle/rpm/*.rpm`
+```sh
+./scripts/doctor-arch-media.sh
+```
 
-Notes:
+The installed launcher automatically uses XWayland when a Wayland session provides it. This avoids known compositor-specific GTK/WebKit protocol errors.
 
-- Build this on Linux.
-- Tauri uses WebKitGTK on Linux.
-- A private GitHub release workflow is included in `.github/workflows/release-linux.yml`.
+Tagging `v<package-version>` runs `.github/workflows/release-linux.yml`, which builds the package in an Arch container and attaches it plus `SHA256SUMS` to the GitHub Release.

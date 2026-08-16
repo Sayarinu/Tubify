@@ -1,0 +1,10 @@
+[Desktop Entry]
+Categories=AudioVideo;Audio;Music;
+Comment=A lightweight desktop app for YouTube Music.
+Exec=youtube-music-app %U
+StartupWMClass=youtube-music-app
+Icon=youtube-music-app
+Name=YouTube Music
+Terminal=false
+Type=Application
+MimeType=x-scheme-handler/youtube;x-scheme-handler/youtube-music;

@@ -1,4 +1,26 @@
 {
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "YouTube Music",
+        "url": "index.html",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 920,
+        "minHeight": 620,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false,
+        "incognito": false,
+        "focus": true,
+        "decorations": true,
+        "hiddenTitle": false,
+        "theme": null
+      }
+    ]
+  },
   "bundle": {
     "targets": ["app", "dmg"],
     "category": "Music",
