@@ -6,6 +6,7 @@ from PySide6.QtCore import QObject, Property, QSettings, Signal, Slot
 class ShellController(QObject):
     pageChanged = Signal()
     sidebarChanged = Signal()
+    queueWidthChanged = Signal()
     volumeChanged = Signal()
     navigationRequested = Signal(str)
     searchRequested = Signal(str)
@@ -14,6 +15,7 @@ class ShellController(QObject):
     playlistsChanged = Signal()
     menuRequested = Signal(dict, dict)
     playerViewChanged = Signal()
+    queueOpenChanged = Signal()
 
     def __init__(self, settings_path, fixture=None, parent=None):
         super().__init__(parent)
@@ -21,12 +23,15 @@ class ShellController(QObject):
         self._page = "Home"
         self._query = ""
         self._sidebar = self.settings.value("sidebarExpanded", False, type=bool)
+        self._sidebar_width = max(180, min(420, self._integer_setting("sidebarWidth", 240)))
+        self._queue_width = max(280, min(520, self._integer_setting("queueWidth", 360)))
         self._volume = max(0, min(100, self._integer_setting("volume", 70)))
         self._unmuted_volume = max(1, min(100, self._integer_setting("lastVolume", self._volume or 70)))
         self._fixture = fixture or {}
         self._shelves = self._fixture.get("shelves", [])
         self._playlists = self._fixture.get("playlists", [])
         self._expanded, self._player_tab = False, "Up next"
+        self._queue_open = False
 
     def _integer_setting(self, key, default):
         try:
@@ -45,6 +50,14 @@ class ShellController(QObject):
     @Property(bool, notify=sidebarChanged)
     def sidebarExpanded(self):
         return self._sidebar
+
+    @Property(int, notify=sidebarChanged)
+    def sidebarWidth(self):
+        return self._sidebar_width
+
+    @Property(int, notify=queueWidthChanged)
+    def queueWidth(self):
+        return self._queue_width
 
     @Property("QVariantList", constant=True)
     def shelves(self):
@@ -101,6 +114,35 @@ class ShellController(QObject):
         self._sidebar = not self._sidebar
         self.sidebarChanged.emit()
 
+    @Slot(float)
+    def setSidebarWidth(self, value):
+        width = max(180, min(420, round(value)))
+        if width != self._sidebar_width:
+            self._sidebar_width = width
+            self.sidebarChanged.emit()
+
+    @Slot(float)
+    def setQueueWidth(self, value):
+        width = max(280, min(520, round(value)))
+        if width != self._queue_width:
+            self._queue_width = width
+            self.queueWidthChanged.emit()
+
+    @Slot()
+    def saveSidebarWidths(self):
+        self.settings.setValue("sidebarWidth", self._sidebar_width)
+        self.settings.setValue("queueWidth", self._queue_width)
+        self.settings.sync()
+
+    @Property(bool, notify=queueOpenChanged)
+    def queueOpen(self):
+        return self._queue_open
+
+    @Slot()
+    def toggleQueue(self):
+        self._queue_open = not self._queue_open
+        self.queueOpenChanged.emit()
+
     @Slot(int)
     def setVolume(self, value):
         self._volume = max(0, min(100, value))
@@ -150,6 +192,8 @@ class ShellController(QObject):
         self.settings.setValue("width", max(920, min(7680, width)))
         self.settings.setValue("height", max(620, min(4320, height)))
         self.settings.setValue("sidebarExpanded", self._sidebar)
+        self.settings.setValue("sidebarWidth", self._sidebar_width)
+        self.settings.setValue("queueWidth", self._queue_width)
         self.settings.setValue("volume", self._volume)
         self.settings.setValue("lastVolume", self._unmuted_volume)
         self.settings.sync()

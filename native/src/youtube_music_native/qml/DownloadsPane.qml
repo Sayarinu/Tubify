@@ -33,10 +33,10 @@ Item {
             width: list.width; height: 204
             Row {
                 width: parent.width; height: 52; spacing: 24
-                Button { text: "LIBRARY"; flat: true; height: 52; palette.windowText: Theme.secondary; onClicked: libraryState.select("Playlists") }
-                Button { text: "DOWNLOADS"; flat: true; height: 52; palette.windowText: "white"; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent } }
+                Button { text: "LIBRARY"; flat: true; height: 52; palette.windowText: themeState.secondary; onClicked: libraryState.select("Playlists") }
+                Button { text: "DOWNLOADS"; flat: true; height: 52; palette.windowText: themeState.foreground; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: themeState.accent } }
             }
-            Rectangle { y: 52; height: 1; width: parent.width; color: Theme.border }
+            Rectangle { y: 52; height: 1; width: parent.width; color: themeState.border }
             Row {
                 y: 84; height: 36; spacing: 12
                 Repeater {
@@ -45,15 +45,15 @@ Item {
                         id: filter
                         required property string modelData
                         text: modelData; height: 36; leftPadding: 14; rightPadding: 14
-                        palette.buttonText: root.selectedKind === text ? Theme.onAccent : Theme.foreground
-                        background: Rectangle { radius: 8; color: root.selectedKind === filter.text ? Theme.accent : filter.hovered ? Theme.hover : Theme.surface; border.width: filter.visualFocus ? 2 : 0; border.color: Theme.accent }
+                        palette.buttonText: root.selectedKind === text ? themeState.onAccent : themeState.foreground
+                        background: Rectangle { radius: 8; color: root.selectedKind === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.width: filter.visualFocus ? 2 : 0; border.color: themeState.accent }
                         onClicked: root.selectedKind = text
                     }
                 }
             }
             Column {
                 y: 148; width: parent.width - 48; spacing: 5
-                Text { width: parent.width; text: root.bytesLabel(downloadsState.usedBytes) + " downloaded · " + root.bytesLabel(downloadsState.freeBytes) + " free"; color: Theme.secondary; elide: Text.ElideRight; font.pixelSize: 14 }
+                Text { width: parent.width; text: root.bytesLabel(downloadsState.usedBytes) + " downloaded · " + root.bytesLabel(downloadsState.freeBytes) + " free"; color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: 14 }
             }
             IconButton { anchors.right: parent.right; y: 138; iconName: "refresh"; tip: "Refresh download status"; onClicked: downloadsState.refresh() }
         }
@@ -63,15 +63,15 @@ Item {
             width: list.width; height: 104; padding: 0
             Accessible.name: modelData.title + ", " + root.stateLabel(modelData)
             onClicked: downloadsState.open(modelData.key)
-            background: Rectangle { radius: 4; color: entry.hovered ? Theme.surface : "transparent"; border.color: entry.visualFocus ? Theme.accent : "transparent"; border.width: 1 }
+            background: Rectangle { radius: 4; color: entry.hovered ? themeState.surface : "transparent"; border.color: entry.visualFocus ? themeState.accent : "transparent"; border.width: 1 }
             contentItem: Item {
                 Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 64; height: 64; source: entry.modelData.thumbnail || ""; mediaKey: entry.modelData.key; radius: 3 }
                 Column {
                     x: 88; anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - x - controls.width - 16; spacing: 5
-                    Text { width: parent.width; text: entry.modelData.title; textFormat: Text.PlainText; color: "white"; elide: Text.ElideRight; font.pixelSize: 16 }
-                    Text { width: parent.width; text: entry.modelData.kind.charAt(0).toUpperCase() + entry.modelData.kind.slice(1) + " · " + entry.modelData.total + (entry.modelData.total === 1 ? " song" : " songs"); color: Theme.secondary; elide: Text.ElideRight; font.pixelSize: 12 }
-                    Text { width: parent.width; text: root.stateLabel(entry.modelData); textFormat: Text.PlainText; color: entry.modelData.state === "damaged" || entry.modelData.state === "failed" ? "#ffb4a6" : Theme.secondary; elide: Text.ElideRight; font.pixelSize: 12 }
+                    Text { width: parent.width; text: entry.modelData.title; textFormat: Text.PlainText; color: themeState.foreground; elide: Text.ElideRight; font.pixelSize: 16 }
+                    Text { width: parent.width; text: entry.modelData.kind.charAt(0).toUpperCase() + entry.modelData.kind.slice(1) + " · " + entry.modelData.total + (entry.modelData.total === 1 ? " song" : " songs"); color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: 12 }
+                    Text { width: parent.width; text: root.stateLabel(entry.modelData); textFormat: Text.PlainText; color: entry.modelData.state === "damaged" || entry.modelData.state === "failed" ? "#ffb4a6" : themeState.secondary; elide: Text.ElideRight; font.pixelSize: 12 }
                     ProgressBar { width: parent.width; height: 3; value: entry.modelData.progress || 0; visible: entry.modelData.state === "downloading" || entry.modelData.state === "queued" }
                 }
                 Row {
@@ -88,8 +88,8 @@ Item {
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 16
         visible: !root.entries.length
-        Text { width: parent.width; text: "Music wherever you go"; color: "white"; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 28; horizontalAlignment: Text.AlignHCenter }
-        Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + root.selectedKind.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: Theme.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
+        Text { width: parent.width; text: "Music wherever you go"; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 28; horizontalAlignment: Text.AlignHCenter }
+        Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + root.selectedKind.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
     }
     Menu {
         id: options
@@ -103,8 +103,8 @@ Item {
         parent: Overlay.overlay; anchors.centerIn: parent
         width: Math.min(460, root.width - 48); modal: true
         title: "Remove download?"; standardButtons: Dialog.Ok | Dialog.Cancel
-        palette.window: Theme.surface; palette.windowText: "white"
-        contentItem: Label { text: "Remove “" + (root.selectedEntry.title || "this music") + "” from this device? Songs used by another download will stay."; textFormat: Text.PlainText; color: "white"; wrapMode: Text.Wrap }
+        palette.window: themeState.surface; palette.windowText: themeState.foreground
+        contentItem: Label { text: "Remove “" + (root.selectedEntry.title || "this music") + "” from this device? Songs used by another download will stay."; textFormat: Text.PlainText; color: themeState.foreground; wrapMode: Text.Wrap }
         onAccepted: downloadsState.remove(root.selectedEntry.key)
     }
 }

@@ -8,7 +8,7 @@ Rectangle {
     property string source: ""
     property string mediaKey: ""
     property string placeholder: "music"
-    property color accent: Theme.selected
+    property color accent: themeState.selected
     readonly property bool ready: artwork.status === Image.Ready
     radius: 8
     clip: true

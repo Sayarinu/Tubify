@@ -1,5 +1,5 @@
 pkgname=youtube-music-native
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc='Native Qt audio client for YouTube Music'
 arch=('x86_64')

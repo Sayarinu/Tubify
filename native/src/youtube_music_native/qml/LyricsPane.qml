@@ -9,8 +9,8 @@ Item {
         anchors.centerIn: parent; width: parent.width; spacing: 16
         visible: lyricState.busy || !!lyricState.error || !lyricState.data.available
         BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; running: lyricState.busy; visible: running }
-        Text { width: parent.width; text: lyricState.busy ? "Loading lyrics…" : lyricState.error || "Lyrics aren’t available for this song."; textFormat: Text.PlainText; color: Theme.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
-        Button { anchors.horizontalCenter: parent.horizontalCenter; visible: !lyricState.busy; text: "Retry"; palette.windowText: "white"; onClicked: lyricState.refresh() }
+        Text { width: parent.width; text: lyricState.busy ? "Loading lyrics…" : lyricState.error || "Lyrics aren’t available for this song."; textFormat: Text.PlainText; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
+        Button { anchors.horizontalCenter: parent.horizontalCenter; visible: !lyricState.busy; text: "Retry"; palette.windowText: themeState.foreground; onClicked: lyricState.refresh() }
     }
     ListView {
         id: lines
@@ -33,10 +33,10 @@ Item {
             Accessible.description: lyricState.data.timed ? "Seek to this line" : ""
             activeFocusOnTab: !!lyricState.data.timed
             onClicked: lyricState.seekLine(index)
-            contentItem: Text { id: label; text: parent.modelData.text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: !lyricState.data.timed || parent.index === lyricState.currentLine ? Theme.accent : Theme.secondary; font.family: Theme.bodyFont; font.bold: true; font.pixelSize: lyricState.data.timed ? 24 : 20 }
-            background: Rectangle { color: parent.hovered && lyricState.data.timed ? Theme.surface : "transparent"; border.color: parent.visualFocus ? Theme.accent : "transparent"; border.width: 1; radius: 4 }
+            contentItem: Text { id: label; text: parent.modelData.text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: !lyricState.data.timed || parent.index === lyricState.currentLine ? themeState.accent : themeState.secondary; font.family: Theme.bodyFont; font.bold: true; font.pixelSize: lyricState.data.timed ? 24 : 20 }
+            background: Rectangle { color: parent.hovered && lyricState.data.timed ? themeState.surface : "transparent"; border.color: parent.visualFocus ? themeState.accent : "transparent"; border.width: 1; radius: 4 }
         }
-        footer: Text { width: lines.width; topPadding: 24; bottomPadding: 16; text: lyricState.data.source || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: Theme.secondary; font.pixelSize: 12 }
+        footer: Text { width: lines.width; topPadding: 24; bottomPadding: 16; text: lyricState.data.source || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }
         Connections {
             target: lyricState
             function onCurrentLineChanged() { if (!resumeFollow.running && lyricState.currentLine >= 0) lines.positionViewAtIndex(lyricState.currentLine, ListView.Center) }

@@ -21,13 +21,13 @@ Item {
                         id: filter
                         required property string modelData
                         text: modelData; height: 36
-                        palette.buttonText: searchState.selectedFilter === text ? Theme.onAccent : Theme.foreground
-                        background: Rectangle { radius: 8; color: searchState.selectedFilter === filter.text ? Theme.accent : filter.hovered ? Theme.hover : Theme.surface; border.color: filter.visualFocus ? Theme.accent : "transparent" }
+                        palette.buttonText: searchState.selectedFilter === text ? themeState.onAccent : themeState.foreground
+                        background: Rectangle { radius: 8; color: searchState.selectedFilter === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.color: filter.visualFocus ? themeState.accent : "transparent" }
                         onClicked: searchState.selectFilter(text)
                     }
                 }
             }
-            Text { width: parent.width; text: "Results for “" + (root.result.title || appState.query) + "”"; textFormat: Text.PlainText; color: "white"; font.family: Theme.headingFont; font.pixelSize: 28; font.bold: true }
+            Text { width: parent.width; text: "Results for “" + (root.result.title || appState.query) + "”"; textFormat: Text.PlainText; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 28; font.bold: true }
         }
         delegate: SongRow {
             required property var modelData
@@ -41,7 +41,7 @@ Item {
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 20
         visible: !catalogState.busy && !(root.result.items || []).length
-        Text { width: parent.width; text: catalogState.error || "No results. Try another song, artist, album or playlist."; textFormat: Text.PlainText; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap; color: Theme.secondary; font.pixelSize: 16 }
+        Text { width: parent.width; text: catalogState.error || "No results. Try another song, artist, album or playlist."; textFormat: Text.PlainText; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 16 }
         Button { anchors.horizontalCenter: parent.horizontalCenter; text: "Retry"; visible: !!catalogState.error; onClicked: catalogState.refresh() }
     }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running }

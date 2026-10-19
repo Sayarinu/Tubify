@@ -15,6 +15,10 @@ class Browse(QObject):
         self.worker, self.cache_path, self.fixture = account.worker, str(cache_path), fixture
         self._play_request, self._play_route, self._play_params = None, "", {}
         self._play_title = ""
+        self._artist_request, self._artist_name = None, ""
+        self._metadata_request, self._metadata_video_id, self._metadata_fallback_query = None, "", ""
+        self._metadata_fallback_attempted = False
+        self._metadata_track_id = ""
         self._mood_request, self._mood_title = None, ""
         self._playlist_request = None
         self._identity = None
@@ -32,6 +36,9 @@ class Browse(QObject):
         shell.pageChanged.connect(self._cancel_local_navigation)
         view.navigationStarted.connect(self._cancel_local_navigation)
         shell.actionRequested.connect(self._action)
+        player_changed = getattr(player, "changed", None)
+        if player_changed:
+            player_changed.connect(self._player_changed)
         account.connectedChanged.connect(self._account_changed)
         account.sessionChanged.connect(player.resetSession)
         if self.worker:
@@ -95,6 +102,9 @@ class Browse(QObject):
             self.downloads.cancelOpen()
             self.downloads.cancelLookup(self._download_open_request)
         self._download_open_request = None
+        if self.worker and self._artist_request is not None:
+            self.worker.cancelQueued(self._artist_request)
+        self._artist_request = None
 
     @Slot()
     def back(self):
@@ -186,6 +196,20 @@ class Browse(QObject):
             self.view.showLocal(kind, data, {"id": media.get("id", "fixture")})
 
     @Slot("QVariantMap")
+    def openArtist(self, artist):
+        identifier = artist.get("id") or artist.get("browseId") or artist.get("channelId")
+        name = str(artist.get("name") or "").strip()
+        if identifier:
+            self.open({"kind": "artist", "id": identifier, "title": name})
+        elif name and self.fixture:
+            self.open({"kind": "artist", "id": "UCfixture", "title": name})
+        elif name and self.worker:
+            if self._artist_request is not None:
+                self.worker.cancelQueued(self._artist_request)
+            self._artist_name = name
+            self._artist_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": "search", "params": {"query": name, "filter": "artists"}})
+
+    @Slot("QVariantMap")
     def play(self, media):
         self.playCollection(media, False)
 
@@ -232,8 +256,63 @@ class Browse(QObject):
         self._play_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": self._play_route, "params": params, "offset": offset})
         self._play_offset = offset
 
+    def _lookup_track_metadata(self, media):
+        track_id = media.get("videoId") or media.get("id", "")
+        album = media.get("album")
+        if not self.worker or not track_id or (
+            isinstance(album, dict) and album.get("name")
+            or isinstance(album, str) and album.strip()
+        ):
+            return
+        if self._metadata_request is not None:
+            self.worker.cancelQueued(self._metadata_request)
+        query = str(media.get("title", "")).strip()
+        if not query:
+            return
+        self._metadata_video_id = track_id
+        self._metadata_fallback_attempted = False
+        artist_names = " ".join(artist.get("name", "") for artist in media.get("artists", []) if isinstance(artist, dict))
+        self._metadata_fallback_query = " ".join((query, artist_names)).strip() if artist_names else ""
+        self._metadata_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": "search", "params": {"query": query, "filter": "songs"}})
+
+    def _player_changed(self):
+        track = self.player.currentTrack
+        track_id = track.get("videoId") or track.get("id", "")
+        if track_id != self._metadata_track_id:
+            self._metadata_track_id = track_id
+            self._lookup_track_metadata(track)
+
     def _result(self, identifier, result):
-        if identifier == self._playlist_request:
+        if identifier == self._metadata_request:
+            self._metadata_request = None
+            track = next((item for item in result.get("items", []) if item.get("videoId") == self._metadata_video_id), None)
+            album = track.get("album") if track else None
+            if (not track or not (isinstance(album, dict) and album.get("name"))) and self._metadata_fallback_query and not self._metadata_fallback_attempted:
+                self._metadata_fallback_attempted = True
+                self._metadata_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": "search", "params": {"query": self._metadata_fallback_query, "filter": "songs"}})
+                return
+            if track:
+                values = {}
+                if isinstance(album, dict) and album.get("name"):
+                    values["album"] = album
+                if track.get("artists"):
+                    values["artists"] = track["artists"]
+                if track.get("thumbnail"):
+                    values["thumbnail"] = track["thumbnail"]
+                if track.get("largeThumbnail"):
+                    values["largeThumbnail"] = track["largeThumbnail"]
+                if not values:
+                    return
+                self.player.updateTrack(self._metadata_video_id, values)
+                self.updateTrack(self._metadata_video_id, values)
+        elif identifier == self._artist_request:
+            self._artist_request = None
+            artist = next((item for item in result.get("items", []) if item.get("kind") == "artist" and item.get("title", "").casefold() == self._artist_name.casefold()), None)
+            if artist and artist.get("id"):
+                self.open(artist)
+            else:
+                self._load("search", {"query": self._artist_name, "filter": "artists"})
+        elif identifier == self._playlist_request:
             self._playlist_request = None
             self.shell.setPlaylists([{**media, "owner": self.account.profile.get("name", "Your music")} for media in result.get("items", [])])
         elif identifier == self._play_request:
@@ -257,6 +336,11 @@ class Browse(QObject):
             self.view.showLocal("moods", result)
 
     def _failed(self, identifier, error):
+        if identifier == self._metadata_request:
+            self._metadata_request = None
+        if identifier == self._artist_request:
+            self._artist_request = None
+            self._load("search", {"query": self._artist_name, "filter": "artists"})
         if identifier == self._play_request:
             self._play_request = None
             self._message = error.get("message", "This collection could not be played. Retry.")

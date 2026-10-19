@@ -24,20 +24,19 @@ Item {
         Column {
             width: parent.width - (root.section.subtitle ? 72 : 0)
             anchors.verticalCenter: parent.verticalCenter; spacing: 4
-            Text { width: parent.width; visible: !!root.section.subtitle; text: root.section.subtitle || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14; font.family: Theme.bodyFont }
-            Text { width: parent.width; text: root.section.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 24 }
+            Text { width: parent.width; visible: !!root.section.subtitle; text: root.section.subtitle || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: 14; font.family: Theme.bodyFont }
+            Text { width: parent.width; text: root.section.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 24 }
         }
     }
     Row {
         id: actions
         anchors.right: parent.right; anchors.verticalCenter: heading.verticalCenter; spacing: 16
-        anchors.verticalCenterOffset: root.section.subtitle ? 8 : 0
         Button {
             id: more
             text: root.compact ? "Play all" : "More"
             height: 36; leftPadding: 16; rightPadding: 16
-            palette.buttonText: Theme.foreground
-            background: Rectangle { radius: 18; color: more.hovered ? Theme.surface : "transparent"; border.color: more.visualFocus ? "white" : Theme.border }
+            palette.buttonText: themeState.foreground
+            background: Rectangle { radius: 18; color: more.hovered ? themeState.surface : "transparent"; border.color: more.visualFocus ? themeState.foreground : themeState.border }
             onClicked: root.compact ? root.playAllRequested() : root.moreRequested()
         }
         IconButton { iconName: "left"; tip: "Previous items"; outlined: true; width: 36; height: 36; enabled: cards.contentX > 0; onClicked: cards.contentX = Math.max(0, cards.contentX - cards.width) }

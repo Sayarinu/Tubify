@@ -6,7 +6,7 @@ ToolButton {
     id: root
     property string iconName: "more"
     property string tip: ""
-    property color iconColor: Theme.foreground
+    property color iconColor: themeState.foreground
     property int iconSize: 24
     property bool outlined: false
     implicitWidth: 44
@@ -17,9 +17,9 @@ ToolButton {
     ToolTip.delay: 600
     background: Rectangle {
         radius: width / 2
-        color: root.down ? Theme.border : root.hovered ? Theme.hover : "transparent"
+        color: root.down ? themeState.border : root.hovered ? themeState.hover : "transparent"
         border.width: root.visualFocus ? 2 : root.outlined ? 1 : 0
-        border.color: root.visualFocus ? Theme.accent : Theme.border
+        border.color: root.visualFocus ? themeState.accent : themeState.border
     }
     contentItem: Item {
         Symbol {
@@ -27,7 +27,7 @@ ToolButton {
             width: root.iconSize
             height: root.iconSize
             name: root.iconName
-            color: root.enabled ? root.iconColor : Theme.muted
+            color: root.enabled ? root.iconColor : themeState.muted
         }
     }
 }

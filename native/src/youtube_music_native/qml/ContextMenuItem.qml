@@ -10,7 +10,7 @@ MenuItem {
     rightPadding: 12
     contentItem: Text {
         text: root.text
-        color: root.enabled ? Theme.foreground : Theme.muted
+        color: root.enabled ? themeState.foreground : themeState.muted
         font.family: Theme.bodyFont
         font.pixelSize: 14
         verticalAlignment: Text.AlignVCenter
@@ -18,8 +18,8 @@ MenuItem {
     }
     background: Rectangle {
         radius: 8
-        color: root.highlighted ? Theme.hover : "transparent"
+        color: root.highlighted ? themeState.hover : "transparent"
         border.width: root.visualFocus ? 1 : 0
-        border.color: Theme.accent
+        border.color: themeState.accent
     }
 }

@@ -6,7 +6,7 @@ import "Icons.js" as Icons
 Item {
     id: root
     property string name: "music"
-    property color color: Theme.foreground
+    property color color: themeState.foreground
     implicitWidth: 24
     implicitHeight: 24
     Image {

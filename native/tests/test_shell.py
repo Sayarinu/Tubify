@@ -8,10 +8,14 @@ def test_preferences_survive_restart_and_invalid_geometry_is_bounded(tmp_path):
     controller = ShellController(tmp_path / "settings.ini")
     assert controller.sidebarExpanded is False
     controller.toggleSidebar()
+    controller.setSidebarWidth(310)
+    controller.setQueueWidth(430)
     controller.setVolume(800)
     controller.saveWindow(100, 99999)
     restored = ShellController(tmp_path / "settings.ini")
     assert restored.sidebarExpanded is True
+    assert restored.sidebarWidth == 310
+    assert restored.queueWidth == 430
     assert restored.volume == 100
     assert restored.initialWidth == 920
     assert restored.initialHeight == 4320
@@ -47,8 +51,19 @@ def test_mute_restores_previous_volume_across_restart(tmp_path):
 def test_malformed_preferences_do_not_prevent_startup(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     path = tmp_path / "settings.ini"
-    path.write_text("[General]\nwidth=invalid\nheight=invalid\nvolume=invalid\n")
+    path.write_text("[General]\nwidth=invalid\nheight=invalid\nvolume=invalid\nsidebarWidth=invalid\nqueueWidth=invalid\n")
     controller = ShellController(path)
     assert controller.initialWidth == 1280
     assert controller.initialHeight == 820
     assert controller.volume == 70
+    assert controller.sidebarWidth == 240
+    assert controller.queueWidth == 360
+
+
+def test_sidebar_widths_are_bounded(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    controller = ShellController(tmp_path / "settings.ini")
+    controller.setSidebarWidth(900)
+    controller.setQueueWidth(100)
+    assert controller.sidebarWidth == 420
+    assert controller.queueWidth == 280

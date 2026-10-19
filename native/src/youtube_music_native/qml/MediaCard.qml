@@ -35,7 +35,7 @@ FocusScope {
     implicitWidth: Theme.cardWidth
     implicitHeight: Theme.cardHeight
     HoverHandler { id: cardHover }
-    Rectangle { anchors.fill: parent; radius: 10; color: cardHover.hovered ? Theme.hover : Theme.surface; border.color: root.activeFocus ? Theme.accent : Theme.border; border.width: root.activeFocus ? 2 : 1 }
+    Rectangle { anchors.fill: parent; radius: 10; color: cardHover.hovered ? themeState.hover : themeState.surface; border.color: root.activeFocus ? themeState.accent : themeState.border; border.width: root.activeFocus ? 2 : 1 }
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
@@ -51,19 +51,19 @@ FocusScope {
         placeholder: root.media.kind === "artist" ? "profile" : "music"
         source: root.media.thumbnail || ""
         mediaKey: root.media.kind === "album" || root.media.kind === "playlist" ? root.media.kind + ":" + root.media.id : root.media.videoId || root.media.id || ""
-        accent: root.media.accent || Theme.selected
+        accent: root.media.accent || themeState.selected
         Rectangle {
             anchors.fill: parent
             radius: cover.radius
             color: "#22000000"
             visible: hover.hovered || root.activeFocus
-            border.color: root.activeFocus ? Theme.accent : "transparent"
+            border.color: root.activeFocus ? themeState.accent : "transparent"
         }
-        Rectangle { anchors.centerIn: parent; width: 44; height: 44; radius: 22; color: Theme.accent; visible: (hover.hovered || root.activeFocus) && (root.song || root.playableCollection) }
+        Rectangle { anchors.centerIn: parent; width: 44; height: 44; radius: 22; color: themeState.accent; visible: (hover.hovered || root.activeFocus) && (root.song || root.playableCollection) }
         Symbol {
             anchors.centerIn: parent
             name: (root.currentSong || root.currentAlbum) && playerState.playing ? "pause" : "play"
-            width: 20; height: 20; color: Theme.onAccent
+            width: 20; height: 20; color: themeState.onAccent
             visible: (hover.hovered || root.activeFocus) && (root.song || root.playableCollection)
         }
         HoverHandler { id: hover }
@@ -82,7 +82,7 @@ FocusScope {
         x: 16; width: parent.width - 32
         text: root.media.title || ""
         textFormat: Text.PlainText
-        color: Theme.foreground
+        color: themeState.foreground
         font.family: Theme.bodyFont
         font.pixelSize: 14
         font.weight: Font.Bold
@@ -106,10 +106,20 @@ FocusScope {
         spacing: 5
         Text {
             text: root.media.label || (root.media.kind ? root.media.kind.charAt(0).toUpperCase() + root.media.kind.slice(1) : "Song")
-            color: Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 14
+            color: themeState.secondary; font.family: Theme.bodyFont; font.pixelSize: 14
         }
-        Text { text: root.media.artist || root.primaryArtist.name || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: artistLink.containsMouse ? Theme.foreground : Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 14; visible: text.length > 0; width: Math.max(0, subtitle.width - x - 4)
-            MouseArea { id: artistLink; anchors.fill: parent; z: 2; enabled: !!root.primaryArtist.id; hoverEnabled: enabled; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: browseState.open({kind: "artist", id: root.primaryArtist.id, title: root.primaryArtist.name}) }
+        Text {
+            id: artist
+            objectName: "cardArtist"
+            text: root.media.artist || root.primaryArtist.name || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: artistLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.family: Theme.bodyFont; font.pixelSize: 14; visible: text.length > 0; width: Math.max(0, subtitle.width - x - 4)
+            font.underline: artistLink.containsMouse || activeFocus
+            activeFocusOnTab: !!root.primaryArtist.id
+            function openArtist() { if (root.primaryArtist.id) browseState.open({kind: "artist", id: root.primaryArtist.id, title: root.primaryArtist.name}) }
+            Accessible.role: root.primaryArtist.id ? Accessible.Link : Accessible.StaticText
+            Accessible.onPressAction: openArtist()
+            Keys.onReturnPressed: openArtist()
+            Keys.onSpacePressed: openArtist()
+            MouseArea { id: artistLink; anchors.fill: parent; z: 2; enabled: !!root.primaryArtist.id; hoverEnabled: enabled; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: artist.openArtist() }
         }
     }
     DownloadButton {

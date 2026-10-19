@@ -13,12 +13,12 @@ Item {
         objectName: "playlistEditor"
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
         title: root.operation === "playlist_create" ? "New playlist" : "Rename playlist"
-        palette.window: Theme.surface; palette.windowText: "white"; palette.text: "white"
+        palette.window: themeState.surface; palette.windowText: themeState.foreground; palette.text: themeState.foreground
         contentItem: ColumnLayout {
             spacing: 16
-            TextField { id: name; objectName: "playlistNameField"; Layout.fillWidth: true; maximumLength: 150; placeholderText: "Playlist name"; color: "white"; placeholderTextColor: Theme.secondary; selectByMouse: true; Accessible.name: "Playlist name"; background: Rectangle { color: Theme.hover; radius: 4; border.color: name.activeFocus ? "white" : Theme.muted } onAccepted: if (save.enabled) save.clicked() }
-            Label { text: root.operation === "playlist_create" ? "New playlists are private." : ""; visible: text.length > 0; color: Theme.secondary }
-            Label { Layout.fillWidth: true; text: actionsState.message; textFormat: Text.PlainText; visible: !!text; wrapMode: Text.Wrap; color: Theme.secondary }
+            TextField { id: name; objectName: "playlistNameField"; Layout.fillWidth: true; maximumLength: 150; placeholderText: "Playlist name"; color: themeState.foreground; placeholderTextColor: themeState.secondary; selectByMouse: true; Accessible.name: "Playlist name"; background: Rectangle { color: themeState.hover; radius: 4; border.color: name.activeFocus ? themeState.foreground : themeState.muted } onAccepted: if (save.enabled) save.clicked() }
+            Label { text: root.operation === "playlist_create" ? "New playlists are private." : ""; visible: text.length > 0; color: themeState.secondary }
+            Label { Layout.fillWidth: true; text: actionsState.message; textFormat: Text.PlainText; visible: !!text; wrapMode: Text.Wrap; color: themeState.secondary }
         }
         footer: DialogButtonBox {
             Button { text: "Cancel"; enabled: !actionsState.busy; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
@@ -31,11 +31,11 @@ Item {
         id: removal
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
         title: "Delete playlist"
-        palette.window: Theme.surface; palette.windowText: "white"; palette.text: "white"
+        palette.window: themeState.surface; palette.windowText: themeState.foreground; palette.text: themeState.foreground
         contentItem: ColumnLayout {
             spacing: 16
-            Label { Layout.fillWidth: true; text: "Delete “" + (root.target.title || "this playlist") + "” from YouTube Music?"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white" }
-            Label { Layout.fillWidth: true; text: actionsState.message; textFormat: Text.PlainText; visible: !!text; wrapMode: Text.Wrap; color: Theme.secondary }
+            Label { Layout.fillWidth: true; text: "Delete “" + (root.target.title || "this playlist") + "” from YouTube Music?"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground }
+            Label { Layout.fillWidth: true; text: actionsState.message; textFormat: Text.PlainText; visible: !!text; wrapMode: Text.Wrap; color: themeState.secondary }
         }
         footer: DialogButtonBox {
             Button { text: "Cancel"; enabled: !actionsState.busy; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
@@ -47,10 +47,10 @@ Item {
         id: chooser
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
         title: "Add to playlist"; standardButtons: Dialog.Cancel
-        palette.window: Theme.surface; palette.windowText: "white"; palette.text: "white"
+        palette.window: themeState.surface; palette.windowText: themeState.foreground; palette.text: themeState.foreground
         contentItem: ColumnLayout {
             spacing: 16
-            TextField { id: find; Layout.fillWidth: true; placeholderText: "Find a playlist"; color: "white"; placeholderTextColor: Theme.secondary; Accessible.name: "Find a playlist"; background: Rectangle { color: Theme.hover; radius: 4 } }
+            TextField { id: find; Layout.fillWidth: true; placeholderText: "Find a playlist"; color: themeState.foreground; placeholderTextColor: themeState.secondary; Accessible.name: "Find a playlist"; background: Rectangle { color: themeState.hover; radius: 4 } }
             ListView {
                 Layout.fillWidth: true; Layout.preferredHeight: 280; clip: true; model: libraryState.playlists
                 ScrollBar.vertical: ScrollBar {}
@@ -58,12 +58,12 @@ Item {
                     required property var modelData
                     width: ListView.view.width; height: visible ? 48 : 0; visible: !find.text || modelData.title.toLowerCase().indexOf(find.text.toLowerCase()) >= 0
                     enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode)
-                    contentItem: Text { text: modelData.title; textFormat: Text.PlainText; color: "white"; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                    contentItem: Text { text: modelData.title; textFormat: Text.PlainText; color: themeState.foreground; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                     onClicked: libraryState.add(modelData.id, root.target)
                 }
             }
             BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: libraryState.loadingPlaylists; visible: running }
-            Label { Layout.fillWidth: true; text: actionsState.message || libraryState.message || (!libraryState.loadingPlaylists && !libraryState.playlists.length ? "Create a playlist with New playlist, then add this song." : ""); textFormat: Text.PlainText; visible: !!text; wrapMode: Text.Wrap; color: Theme.secondary }
+            Label { Layout.fillWidth: true; text: actionsState.message || libraryState.message || (!libraryState.loadingPlaylists && !libraryState.playlists.length ? "Create a playlist with New playlist, then add this song." : ""); textFormat: Text.PlainText; visible: !!text; wrapMode: Text.Wrap; color: themeState.secondary }
             Button { text: "Retry"; visible: !!libraryState.message; onClicked: libraryState.choosePlaylist(root.target) }
         }
     }

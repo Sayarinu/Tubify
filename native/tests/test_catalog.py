@@ -10,11 +10,16 @@ def track(index):
 
 
 def test_normalizes_provider_variants_and_unavailable_tracks():
-    value = item({**track(1), "isAvailable": False, "setVideoId": "duplicate-entry", "thumbnails": [{"url": "https://example.com/a.jpg", "width": 300}]})
+    value = item({**track(1), "isAvailable": False, "setVideoId": "duplicate-entry", "thumbnails": [
+        {"url": "https://example.com/small.jpg", "width": 120, "height": 120},
+        {"url": "https://example.com/a.jpg", "width": 300, "height": 300},
+        {"url": "https://example.com/large.jpg", "width": 900, "height": 900},
+    ]})
     assert value["duration"] == 222
     assert not value["available"]
     assert value["setVideoId"] == "duplicate-entry"
     assert value["thumbnail"] == "https://example.com/a.jpg"
+    assert value["largeThumbnail"] == "https://example.com/large.jpg"
     assert item({"title": "Album", "browseId": "MPREfixture"})["kind"] == "album"
     assert item({"title": "Artist", "browseId": "UCfixture"})["kind"] == "artist"
     assert item({"title": "List", "playlistId": "PLfixture"})["kind"] == "playlist"

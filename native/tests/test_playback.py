@@ -391,4 +391,48 @@ def test_source_label_survives_pagination_manual_queue_and_restart(tmp_path):
     assert restored.entries[-1]["group"] == "Next from Evening mix"
     restored.playTracks(TRACKS)
     assert restored.entries[-1]["group"] == "Next up"
+    restored.playTracks(TRACKS, source_label="Radio")
+    assert restored.entries[-1]["group"] == "Next"
     restored.close()
+
+
+def test_entries_show_current_history_and_upcoming_tracks_in_order(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.playTracks([*TRACKS, {"videoId": "uvwxyz12345", "title": "Third"}], source_label="Time & Space")
+    player.select(1)
+
+    assert [(entry["title"], entry["group"], entry["movable"]) for entry in player.entries] == [
+        ("Next", "Now playing", False),
+        ("First", "Previously played", False),
+        ("Third", "Next from Time & Space", True),
+    ]
+    player.close()
+
+
+def test_selecting_history_key_restarts_playback_at_that_session_position(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.playTracks(TRACKS)
+    first_key = player.queue.current["key"]
+    player.next()
+
+    player.selectHistoryKey(first_key)
+
+    assert player.currentTrack["title"] == "First"
+    assert [entry["title"] for entry in player.entries] == ["First", "Next"]
+    assert player.entries[0]["group"] == "Now playing"
+    assert not any(entry["group"] == "Previously played" for entry in player.entries)
+    player.close()
+
+
+def test_dragging_source_song_into_manual_queue_updates_playback_model(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.playTracks(TRACKS, source_label="Album")
+    source_key = player.queue.remaining[0]["key"]
+    player.moveToManual(source_key)
+    assert player.entries[1]["key"] == source_key
+    assert player.entries[1]["group"] == "Next in queue"
+    assert all(entry["key"] != source_key for entry in player.queue.remaining)
+    player.close()

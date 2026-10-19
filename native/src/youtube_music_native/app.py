@@ -7,7 +7,7 @@ import sys
 import tempfile
 
 from PySide6.QtCore import QEvent, QStandardPaths, QTimer, QUrl
-from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication, QIcon
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QIcon, QPalette
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
@@ -25,18 +25,24 @@ from .library import Library
 from .listening import Listening
 from .lyric_view import LyricView
 from .desktop import Desktop
+from .theme import ThemeState
+from .color_picker import ColorSampler
 
 
 PACKAGE = Path(__file__).resolve().parent
 
 
-def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None, search=None, actions=None, library=None, lyrics=None):
+def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None, search=None, actions=None, library=None, lyrics=None, theme=None, color_sampler=None):
     engine = QQmlApplicationEngine()
     engine.setProperty("qmlWarnings", [])
     engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
     engine.rootContext().setContextProperty("appState", controller)
     engine.rootContext().setContextProperty("accountState", account)
     engine.rootContext().setContextProperty("playerState", player)
+    if theme:
+        engine.rootContext().setContextProperty("themeState", theme)
+    if color_sampler:
+        engine.rootContext().setContextProperty("colorSampler", color_sampler)
     if catalog:
         engine.rootContext().setContextProperty("catalogState", catalog)
     if browse:
@@ -93,6 +99,29 @@ def main(argv=None):
     cache.mkdir(parents=True, exist_ok=True, mode=0o700)
     fixture = json.loads((PACKAGE / "assets" / "visual-fixture.json").read_text()) if args.fixture else None
     controller = ShellController(data / "settings.ini", fixture)
+    theme = ThemeState(data / "theme.ini")
+    color_sampler = ColorSampler()
+
+    def apply_theme_palette():
+        palette = QPalette()
+        for role, color in (
+            (QPalette.ColorRole.Window, theme.background),
+            (QPalette.ColorRole.WindowText, theme.foreground),
+            (QPalette.ColorRole.Base, theme.background),
+            (QPalette.ColorRole.AlternateBase, theme.surface),
+            (QPalette.ColorRole.Text, theme.foreground),
+            (QPalette.ColorRole.Button, theme.surface),
+            (QPalette.ColorRole.ButtonText, theme.foreground),
+            (QPalette.ColorRole.Highlight, theme.accent),
+            (QPalette.ColorRole.HighlightedText, theme.onAccent),
+        ):
+            palette.setColor(role, QColor(color))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(theme.muted))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(theme.muted))
+        QGuiApplication.setPalette(palette)
+
+    apply_theme_palette()
+    theme.paletteChanged.connect(apply_theme_palette)
     account = Account(data / "settings.ini", fixture=args.fixture, parent=controller)
     catalog = CatalogView(account.worker, cache / "metadata.sqlite3", account, parent=controller)
     media_data = data if args.data_dir or args.smoke_test or args.screenshot else Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
@@ -118,7 +147,7 @@ def main(argv=None):
     app.aboutToQuit.connect(player.close)
     app.aboutToQuit.connect(downloads.close)
     app.aboutToQuit.connect(lyrics.close)
-    engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads, search, actions, library, lyrics)
+    engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads, search, actions, library, lyrics, theme, color_sampler)
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]

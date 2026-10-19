@@ -91,10 +91,12 @@ class Playback(QObject):
 
     @Property("QVariantList", notify=changed)
     def entries(self):
+        source_group = ("Next" if self.queue.source_label.casefold() == "radio" else "Next from " + self.queue.source_label) if self.queue.source_label else "Next up"
         groups = (("Now playing", [self.queue.current] if self.queue.current else []),
-                  ("Next in queue", self.queue.manual), ("Next from " + self.queue.source_label if self.queue.source_label else "Next up", self.queue.remaining))
+                  ("Previously played", reversed(self.queue.history)),
+                  ("Next in queue", self.queue.manual), (source_group, self.queue.remaining))
         return [{**entry["track"], "key": entry["key"], "current": group == "Now playing", "group": group,
-                 "movable": group != "Now playing"} for group, entries in groups for entry in entries]
+                 "movable": group not in ("Previously played", "Now playing")} for group, entries in groups for entry in entries]
 
     @Property(int, notify=changed)
     def manualCount(self):
@@ -228,6 +230,13 @@ class Playback(QObject):
             self.select(index)
 
     @Slot(str)
+    def selectHistoryKey(self, key):
+        self._transport_revision += 1
+        if self.queue.select_history(key):
+            self._failures = set()
+            self._start()
+
+    @Slot(str)
     def removeKey(self, key):
         index = self._key_index(key)
         if index >= 0:
@@ -244,6 +253,11 @@ class Playback(QObject):
         source, destination = self._key_index(key), self._key_index(target)
         if source >= 0 and destination >= 0:
             self.move(source, destination)
+
+    @Slot(str, str, bool)
+    def moveToManual(self, key, target="", after=False):
+        if self.queue.move_to_manual(key, target, after):
+            self._queue_changed()
 
     def _start(self, position=0, paused=False, force=False, damaged=False):
         self._stopped, self._device_wait = False, False

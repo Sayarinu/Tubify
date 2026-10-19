@@ -13,7 +13,7 @@ Menu {
     implicitWidth: 232
     padding: 8
     spacing: 2
-    background: Rectangle { radius: 12; color: Theme.surface; border.color: Theme.border; border.width: 1 }
+    background: Rectangle { radius: 12; color: themeState.surface; border.color: themeState.border; border.width: 1 }
     property bool playlistEntry: song && !!media.setVideoId && catalogState.route === "playlist" && catalogState.data.editable && context.playlistId === catalogState.parameters.id
     ContextMenuItem { text: "Play"; onTriggered: { if (root.context.queueKey) playerState.selectKey(root.context.queueKey); else browseState.play(root.media) } }
     ContextMenuItem { text: "Play next"; visible: root.queueable; height: visible ? implicitHeight : 0; onTriggered: browseState.enqueue(root.media, true) }

@@ -5,6 +5,7 @@ import "Theme.js" as Theme
 
 Item {
     id: root
+    objectName: "browsePane"
     property real gutter: Theme.gutter(width)
     property var result: catalogState.data
     property bool landing: catalogState.route === "home" || catalogState.route === "explore"
@@ -31,13 +32,20 @@ Item {
     Connections { target: catalogState; function onChanged() { root.restoreScroll() } }
     ListView {
         id: sections
+        objectName: "browseSections"
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: catalogState.route === "home" ? 46 : 32
         clip: true; spacing: 80; boundsBehavior: Flickable.StopAtBounds
         visible: (root.result.shelves || []).length > 0
         model: root.result.shelves || []
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
-        ScrollBar.vertical: ScrollBar {}
+        ScrollBar.vertical: ScrollBar {
+            objectName: "browseSectionsScrollbar"
+            parent: root
+            anchors.left: sections.right
+            anchors.top: sections.top
+            anchors.bottom: sections.bottom
+        }
         header: Item {
             width: sections.width
             height: catalogState.route === "home" ? 82 : catalogState.route === "explore" ? 144 : 112
@@ -49,8 +57,8 @@ Item {
                     id: mood
                     required property string modelData
                     text: modelData; height: 36; leftPadding: 13; rightPadding: 13
-                    palette.buttonText: Theme.foreground
-                    background: Rectangle { radius: 8; color: mood.hovered ? Theme.hover : Theme.surface; border.width: mood.visualFocus ? 2 : 0; border.color: "white" }
+                    palette.buttonText: themeState.foreground
+                    background: Rectangle { radius: 8; color: mood.hovered ? themeState.hover : themeState.surface; border.width: mood.visualFocus ? 2 : 0; border.color: themeState.foreground }
                     onClicked: browseState.homeMood(text)
                 }
             }
@@ -62,15 +70,15 @@ Item {
                         id: category
                         required property var modelData
                         Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.preferredHeight: 60
-                        background: Rectangle { radius: 6; color: category.hovered ? Theme.hover : Theme.surface; border.color: category.visualFocus ? Theme.accent : "transparent" }
-                        contentItem: Row { spacing: 14; leftPadding: 16; topPadding: 16; Symbol { name: category.modelData.icon; width: 24; height: 24; color: Theme.secondary } Text { text: category.modelData.title; color: "white"; font.pixelSize: 16; font.bold: true } }
+                        background: Rectangle { radius: 6; color: category.hovered ? themeState.hover : themeState.surface; border.color: category.visualFocus ? themeState.accent : "transparent" }
+                        contentItem: Row { spacing: 14; leftPadding: 16; topPadding: 16; Symbol { name: category.modelData.icon; width: 24; height: 24; color: themeState.secondary } Text { text: category.modelData.title; color: themeState.foreground; font.pixelSize: 16; font.bold: true } }
                         onClicked: browseState.shortcut(modelData.action)
                     }
                 }
             }
             Column {
                 width: parent.width; visible: !root.landing; spacing: 12
-                Text { width: parent.width; text: root.result.title || ""; textFormat: Text.PlainText; color: "white"; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; elide: Text.ElideRight }
+                Text { width: parent.width; text: root.result.title || ""; textFormat: Text.PlainText; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; elide: Text.ElideRight }
             }
         }
         delegate: Shelf {
@@ -94,7 +102,12 @@ Item {
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: 32; bottomMargin: 48; clip: true; visible: root.songs
         model: root.result.items || []; boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar {}
+        ScrollBar.vertical: ScrollBar {
+            parent: root
+            anchors.left: songList.right
+            anchors.top: songList.top
+            anchors.bottom: songList.bottom
+        }
         header: Column {
             width: songList.width; spacing: 20; bottomPadding: 32
             Row {
@@ -102,7 +115,7 @@ Item {
                 Cover { width: 128; height: 128; source: root.result.thumbnail || ""; visible: source.length > 0 }
                 Column {
                     width: parent.width - (root.result.thumbnail ? 152 : 0); spacing: 16
-                    Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true }
+                    Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true }
                     Button { text: "Play all"; onClicked: browseState.playView() }
                 }
             }
@@ -119,8 +132,13 @@ Item {
         topMargin: 32; bottomMargin: 48; clip: true
         visible: !root.songs && (root.result.items || []).length > 0
         cellWidth: Theme.cardWidth + 24; cellHeight: Theme.cardHeight + 24; model: root.result.items || []
-        ScrollBar.vertical: ScrollBar {}
-        header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; color: "white" } }
+        ScrollBar.vertical: ScrollBar {
+            parent: root
+            anchors.left: collectionGrid.right
+            anchors.top: collectionGrid.top
+            anchors.bottom: collectionGrid.bottom
+        }
+        header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; color: themeState.foreground } }
         delegate: MediaCard { required property var modelData; width: Theme.cardWidth; media: modelData; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
@@ -138,10 +156,10 @@ Item {
     Column {
         anchors.centerIn: parent; width: Math.min(parent.width - 80, 480); spacing: 18
         visible: !catalogState.busy && !(root.result.items || []).length && !(root.result.shelves || []).length && !root.moodItems().length
-        Text { width: parent.width; text: catalogState.error ? "Couldn’t load this page" : accountState.connected ? "No music here yet" : "Your music, ready when you are"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.family: Theme.headingFont; font.pixelSize: 30; font.bold: true; color: "white" }
-        Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Refresh to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15; color: Theme.secondary }
+        Text { width: parent.width; text: catalogState.error ? "Couldn’t load this page" : accountState.connected ? "No music here yet" : "Your music, ready when you are"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.family: Theme.headingFont; font.pixelSize: 30; font.bold: true; color: themeState.foreground }
+        Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Refresh to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15; color: themeState.secondary }
         Button { anchors.horizontalCenter: parent.horizontalCenter; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
     }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running && !(root.result.items || []).length && !(root.result.shelves || []).length }
-    Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(600, root.width - 48); padding: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music. Refresh when you’re online." : ""); visible: text.length > 0; color: Theme.secondary; background: Rectangle { color: Theme.surface; radius: 4 } }
+    Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(600, root.width - 48); padding: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music. Refresh when you’re online." : ""); visible: text.length > 0; color: themeState.secondary; background: Rectangle { color: themeState.surface; radius: 4 } }
 }

@@ -15,7 +15,7 @@ IconButton {
     readonly property real progress: song ? (downloadsState.trackProgress[mediaId] || 0) : (entry.progress || 0)
     iconName: status === "complete" || status === "ready" ? "circleCheck" : "download"
     tip: status === "complete" || status === "ready" ? entry.state === "complete" ? "Remove download" : "Downloaded" : status === "downloading" || status === "queued" ? "Cancel download" : status === "damaged" ? "Repair download" : "Download"
-    iconColor: status === "complete" || status === "ready" ? Theme.accent : status === "damaged" ? "#ffb4a6" : Theme.foreground
+    iconColor: status === "complete" || status === "ready" ? themeState.accent : status === "damaged" ? "#ffb4a6" : themeState.foreground
     enabled: !!mediaId && !(song && (status === "complete" || status === "ready") && entry.state !== "complete")
     onClicked: {
         if ((entry.state === "complete" || entry.state === "ready") && entry.key) downloadsState.remove(entry.key)
@@ -33,13 +33,13 @@ IconButton {
             ctx.clearRect(0, 0, width, height)
             ctx.beginPath()
             ctx.arc(width / 2, height / 2, 14, 0, Math.PI * 2)
-            ctx.strokeStyle = Theme.border
+            ctx.strokeStyle = themeState.border
             ctx.lineWidth = 2
             ctx.stroke()
             if (root.progress > 0) {
                 ctx.beginPath()
                 ctx.arc(width / 2, height / 2, 14, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, root.progress))
-                ctx.strokeStyle = Theme.accent
+                ctx.strokeStyle = themeState.accent
                 ctx.lineWidth = 2
                 ctx.lineCap = "round"
                 ctx.stroke()

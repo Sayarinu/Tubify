@@ -8,7 +8,7 @@ Item {
     property string source: ""
     property string mediaKey: ""
     clip: true
-    Rectangle { anchors.fill: parent; gradient: Gradient { GradientStop { position: 0; color: Theme.selected } GradientStop { position: 1; color: Theme.background } } }
+    Rectangle { anchors.fill: parent; gradient: Gradient { GradientStop { position: 0; color: themeState.selected } GradientStop { position: 1; color: themeState.background } } }
     Image {
         id: artwork
         objectName: "backdropImage"
@@ -31,7 +31,7 @@ Item {
         gradient: Gradient {
             GradientStop { position: 0; color: "#2014131b" }
             GradientStop { position: 0.55; color: "#9914131b" }
-            GradientStop { position: 1; color: Theme.background }
+            GradientStop { position: 1; color: themeState.background }
         }
     }
 }

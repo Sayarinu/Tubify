@@ -59,9 +59,9 @@ class Queue:
             self.current = self.manual.pop(0)
 
     def _remember(self):
-        if self.current:
+        if self.current and self.current in self.source:
             self.history.append(self.current)
-            self._history_sources.append(self.source[self.source_index]["key"] if self.source_index >= 0 else None)
+            self._history_sources.append(self.current["key"])
             self.history = self.history[-1000:]
             self._history_sources = self._history_sources[-1000:]
 
@@ -75,6 +75,13 @@ class Queue:
         if entry in self.manual:
             del self.manual[:self.manual.index(entry) + 1]
         else:
+            target_index = self.source.index(entry)
+            if target_index > self.source_index + 1:
+                skipped = self.source[self.source_index + 1:target_index]
+                self.history.extend(skipped)
+                self._history_sources.extend(item["key"] for item in skipped)
+                self.history = self.history[-1000:]
+                self._history_sources = self._history_sources[-1000:]
             self.source_index = self.source.index(entry)
         self.current = entry
         return entry
@@ -112,6 +119,21 @@ class Queue:
         anchor = self._history_sources.pop()
         self.source_index = next((index for index, entry in enumerate(self.source) if entry["key"] == anchor), -1)
         return self.current
+
+    def select_history(self, key):
+        index = next((i for i, entry in enumerate(self.history) if entry["key"] == key), -1)
+        if index < 0:
+            return None
+
+        target = self.history[index]
+        if target not in self.source:
+            return None
+        anchor = self._history_sources[index]
+        self.history = self.history[:index]
+        self._history_sources = self._history_sources[:index]
+        self.source_index = next((i for i, entry in enumerate(self.source) if entry["key"] == anchor), -1)
+        self.current = target
+        return target
 
     def clear_manual(self):
         self.manual = []
@@ -156,6 +178,22 @@ class Queue:
         group.insert(end, group.pop(origin))
         if group is self.source:
             self._original = [entry["key"] for entry in self.source]
+
+    def move_to_manual(self, key, target_key="", after=False):
+        moving = next((entry for entry in self.entries if entry["key"] == key), None)
+        target = next((entry for entry in self.entries if entry["key"] == target_key), None) if target_key else None
+        if moving is None or moving is self.current or target_key and (target is None or target is moving or target not in self.manual):
+            return False
+        if moving in self.manual:
+            self.manual.remove(moving)
+        elif moving in self.remaining:
+            self.source.remove(moving)
+            self._original = [entry_key for entry_key in self._original if entry_key != key]
+        else:
+            return False
+        index = self.manual.index(target) + int(bool(after)) if target else 0
+        self.manual.insert(index, moving)
+        return True
 
     def _shuffle_remaining(self):
         remaining = self.source[self.source_index + 1:]
@@ -220,6 +258,9 @@ class Queue:
                 source_keys = set(value["source"])
                 if not all(key is None or isinstance(key, str) and key in source_keys for key in history_sources):
                     return 0
+                retained = [(entry, anchor) for entry, anchor in zip(history, history_sources) if entry["key"] in source_keys]
+                history = [entry for entry, _ in retained]
+                history_sources = [anchor for _, anchor in retained]
                 current = pool[value["current"]] if value["current"] is not None else None
                 index = int(value["source_index"])
                 if not -1 <= index < max(1, len(source)) or (not source and index != -1):

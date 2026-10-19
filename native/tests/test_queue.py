@@ -38,13 +38,60 @@ def test_selection_history_and_removal_are_occurrence_based():
     assert queue.current["key"] == duplicate and names(queue.manual) == ["N"]
     queue.select(2)  # B, while preserving N.
     assert names(queue.manual) == ["N"]
-    assert queue.previous()["key"] == duplicate
     assert queue.previous()["key"] == original
     assert not queue.previous()
     assert names(queue.manual) == ["N"]  # Played entries never return to pending.
     assert queue.advance()["track"]["title"] == "N"
     assert queue.remove(0)
     assert queue.current["track"]["title"] == "B"
+
+
+def test_forward_selection_keeps_skipped_source_tracks_in_previous_history():
+    queue = Queue()
+    queue.replace(tracks("Main", "World", "Twinleaf", "Route"), source_label="Time & Space")
+
+    assert queue.select(2)["track"]["title"] == "Twinleaf"
+    assert names(queue.remaining) == ["Route"]
+    assert names(queue.history) == ["Main", "World"]
+    assert queue.previous()["track"]["title"] == "World"
+    assert queue.previous()["track"]["title"] == "Main"
+    assert queue.previous() is None
+    assert names(queue.remaining) == ["World", "Twinleaf", "Route"]
+
+
+def test_selecting_history_ignores_consumed_manual_tracks_and_preserves_pending_ones():
+    queue = Queue()
+    queue.replace(tracks("Main", "World", "Twinleaf", "Route"), source_label="Time & Space")
+    queue.append(tracks("Manual one", "Manual two"))
+    queue.advance()  # Manual one
+    queue.advance()  # Manual two
+    queue.advance()  # World
+    queue.advance()  # Twinleaf
+    queue.append(tracks("Still queued"))
+    main = next(entry for entry in queue.history if entry["track"]["title"] == "Main")
+
+    assert names(queue.history) == ["Main", "World"]
+    assert queue.select_history(main["key"]) is main
+    assert queue.current is main
+    assert names(queue.history) == []
+    assert names(queue.manual) == ["Still queued"]
+    assert names(queue.remaining) == ["World", "Twinleaf", "Route"]
+
+
+def test_restore_discards_legacy_manual_entries_from_history():
+    queue = Queue()
+    queue.replace(tracks())
+    queue.append(tracks("One-off"))
+    queue.advance()
+    snapshot = queue.snapshot()
+    manual_key = queue.current["key"]
+    snapshot["history"] = [manual_key]
+    snapshot["history_sources"] = [queue.source[0]["key"]]
+
+    restored = Queue()
+    assert restored.restore(snapshot) == 0
+    assert not restored.history
+    assert restored.current["key"] == manual_key
 
 
 def test_reorder_only_within_pending_groups_and_clear_keeps_current_and_source():
@@ -63,6 +110,37 @@ def test_reorder_only_within_pending_groups_and_clear_keeps_current_and_source()
     assert names(queue.manual) == ["N"]
     queue.clear_manual()
     assert names(queue.entries) == ["A", "C", "B"]
+
+
+def test_dragging_source_entries_into_manual_queue_transfers_them_and_preserves_order():
+    queue = Queue()
+    queue.replace(tracks(), source_label="Album")
+    queue.append(tracks("M", "N"))
+    moving_source = queue.remaining[0]["key"]
+    assert queue.move_to_manual(moving_source)
+    assert names(queue.manual) == ["B", "M", "N"]
+    assert names(queue.remaining) == ["C"]
+
+    moving_source = queue.remaining[0]["key"]
+    assert queue.move_to_manual(moving_source, queue.manual[0]["key"], after=True)
+    assert names(queue.manual) == ["B", "C", "M", "N"]
+    assert names(queue.remaining) == []
+    assert queue._original == [queue.source[0]["key"]]
+
+    moving_manual = queue.manual[-1]["key"]
+    assert queue.move_to_manual(moving_manual)
+    assert names(queue.manual) == ["N", "B", "C", "M"]
+    assert not queue.move_to_manual(queue.current["key"])
+
+
+def test_queue_transfer_rejects_current_and_non_manual_targets_without_mutating_state():
+    queue = Queue()
+    queue.replace(tracks())
+    queue.append(tracks("M"))
+    moving = queue.remaining[0]["key"]
+    before = deepcopy(queue.snapshot())
+    assert not queue.move_to_manual(moving, queue.remaining[-1]["key"])
+    assert queue.snapshot() == before
 
 
 def test_shuffle_repeat_source_and_manual_one_time(monkeypatch):
@@ -164,7 +242,8 @@ def test_previous_next_replays_source_without_reinserting_consumed_manual():
     queue.advance()
     assert queue.current["track"]["title"] == "C"
     queue.previous()
-    assert queue.current["track"]["title"] == "M" and not queue.manual
+    assert queue.current["track"]["title"] == "B" and not queue.manual
+    assert all(entry["track"]["title"] != "M" for entry in queue.history)
     assert queue.advance()["track"]["title"] == "C"
 
 

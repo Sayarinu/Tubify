@@ -16,7 +16,7 @@ def text(value):
     return value if isinstance(value, str) else ""
 
 
-def thumbnail(value):
+def thumbnail(value, largest=False):
     if isinstance(value, dict):
         value = value.get("thumbnails", [])
     if not isinstance(value, list):
@@ -24,7 +24,11 @@ def thumbnail(value):
     choices = [v for v in value if isinstance(v, dict) and text(v.get("url")).startswith("https://")]
     if not choices:
         return ""
-    return min(choices, key=lambda v: abs((v.get("width") or 300) - 300))["url"]
+    if largest:
+        choice = max(choices, key=lambda v: (v.get("width") or 0) * (v.get("height") or v.get("width") or 0))
+    else:
+        choice = min(choices, key=lambda v: abs((v.get("width") or 300) - 300))
+    return choice["url"]
 
 
 def duration(value):
@@ -66,15 +70,22 @@ def item(row, kind=None):
         artists = [{"name": text(author.get("name")), "id": text(author.get("id"))}]
     elif not artists and isinstance(author, list):
         artists = [a for a in author if isinstance(a, dict) and isinstance(a.get("name"), str)]
-    album = row.get("album") or {}
+    author_values = [author] if isinstance(author, dict) else author if isinstance(author, list) else []
+    author_ids = {text(a.get("name")).casefold(): text(a.get("id") or a.get("browseId") or a.get("channelId")) for a in author_values if isinstance(a, dict)}
+    raw_album = row.get("album")
+    album = raw_album if isinstance(raw_album, dict) else {"name": raw_album} if isinstance(raw_album, str) else {}
     return {
         "kind": kind, "id": identifier, "videoId": video, "browseId": browse, "playlistId": playlist,
         "label": text(row.get("type")) if kind == "album" else "",
         "setVideoId": text(row.get("setVideoId")),
         "title": title, "artist": " • ".join(a["name"] for a in artists) or text(author),
-        "artists": [{"name": a["name"], "id": text(a.get("id"))} for a in artists],
-        "album": {"name": text(album.get("name")), "id": text(album.get("id"))} if isinstance(album, dict) else {},
+        "artists": [{"name": a["name"], "id": text(a.get("id") or a.get("browseId") or a.get("channelId")) or author_ids.get(a["name"].casefold(), "")} for a in artists],
+        "album": {
+            "name": text(album.get("name") or row.get("albumName") or row.get("albumTitle")),
+            "id": text(album.get("id") or album.get("browseId") or row.get("albumId") or row.get("albumBrowseId")),
+        },
         "thumbnail": thumbnail(row.get("thumbnails") or row.get("thumbnail")),
+        "largeThumbnail": thumbnail(row.get("thumbnails") or row.get("thumbnail"), largest=True),
         "duration": duration(row.get("duration_seconds") or row.get("duration")),
         "views": text(row.get("views")).removesuffix(" plays"), "year": text(row.get("year")),
         "inLibrary": bool(row.get("inLibrary")),
@@ -197,7 +208,7 @@ class Catalog:
                 raw = {**candidate, "tracks": [], "trackCount": 0, "author": {"name": self.auth.profile.get("name", "Your music")}}
             if not isinstance(raw, dict) or not raw.get("title"):
                 raise CatalogError("This release is unavailable. Go back and choose another item.")
-            data.update(title=text(raw.get("title")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")), items=items(raw.get("tracks", []), "song"), editable=bool(raw.get("owned")))
+            data.update(title=text(raw.get("title")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")), largeThumbnail=thumbnail(raw.get("thumbnails"), largest=True), items=items(raw.get("tracks", []), "song"), editable=bool(raw.get("owned")))
             data.update(id=identifier, kind=route, artists=raw.get("artists") or [], year=text(raw.get("year")), trackCount=duration(raw.get("trackCount")) or len(data["items"]), duration=duration(raw.get("duration_seconds")), audioPlaylistId=text(raw.get("audioPlaylistId")), saved=bool(raw.get("isSaved")) or bool(data["items"]) and all(track.get("inLibrary") for track in data["items"]))
             data.update(author=text((raw.get("author") or {}).get("name")) if isinstance(raw.get("author"), dict) else text(raw.get("author")), privacy=text(raw.get("privacy")))
             if route == "album":
@@ -205,6 +216,7 @@ class Catalog:
                 for track in data["items"]:
                     track["album"] = {"name": data["title"], "id": identifier}
                     track["thumbnail"] = track["thumbnail"] or data["thumbnail"]
+                    track["largeThumbnail"] = track["largeThumbnail"] or data["largeThumbnail"]
                     if not track["artists"]:
                         track["artists"] = artists
                         track["artist"] = " • ".join(text(a.get("name")) for a in artists)

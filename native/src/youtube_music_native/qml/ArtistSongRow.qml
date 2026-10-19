@@ -12,17 +12,17 @@ FocusScope {
     Accessible.onPressAction: activated(media)
     Keys.onReturnPressed: activated(media)
     Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { appState.showMenu(root.media, {}); event.accepted = true } }
-    Rectangle { anchors.fill: parent; color: hover.hovered ? Theme.surface : "transparent"; border.color: root.activeFocus ? Theme.accent : "transparent" }
-    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.surface }
-    Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 32; height: 32; radius: 3; source: root.media.thumbnail || ""; mediaKey: root.media.videoId || root.media.id || ""; accent: root.media.accent || Theme.selected }
-    Text { x: 64; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.30; text: root.media.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: "white"; font.pixelSize: 14 }
-    Text { x: parent.width * 0.39; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.13; text: root.media.artist || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14; visible: root.width > 650 }
-    Text { x: parent.width * 0.54; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.13; text: root.media.views ? root.media.views + " plays" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14; visible: root.width > 650 }
+    Rectangle { anchors.fill: parent; color: hover.hovered ? themeState.surface : "transparent"; border.color: root.activeFocus ? themeState.accent : "transparent" }
+    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: themeState.surface }
+    Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 32; height: 32; radius: 3; source: root.media.thumbnail || ""; mediaKey: root.media.videoId || root.media.id || ""; accent: root.media.accent || themeState.selected }
+    Text { x: 64; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.30; text: root.media.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.foreground; font.pixelSize: 14 }
+    Text { x: parent.width * 0.39; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.13; text: root.media.artist || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: 14; visible: root.width > 650 }
+    Text { x: parent.width * 0.54; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.13; text: root.media.views ? root.media.views + " plays" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: 14; visible: root.width > 650 }
     Text {
         id: albumName
         x: parent.width * 0.69; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.23 - 112
         text: root.media.album ? root.media.album.name || "" : ""
-        textFormat: Text.PlainText; elide: Text.ElideRight; color: albumLink.containsMouse ? Theme.foreground : Theme.secondary; font.pixelSize: 14
+        textFormat: Text.PlainText; elide: Text.ElideRight; color: albumLink.containsMouse ? themeState.foreground : themeState.secondary; font.pixelSize: 14
         MouseArea {
             id: albumLink
             anchors.fill: parent; z: 2

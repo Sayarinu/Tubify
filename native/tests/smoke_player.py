@@ -11,6 +11,12 @@ from PySide6.QtTest import QTest
 from youtube_music_native import app
 
 
+def visual_items(item):
+    yield item
+    for child in item.childItems():
+        yield from visual_items(child)
+
+
 def main():
     original = app.load_window
     passed = []
@@ -24,11 +30,19 @@ def main():
             try:
                 position, playing = player.position, player.playing
                 player.enqueue([dict(entry) for entry in player.entries[:3]])
+                player.queue.source_label = "Fixture album"
+                player.appendContext([
+                    {"videoId": "source00001", "title": "Source one", "duration": 60},
+                    {"videoId": "source00002", "title": "Source two", "duration": 60},
+                ])
                 assert [row["group"] for row in player.entries[:4]] == ["Now playing"] + ["Next in queue"] * 3
                 shell.requestAction("expandPlayer")
                 QTest.qWait(80)
+                window.resize(1280, 1400)
+                QTest.qWait(80)
                 assert window.findChild(QObject, "expandedPlayer")
-                assert window.findChild(QObject, "queueList")
+                queue_list = window.findChild(QObject, "queueList")
+                assert queue_list
                 assert player.position == position and player.playing == playing
                 shell.setPlayerTab("Lyrics")
                 QTest.qWait(80)
@@ -74,9 +88,82 @@ def main():
                 QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
                 QTest.mouseMove(window, start + QPointF(0, 20).toPoint(), delay=30)
                 QTest.mouseMove(window, end, delay=30)
+                QTest.qWait(50)
+                preview = window.findChild(QObject, "queueDragPreview")
+                indicators = [node for node in visual_items(window.contentItem()) if node.objectName().startswith("expandedQueueDrop")]
+                assert preview and preview.isVisible()
+                assert any(node.isVisible() for node in indicators)
                 QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
                 QTest.qWait(50)
                 assert player.entries[2]["key"] == dragging
+                dragging = player.entries[1]["key"]
+                row = visual_item(window.contentItem(), "queueSong-" + dragging)
+                start = row.mapToScene(QPointF(min(60, row.width() - 120), row.height() / 2)).toPoint()
+                end = start + QPointF(0, 64).toPoint()
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
+                QTest.mouseMove(window, start + QPointF(0, 20).toPoint(), delay=30)
+                QTest.mouseMove(window, end, delay=30)
+                QTest.qWait(50)
+                preview = window.findChild(QObject, "queueDragPreview")
+                indicators = [node for node in visual_items(window.contentItem()) if node.objectName().startswith("expandedQueueDrop")]
+                assert preview and preview.isVisible()
+                assert any(node.isVisible() for node in indicators)
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
+                QTest.qWait(50)
+                assert player.entries[2]["key"] == dragging
+                source = next(row for row in player.entries if row["group"].startswith("Next from "))
+                first_manual = next(row for row in player.entries if row["group"] == "Next in queue")
+                source_row = visual_item(window.contentItem(), "queueSong-" + source["key"])
+                target_row = visual_item(window.contentItem(), "queueSong-" + first_manual["key"])
+                start = source_row.mapToScene(QPointF(min(60, source_row.width() - 120), source_row.height() / 2)).toPoint()
+                end = target_row.mapToScene(QPointF(100, target_row.height() / 2)).toPoint()
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
+                QTest.mouseMove(window, end, delay=40)
+                QTest.qWait(50)
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
+                QTest.qWait(50)
+                assert next(row for row in player.entries if row["key"] == source["key"])["group"] == "Next in queue"
+                source = next(row for row in player.entries if row["group"].startswith("Next from "))
+                source_row = visual_item(window.contentItem(), "queueSong-" + source["key"])
+                section = visual_item(window.contentItem(), "expandedQueueSectionHeader-Next in queue")
+                start = source_row.mapToScene(QPointF(min(60, source_row.width() - 120), source_row.height() / 2)).toPoint()
+                end = section.mapToScene(QPointF(section.width() / 2, section.height() / 2)).toPoint()
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
+                QTest.mouseMove(window, end, delay=40)
+                QTest.qWait(50)
+                queue_list = window.findChild(QObject, "queueList")
+                assert queue_list.property("dropToManual")
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
+                QTest.qWait(50)
+                assert next(row for row in player.entries if row["key"] == source["key"])["group"] == "Next in queue"
+                player.clearManualQueue()
+                QTest.qWait(50)
+                source = next(row for row in player.entries if row["group"].startswith("Next from "))
+                source_row = visual_item(window.contentItem(), "queueSong-" + source["key"])
+                section = visual_item(window.contentItem(), "expandedQueueSectionHeader-" + source["group"])
+                start = source_row.mapToScene(QPointF(min(60, source_row.width() - 120), source_row.height() / 2)).toPoint()
+                end = section.mapToScene(QPointF(section.width() / 2, section.height() / 2)).toPoint()
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
+                QTest.mouseMove(window, end, delay=40)
+                QTest.qWait(50)
+                assert queue_list.property("dropToManual")
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
+                QTest.qWait(50)
+                assert player.manualCount == 1
+                assert next(row for row in player.entries if row["key"] == source["key"])["group"] == "Next in queue"
+                queued_track = player.entries[-1]
+                artwork = next(node for node in visual_items(window.contentItem()) if node.objectName() == "queueArtworkActivate-" + queued_track["key"])
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=artwork.mapToScene(QPointF(artwork.width() / 2, artwork.height() / 2)).toPoint())
+                QTest.qWait(50)
+                assert player.currentTrack.get("videoId", player.currentTrack.get("id")) == queued_track.get("videoId", queued_track.get("id"))
+                assert len(player.queue.history) >= 2
+                skipped = [row["track"].get("videoId", row["track"].get("id")) for row in player.queue.history]
+                player._position = 0
+                player.previous()
+                assert player.currentTrack.get("videoId", player.currentTrack.get("id")) == skipped[-1]
+                player._position = 0
+                player.previous()
+                assert player.currentTrack.get("videoId", player.currentTrack.get("id")) == skipped[-2]
                 QTest.keyClick(window, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
                 QTest.qWait(30)
                 field = window.findChild(QObject, "searchField")
