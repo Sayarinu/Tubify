@@ -11,6 +11,7 @@ class FakeWorker(QObject):
         super().__init__()
         self.requests = []
         self.resets = 0
+        self.cancelled = []
 
     def request(self, operation, payload):
         self.requests.append((operation, payload))
@@ -18,6 +19,9 @@ class FakeWorker(QObject):
 
     def cancelQueued(self, identifier):
         pass
+
+    def cancel(self, identifier):
+        self.cancelled.append(identifier)
 
     def close(self):
         pass
@@ -80,6 +84,119 @@ def test_queue_restores_paused_and_stale_resolver_results_cannot_start_audio(tmp
     restored.close()
 
 
+def test_manual_play_cancels_active_prefetch_and_ignores_its_late_result(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks(TRACKS)
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/first.wav"})
+    prefetch = player._prepare_request
+    assert prefetch is not None
+    player.play(TRACKS[0])
+    assert prefetch in worker.cancelled
+    worker.succeeded.emit(prefetch, {"kind": "remote", "source": "https://media.invalid/stale", "videoId": TRACKS[1]["videoId"]})
+    assert not player._prepared
+    worker.succeeded.emit(len(worker.requests), {"kind": "local", "source": "/fixture/first.wav"})
+    assert player.sourceKind == "local" and player.playing
+    player.close()
+
+
+def test_restored_queue_preloads_paused_and_preserves_position_when_offline(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    seed = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    seed.playTracks(TRACKS)
+    seed.seek(32)
+    seed.close()
+    worker = FakeWorker()
+    restored = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    app.processEvents()
+    assert worker.requests[-1][1]["videoId"] == TRACKS[0]["videoId"]
+    worker.failed.emit(len(worker.requests), {"message": "Offline"})
+    app.processEvents()
+    assert not restored.playing and restored.currentTrack == TRACKS[0] and restored.position == 32
+    restored.resume()
+    source = {"kind": "remote", "source": "https://media.invalid/first", "videoId": TRACKS[0]["videoId"]}
+    worker.succeeded.emit(len(worker.requests), source)
+    assert restored.playing and restored.audio.loads[-1][1:] == (32, False)
+    restored.close()
+
+
+def test_restored_audio_is_loaded_paused_until_play_without_another_resolution(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    seed = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    seed.playTracks(TRACKS[:1])
+    seed.close()
+    worker = FakeWorker()
+    restored = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    app.processEvents()
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/first.wav"})
+    assert not restored.playing and restored.audio.loads[-1][2] is True
+    restored.resume()
+    assert restored.playing and not restored.audio.paused and len(worker.requests) == 1
+    restored.close()
+
+
+def test_desktop_play_unpauses_loaded_audio_while_waiting_for_cache(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    try:
+        player.playTracks(TRACKS[:1])
+        worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/first.wav"})
+        player.pause()
+        player.audio.updated.emit({"paused-for-cache": True})
+        player.resume()
+        assert player.playing and not player.audio.paused
+        assert not player._want_paused and len(worker.requests) == 1
+        player.audio.updated.emit({"paused-for-cache": False})
+        assert player.playing and not player.busy
+    finally:
+        player.close()
+
+
+def test_failed_paused_preload_retries_paused_and_keeps_the_queue_selection(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    seed = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    seed.playTracks(TRACKS)
+    seed.seek(32)
+    seed.close()
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    source = {"kind": "remote", "source": "https://media.invalid/first", "videoId": TRACKS[0]["videoId"]}
+    try:
+        app.processEvents()
+        worker.succeeded.emit(1, source)
+        player.audio.ended.emit(True)
+        worker.succeeded.emit(len(worker.requests), source)
+        assert not player.playing and player.audio.loads[-1][1:] == (32, True)
+        player.audio.ended.emit(True)
+        assert not player.playing and not player.busy
+        assert player.currentTrack == TRACKS[0] and player.position == 32
+    finally:
+        player.close()
+
+
+def test_restoring_at_end_of_song_keeps_playback_paused_and_replays_on_play(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    seed = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    seed.playTracks(TRACKS)
+    seed.seek(TRACKS[0]["duration"])
+    seed.close()
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    source = {"kind": "local", "source": "/fixture/first.wav"}
+    try:
+        app.processEvents()
+        worker.succeeded.emit(1, source)
+        player.audio.ended.emit(False)
+        assert not player.playing and player.currentTrack == TRACKS[0]
+        player.resume()
+        worker.succeeded.emit(len(worker.requests), source)
+        assert player.playing and player.audio.loads[-1][1:] == (0, False)
+    finally:
+        player.close()
+
+
 def test_failed_source_retries_once_then_skips_and_prepares_upcoming(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     worker = FakeWorker()
@@ -95,6 +212,24 @@ def test_failed_source_retries_once_then_skips_and_prepares_upcoming(tmp_path):
     assert player.currentTrack["title"] == "Next"
     assert not worker.requests[-1][1]["force"]
     player.close()
+
+
+def test_previous_reuses_recent_source_after_worker_hibernation_without_saving_it(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    first = {"kind": "remote", "source": "https://media.invalid/first-signed", "videoId": TRACKS[0]["videoId"], "expires": 4102444800, "headers": []}
+    upcoming = {**first, "source": "https://media.invalid/next-signed", "videoId": TRACKS[1]["videoId"]}
+    player.playTracks(TRACKS)
+    worker.succeeded.emit(1, first)
+    worker.succeeded.emit(player._prepare_request, upcoming)
+    player.next()
+    assert worker.requests[-1][1]["prepared"] == upcoming
+    worker.succeeded.emit(len(worker.requests), upcoming)
+    player.previous()
+    assert worker.requests[-1][1]["prepared"] == first
+    player.close()
+    assert "media.invalid" not in player.path.read_text()
 
 
 def test_stale_autoplay_result_cannot_replace_a_new_manual_queue(tmp_path):

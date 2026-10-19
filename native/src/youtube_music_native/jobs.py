@@ -53,6 +53,17 @@ class Worker(QObject):
     def cancelQueued(self, identifier):
         self._queue = deque(request for request in self._queue if request["id"] != identifier)
 
+    def cancel(self, identifier):
+        self.cancelQueued(identifier)
+        if self._active and self._active["id"] == identifier:
+            self.timer.stop()
+            self._active = None
+            self._hibernating = True
+            if self.process.state() != QProcess.ProcessState.NotRunning:
+                self._signal_process(force=True)
+            else:
+                QTimer.singleShot(0, self._restart_if_stopped)
+
     def _pump(self):
         if self._closed or self._hibernating or self._active or not self._queue:
             return

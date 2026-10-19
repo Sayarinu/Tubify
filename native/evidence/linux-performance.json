@@ -1,0 +1,292 @@
+{
+  "ticket": "LUNE-349",
+  "status": "passed",
+  "matched_comparison": true,
+  "soak_stable": true,
+  "measurements": {
+    "scroll_p95_frame_ms": 16.662,
+    "local_input_p95_ms": 0.691,
+    "wrapper_steady_pss_mib": 775.559,
+    "wrapper_skip_p95_ms": 242.779,
+    "mixed_use_soak_seconds": 1800.5,
+    "cold_shell_max_ms": 409.026,
+    "warm_shell_max_ms": 390.876,
+    "local_audio_max_ms": 245.834,
+    "native_steady_pss_mib": 266.591,
+    "native_minimized_cpu_percent_one_core": 1.533,
+    "native_stream_start_p95_ms": 23.497,
+    "wrapper_stream_start_p95_ms": 24.454,
+    "native_skip_p95_ms": 141.756
+  },
+  "mixed_use_soak": {
+    "revision": "7e950fbd84e9e340a5ca0be19adb50a429097456",
+    "content": "Synthetic views and generated local silent WAV; not real-account streaming",
+    "renderer": "Offscreen OpenGL",
+    "duration_seconds": 1800.5,
+    "all_workers_counted": true,
+    "steady_pss_mib": 263.061,
+    "peak_pss_mib": 281.536,
+    "five_minute_median_pss_mib": [
+      259.729,
+      265.186,
+      265.267,
+      263.8,
+      261.977,
+      263.539
+    ],
+    "rounded_artwork_checks": 1323,
+    "qml_clean": true,
+    "passed": true,
+    "scope": "Predates device-pixel-ratio artwork sizing and restored-queue preloading; repeated navigation uses real local playback, not remote extraction"
+  },
+  "wrapper": {
+    "account": "Real imported account; private track and session data excluded",
+    "content_match": "Exact title, artist and duration matched privately for the native comparison",
+    "platform": "Arch Linux, KDE Wayland; installed Tauri/WebKit wrapper through X11",
+    "client_size": [
+      1280,
+      820
+    ],
+    "output": "Temporary silent PulseAudio sink, removed after the check",
+    "all_workers_counted": true,
+    "processes": 4,
+    "visible_sample_seconds": 20.052,
+    "steady_pss_mib": 775.559,
+    "minimized_sample_seconds": 30.077,
+    "minimized_pss_mib": 778.703,
+    "minimized_cpu_percent_one_core": 1.995,
+    "next_ms": [
+      145.173,
+      126.189,
+      125.916
+    ],
+    "previous_ms": [
+      242.779,
+      227.169,
+      213.022
+    ],
+    "skip_method": "MPRIS command until changed expected metadata, Playing and position above 30 ms and below 3 s; 10 ms polling",
+    "original_track_position_pause_and_volume_restored": true,
+    "startup_limitation": "Initial resume timing could accept the existing position without proving new progress; excluded from the startup release gate",
+    "prepared_resumes": {
+      "resume_ms": [
+        7.42,
+        10.448,
+        10.583,
+        24.277,
+        24.454
+      ],
+      "method": "10 ms polling until 30 ms of new playback progress",
+      "output": "same silent PulseAudio sink as native",
+      "restored": true,
+      "output_route_verified": true,
+      "mute_restored": true
+    }
+  },
+  "interaction_diagnostic": {
+    "content": "10,000 synthetic songs; five-second animated scroll and twenty mute-key responses",
+    "renderer": "Offscreen software, with device-pixel-ratio artwork sizing",
+    "shell_ms": 262.135,
+    "scroll_mean_fps": 62.49,
+    "scroll_p95_frame_ms": 16.621,
+    "local_input_p95_ms": 5.672,
+    "qml_clean": true,
+    "scope": "Software diagnostic; desktop GPU results are recorded separately"
+  },
+  "desktop_interaction": {
+    "content": "10,000 synthetic songs; five-second animated scroll and twenty mute-key responses",
+    "renderer": "KDE Wayland, OpenGL, 1280 by 820",
+    "shell_ms": 382.803,
+    "scroll_mean_fps": 62.5,
+    "scroll_p95_frame_ms": 16.662,
+    "local_input_p95_ms": 0.691,
+    "local_input_max_ms": 0.986,
+    "qml_clean": true,
+    "all_views_both_sizes_gpu_check": "passed",
+    "python_regressions": "112 tests passed after the playback and database follow-ups, including the loopback HTTP download-resume test"
+  },
+  "native_dummy_output": {
+    "content": "Same two real-account tracks as the wrapper; isolated app data",
+    "platform": "KDE Wayland, OpenGL, 1280 by 820",
+    "output": "libmpv null driver; different from the wrapper's silent PulseAudio device",
+    "shell_ms": 308.802,
+    "paused_preload_ready_ms": 2708.947,
+    "steady_pss_mib": 260.907,
+    "minimized_pss_mib": 260.946,
+    "minimized_cpu_percent_one_core": 0.933,
+    "all_workers_counted": true,
+    "steady_processes": 2,
+    "minimize_confirmed_by_kwin": true,
+    "resume_ms": [
+      99.474,
+      99.306,
+      99.237,
+      99.265,
+      99.209
+    ],
+    "next_ms": [
+      295.054,
+      69.763,
+      50.413
+    ],
+    "previous_ms": [
+      73.982,
+      122.249,
+      123.729
+    ],
+    "qml_clean": true,
+    "scope": "The complete scenario passed, but its first skip exceeded the initial wrapper result. Audio outputs and position-sampling methods must be aligned before concluding streaming equivalence. This is not the final streaming release result."
+  },
+  "native_matched_attempt": {
+    "content": "Same two real-account tracks as the wrapper; isolated app data and null audio output",
+    "platform": "KDE Wayland, OpenGL, 1280 by 820",
+    "shell_ms": 346.486,
+    "paused_preload_ready_ms": 3162.263,
+    "initial_four_process_pss_mib": [
+      362.298,
+      362.325,
+      363.536
+    ],
+    "later_three_process_pss_mib": [
+      282.802,
+      282.821
+    ],
+    "completed": false,
+    "limitation": "The harness incorrectly required Qt's single window-state value to equal Minimized. It stopped at that assertion before minimized and skip measurements. Initial resource samples include startup/extraction workers and do not establish steady playback. The revised harness verifies only its own window through KWin, waits for worker idling and reports callback errors immediately."
+  },
+  "local_audio_diagnostic": {
+    "content": "Generated silent WAV through the real source worker and libmpv null output",
+    "first_start_ms": 208.3,
+    "warm_start_max_ms": 11.8,
+    "warm_samples": 12,
+    "blocked_prefetch_before_ms": 2910.17,
+    "blocked_prefetch_after_ms": 50.44
+  },
+  "repeated_launch_diagnostic": {
+    "shell_ms": [
+      273.733,
+      259.701,
+      250.554,
+      253.496,
+      251.48,
+      248.053
+    ],
+    "platform": "Offscreen software",
+    "content": "Synthetic fixture in a new process for each launch; includes process creation",
+    "passed": true,
+    "scope": "Existing OS file cache; not a machine cold boot or desktop GPU measurement"
+  },
+  "common_audio_attempt": {
+    "output": "The same temporary silent PulseAudio sink for both clients",
+    "wrapper_resume_ms": [
+      16.996,
+      26.634,
+      24.043,
+      22.872,
+      22.504
+    ],
+    "wrapper_method": "10 ms polling until at least 30 ms of new playback progress",
+    "wrapper_route_verified_and_playback_restored": true,
+    "native_shell_ms": 313.683,
+    "native_completed": false,
+    "native_failed_phase": "preload",
+    "native_failure": "Generic provider error before audio was loaded; exception category is not yet known",
+    "isolated_follow_up": "The same saved session and private track subsequently resolved successfully in a read-only source check; Node was available",
+    "scope": "Incomplete comparison; it does not establish equivalent streaming performance"
+  },
+  "remaining": [],
+  "buffered_resume_follow_up": {
+    "bugs_reproduced_before_fix": [
+      "Desktop Play changed intent without unpausing an already loaded track while paused-for-cache was true",
+      "A failed paused preload could restart unpaused during source retry"
+    ],
+    "fix": "Resume the loaded decoder while buffering, keep the explicit pause intent current, and preserve paused selection through retry/end events",
+    "targeted_checks": "19 playback, desktop and source tests passed",
+    "locally_runnable_suite": "109 passed; the unchanged HTTP server test requires the host socket permission",
+    "generated_pulse_audio_probe": "User verified the pulse backend, one stream, advancing silent local audio and no warnings/errors",
+    "remaining_verification": "Shared-output real-account comparison passed; details are in native_common_output",
+    "additional_check": "A restored end-of-song position stays paused on the same song and explicit Play restarts it from zero"
+  },
+  "environment_limitation": "Automatic approval review intermittently fails because its model is at capacity. The wrapper baseline was completed using the prepared harness in the user's terminal. The native harness is prepared for the same fallback.",
+  "native_common_output": {
+    "shell_ms": 308.821,
+    "preload_ready_ms": 2517.617,
+    "steady_pss_mib": 266.591,
+    "minimized_pss_mib": 268.536,
+    "minimized_cpu_one_core_percent": 1.533,
+    "resume_ms": [
+      23.497,
+      10.936,
+      11.358,
+      11.01,
+      11.049
+    ],
+    "next_ms": [
+      141.756,
+      31.817,
+      31.942
+    ],
+    "previous_ms": [
+      41.317,
+      31.795,
+      41.322
+    ],
+    "all_workers_counted": true,
+    "output_route_verified": true,
+    "qml_clean": true,
+    "platform": "wayland",
+    "renderer": "GraphicsApi.OpenGL",
+    "client_size": [
+      1280,
+      820
+    ],
+    "output": "Same temporary silent PulseAudio sink as wrapper",
+    "visible_sample_seconds": 20.001,
+    "minimized_sample_seconds": 30.0,
+    "scope": "Prepared current-track resumes and queue skips, with 10 ms polling for 30 ms of new progress. Cold remote extraction is reported separately as paused preload time. This run precedes the database initialization follow-up."
+  },
+  "repeated_gpu_launches": {
+    "shell_ms": [
+      409.026,
+      390.876,
+      363.47,
+      378.526,
+      356.594,
+      371.514
+    ],
+    "renderer": "Offscreen OpenGL",
+    "content": "Synthetic shell; each sample starts a new app process",
+    "includes_process_creation": true,
+    "passed": true,
+    "scope": "Existing OS file cache; not a machine cold boot"
+  },
+  "local_pulse_audio_starts": {
+    "local_start_ms": [
+      245.834,
+      54.794,
+      57.618,
+      56.707,
+      56.19,
+      56.715
+    ],
+    "method": "10 ms polling until the expected new local path has 30 ms playback progress",
+    "output": "temporary silent PulseAudio sink",
+    "no_authentication_or_stream_resolution": true,
+    "output_route_verified": true,
+    "route_check_after_progress_ms": 11.385,
+    "passed": true,
+    "max_ms": 245.834
+  },
+  "database_startup_follow_up": {
+    "reproduced": "Both media and metadata stores failed concurrent fresh-database initialization with SQLITE_BUSY before the fix",
+    "fix": "Bounded retry only for SQLite busy/locked journal-mode transitions; other database errors propagate",
+    "verification": "Both concurrent initialization regressions pass, including 120 real database opens",
+    "relationship_to_preload_failure": "A reproduced plausible cause; the original account preload exception was not captured"
+  },
+  "limitations": [
+    "The stable 30-minute synthetic soak ran on the recorded parent revision before the final playback, artwork and database follow-ups.",
+    "Launch samples use existing OS file caches; the GPU repeats render synthetic UI while the separate account comparison supplies actual desktop shell timing.",
+    "Streaming click timings cover prepared current tracks and queued skips; asynchronous cold extraction is reported separately.",
+    "Physical sleep/wake remains deferred at the user's request; see linux-verification.json."
+  ]
+}

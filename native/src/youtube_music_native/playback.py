@@ -78,6 +78,11 @@ class Playback(QObject):
         self.save_timer.timeout.connect(self.save)
         if not self._fixture:
             self.save_timer.start()
+            QTimer.singleShot(0, self._restore_current)
+
+    def _restore_current(self):
+        if not self._closed and not self._transport_revision and self.hasTrack and self.worker:
+            self._start(self._position, paused=True)
 
     @Property("QVariantMap", notify=changed)
     def currentTrack(self):
@@ -217,9 +222,9 @@ class Playback(QObject):
         self._stopped, self._device_wait = False, False
         if self.worker:
             if self._request is not None:
-                self.worker.cancelQueued(self._request)
+                self.worker.cancel(self._request)
             if self._prepare_request is not None:
-                self.worker.cancelQueued(self._prepare_request)
+                self.worker.cancel(self._prepare_request)
         if self.radio_worker and self._radio_request is not None:
             self.radio_worker.cancelQueued(self._radio_request)
         self._radio_request, self._prepare_request, self._preparing_video = None, None, None
@@ -250,12 +255,12 @@ class Playback(QObject):
     def _resolved(self, identifier, source):
         if identifier == self._prepare_request:
             self._prepare_request, self._preparing_video = None, None
-            if source.get("videoId"):
-                self._prepared = {source["videoId"]: source}
+            self._remember_source(source)
             return
         if identifier != self._request:
             return
         self._request, self._busy = None, False
+        self._remember_source(source)
         try:
             if self.audio is None:
                 self.audio = self.audio_factory(parent=self)
@@ -276,6 +281,14 @@ class Playback(QObject):
             self._playing = False
         self.changed.emit()
 
+    def _remember_source(self, source):
+        if source.get("kind") == "remote" and source.get("videoId"):
+            # Keep recent sources across worker hibernation, only in memory.
+            self._prepared.pop(source["videoId"], None)
+            self._prepared[source["videoId"]] = source
+            while len(self._prepared) > 3:
+                self._prepared.pop(next(iter(self._prepared)))
+
     @Slot(int, dict)
     def _failed(self, identifier, error):
         if identifier == self._prepare_request:
@@ -286,7 +299,8 @@ class Playback(QObject):
         self._request, self._busy = None, False
         self._message = error.get("message", "This song could not be played.")
         self.changed.emit()
-        QTimer.singleShot(0, self._skip_failed)
+        if not self._want_paused:
+            QTimer.singleShot(0, self._skip_failed)
 
     @Slot(dict)
     def _audio_update(self, values):
@@ -310,10 +324,17 @@ class Playback(QObject):
         if failed:
             if not self._retry:
                 self._retry = True
-                self._start(self._position, force=True, damaged=self._source_kind == "local")
+                self._start(self._position, paused=self._want_paused, force=True, damaged=self._source_kind == "local")
+            elif self._want_paused:
+                self._playing, self._busy = False, False
+                self._message = "This song could not be played. Press Play to retry."
+                self.changed.emit()
             else:
                 self._message = "This song could not be played. Skipping to the next song."
                 self._skip_failed()
+        elif self._want_paused:
+            self._playing, self._busy = False, False
+            self.changed.emit()
         else:
             self._failures = 0
             self._advance(automatic=True)
@@ -344,6 +365,7 @@ class Playback(QObject):
                 self._start(0 if self._duration and self._position >= self._duration - 0.2 else self._position)
             return
         self._playing = not self._playing
+        self._want_paused = not self._playing
         if self.audio:
             self.audio.pause(not self._playing)
         self.changed.emit()
@@ -364,7 +386,7 @@ class Playback(QObject):
         self._transport_revision += 1
         if self.wantsPlayback or not self.hasTrack:
             return
-        if self._busy:
+        if self._busy and not self._loaded:
             self._want_paused = False
             self.changed.emit()
         else:
@@ -546,7 +568,7 @@ class Playback(QObject):
                 if video_id in self._prepared or self._prepare_request is not None and video_id == self._preparing_video:
                     return
                 if self._prepare_request is not None:
-                    self.worker.cancelQueued(self._prepare_request)
+                    self.worker.cancel(self._prepare_request)
                 self._preparing_video = video_id
                 self._prepare_request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id})
 

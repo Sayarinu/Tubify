@@ -26,8 +26,8 @@ Rectangle {
         }
         asynchronous: true
         fillMode: Image.PreserveAspectCrop
-        sourceSize.width: Math.ceil(root.width * 2)
-        sourceSize.height: Math.ceil(root.height * 2)
+        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio)
+        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio)
         layer.enabled: root.ready && root.radius > 0 && GraphicsInfo.api !== GraphicsInfo.Software
         layer.effect: MultiEffect { maskEnabled: true; maskSource: roundedMask; autoPaddingEnabled: false }
     }

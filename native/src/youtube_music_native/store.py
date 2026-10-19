@@ -2,17 +2,17 @@
 
 import json
 from pathlib import Path
-import sqlite3
 import time
 import zlib
+
+from .database import connect
 
 
 class MetadataStore:
     def __init__(self, path):
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.db = sqlite3.connect(path)
-        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db = connect(path)
         self.db.execute("""CREATE TABLE IF NOT EXISTS views (
             key TEXT PRIMARY KEY, saved REAL NOT NULL, body BLOB NOT NULL)""")
 

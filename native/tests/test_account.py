@@ -1,4 +1,5 @@
 from PySide6.QtCore import QCoreApplication, QEventLoop, QObject, QTimer, Signal
+import sys
 
 from youtube_music_native.account import Account
 from youtube_music_native.jobs import Worker
@@ -94,3 +95,27 @@ def test_idle_worker_releases_process_and_starts_again_for_next_request():
     loop.exec()
     worker.close()
     assert results == [1, 2] and len(starts) == 2
+
+
+def test_cancelling_an_active_job_preserves_later_queued_work():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = Worker()
+    worker.process.setArguments(["-u", "-c", "import json,sys,time\nfor line in sys.stdin:\n r=json.loads(line)\n if r['operation']=='slow': time.sleep(5)\n print(json.dumps({'id':r['id'],'ok':True,'result':{}}),flush=True)"])
+    worker.process.setProgram(sys.executable)
+    loop = QEventLoop()
+    results, failures = [], []
+    worker.succeeded.connect(lambda identifier, value: (results.append(identifier), loop.quit() if len(results) == 2 else None))
+    worker.failed.connect(lambda identifier, error: failures.append(identifier))
+    slow = worker.request("slow")
+    second = worker.request("fast")
+    def cancel_active():
+        if not worker._active:
+            QTimer.singleShot(10, cancel_active)
+            return
+        worker.cancel(slow)
+        worker.request("fast")
+    QTimer.singleShot(30, cancel_active)
+    QTimer.singleShot(2000, loop.quit)
+    loop.exec()
+    worker.close()
+    assert results == [second, 3] and not failures

@@ -1,4 +1,4 @@
-"""Non-blocking download controls, with separate planning and transfer workers."""
+"""Local download controls stay independent of online planning and transfers."""
 
 from pathlib import Path
 import json
@@ -18,7 +18,9 @@ class DownloadView(QObject):
         super().__init__(parent)
         self.data_dir, self.fixture = str(Path(data_dir)), fixture
         self.control = None if fixture else Worker(self, idle_ms=30000)
+        self.planner = None if fixture else Worker(self, idle_ms=1000)
         self.transfer = None if fixture else Worker(self, idle_ms=1000)
+        self._planning = set()
         self._collections, self._pending, self._stopped = [], {}, []
         self._track_states, self._open_request = {}, None
         self._artwork, self._initialized = {}, fixture
@@ -41,6 +43,8 @@ class DownloadView(QObject):
         if self.control:
             self.control.succeeded.connect(self._result)
             self.control.failed.connect(self._failed)
+            self.planner.succeeded.connect(self._scheduled)
+            self.planner.failed.connect(self._schedule_failed)
             self.transfer.succeeded.connect(self._transferred)
             self.transfer.failed.connect(self._transfer_failed)
             self.transfer.progress.connect(self._progress)
@@ -102,8 +106,22 @@ class DownloadView(QObject):
             self.changed.emit()
             return
         self._message = "Preparing download…"
-        self._send("schedule", {"media": dict(media)})
+        self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media)}))
         self.changed.emit()
+
+    def _scheduled(self, identifier, result):
+        if identifier not in self._planning:
+            return
+        self._planning.remove(identifier)
+        self._send("status", authoritative=True)
+
+    def _schedule_failed(self, identifier, error):
+        if identifier not in self._planning:
+            return
+        self._planning.remove(identifier)
+        if not self._resetting:
+            self._message = error.get("message", "This download could not be prepared. Retry.")
+            self.changed.emit()
 
     @Slot()
     def refresh(self):
@@ -195,7 +213,7 @@ class DownloadView(QObject):
             return
         if identifier < self._minimum_request or operation is None:
             return
-        self._message = ""
+        self._message = "Preparing download…" if self._planning else ""
         self._collections = result.get("collections", [])
         self._track_states = result.get("trackStates", {})
         self._artwork, self._initialized = result.get("artwork", {}), True
@@ -258,6 +276,8 @@ class DownloadView(QObject):
         if not self.control:
             return
         self._resetting = True
+        self._planning.clear()
+        self.planner.reset()
         self._active, self._transfer_request, self._next = None, None, None
         self.poll.stop()
         self.control.reset()
@@ -271,4 +291,5 @@ class DownloadView(QObject):
         self.poll.stop()
         if self.control:
             self.control.close()
+            self.planner.close()
             self.transfer.close()

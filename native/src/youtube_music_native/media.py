@@ -2,15 +2,15 @@
 
 from pathlib import Path
 import os
-import sqlite3
+
+from .database import connect
 
 
 class MediaFiles:
     def __init__(self, root):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.db = sqlite3.connect(self.root / "media.sqlite3")
-        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db = connect(self.root / "media.sqlite3")
         self.db.execute("""CREATE TABLE IF NOT EXISTS audio (
             video_id TEXT PRIMARY KEY, path TEXT NOT NULL, bytes INTEGER NOT NULL,
             state TEXT NOT NULL DEFAULT 'ready')""")
