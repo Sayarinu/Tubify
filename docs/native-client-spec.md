@@ -81,11 +81,13 @@ Fix missed targets before the Linux release and attach actual results. Visual ch
 | Reference | Evidence and follow-up |
 | --- | --- |
 | Home/sidebar/search/shelves/bottom player | Running app inspected during planning; private capture is outside the repository |
-| Explore/search/library | Explore and Library captured privately; search input inspected through accessibility. Search-results visual comparison remains in LUNE-348 |
-| Playlist/album/artist | Album/artist private captures and playlist accessibility geometry inspected; live native pages checked at both sizes. Final playlist screenshot comparison remains in LUNE-348 |
-| Expanded player/queue/lyrics | Expanded artwork/queue/tab geometry inspected through accessibility; native layouts checked at both sizes, with queue keyboard editing and missing/timed lyric tests. KDE denied targeted window capture; final screenshot comparison remains in LUNE-348 |
+| Explore/search/library | Explore and Library captured privately; search input inspected through accessibility. Native fixture layouts checked at both sizes; direct search-results screenshot comparison remains unavailable |
+| Playlist/album/artist | Album/artist private references and playlist accessibility geometry inspected; native layouts checked at both sizes. Full-width artist artwork, circular cards and bounded retry messages verified; direct playlist screenshot comparison remains unavailable |
+| Expanded player/queue/lyrics | Expanded artwork/queue/tab geometry inspected through accessibility; native layouts checked at both sizes, with queue keyboard editing and missing/timed lyric tests. KDE denied targeted window capture, so direct screenshot comparison remains unavailable |
 | Downloads | New view following the existing visual language |
 | Performance | Preliminary memory sample only; controlled baseline belongs to the verification work |
+
+The verification checklist and limitations are recorded in native/evidence/linux-verification.json. Synthetic rendering checks cover every required view, keyboard/accessibility behavior and a virtualized 10,000-song list. Reference geometry and inspected captures support close visual parity, but the unavailable reference screenshots prevent a complete pixel comparison. Actual machine sleep/wake remains deferred at the user's request; simulated recovery is reported separately.
 
 ## Linear delivery
 

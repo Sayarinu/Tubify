@@ -26,6 +26,7 @@ FocusScope {
         id: cover
         width: root.width
         height: width
+        radius: root.media.kind === "artist" ? width / 2 : 8
         source: root.media.thumbnail || ""
         mediaKey: root.media.kind === "album" || root.media.kind === "playlist" ? root.media.kind + ":" + root.media.id : root.media.videoId || root.media.id || ""
         accent: root.media.accent || "#283238"

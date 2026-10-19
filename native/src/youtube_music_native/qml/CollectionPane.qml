@@ -58,7 +58,7 @@ Item {
     }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running && !(root.album.items || []).length }
     Text { anchors.centerIn: songs; width: songs.width - 32; text: "Add songs from a song’s menu."; visible: root.playlist && !catalogState.busy && !catalogState.error && !(root.album.items || []).length; textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; color: Theme.secondary; font.pixelSize: 16 }
-    Row { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; visible: !!catalogState.error; spacing: 12; Label { anchors.verticalCenter: parent.verticalCenter; text: catalogState.error; textFormat: Text.PlainText; color: Theme.secondary } Button { text: "Retry"; enabled: !catalogState.busy; onClicked: catalogState.refresh() } }
+    RetryBanner { message: catalogState.error; busy: catalogState.busy; onRetry: catalogState.refresh() }
     property int revision: -1
     function restoreScroll() {
         if (catalogState.busy || revision === catalogState.revision) return

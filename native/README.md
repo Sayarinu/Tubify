@@ -48,6 +48,14 @@ The expanded player retains audio and position while switching views, and includ
 
 Press `?` for keyboard shortcuts: Space toggles playback, Shift+N/P changes tracks, arrows seek, M mutes, S/R changes shuffle/repeat, and F/Escape opens/closes the player. Playback shortcuts respect text fields, account/playlist dialogs and menus. `/` or Ctrl+F focuses search.
 
+The visual verification script renders all required views at 1280×820 and 920×620 with synthetic content, checks accessible control names and a 10,000-song list, and can run a mixed-use local-audio soak:
+
+```sh
+python native/tests/smoke_visual.py --output-dir /tmp/native-visual-check
+```
+
+On Linux, `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=rhi QSG_RHI_BACKEND=opengl` with `--native-gpu` also verifies rounded artwork without mapping a desktop window. `--soak-seconds 300` adds generated silent audio and repeated navigation. The software renderer checks layout and controls; image masking requires the normal GPU renderer. Evidence and outstanding reference-capture limits are in evidence/linux-verification.json. The performance ticket separately measures latency, resources and a 30-minute soak.
+
 ## Account and offline compatibility check
 
 On Linux, MPRIS exposes metadata, transport, position, repeat/shuffle and volume to KDE desktop media controls. D-Bus and logind monitoring live in a Linux module; their I/O runs outside the GUI thread. Sleep interruption retains the queue and position and clears prepared remote sources; wake recovery respects newer user commands. Device errors keep valid local audio intact and allow retry. KDE pauses playback when an output is removed; explicit desktop Play was verified to resume the single native stream. Actual machine sleep/wake verification was deferred at the user's request and remains unverified; simulated recovery and output-change tests do not replace it.

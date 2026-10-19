@@ -1,0 +1,55 @@
+{
+  "ticket": "LUNE-348",
+  "platform": "Arch Linux / KDE Wayland / PySide6 6.11.2",
+  "content": "Synthetic metadata and generated artwork/audio for rendering; earlier real-account proofs are linked separately.",
+  "visual_checklist": {
+    "client_sizes": [[1280, 820], [920, 620]],
+    "sidebar_pixels": 240,
+    "player_pixels": 72,
+    "views": ["Home", "Explore", "Search", "Library", "Artist library", "Album", "Playlist", "Artist", "Expanded player / queue", "Lyrics", "Downloads"],
+    "all_views_render_without_qml_warnings": true,
+    "accessible_icon_button_names": true,
+    "persistent_transport_icons_after_navigation": true,
+    "gpu_circular_artist_and_profile_artwork": true,
+    "gpu_artwork_fills_large_covers": true,
+    "full_width_artist_header": true,
+    "bounded_provider_retry_and_reconnect_banners": true,
+    "virtualized_list_songs": 10000,
+    "live_song_delegates_below": 60,
+    "reference_basis": "Earlier private Home, Explore, Library, album and artist captures; accessibility geometry for search, playlist and expanded player.",
+    "direct_reference_pixel_comparison": "Incomplete: KDE denied targeted reference-window capture. Search results, playlist and expanded-player screenshots could not be compared directly.",
+    "software_renderer_limit": "Artwork masking requires the production GPU renderer; software CI checks layout, controls and placeholder behavior."
+  },
+  "functional_checklist": {
+    "python_tests_passed": 100,
+    "native_dialogs_and_text_entry_shortcuts": true,
+    "queue_drag_keyboard_and_duplicate_occurrences": true,
+    "lyrics_missing_plain_timed_and_offline_cache": true,
+    "download_filters_repair_remove_and_navigation": true,
+    "stale_navigation_and_provider_result_protection": true,
+    "expired_account_keeps_identity_and_local_playback": true,
+    "expired_source_retry_is_bounded": true,
+    "download_interruption_resume_and_completed_file_retention": true,
+    "disk_full_corruption_and_shared_file_retention": true,
+    "missing_downloaded_artwork_uses_local_placeholder": true,
+    "local_first_all_entry_points_with_expired_credentials": true,
+    "sleep_recovery_simulation_and_output_change": true,
+    "actual_hardware_sleep_wake": "Deferred at the user's explicit request; remains unverified."
+  },
+  "real_account_evidence": ["linux-compatibility.json", "linux-library.json", "linux-expanded-player.json", "linux-downloads-ui.json"],
+  "desktop_evidence": "linux-desktop.json",
+  "mixed_use_soak": {
+    "status": "passed",
+    "requested_seconds": 300,
+    "elapsed_seconds": 300.9,
+    "renderer": "OpenGL",
+    "rounded_artwork_pixel_checks": 231,
+    "scenario": "Offscreen OpenGL, repeated navigation through all views, accessibility/icon checks and generated local WAV playback through the real source worker and libmpv null output."
+  },
+  "follow_up": {
+    "LUNE-349": "Measure performance and run the separate 30-minute resource soak before release.",
+    "reference_capture": "Compare the unavailable reference screenshots when targeted window capture is available.",
+    "hardware_sleep_wake": "Run the prepared real-device proof when the user elects to resume it."
+  },
+  "privacy": "No account identifiers, session data, signed URLs or private screenshots included."
+}

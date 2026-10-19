@@ -40,6 +40,24 @@ def test_download_lookup_and_repair_states_work_without_authentication(tmp_path)
     downloads.close()
 
 
+def test_missing_downloaded_artwork_uses_a_placeholder_without_a_remote_fallback(tmp_path):
+    store = DownloadStore(tmp_path)
+    collection = body("PLfixture", [IDS[0]])
+    folder = store.root / "artwork"
+    folder.mkdir()
+    art = folder / "fixture.image"
+    art.write_bytes(b"fixture image")
+    collection["items"][0].update(localThumbnail=art.as_uri(), thumbnail="https://artwork.invalid/fixture")
+    key = store.schedule(collection)
+    assert store.status()["artwork"][IDS[0]] == art.as_uri()
+    art.unlink()
+    assert store.status()["artwork"][IDS[0]] == ""
+    collection["items"][0]["localThumbnail"] = (tmp_path / "outside.image").as_uri()
+    store.update_body(key, collection)
+    assert store.status()["artwork"][IDS[0]] == ""
+    store.close()
+
+
 class Downloads(QObject):
     collectionFound = Signal(int, dict)
     collectionReady = Signal(dict)

@@ -8,6 +8,8 @@ Item {
     property var artist: catalogState.data
     property real gutter: width > 900 ? 106 : 40
     property bool descriptionExpanded: false
+    Image { id: hero; objectName: "artistHero"; y: (sections.headerItem ? sections.headerItem.y : 0) - sections.contentY; width: root.width; height: 400; source: root.artist.hero || ""; visible: !!root.artist.hero; asynchronous: true; fillMode: Image.PreserveAspectCrop; opacity: 0.45 }
+    Rectangle { y: hero.y; width: root.width; height: 400; visible: !!root.artist.hero; gradient: Gradient { GradientStop { position: 0; color: "#00000000" } GradientStop { position: 1; color: "black" } } }
     ListView {
         id: sections
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
@@ -15,12 +17,10 @@ Item {
         model: root.artist.shelves || []; ScrollBar.vertical: ScrollBar {}
         header: Item {
             width: sections.width; height: summary.y + summary.height + 48
-            Image { x: -root.gutter; width: root.width; height: 400; source: root.artist.hero || ""; visible: source.length > 0; asynchronous: true; fillMode: Image.PreserveAspectCrop; opacity: 0.45 }
-            Rectangle { x: -root.gutter; width: root.width; height: 400; visible: !!root.artist.hero; gradient: Gradient { GradientStop { position: 0; color: "#00000000" } GradientStop { position: 1; color: "black" } } }
             Column {
                 id: summary
                 y: 224; width: parent.width
-                Text { width: parent.width; text: root.artist.title || "Artist"; textFormat: Text.PlainText; color: "white"; font.family: Theme.headingFont; font.pixelSize: 30; font.bold: true }
+                Text { width: parent.width; text: root.artist.title || "Artist"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.family: Theme.headingFont; font.pixelSize: 30; font.bold: true }
                 Text { text: root.artist.monthlyListeners ? root.artist.monthlyListeners + " monthly audience" : ""; textFormat: Text.PlainText; color: Theme.secondary; font.pixelSize: 14; height: 17 }
                 Item { width: 1; height: 16 }
                 Text { width: Math.min(parent.width, 700); text: root.artist.subtitle || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: root.descriptionExpanded ? 1000 : 2; elide: Text.ElideRight; color: "white"; font.pixelSize: 14; lineHeight: 1.25 }
@@ -65,7 +65,7 @@ Item {
     }
     IconButton { x: 8; y: 12; iconName: "left"; tip: "Back"; onClicked: browseState.back() }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running }
-    Row { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; visible: !!catalogState.error; spacing: 12; Label { anchors.verticalCenter: parent.verticalCenter; text: catalogState.error; textFormat: Text.PlainText; color: Theme.secondary } Button { text: "Retry"; enabled: !catalogState.busy; onClicked: catalogState.refresh() } }
+    RetryBanner { message: catalogState.error; busy: catalogState.busy; onRetry: catalogState.refresh() }
     property int revision: -1
     function restoreScroll() {
         if (catalogState.busy || revision === catalogState.revision) return

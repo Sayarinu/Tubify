@@ -145,5 +145,5 @@ Item {
         Button { anchors.horizontalCenter: parent.horizontalCenter; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
     }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running && !(root.result.items || []).length && !(root.result.shelves || []).length }
-    Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; padding: 12; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music. Refresh when you’re online." : ""); visible: text.length > 0; color: Theme.secondary; background: Rectangle { color: "#222222"; radius: 4 } }
+    Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(600, root.width - 48); padding: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music. Refresh when you’re online." : ""); visible: text.length > 0; color: Theme.secondary; background: Rectangle { color: "#222222"; radius: 4 } }
 }

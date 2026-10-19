@@ -219,8 +219,7 @@ class DownloadStore:
         for identifier, raw, state, completed, total, fraction, error in self.db.execute("""SELECT c.id, c.body, j.state, j.completed, j.total, j.fraction, j.error
             FROM collections c JOIN download_jobs j ON c.id=j.collection_id ORDER BY j.created DESC""").fetchall():
             body = json.loads(raw)
-            if body.get("localThumbnail"):
-                artwork[identifier] = body["localThumbnail"]
+            artwork[identifier] = self._artwork_uri(body.get("localThumbnail", ""))
             for track in body["items"]:
                 video_id = track["videoId"]
                 if video_id not in ready:
@@ -228,14 +227,30 @@ class DownloadStore:
                 status = "ready" if ready[video_id] else "damaged" if state == "complete" else state
                 if track_states.get(video_id) != "ready":
                     track_states[video_id] = status
-                if track.get("localThumbnail"):
-                    artwork[video_id] = track["localThumbnail"]
+                local_art = self._artwork_uri(track.get("localThumbnail", ""))
+                if local_art or video_id not in artwork:
+                    artwork[video_id] = local_art
             count = sum(ready[track["videoId"]] for track in body["items"])
             damaged = state == "complete" and count < total
             collections.append({"key": identifier, "id": body["id"], "kind": body["kind"], "title": body["title"], "thumbnail": body.get("localThumbnail") or body.get("thumbnail", ""), "state": "damaged" if damaged else state, "ready": count, "total": total, "progress": (completed + fraction) / max(1, total), "error": error})
         next_row = self.db.execute("SELECT collection_id FROM download_jobs WHERE state='queued' ORDER BY created LIMIT 1").fetchone()
         used = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready'").fetchone()[0]
         return {"collections": collections, "trackStates": track_states, "artwork": artwork, "next": next_row[0] if next_row else None, "bytes": used, "freeBytes": shutil.disk_usage(self.root).free}
+
+    def _artwork_uri(self, value):
+        from PySide6.QtCore import QUrl
+
+        if not isinstance(value, str):
+            return ""
+        try:
+            url = QUrl(value)
+            if url.isLocalFile():
+                path = Path(url.toLocalFile()).resolve()
+                if path.is_relative_to(self.root / "artwork") and path.is_file():
+                    return value
+        except (OSError, ValueError, RuntimeError):
+            pass
+        return ""
 
     def lookup(self, kind, identifier):
         key = kind + ":" + identifier

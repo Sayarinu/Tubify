@@ -64,6 +64,7 @@ Item {
     }
     ListView {
         id: songs
+        objectName: "librarySongs"
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         visible: root.rows; clip: true; bottomMargin: 32; model: root.result.items || []
         ScrollBar.vertical: ScrollBar {}

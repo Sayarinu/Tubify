@@ -178,13 +178,12 @@ ApplicationWindow {
             iconName: "profile"
             tip: accountState.profile.name || "Account"
             onClicked: appState.openAccount()
-            Image {
+            Cover {
                 anchors.centerIn: parent
                 width: 28; height: 28
                 source: accountState.profile.avatar || ""
-                asynchronous: true
-                visible: status === Image.Ready
-                fillMode: Image.PreserveAspectCrop
+                radius: 14
+                visible: ready
             }
         }
         IconButton { anchors.right: profileButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening history"; onClicked: libraryState.history() }
@@ -236,6 +235,7 @@ ApplicationWindow {
 
     Rectangle {
         id: player
+        objectName: "playerBar"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom

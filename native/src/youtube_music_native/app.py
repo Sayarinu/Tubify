@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 
-from PySide6.QtCore import QStandardPaths, QTimer, QUrl
+from PySide6.QtCore import QEvent, QStandardPaths, QTimer, QUrl
 from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -148,7 +148,7 @@ def main(argv=None):
     result = app.exec()
     # Destroy QML bindings before their Python context disappears.
     engine.deleteLater()
-    app.processEvents()
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     return result
 
 
