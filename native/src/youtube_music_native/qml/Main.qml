@@ -310,40 +310,51 @@ ApplicationWindow {
         height: 72
         color: Theme.surface
         Rectangle { width: parent.width; height: 1; color: "#444444" }
-        Rectangle { width: parent.width * appState.progress; height: 2; color: Theme.accent }
+        Rectangle { width: parent.width * playerState.progress; height: 2; color: Theme.accent }
+        ProgressBar { width: parent.width; height: 3; visible: playerState.busy; indeterminate: visible }
+        MouseArea { anchors.left: parent.left; anchors.right: parent.right; y: -4; height: 12; enabled: playerState.hasTrack; cursorShape: Qt.PointingHandCursor; onPressed: function(mouse) { playerState.seekFraction(mouse.x / width) } }
         Row {
             x: 4; anchors.verticalCenter: parent.verticalCenter
-            IconButton { iconName: "previous"; tip: "Previous"; enabled: appState.hasTrack; onClicked: appState.requestAction("previous") }
-            IconButton { iconName: appState.playing ? "pause" : "play"; iconSize: 32; width: 56; tip: appState.playing ? "Pause" : "Play"; enabled: appState.hasTrack; onClicked: appState.togglePlayback() }
-            IconButton { iconName: "next"; tip: "Next"; enabled: appState.hasTrack; onClicked: appState.requestAction("next") }
+            IconButton { iconName: "previous"; tip: "Previous"; enabled: playerState.hasTrack; onClicked: appState.requestAction("previous") }
+            IconButton { iconName: playerState.playing ? "pause" : "play"; iconSize: 32; width: 56; tip: playerState.playing ? "Pause" : "Play"; enabled: playerState.hasTrack; onClicked: playerState.togglePlayback() }
+            IconButton { iconName: "next"; tip: "Next"; enabled: playerState.hasTrack; onClicked: appState.requestAction("next") }
         }
-        Text { x: 168; anchors.verticalCenter: parent.verticalCenter; text: appState.progressText; color: Theme.secondary; font.pixelSize: 11 }
-        Cover { id: trackCover; x: 280; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 2; source: appState.currentTrack.thumbnail || ""; accent: appState.currentTrack.accent || "#333333" }
+        Text { x: 168; anchors.verticalCenter: parent.verticalCenter; text: playerState.progressText; color: Theme.secondary; font.pixelSize: 11 }
+        Cover { id: trackCover; x: 280; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 2; source: playerState.currentTrack.thumbnail || ""; accent: playerState.currentTrack.accent || "#333333" }
         Column {
             id: trackInfo
             x: 336; anchors.verticalCenter: parent.verticalCenter
             width: Math.max(160, window.width - 800)
             spacing: 1
-            Text { width: parent.width; text: appState.currentTrack.title || "Nothing playing"; elide: Text.ElideRight; color: Theme.foreground; font.family: Theme.bodyFont; font.pixelSize: 14 }
-            Text { width: parent.width; text: appState.currentTrack.artist || "Choose a song to get started"; elide: Text.ElideRight; color: Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 14 }
+            Text { width: parent.width; text: playerState.currentTrack.title || "Nothing playing"; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.foreground; font.family: Theme.bodyFont; font.pixelSize: 14 }
+            Text { width: parent.width; text: playerState.currentTrack.artist || "Choose a song to get started"; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 14 }
         }
         Row {
             anchors.left: trackInfo.right
             anchors.leftMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            IconButton { iconName: "like"; tip: "Like"; enabled: appState.hasTrack; onClicked: appState.requestAction("like") }
-            IconButton { iconName: "dislike"; tip: "Dislike"; enabled: appState.hasTrack; onClicked: appState.requestAction("dislike") }
-            IconButton { iconName: "more"; tip: "More options"; enabled: appState.hasTrack; onClicked: appState.requestAction("trackMenu") }
+            IconButton { iconName: "like"; tip: "Like"; enabled: playerState.hasTrack; onClicked: appState.requestAction("like") }
+            IconButton { iconName: "dislike"; tip: "Dislike"; enabled: playerState.hasTrack; onClicked: appState.requestAction("dislike") }
+            IconButton { iconName: "more"; tip: "More options"; enabled: playerState.hasTrack; onClicked: appState.requestAction("trackMenu") }
         }
         Row {
             anchors.right: parent.right
             anchors.rightMargin: 12
             anchors.verticalCenter: parent.verticalCenter
             IconButton { iconName: appState.volume > 0 ? "volume" : "muted"; iconColor: Theme.secondary; tip: appState.volume > 0 ? "Mute" : "Unmute"; onClicked: appState.toggleMute() }
-            IconButton { iconName: "repeat"; iconColor: Theme.secondary; tip: "Repeat"; enabled: appState.hasTrack; onClicked: appState.requestAction("repeat") }
-            IconButton { iconName: "shuffle"; iconColor: Theme.secondary; tip: "Shuffle"; enabled: appState.hasTrack; onClicked: appState.requestAction("shuffle") }
-            IconButton { iconName: "up"; tip: "Expand player"; enabled: appState.hasTrack; onClicked: appState.requestAction("expandPlayer") }
+            Slider { width: 84; height: 40; visible: window.width >= 1200; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
+            IconButton { iconName: "repeat"; iconColor: playerState.repeat !== "off" ? "white" : Theme.secondary; tip: "Repeat: " + playerState.repeat; enabled: playerState.hasTrack; onClicked: appState.requestAction("repeat"); Text { visible: playerState.repeat === "one"; anchors.centerIn: parent; text: "1"; font.pixelSize: 9; color: "white" } }
+            IconButton { iconName: "shuffle"; iconColor: playerState.shuffled ? "white" : Theme.secondary; tip: "Shuffle"; enabled: playerState.hasTrack; onClicked: appState.requestAction("shuffle") }
+            IconButton { iconName: "up"; tip: "Expand player"; enabled: playerState.hasTrack; onClicked: appState.requestAction("expandPlayer") }
         }
+    }
+
+    Rectangle {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: player.top; anchors.bottomMargin: 16
+        width: Math.min(600, window.width - 80); height: playbackMessage.implicitHeight + 24
+        radius: 6; color: "#383838"; visible: playerState.message.length > 0
+        Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: playerState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.pixelSize: 14 }
     }
 
     Dialog {
@@ -377,5 +388,5 @@ ApplicationWindow {
     Connections { target: appState; function onAccountDialogRequested() { accountDialog.open() } }
     Shortcut { sequence: "/"; enabled: !search.activeFocus; onActivated: search.forceActiveFocus() }
     Shortcut { sequence: "Ctrl+F"; onActivated: search.forceActiveFocus() }
-    Shortcut { sequence: "Space"; enabled: !search.activeFocus && !accountDialog.opened; onActivated: appState.togglePlayback() }
+    Shortcut { sequence: "Space"; enabled: !search.activeFocus && !accountDialog.opened; onActivated: playerState.togglePlayback() }
 }

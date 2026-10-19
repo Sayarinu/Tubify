@@ -12,7 +12,7 @@ class Worker(QObject):
     succeeded = Signal(int, dict)
     failed = Signal(int, dict)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, idle_ms=0):
         super().__init__(parent)
         self.process = QProcess(self)
         command = process_command("provider")
@@ -26,6 +26,11 @@ class Worker(QObject):
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self._timeout)
+        self.idle_timer = QTimer(self)
+        self.idle_timer.setSingleShot(True)
+        self.idle_timer.setInterval(idle_ms)
+        self.idle_timer.timeout.connect(self._hibernate)
+        self._idle_ms, self._hibernating = idle_ms, False
         self._queue = deque()
         self._active = None
         self._buffer = b""
@@ -44,8 +49,9 @@ class Worker(QObject):
         self._queue = deque(request for request in self._queue if request["id"] != identifier)
 
     def _pump(self):
-        if self._closed or self._active or not self._queue:
+        if self._closed or self._hibernating or self._active or not self._queue:
             return
+        self.idle_timer.stop()
         if self.process.state() == QProcess.ProcessState.NotRunning:
             self._buffer = b""
             self.process.start()
@@ -80,6 +86,8 @@ class Worker(QObject):
                 else:
                     self.failed.emit(identifier, response["error"])
                 QTimer.singleShot(0, self._pump)
+                if self._idle_ms:
+                    self.idle_timer.start()
             except (ValueError, TypeError, AttributeError):
                 self._protocol_error()
                 return
@@ -101,17 +109,32 @@ class Worker(QObject):
         self.process.kill()
 
     def _error(self, error):
-        if not self._closed:
+        if not self._closed and not self._hibernating:
             self._fail_all("provider_error", "The account helper stopped. Retry the operation.")
 
     def _finished(self, exit_code, exit_status):
         self.timer.stop()
+        if self._hibernating:
+            self._hibernating = False
+            QTimer.singleShot(0, self._pump)
+            return
         if not self._closed:
             self._fail_all("provider_error", "The account helper stopped. Retry the operation.")
+
+    def _hibernate(self):
+        if not self._active and not self._queue and self.process.state() == QProcess.ProcessState.Running:
+            self._hibernating = True
+            self.process.terminate()
+            QTimer.singleShot(1000, self._kill_idle)
+
+    def _kill_idle(self):
+        if self._hibernating and self.process.state() != QProcess.ProcessState.NotRunning:
+            self.process.kill()
 
     def close(self):
         self._closed = True
         self.timer.stop()
+        self.idle_timer.stop()
         self._queue.clear()
         self._active = None
         if self.process.state() != QProcess.ProcessState.NotRunning:

@@ -37,11 +37,18 @@ def profile_from_account(account):
 
 class AuthService:
     def __init__(self, credentials=None, catalog_factory=make_catalog):
-        self.credentials = credentials if credentials is not None else Credentials()
+        self._credentials = credentials
         self.catalog_factory = catalog_factory
         self.session = None
         self.client = None
         self.profile = {}
+
+    @property
+    def credentials(self):
+        # Local source selection must work even if the OS vault is unavailable.
+        if self._credentials is None:
+            self._credentials = Credentials()
+        return self._credentials
 
     def restore(self):
         stored = self.credentials.load()

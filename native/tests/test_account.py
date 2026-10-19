@@ -67,3 +67,25 @@ def test_provider_requests_are_asynchronous_and_errors_are_sanitized():
     assert "never echo" not in str(results)
     # Headless CI may have no unlocked OS vault; neither error exposes payloads.
     assert all(error["code"] in {"AuthError", "CredentialError"} for _, error in results)
+
+
+def test_idle_worker_releases_process_and_starts_again_for_next_request():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = Worker(idle_ms=5)
+    loop = QEventLoop()
+    results, starts = [], []
+    worker.process.started.connect(lambda: starts.append(True))
+
+    def failed(identifier, error):
+        results.append(identifier)
+        if identifier == 1:
+            QTimer.singleShot(100, lambda: worker.request("unknown"))
+        else:
+            loop.quit()
+
+    worker.failed.connect(failed)
+    worker.request("unknown")
+    QTimer.singleShot(10000, loop.quit)
+    loop.exec()
+    worker.close()
+    assert results == [1, 2] and len(starts) == 2

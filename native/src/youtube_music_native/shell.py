@@ -6,8 +6,6 @@ from PySide6.QtCore import QObject, Property, QSettings, Signal, Slot
 class ShellController(QObject):
     pageChanged = Signal()
     sidebarChanged = Signal()
-    playbackChanged = Signal()
-    positionChanged = Signal()
     volumeChanged = Signal()
     navigationRequested = Signal(str)
     searchRequested = Signal(str)
@@ -24,9 +22,6 @@ class ShellController(QObject):
         self._unmuted_volume = max(1, min(100, self._integer_setting("lastVolume", self._volume or 70)))
         self._fixture = fixture or {}
         self._shelves = self._fixture.get("shelves", [])
-        self._track = self._shelves[0]["items"][0] if self._shelves else {}
-        self._playing = bool(self._track)
-        self._position = 0.6 if self._track else 0.0
 
     def _integer_setting(self, key, default):
         try:
@@ -53,33 +48,6 @@ class ShellController(QObject):
     @Property("QVariantList", constant=True)
     def playlists(self):
         return self._fixture.get("playlists", [])
-
-    @Property("QVariantMap", notify=playbackChanged)
-    def currentTrack(self):
-        return self._track
-
-    @Property(bool, notify=playbackChanged)
-    def hasTrack(self):
-        return bool(self._track)
-
-    @Property(bool, notify=playbackChanged)
-    def playing(self):
-        return self._playing
-
-    @Property(float, notify=positionChanged)
-    def progress(self):
-        return self._position
-
-    @Property(str, notify=positionChanged)
-    def progressText(self):
-        duration = int(self._track.get("duration", 120)) if self._track else 0
-
-        def formatted(value):
-            minutes, seconds = divmod(value, 60)
-            hours, minutes = divmod(minutes, 60)
-            return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes}:{seconds:02}"
-
-        return formatted(int(duration * self._position)) + " / " + formatted(duration)
 
     @Property(int, notify=volumeChanged)
     def volume(self):
@@ -118,12 +86,6 @@ class ShellController(QObject):
     def toggleSidebar(self):
         self._sidebar = not self._sidebar
         self.sidebarChanged.emit()
-
-    @Slot()
-    def togglePlayback(self):
-        if self.hasTrack:
-            self._playing = not self._playing
-            self.playbackChanged.emit()
 
     @Slot(int)
     def setVolume(self, value):

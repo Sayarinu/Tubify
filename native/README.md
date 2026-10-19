@@ -30,6 +30,8 @@ Import and reconnect run in a separate process so the window remains responsive.
 
 Catalog responses use normalized song/album/artist/playlist models. The catalog worker handles provider continuations behind 40-item UI pages, suppresses stale results during navigation and reuses SQLite metadata when the provider is unavailable. Metadata is disposable and limited to 200 recent views, scoped to the account identity; it contains no credentials or signed audio URLs. QML artwork loads asynchronously through a 128 MiB disk cache and can reuse cached images after restart. Neither cache contains durable downloaded audio.
 
+The native player owns the queue, audio-only source selection, transport, seek, volume, shuffle/repeat and autoplay. It checks verified local media before touching credentials or resolving a stream. Extraction runs in a separate worker, prepares the next track, caches sources only until expiry and retries a failed source once. The extraction worker exits after idle time to release memory. Queue order and position survive restart, with playback restored paused; signed audio URLs are never saved. Playback data uses the platform's application-data directory, separate from disposable caches.
+
 ## Account and offline compatibility check
 
 The check requires libmpv, FFmpeg/ffprobe, Deno or a supported Node.js runtime, and Linux `unshare`. Importing the existing Tauri profile also requires system PyGObject and libsoup 3. On Arch these native dependencies are provided by `mpv`, `ffmpeg`, `deno`, `python-gobject` and `libsoup3`. A virtual environment created with `--system-site-packages` can access the system PyGObject bindings.

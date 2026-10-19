@@ -15,17 +15,20 @@ from .shell import ShellController
 from .account import Account
 from .artwork import ArtworkCache
 from .catalog_view import CatalogView
+from .jobs import Worker
+from .playback import Playback
 
 
 PACKAGE = Path(__file__).resolve().parent
 
 
-def load_window(controller, account, catalog=None, artwork_path=None):
+def load_window(controller, account, player, catalog=None, artwork_path=None):
     engine = QQmlApplicationEngine()
     engine.setProperty("qmlWarnings", [])
     engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
     engine.rootContext().setContextProperty("appState", controller)
     engine.rootContext().setContextProperty("accountState", account)
+    engine.rootContext().setContextProperty("playerState", player)
     if catalog:
         engine.rootContext().setContextProperty("catalogState", catalog)
     if artwork_path:
@@ -71,8 +74,16 @@ def main(argv=None):
     controller = ShellController(data / "settings.ini", fixture)
     account = Account(data / "settings.ini", fixture=args.fixture, parent=controller)
     catalog = CatalogView(account.worker, cache / "metadata.sqlite3", account, parent=controller)
+    media_data = data if args.data_dir or args.smoke_test or args.screenshot else Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
+    media_data.mkdir(parents=True, exist_ok=True, mode=0o700)
+    source_worker = None if args.fixture else Worker(controller, idle_ms=15000)
+    player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    player.setVolume(controller.volume)
+    controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
+    controller.actionRequested.connect(player.handleAction)
     app.aboutToQuit.connect(account.close)
-    engine = load_window(controller, account, catalog, cache / "artwork")
+    app.aboutToQuit.connect(player.close)
+    engine = load_window(controller, account, player, catalog, cache / "artwork")
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]

@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 import sys
 
 from .auth import AuthError, AuthService
@@ -9,9 +10,11 @@ from .catalog import Catalog, CatalogError
 from .credentials import CredentialError
 from .session import SessionError
 from .store import MetadataStore
+from .media import MediaFiles
+from .sources import SourceError, Sources
 
 
-def handle(service, request):
+def handle(service, request, resources=None):
     operation = request.get("operation")
     payload = request.get("payload") or {}
     if operation == "restore":
@@ -26,11 +29,20 @@ def handle(service, request):
             return Catalog(service, store).fetch(payload["route"], payload.get("params"), payload.get("offset", 0), bool(payload.get("refresh")))
         finally:
             store.close()
+    if operation == "resolve":
+        resources = resources if resources is not None else {}
+        root = str(Path(payload["data_dir"]).resolve())
+        if root not in resources:
+            resources[root] = Sources(service, MediaFiles(Path(root) / "media"))
+        sources = resources[root]
+        if payload.get("damaged"):
+            sources.media.mark_damaged(payload["videoId"])
+        return sources.resolve(payload["videoId"], force=bool(payload.get("force")), prepared=payload.get("prepared"))
     raise AuthError("That account operation is unavailable.")
 
 
 def safe_error(error):
-    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError)):
+    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError)):
         return {"code": type(error).__name__, "message": str(error)}
     import requests
 
@@ -47,6 +59,7 @@ def main():
 
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     service = None
+    resources = {}
     for line in sys.stdin:
         identifier = None
         try:
@@ -59,7 +72,7 @@ def main():
                 raise AuthError("The account request is invalid.")
             if service is None:
                 service = AuthService()
-            result = handle(service, request)
+            result = handle(service, request, resources)
             response = {"id": identifier, "ok": True, "result": result}
         except Exception as error:
             response = {"id": identifier, "ok": False, "error": safe_error(error)}
