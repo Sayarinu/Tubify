@@ -127,7 +127,12 @@ def main(argv=None):
         app.aboutToQuit.connect(desktop.close)
 
     def finish():
-        failed = bool(engine.property("qmlWarnings"))
+        warnings = engine.property("qmlWarnings")
+        failed = bool(warnings)
+        if warnings:
+            print("Qt Quick reported QML warnings:", file=sys.stderr)
+            for warning in warnings:
+                print(warning, file=sys.stderr)
         if args.screenshot:
             args.screenshot.parent.mkdir(parents=True, exist_ok=True)
             image = window.grabWindow()
