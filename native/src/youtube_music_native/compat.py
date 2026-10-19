@@ -12,6 +12,7 @@ import sys
 import tempfile
 
 from .session import SessionError, read_browser_session, read_tauri_session
+from .launcher import process_command
 
 
 class ProbeError(RuntimeError):
@@ -40,7 +41,7 @@ class QuietLogger:
 
 
 def player_command(offline=False):
-    command = [sys.executable, "-m", "youtube_music_native.compat", "play"]
+    command = process_command("player")
     if offline:
         if sys.platform != "linux" or not shutil.which("unshare"):
             raise ProbeError("Network-isolated proof requires Linux unshare.")

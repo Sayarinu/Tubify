@@ -41,6 +41,17 @@ def test_malformed_export_is_reported_without_its_contents(tmp_path):
     assert "private" not in str(error.value)
 
 
+def test_saved_payload_preserves_cookie_domain_and_expiry():
+    from youtube_music_native.session import Session
+
+    original = from_headers({"cookie": "__Secure-3PAPISID=private-session"})
+    original.cookies[0].expires = 2000000000
+    restored = Session.from_payload(original.to_payload())
+    assert restored.cookies[0].expires == 2000000000
+    assert restored.cookies[0].domain == ".youtube.com"
+    assert restored.headers["cookie"] == original.headers["cookie"]
+
+
 def test_tauri_migration_is_read_only_and_excludes_other_domains_and_expired_cookies(monkeypatch, tmp_path):
     profile = tmp_path / "cookies"
     profile.write_text("unchanged profile")

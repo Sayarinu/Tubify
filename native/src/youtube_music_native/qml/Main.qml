@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import "Theme.js" as Theme
 
 ApplicationWindow {
@@ -141,16 +142,43 @@ ApplicationWindow {
             y: 10
             width: 44; height: 44
             iconName: "profile"
-            tip: "Account"
+            tip: accountState.profile.name || "Account"
             onClicked: appState.openAccount()
+            Image {
+                anchors.centerIn: parent
+                width: 28; height: 28
+                source: accountState.profile.avatar || ""
+                asynchronous: true
+                visible: status === Image.Ready
+                fillMode: Image.PreserveAspectCrop
+            }
         }
+    }
+
+    Rectangle {
+        id: reconnectBanner
+        anchors.left: sidebar.right
+        anchors.right: parent.right
+        anchors.top: header.bottom
+        visible: accountState.reconnect
+        height: visible ? 44 : 0
+        color: "#352724"
+        Text {
+            anchors.left: parent.left; anchors.leftMargin: 24
+            anchors.right: reconnectButton.left; anchors.rightMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Reconnect your account. Downloaded music remains available."
+            textFormat: Text.PlainText
+            color: "white"; font.pixelSize: 14; elide: Text.ElideRight
+        }
+        Button { id: reconnectButton; anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: "Reconnect"; onClicked: appState.openAccount() }
     }
 
     Item {
         id: content
         anchors.left: sidebar.right
         anchors.right: parent.right
-        anchors.top: header.bottom
+        anchors.top: reconnectBanner.bottom
         anchors.bottom: player.top
         property real gutter: width > 900 ? 106 : 40
 
@@ -255,7 +283,7 @@ ApplicationWindow {
             }
             Text {
                 width: parent.width
-                text: appState.page === "Downloads" ? "Your downloaded songs, albums and playlists will appear here." : "Connect YouTube Music to browse your library and recommendations."
+                text: appState.page === "Downloads" ? "Your downloaded songs, albums and playlists will appear here." : accountState.connected ? "Your account is connected." : "Connect YouTube Music to browse your library and recommendations."
                 color: Theme.secondary
                 font.pixelSize: 15
                 wrapMode: Text.Wrap
@@ -265,6 +293,7 @@ ApplicationWindow {
                 id: connect
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Connect YouTube Music"
+                visible: !accountState.connected
                 topPadding: 12; bottomPadding: 12; leftPadding: 24; rightPadding: 24
                 palette.buttonText: "black"
                 background: Rectangle { radius: 22; color: connect.hovered ? "#dddddd" : "white"; border.width: connect.visualFocus ? 2 : 0; border.color: Theme.accent }
@@ -320,14 +349,30 @@ ApplicationWindow {
     Dialog {
         id: accountDialog
         anchors.centerIn: parent
-        width: 440
+        width: Math.min(window.width - 80, 480)
         modal: true
         title: "Connect YouTube Music"
         standardButtons: Dialog.Close
         palette.window: "#212121"
         palette.windowText: "white"
         palette.text: "white"
-        contentItem: Label { text: "Connect your account to browse your library and recommendations."; wrapMode: Text.Wrap; color: Theme.secondary; padding: 16 }
+        contentItem: ColumnLayout {
+            spacing: 16
+            Label { Layout.fillWidth: true; text: accountState.profile.name || "Connect your account"; textFormat: Text.PlainText; font.pixelSize: 20; font.bold: true; color: "white"; wrapMode: Text.Wrap }
+            Label { Layout.fillWidth: true; text: "Use the signed-in desktop app or choose a browser session export. Your session stays in this device’s secure storage."; wrapMode: Text.Wrap; color: Theme.secondary }
+            Button { Layout.fillWidth: true; text: "Use existing desktop app session"; visible: accountState.tauriAvailable && !accountState.fixtureMode; enabled: !accountState.busy; onClicked: accountState.importTauri() }
+            Button { Layout.fillWidth: true; text: "Choose browser session file"; enabled: !accountState.busy && !accountState.fixtureMode; onClicked: sessionPicker.open() }
+            Button { Layout.fillWidth: true; text: "Export instructions"; flat: true; onClicked: Qt.openUrlExternally("https://ytmusicapi.readthedocs.io/en/stable/setup/browser.html") }
+            BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: accountState.busy; visible: running }
+            Label { Layout.fillWidth: true; text: accountState.message; textFormat: Text.PlainText; visible: text.length > 0; wrapMode: Text.Wrap; color: Theme.secondary }
+            Button { Layout.fillWidth: true; text: "Sign out"; visible: accountState.connected; enabled: !accountState.busy; onClicked: accountState.signOut() }
+        }
+    }
+    FileDialog {
+        id: sessionPicker
+        title: "Choose a YouTube Music session export"
+        nameFilters: ["JSON session files (*.json)", "All files (*)"]
+        onAccepted: accountState.importFile(selectedFile)
     }
     Connections { target: appState; function onAccountDialogRequested() { accountDialog.open() } }
     Shortcut { sequence: "/"; enabled: !search.activeFocus; onActivated: search.forceActiveFocus() }

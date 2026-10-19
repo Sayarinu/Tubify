@@ -34,12 +34,44 @@ class Session:
             jar.set_cookie(copy(cookie))
         return jar
 
+    def to_payload(self):
+        return {
+            "headers": {k: v for k, v in self.headers.items() if k.lower() != "cookie"},
+            "cookies": [{
+                "name": c.name, "value": c.value, "domain": c.domain,
+                "path": c.path, "secure": c.secure, "expires": c.expires,
+            } for c in self.cookies],
+        }
+
+    @classmethod
+    def from_payload(cls, payload):
+        try:
+            rows = payload["cookies"]
+            if not isinstance(rows, list) or not 1 <= len(rows) <= 200:
+                raise ValueError()
+            cookies = []
+            for row in rows:
+                if not all(isinstance(row.get(key), str) for key in ("name", "value", "domain", "path")):
+                    raise ValueError()
+                if row["domain"].lstrip(".") not in {"youtube.com", "music.youtube.com"}:
+                    raise ValueError()
+                if row.get("expires") is not None and not isinstance(row["expires"], int):
+                    raise ValueError()
+                cookies.append(make_cookie(row["name"], row["value"], row["domain"], row["path"], bool(row.get("secure", True)), row.get("expires")))
+            headers = dict(payload["headers"])
+            headers["cookie"] = "; ".join(f"{c.name}={c.value}" for c in cookies)
+            session = from_headers(headers)
+            session.cookies = cookies
+            return session
+        except (KeyError, TypeError, ValueError):
+            raise SessionError("The saved session is invalid. Reconnect YouTube Music.") from None
+
 
 def from_headers(value):
     if not isinstance(value, dict) or not all(isinstance(k, str) for k in value):
         raise SessionError("Select a browser.json request-header export.")
     values = {key.lower(): item for key, item in value.items()}
-    allowed = {"cookie", "user-agent", "accept-language", "x-goog-authuser"}
+    allowed = {"cookie", "user-agent", "accept-language", "x-goog-authuser", "x-goog-visitor-id"}
     for key in allowed & values.keys():
         item = values[key]
         if not isinstance(item, str) or "\r" in item or "\n" in item:

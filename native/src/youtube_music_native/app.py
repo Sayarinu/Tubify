@@ -12,16 +12,18 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 
 from .shell import ShellController
+from .account import Account
 
 
 PACKAGE = Path(__file__).resolve().parent
 
 
-def load_window(controller):
+def load_window(controller, account):
     engine = QQmlApplicationEngine()
     engine.setProperty("qmlWarnings", [])
     engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
     engine.rootContext().setContextProperty("appState", controller)
+    engine.rootContext().setContextProperty("accountState", account)
     engine.load(QUrl.fromLocalFile(str(PACKAGE / "qml" / "Main.qml")))
     return engine
 
@@ -51,10 +53,12 @@ def main(argv=None):
         data = Path(tempfile.mkdtemp(prefix="youtube-music-native-ui-"))
     else:
         data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation))
-    data.mkdir(parents=True, exist_ok=True)
+    data.mkdir(parents=True, exist_ok=True, mode=0o700)
     fixture = json.loads((PACKAGE / "assets" / "visual-fixture.json").read_text()) if args.fixture else None
     controller = ShellController(data / "settings.ini", fixture)
-    engine = load_window(controller)
+    account = Account(data / "settings.ini", fixture=args.fixture, parent=controller)
+    app.aboutToQuit.connect(account.close)
+    engine = load_window(controller, account)
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]

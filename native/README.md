@@ -2,7 +2,7 @@
 
 Shared Python code for the native Qt client. The first development gate is a repeatable real-account compatibility check, tracked by [LUNE-336](https://linear.app/nouvelle-lune-atelier/issue/LUNE-336/prove-premium-account-access-streaming-and-offline-playback).
 
-The portable Qt window and reusable visual shell are tracked by [LUNE-337](https://linear.app/nouvelle-lune-atelier/issue/LUNE-337/establish-the-portable-qt-native-application-and-visual-shell). Account connection and catalog integration follow as separate tickets; the window is a development preview.
+The portable Qt window and reusable visual shell are tracked by [LUNE-337](https://linear.app/nouvelle-lune-atelier/issue/LUNE-337/establish-the-portable-qt-native-application-and-visual-shell). Account connection is available; catalog integration and playback follow as separate tickets. The window is a development preview.
 
 ## Development
 
@@ -19,6 +19,14 @@ On Windows use `.venv\Scripts\python.exe`. Session import and shared logic work 
 Launch the Qt window with `youtube-music-native`. For repeatable visual checks, `youtube-music-native --fixture --screenshot /tmp/native-music.png` uses synthetic data and exits after saving an image. The ordinary window does not load this fixture. `--data-dir` supplies isolated preferences for development and tests.
 
 The interface bundles the existing music mark and OFL-licensed Roboto fonts, uses native Qt Quick rendering, and keeps provider work outside the GUI thread. CI creates a real window and decodes a generated local WAV through libmpv on Linux, Windows and macOS. These smoke checks do not replace the later full platform-port acceptance work.
+
+## Connect an account
+
+Open the profile button. On Linux, **Use existing Tauri session** imports the signed-in wrapper session without modifying its profile. Alternatively, choose a local [ytmusicapi browser.json export](https://ytmusicapi.readthedocs.io/en/stable/setup/browser.html). The client validates the account before replacing an existing connection.
+
+Sessions are stored in the OS keyring (Secret Service/KWallet on Linux, Credential Manager on Windows, Keychain on macOS), with no plaintext fallback. Unlock the keyring if prompted. A restart restores the saved identity without a network request. An expired session shows a reconnect banner; downloaded media remains available. Sign out removes this client's credentials and cached identity, retaining downloaded music and leaving the wrapper signed in.
+
+Import and reconnect run in a separate process so the window remains responsive. Export files are read only; remove them yourself after import if no longer needed. Never paste session credentials into chat or tickets.
 
 ## Account and offline compatibility check
 
