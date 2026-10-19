@@ -8,7 +8,7 @@ FocusScope {
     readonly property bool song: !media.kind || media.kind === "song"
     readonly property bool currentSong: song && playerState.hasTrack && (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id)
     readonly property bool album: media.kind === "album"
-    readonly property bool currentAlbum: album && playerState.hasTrack && ((media.id && playerState.currentTrack.album && media.id === playerState.currentTrack.album.id) || (media.title && playerState.currentTrack.album && media.title === playerState.currentTrack.album.name))
+    readonly property bool currentAlbum: !!(album && playerState.hasTrack && ((media.id && playerState.currentTrack.album && media.id === playerState.currentTrack.album.id) || (media.title && playerState.currentTrack.album && media.title === playerState.currentTrack.album.name)))
     readonly property bool playableCollection: album || media.kind === "playlist"
     property string downloadStatus: {
         if (!media.kind || media.kind === "song") return downloadsState.trackStates[media.videoId || media.id] || media.downloadState || ""
