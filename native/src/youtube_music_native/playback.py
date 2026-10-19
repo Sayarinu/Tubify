@@ -180,7 +180,7 @@ class Playback(QObject):
         if not self.hasTrack:
             self._queue_changed()
             return
-        if self.currentTrack.get("available") is False:
+        if self._fixture and self.currentTrack.get("available") is False:
             self._message = "This song is unavailable. Skipping to the next song."
             QTimer.singleShot(0, self._skip_failed)
         elif self._fixture:
@@ -188,7 +188,7 @@ class Playback(QObject):
         elif self.worker:
             self._busy = True
             video_id = self.currentTrack.get("videoId", "")
-            self._request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "force": force, "damaged": damaged, "prepared": self._prepared.pop(video_id, None)})
+            self._request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "force": force, "damaged": damaged, "prepared": self._prepared.pop(video_id, None), "available": self.currentTrack.get("available", True)})
         self._queue_changed()
 
     @Slot(int, dict)

@@ -22,7 +22,7 @@ def test_complete_local_audio_wins_even_with_expired_credentials_or_force(tmp_pa
     monkeypatch.setattr("youtube_music_native.auth.Credentials", forbidden)
     auth = AuthService()
     service = Sources(auth, media, extractor_factory=forbidden)
-    assert service.resolve("abcdefghijk", force=True)["source"] == str(audio)
+    assert service.resolve("abcdefghijk", force=True, available=False)["source"] == str(audio)
     assert auth._credentials is None
     audio.unlink()
     assert media.ready("abcdefghijk") is None

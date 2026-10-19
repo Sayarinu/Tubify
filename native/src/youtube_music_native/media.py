@@ -1,6 +1,7 @@
 """Verified local audio index shared by source selection and durable downloads."""
 
 from pathlib import Path
+import os
 import sqlite3
 
 
@@ -28,13 +29,19 @@ class MediaFiles:
             return None
         return path
 
-    def publish(self, video_id, path):
+    def publish(self, video_id, path, final_path=None):
         from .compat import validate_media
 
         path = Path(path).resolve()
         if not path.is_relative_to(self.root):
             raise ValueError("Completed audio must be inside the media directory")
         validate_media(path)
+        if final_path is not None:
+            final_path = Path(final_path).resolve()
+            if not final_path.is_relative_to(self.root):
+                raise ValueError("Completed audio must be inside the media directory")
+            os.replace(path, final_path)
+            path = final_path
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO audio VALUES (?, ?, ?, 'ready')", (video_id, str(path.relative_to(self.root)), path.stat().st_size))
 

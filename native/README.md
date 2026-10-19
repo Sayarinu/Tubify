@@ -34,6 +34,8 @@ The native player owns the queue, audio-only source selection, transport, seek, 
 
 Home shows personalized shelves and compact Quick picks; Explore offers new releases, charts, moods and genres. Artwork cards open collections, their play targets begin playback, and collection queues start with the first page while later pages load. Sidebar playlist shortcuts use the connected account. Signing out clears those account views and the extractor's in-memory session while allowing local audio to continue.
 
+The durable download backend stores song, album and manual playlist snapshots with shared-file references. Jobs recover after interruption, resume supported HTTP transfers, retain completed songs on cancellation/failure, and validate audio with FFprobe before publishing it. Images and metadata are retained beside the audio for offline use. Removing a collection retains files referenced by another download; refreshing a snapshot retains its old files until the replacement finishes. Separate control and transfer workers keep storage operations responsive. Collection controls and the Downloads screen are integrated by the subsequent UI tickets.
+
 ## Account and offline compatibility check
 
 The check requires libmpv, FFmpeg/ffprobe, Deno or a supported Node.js runtime, and Linux `unshare`. Importing the existing Tauri profile also requires system PyGObject and libsoup 3. On Arch these native dependencies are provided by `mpv`, `ffmpeg`, `deno`, `python-gobject` and `libsoup3`. A virtual environment created with `--system-site-packages` can access the system PyGObject bindings.

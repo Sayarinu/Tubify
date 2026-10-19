@@ -12,11 +12,42 @@ from .session import SessionError
 from .store import MetadataStore
 from .media import MediaFiles
 from .sources import SourceError, Sources
+from .downloads import DownloadError, Downloads
 
 
-def handle(service, request, resources=None):
+def handle(service, request, resources=None, progress=None):
     operation = request.get("operation")
     payload = request.get("payload") or {}
+    if isinstance(operation, str) and operation.startswith("downloads_"):
+        resources = resources if resources is not None else {}
+        root = str(Path(payload["data_dir"]).resolve())
+        key = ("downloads", root)
+        if key not in resources:
+            resources[key] = Downloads(service, root)
+        downloads = resources[key]
+        if operation == "downloads_initialize":
+            downloads.store.recover()
+        elif operation == "downloads_schedule":
+            identifier = downloads.schedule(payload["media"])
+            return {**downloads.store.status(), "scheduled": identifier}
+        elif operation == "downloads_run":
+            downloads.notify = progress or (lambda value: None)
+            return downloads.run(payload["id"])
+        elif operation == "downloads_cancel":
+            downloads.store.cancel(payload["id"])
+        elif operation == "downloads_retry":
+            downloads.store.retry(payload["id"])
+        elif operation == "downloads_remove":
+            downloads.store.remove(payload["id"])
+        elif operation == "downloads_collection":
+            return downloads.store.view(payload["id"])
+        elif operation == "downloads_fail":
+            if downloads.store.state(payload["id"]) in {"queued", "downloading"}:
+                body = downloads.store.collection(payload["id"])
+                downloads.store.progress(payload["id"], 0, len(body["items"]), state="failed", error="Download stopped. Retry to continue; completed songs were kept.")
+        elif operation != "downloads_status":
+            raise DownloadError("This download operation is unavailable.")
+        return downloads.store.status()
     if operation == "restore":
         return service.restore()
     if operation == "import_session":
@@ -37,12 +68,12 @@ def handle(service, request, resources=None):
         sources = resources[root]
         if payload.get("damaged"):
             sources.media.mark_damaged(payload["videoId"])
-        return sources.resolve(payload["videoId"], force=bool(payload.get("force")), prepared=payload.get("prepared"))
+        return sources.resolve(payload["videoId"], force=bool(payload.get("force")), prepared=payload.get("prepared"), available=payload.get("available", True))
     raise AuthError("That account operation is unavailable.")
 
 
 def safe_error(error):
-    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError)):
+    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError)):
         return {"code": type(error).__name__, "message": str(error)}
     import requests
 
@@ -72,7 +103,7 @@ def main():
                 raise AuthError("The account request is invalid.")
             if service is None:
                 service = AuthService()
-            result = handle(service, request, resources)
+            result = handle(service, request, resources, lambda value: print(json.dumps({"id": identifier, "progress": value}), flush=True))
             response = {"id": identifier, "ok": True, "result": result}
         except Exception as error:
             response = {"id": identifier, "ok": False, "error": safe_error(error)}

@@ -18,12 +18,13 @@ from .catalog_view import CatalogView
 from .jobs import Worker
 from .playback import Playback
 from .browse import Browse
+from .download_view import DownloadView
 
 
 PACKAGE = Path(__file__).resolve().parent
 
 
-def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None):
+def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None):
     engine = QQmlApplicationEngine()
     engine.setProperty("qmlWarnings", [])
     engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
@@ -34,6 +35,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("catalogState", catalog)
     if browse:
         engine.rootContext().setContextProperty("browseState", browse)
+    if downloads:
+        engine.rootContext().setContextProperty("downloadsState", downloads)
     if artwork_path:
         # QQmlEngine does not take ownership of this factory.
         engine.artworkFactory = ArtworkCache(artwork_path)
@@ -81,13 +84,17 @@ def main(argv=None):
     media_data.mkdir(parents=True, exist_ok=True, mode=0o700)
     source_worker = None if args.fixture else Worker(controller, idle_ms=15000)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    downloads = DownloadView(media_data, fixture=args.fixture, parent=controller)
+    account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
+    account.sessionChanged.connect(downloads.resetSession)
     browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
-    engine = load_window(controller, account, player, catalog, cache / "artwork", browse)
+    app.aboutToQuit.connect(downloads.close)
+    engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads)
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]

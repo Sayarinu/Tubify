@@ -98,11 +98,16 @@ def extractor_options(directory):
 
 def validate_media(path):
     result = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", str(path)],
         capture_output=True, text=True, timeout=30, check=True,
     )
-    if float(json.loads(result.stdout)["format"]["duration"]) <= 0:
-        raise ProbeError("The downloaded media has no playable duration.")
+    try:
+        media = json.loads(result.stdout)
+        valid = float(media["format"]["duration"]) > 0 and any(stream.get("codec_type") == "audio" for stream in media.get("streams", []))
+    except (ValueError, KeyError, TypeError, AttributeError):
+        valid = False
+    if not valid:
+        raise ProbeError("The downloaded media has no playable audio.")
 
 
 def run_probe(session, directory):

@@ -18,12 +18,14 @@ class Sources:
         self.extractor_factory = extractor_factory
         self._cache = {}
 
-    def resolve(self, video_id, force=False, prepared=None):
+    def resolve(self, video_id, force=False, prepared=None, available=True):
         if not isinstance(video_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
             raise SourceError("This song has no playable music identifier.")
         local = self.media.ready(video_id)
         if local:
             return {"kind": "local", "source": str(local), "headers": [], "videoId": video_id}
+        if not available:
+            raise SourceError("This song is unavailable. Choose another song or repair its download.")
         if (not force and isinstance(prepared, dict) and prepared.get("kind") == "remote"
                 and prepared.get("videoId") == video_id and isinstance(prepared.get("expires"), (int, float))
                 and prepared["expires"] > time.time() + 60 and str(prepared.get("source", "")).startswith("https://")

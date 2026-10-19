@@ -61,3 +61,10 @@ def test_failed_player_cannot_pass_the_gate(monkeypatch):
     monkeypatch.setattr(compat.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(returncode=1))
     with pytest.raises(compat.ProbeError):
         compat.play_source("https://media.example/audio")
+
+
+def test_video_only_media_cannot_be_published_as_downloaded_audio(monkeypatch, tmp_path):
+    result = {"format": {"duration": "5.0"}, "streams": [{"codec_type": "video"}]}
+    monkeypatch.setattr(compat.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout=json.dumps(result)))
+    with pytest.raises(compat.ProbeError):
+        compat.validate_media(tmp_path / "video.mp4")

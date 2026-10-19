@@ -2,6 +2,8 @@
 
 from collections import deque
 import json
+import os
+import signal
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
@@ -11,10 +13,13 @@ from .launcher import process_command
 class Worker(QObject):
     succeeded = Signal(int, dict)
     failed = Signal(int, dict)
+    progress = Signal(int, dict)
 
     def __init__(self, parent=None, idle_ms=0):
         super().__init__(parent)
         self.process = QProcess(self)
+        if os.name == "posix":
+            self.process.setUnixProcessParameters(QProcess.UnixProcessFlag.CreateNewSession)
         command = process_command("provider")
         self.process.setProgram(command[0])
         self.process.setArguments(command[1:])
@@ -62,10 +67,10 @@ class Worker(QObject):
 
     def _read(self):
         incoming = bytes(self.process.readAllStandardOutput())
-        if self._closed:
+        if self._closed or self._hibernating:
             return
         self._buffer += incoming
-        if len(self._buffer) > 1024 * 1024:
+        if len(self._buffer) > 32 * 1024 * 1024:
             self._protocol_error()
             return
         while b"\n" in self._buffer:
@@ -74,6 +79,10 @@ class Worker(QObject):
                 response = json.loads(line)
                 if not self._active or response.get("id") != self._active["id"]:
                     raise ValueError()
+                if isinstance(response.get("progress"), dict):
+                    self.timer.start(60000)
+                    self.progress.emit(self._active["id"], response["progress"])
+                    continue
                 success = response.get("ok") and isinstance(response.get("result"), dict)
                 failure = not response.get("ok") and isinstance(response.get("error"), dict)
                 if not success and not failure:
@@ -101,16 +110,14 @@ class Worker(QObject):
             self.failed.emit(request["id"], {"code": code, "message": message})
 
     def _protocol_error(self):
-        self._fail_all("provider_error", "The account helper could not complete this request. Retry the operation.")
-        self.process.kill()
+        self._abort("provider_error", "This request could not be completed. Retry the operation.")
 
     def _timeout(self):
-        self._fail_all("timeout", "The request timed out. Check your connection or unlock your system keyring.")
-        self.process.kill()
+        self._abort("timeout", "The request timed out. Check your connection or unlock your system keyring.")
 
     def _error(self, error):
         if not self._closed and not self._hibernating:
-            self._fail_all("provider_error", "The account helper stopped. Retry the operation.")
+            self._abort("provider_error", "This request stopped. Retry the operation.")
 
     def _finished(self, exit_code, exit_status):
         self.timer.stop()
@@ -119,23 +126,44 @@ class Worker(QObject):
             QTimer.singleShot(0, self._pump)
             return
         if not self._closed:
-            self._fail_all("provider_error", "The account helper stopped. Retry the operation.")
+            self._abort("provider_error", "This request stopped. Retry the operation.")
+
+    def _signal_process(self, force=False):
+        pid = self.process.processId()
+        if os.name == "posix" and pid:
+            try:
+                os.killpg(pid, signal.SIGKILL if force else signal.SIGTERM)
+                return
+            except ProcessLookupError:
+                return
+        self.process.kill() if force else self.process.terminate()
+
+    def _abort(self, code, message):
+        self._hibernating = True
+        running = self.process.state() != QProcess.ProcessState.NotRunning
+        self._fail_all(code, message)
+        if running:
+            self._signal_process(force=True)
+        else:
+            QTimer.singleShot(0, self._restart_if_stopped)
+
+    def _restart_if_stopped(self):
+        if self.process.state() == QProcess.ProcessState.NotRunning:
+            self._hibernating = False
+            self._pump()
 
     def _hibernate(self):
         if not self._active and not self._queue and self.process.state() == QProcess.ProcessState.Running:
             self._hibernating = True
-            self.process.terminate()
+            self._signal_process()
             QTimer.singleShot(1000, self._kill_idle)
 
     def _kill_idle(self):
         if self._hibernating and self.process.state() != QProcess.ProcessState.NotRunning:
-            self.process.kill()
+            self._signal_process(force=True)
 
     def reset(self):
-        self._fail_all("cancelled", "The account connection changed. Retry this request.")
-        if self.process.state() != QProcess.ProcessState.NotRunning:
-            self._hibernating = True
-            self.process.kill()
+        self._abort("cancelled", "The account connection changed. Retry this request.")
 
     def close(self):
         self._closed = True
@@ -144,7 +172,7 @@ class Worker(QObject):
         self._queue.clear()
         self._active = None
         if self.process.state() != QProcess.ProcessState.NotRunning:
-            self.process.terminate()
+            self._signal_process()
             if not self.process.waitForFinished(500):
-                self.process.kill()
+                self._signal_process(force=True)
                 self.process.waitForFinished(500)
