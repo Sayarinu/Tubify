@@ -1,0 +1,81 @@
+"""Native Qt entry point, shared by Linux, Windows and macOS."""
+
+import argparse
+import json
+from pathlib import Path
+import sys
+import tempfile
+
+from PySide6.QtCore import QStandardPaths, QTimer, QUrl
+from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication, QIcon
+from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQuickControls2 import QQuickStyle
+
+from .shell import ShellController
+
+
+PACKAGE = Path(__file__).resolve().parent
+
+
+def load_window(controller):
+    engine = QQmlApplicationEngine()
+    engine.setProperty("qmlWarnings", [])
+    engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
+    engine.rootContext().setContextProperty("appState", controller)
+    engine.load(QUrl.fromLocalFile(str(PACKAGE / "qml" / "Main.qml")))
+    return engine
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="YouTube Music native Qt client")
+    parser.add_argument("--fixture", action="store_true", help="Render synthetic data for visual verification")
+    parser.add_argument("--smoke-test", action="store_true", help="Verify window creation and exit")
+    parser.add_argument("--screenshot", type=Path, help="Save a visual-verification screenshot and exit")
+    parser.add_argument("--data-dir", type=Path, help="Override application data for isolated development/tests")
+    args = parser.parse_args(argv)
+    QGuiApplication.setOrganizationName("YouTubeMusicNative")
+    QGuiApplication.setOrganizationDomain("com.carter")
+    QGuiApplication.setApplicationName("youtube-music-native")
+    QGuiApplication.setApplicationDisplayName("YouTube Music")
+    QQuickStyle.setStyle("Basic")
+    app = QGuiApplication([sys.argv[0]])
+    app.setWindowIcon(QIcon(str(PACKAGE / "assets" / "music.svg")))
+    for font in (PACKAGE / "assets").glob("*.ttf"):
+        QFontDatabase.addApplicationFont(str(font))
+    default_font = QFont("Roboto")
+    default_font.setPixelSize(14)
+    app.setFont(default_font)
+    if args.data_dir:
+        data = args.data_dir
+    elif args.smoke_test or args.screenshot:
+        data = Path(tempfile.mkdtemp(prefix="youtube-music-native-ui-"))
+    else:
+        data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation))
+    data.mkdir(parents=True, exist_ok=True)
+    fixture = json.loads((PACKAGE / "assets" / "visual-fixture.json").read_text()) if args.fixture else None
+    controller = ShellController(data / "settings.ini", fixture)
+    engine = load_window(controller)
+    if not engine.rootObjects():
+        return 1
+    window = engine.rootObjects()[0]
+
+    def finish():
+        failed = bool(engine.property("qmlWarnings"))
+        if args.screenshot:
+            args.screenshot.parent.mkdir(parents=True, exist_ok=True)
+            image = window.grabWindow()
+            failed = failed or image.isNull() or not image.save(str(args.screenshot))
+        window.close()
+        app.exit(1 if failed else 0)
+
+    if args.smoke_test or args.screenshot:
+        QTimer.singleShot(700, finish)
+    result = app.exec()
+    # Destroy QML bindings before their Python context disappears.
+    engine.deleteLater()
+    app.processEvents()
+    return result
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

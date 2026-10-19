@@ -1,0 +1,6 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="YouTube Music">
+  <circle cx="128" cy="128" r="88" fill="#FF0033"/>
+  <circle cx="128" cy="128" r="58" fill="#111113"/>
+  <path d="M112 94L166 128L112 162V94Z" fill="#FFFFFF"/>
+  <circle cx="128" cy="128" r="86" stroke="white" stroke-opacity="0.18" stroke-width="4"/>
+</svg>

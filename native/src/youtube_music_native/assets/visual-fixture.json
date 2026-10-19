@@ -1,0 +1,25 @@
+{
+  "playlists": [
+    {"id": "fixture-favorites", "title": "Favorite Songs", "owner": "Your music"},
+    {"id": "fixture-focus", "title": "Evening focus", "owner": "Your music"},
+    {"id": "fixture-road", "title": "Long way home", "owner": "Your music"},
+    {"id": "fixture-soundtracks", "title": "Soundtracks", "owner": "Your music"}
+  ],
+  "shelves": [
+    {"title": "Listen again", "subtitle": "YOUR MUSIC", "items": [
+      {"id": "fixture-1", "title": "A familiar tune", "artist": "The evening ensemble", "accent": "#876a4b"},
+      {"id": "fixture-2", "title": "Lemon skies", "artist": "Coastal radio", "accent": "#c4b947"},
+      {"id": "fixture-3", "title": "Silver lines", "artist": "Paper moon", "accent": "#687080"},
+      {"id": "fixture-4", "title": "After the rain", "artist": "City lights", "accent": "#7f9860"},
+      {"id": "fixture-5", "title": "Journey home", "artist": "The atlas orchestra", "accent": "#40565f"},
+      {"id": "fixture-6", "title": "Passing seasons", "artist": "Northern coast", "accent": "#986e80"}
+    ]},
+    {"title": "Quick picks", "items": [
+      {"id": "fixture-7", "title": "Morning in the city", "artist": "Distant traffic", "accent": "#536c75"},
+      {"id": "fixture-8", "title": "Somewhere quiet", "artist": "The Sunday trio", "accent": "#80906c"},
+      {"id": "fixture-9", "title": "Night drive", "artist": "Signal blue", "accent": "#766a94"},
+      {"id": "fixture-10", "title": "First light", "artist": "Daybreak", "accent": "#ad815a"},
+      {"id": "fixture-11", "title": "Low tide", "artist": "Coastal radio", "accent": "#698e93"}
+    ]}
+  ]
+}

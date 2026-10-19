@@ -2,6 +2,8 @@
 
 Shared Python code for the native Qt client. The first development gate is a repeatable real-account compatibility check, tracked by [LUNE-336](https://linear.app/nouvelle-lune-atelier/issue/LUNE-336/prove-premium-account-access-streaming-and-offline-playback).
 
+The portable Qt window and reusable visual shell are tracked by [LUNE-337](https://linear.app/nouvelle-lune-atelier/issue/LUNE-337/establish-the-portable-qt-native-application-and-visual-shell). Account connection and catalog integration follow as separate tickets; the window is a development preview.
+
 ## Development
 
 Use Python 3.12 or newer and an isolated environment:
@@ -13,6 +15,10 @@ python -m venv .venv
 ```
 
 On Windows use `.venv\Scripts\python.exe`. Session import and shared logic work across platforms; the complete network-isolated gate currently targets Linux.
+
+Launch the Qt window with `youtube-music-native`. For repeatable visual checks, `youtube-music-native --fixture --screenshot /tmp/native-music.png` uses synthetic data and exits after saving an image. The ordinary window does not load this fixture. `--data-dir` supplies isolated preferences for development and tests.
+
+The interface bundles the existing music mark and OFL-licensed Roboto fonts, uses native Qt Quick rendering, and keeps provider work outside the GUI thread. CI creates a real window and decodes a generated local WAV through libmpv on Linux, Windows and macOS. These smoke checks do not replace the later full platform-port acceptance work.
 
 ## Account and offline compatibility check
 
