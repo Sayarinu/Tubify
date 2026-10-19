@@ -1,0 +1,22 @@
+{
+  "account_access": true,
+  "catalog_access": true,
+  "audio_stream": true,
+  "download_validated": true,
+  "offline_restart": true,
+  "audio_output": "null",
+  "provider_isolation": "separate process from libmpv",
+  "download_bytes": 7432943,
+  "audio_codec": "opus",
+  "network_isolation": "new Linux network namespace",
+  "status": "passed",
+  "verified_at_utc": "2026-10-19T00:09:15.921002+00:00",
+  "platform": "Arch Linux x86_64",
+  "credential_source": "user-authorized read-only Tauri session import",
+  "python": "3.14.7",
+  "versions": {
+    "ytmusicapi": "1.12.3",
+    "yt-dlp": "2026.8.19",
+    "python-mpv": "1.0.8"
+  }
+}

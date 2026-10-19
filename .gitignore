@@ -8,3 +8,12 @@ packaging/arch/*.tar.gz
 packaging/arch/pkg/
 packaging/arch/src/
 packaging/arch/*.pkg.tar.*
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+browser.json
+cookies.txt
+core
+core.*

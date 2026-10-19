@@ -1,0 +1,42 @@
+name: Native client checks
+
+on:
+  pull_request:
+    paths:
+      - 'native/**'
+      - '.github/workflows/native.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - '.github/workflows/native.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shared-code:
+    name: Shared code (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.12']
+        include:
+          - os: ubuntu-latest
+            python: '3.14'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: native/pyproject.toml
+      - name: Install shared Python package
+        run: python -m pip install -e './native[test]'
+      - name: Test imports, session validation and isolated playback dispatch
+        run: python -m pytest native/tests -q
+      - name: Check portable command entry point
+        run: youtube-music-native-check --help
