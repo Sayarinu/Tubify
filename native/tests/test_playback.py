@@ -280,3 +280,115 @@ def test_duplicate_queue_edits_preserve_current_audio_and_position(tmp_path):
     player.removeKey(first)
     assert player.currentTrack == TRACKS[1] and player.position == 0
     player.close()
+
+
+def test_manual_queue_prefetch_and_context_switch_use_same_next_entry(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks(TRACKS)
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/first.wav"})
+    old_prepare = player._prepare_request
+    manual = {"videoId": "manual12345", "title": "Manual", "duration": 80}
+    player.enqueue([manual])
+    assert old_prepare in worker.cancelled
+    assert worker.requests[-1][1]["videoId"] == manual["videoId"]
+    assert player.queue.peek()["track"] == manual
+    player.playTracks(TRACKS, 1)
+    assert player.currentTrack == TRACKS[1] and player.manualCount == 1
+    player.next()
+    assert player.currentTrack == manual and player.manualCount == 0
+    assert worker.requests[-1][1]["videoId"] == manual["videoId"]
+    player.close()
+
+
+def test_empty_and_paused_enqueue_stay_paused_and_clear_preserves_position(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.enqueue(TRACKS)
+    assert player.currentTrack == TRACKS[0] and not player.playing and not worker.requests
+    assert player.duration == 120 and player.manualCount == 1
+    player.resume()
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/first.wav"})
+    player.seek(18)
+    player.pause()
+    player.enqueue(TRACKS)
+    assert not player.wantsPlayback and player.position == 18
+    player.clearManualQueue()
+    assert not player.manualCount and player.currentTrack == TRACKS[0] and player.position == 18
+    assert not player.wantsPlayback and len(player.audio.loads) == 1
+    player.close()
+
+
+def test_unavailable_manual_entries_are_skipped_once_before_offline_source(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks(TRACKS)
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/first.wav"})
+    player.enqueue([{"videoId": "missingone1", "available": False}, {"videoId": "missingtwo2", "available": False}])
+    player.next()
+    player._skip_failed()
+    player._skip_failed()
+    assert player.currentTrack == TRACKS[1] and not player.manualCount
+    worker.succeeded.emit(player._request, {"kind": "local", "source": "/fixture/second.wav"})
+    assert player.sourceKind == "local" and player.playing
+    player.close()
+
+
+def test_manual_group_and_history_restore_paused_with_duplicate_keys_preserved(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.playTracks(TRACKS)
+    player.enqueue([TRACKS[0], TRACKS[0]])
+    player.next()
+    player.seek(15)
+    saved = player.queue.snapshot(15)
+    player.close()
+    restored = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    assert restored.queue.snapshot(restored.position) == saved and not restored.playing
+    assert restored.manualCount == 1
+    restored.previous()
+    assert restored.currentTrack == TRACKS[0] and restored.manualCount == 1
+    restored.close()
+
+
+def test_current_removal_while_paused_does_not_start_playing(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.enqueue(TRACKS)
+    player.removeKey(player.entries[0]["key"])
+    assert player.currentTrack == TRACKS[1] and not player.wantsPlayback
+    player.close()
+
+
+def test_manual_addition_while_autoplay_is_loading_cancels_stale_radio(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker, radio = FakeWorker(), FakeWorker()
+    player = Playback(tmp_path, worker, radio_worker=radio, audio_factory=FakeAudio)
+    player.playTracks(TRACKS[:1])
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/first.wav"})
+    player.audio.ended.emit(False)
+    request = player._radio_request
+    player.pause()
+    player.enqueue(TRACKS[1:])
+    assert player.currentTrack == TRACKS[1] and not player.wantsPlayback
+    radio.succeeded.emit(request, {"items": [{"videoId": "staleradio1"}]})
+    assert len(player.queue.source) == 1 and player._radio_request is None
+    player.close()
+
+
+def test_source_label_survives_pagination_manual_queue_and_restart(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.playTracks(TRACKS, source_label="Evening mix")
+    player.enqueue(TRACKS[:1])
+    player.appendContext(TRACKS[1:])
+    assert [entry["group"] for entry in player.entries] == ["Now playing", "Next in queue", "Next from Evening mix", "Next from Evening mix"]
+    player.close()
+    restored = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    assert restored.entries[-1]["group"] == "Next from Evening mix"
+    restored.playTracks(TRACKS)
+    assert restored.entries[-1]["group"] == "Next up"
+    restored.close()

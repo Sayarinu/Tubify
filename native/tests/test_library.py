@@ -39,7 +39,7 @@ def setup(tmp_path):
     account.requireReconnect = lambda message: None
     view = CatalogView(worker, tmp_path / "cache.sqlite3", account)
     updated = []
-    player = SimpleNamespace(resetSession=lambda: None, updateTrack=lambda *args: updated.append(args), hasTrack=False)
+    player = SimpleNamespace(resetSession=lambda: None, updateTrack=lambda *args: updated.append(args), hasTrack=False, manualQueueCleared=account.sessionChanged)
     browse = Browse(shell, account, view, player, tmp_path / "cache.sqlite3")
     actions = Actions(account, tmp_path / "cache.sqlite3")
     actions.applied.connect(browse.applyAction)

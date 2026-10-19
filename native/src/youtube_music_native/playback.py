@@ -30,6 +30,7 @@ def write_state(path, content):
 class Playback(QObject):
     changed = Signal()
     positionChanged = Signal()
+    manualQueueCleared = Signal()
     trackStarted = Signal("QVariantMap")
     stateSaveFailed = Signal()
     seeked = Signal(float)
@@ -49,7 +50,7 @@ class Playback(QObject):
         self._prepare_request = None
         self._preparing_video = None
         self._prepared = {}
-        self._retry, self._failures = False, 0
+        self._retry, self._failures = False, set()
         self._start_position, self._want_paused = 0., False
         self._autoplay = True
         self._saver = ThreadPoolExecutor(max_workers=1, thread_name_prefix="playback-state")
@@ -90,7 +91,14 @@ class Playback(QObject):
 
     @Property("QVariantList", notify=changed)
     def entries(self):
-        return [{**entry["track"], "key": entry["key"], "current": index == self.queue.index} for index, entry in enumerate(self.queue.entries)]
+        groups = (("Now playing", [self.queue.current] if self.queue.current else []),
+                  ("Next in queue", self.queue.manual), ("Next from " + self.queue.source_label if self.queue.source_label else "Next up", self.queue.remaining))
+        return [{**entry["track"], "key": entry["key"], "current": group == "Now playing", "group": group,
+                 "movable": group != "Now playing"} for group, entries in groups for entry in entries]
+
+    @Property(int, notify=changed)
+    def manualCount(self):
+        return len(self.queue.manual)
 
     @Property(bool, notify=changed)
     def hasTrack(self):
@@ -153,11 +161,11 @@ class Playback(QObject):
         return self._autoplay
 
     @Slot("QVariantList", int)
-    def playTracks(self, tracks, index=0):
+    def playTracks(self, tracks, index=0, source_label=""):
         self._transport_revision += 1
         self._prepared = {}
-        self.queue.replace([dict(track) for track in tracks], index)
-        self._failures = 0
+        self.queue.replace([dict(track) for track in tracks], index, source_label)
+        self._failures = set()
         self._start()
 
     @Slot("QVariantMap")
@@ -165,30 +173,49 @@ class Playback(QObject):
         self.playTracks([track], 0)
 
     def updateTrack(self, identifier, values):
-        for entry in self.queue.entries:
+        for entry in self.queue.all_entries:
             if entry["track"].get("videoId") == identifier:
                 entry["track"].update(values)
         self._queue_changed()
 
     @Slot("QVariantList")
-    def playShuffledTracks(self, tracks):
+    def playShuffledTracks(self, tracks, source_label=""):
         self._transport_revision += 1
         self._prepared = {}
-        self.queue.replace([dict(track) for track in tracks])
+        self.queue.replace([dict(track) for track in tracks], source_label=source_label)
         self.queue.shuffle_all()
-        self._failures = 0
+        self._failures = set()
         self._start()
 
     @Slot("QVariantList", bool)
     def enqueue(self, tracks, next=False):
+        had_track, paused = self.hasTrack, not self.wantsPlayback
         self.queue.append([dict(track) for track in tracks], next=next)
+        if not had_track and self.hasTrack:
+            self._position = 0.
+            self._duration = float(self.currentTrack.get("duration") or 0)
+            self._want_paused, self._playing, self._stopped = True, False, False
+        if self._radio_request is not None and self.queue.manual:
+            self.queue.advance()
+            self._start(paused=paused)
+        else:
+            self._queue_changed()
+
+    def appendContext(self, tracks):
+        self.queue.append_context(tracks)
+        self._queue_changed()
+
+    @Slot()
+    def clearManualQueue(self):
+        self.manualQueueCleared.emit()
+        self.queue.clear_manual()
         self._queue_changed()
 
     @Slot(int)
     def select(self, index):
         self._transport_revision += 1
         if self.queue.select(index):
-            self._failures = 0
+            self._failures = set()
             self._start()
 
     def _key_index(self, key):
@@ -336,16 +363,19 @@ class Playback(QObject):
             self._playing, self._busy = False, False
             self.changed.emit()
         else:
-            self._failures = 0
+            self._failures = set()
             self._advance(automatic=True)
 
     def _skip_failed(self):
         self._loaded = False
-        self._failures += 1
-        if self._failures >= len(self.queue.entries) or not self.queue.advance():
+        if self.queue.current:
+            self._failures.add(self.queue.current["key"])
+        upcoming = self.queue.peek()
+        if upcoming is None or upcoming["key"] in self._failures:
             self._playing, self._busy = False, False
             self.changed.emit()
             return
+        self.queue.advance()
         message = self._message
         self._start()
         self._message = message
@@ -443,7 +473,7 @@ class Playback(QObject):
     @Slot()
     def next(self):
         self._transport_revision += 1
-        self._failures = 0
+        self._failures = set()
         self._advance()
 
     def _advance(self, automatic=False):
@@ -467,7 +497,8 @@ class Playback(QObject):
         video_id = self.currentTrack.get("videoId")
         tracks = [track for track in result.get("items", []) if track.get("videoId") != video_id and track.get("available", True)]
         if tracks:
-            self.queue.append(tracks)
+            self.queue.append_context(tracks)
+            self.queue.source_label = "Autoplay"
             self.queue.advance()
             self._start()
         else:
@@ -513,8 +544,9 @@ class Playback(QObject):
 
     @Slot(int)
     def remove(self, index):
+        paused = not self.wantsPlayback
         if self.queue.remove(index):
-            self._start()
+            self._start(paused=paused)
         else:
             self._queue_changed()
 
@@ -560,17 +592,16 @@ class Playback(QObject):
         self.save()
 
     def _prepare_next(self):
-        upcoming = self.queue.index + 1
-        if self.worker and upcoming < len(self.queue.entries):
-            track = self.queue.entries[upcoming]["track"]
-            if track.get("available", True):
-                video_id = track.get("videoId", "")
-                if video_id in self._prepared or self._prepare_request is not None and video_id == self._preparing_video:
-                    return
-                if self._prepare_request is not None:
-                    self.worker.cancel(self._prepare_request)
-                self._preparing_video = video_id
-                self._prepare_request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id})
+        upcoming = self.queue.peek(automatic=True)
+        track = upcoming["track"] if upcoming else {}
+        video_id = track.get("videoId", "") if track.get("available", True) else ""
+        if self._prepare_request is not None and video_id != self._preparing_video:
+            self.worker.cancel(self._prepare_request)
+            self._prepare_request, self._preparing_video = None, None
+        if not self.worker or not video_id or video_id in self._prepared or self._prepare_request is not None:
+            return
+        self._preparing_video = video_id
+        self._prepare_request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id})
 
     @Slot()
     def _save_failed(self):

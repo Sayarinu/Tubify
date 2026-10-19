@@ -24,6 +24,14 @@ Required account behavior for the user's single Premium account:
 
 Videos, podcasts, casting, uploads, free-account behavior, automatic playlist download synchronization and crossfade are outside the first release.
 
+### Priority manual queue (LUNE-356)
+
+The expanded player separates Now playing, Next in queue and Next from [source name]. Add to queue appends to the manual group; Play next prepends. Albums/playlists are gathered asynchronously in full, using downloaded metadata first, then inserted atomically in action order. Failures discard that batch and show a retry explanation. Clear queued songs cancels unfinished additions as well as pending manual entries.
+
+Explicit new playback replaces source/history and starts the selected song, preserving pending manual additions. Shuffle/repeat-all affect only the source; repeat-one retains its current behavior. Manual additions play once. Previous follows actual selection history without re-enqueuing consumed manual entries; after three seconds it restarts the current song. Next consumes pending manual entries before the source. Selection of a later manual entry skips earlier manual entries; source selection keeps manual additions. Reorder only within pending groups, with stable keys for duplicates. Empty enqueue selects paused; enqueue while paused stays paused.
+
+Transport, prefetch and MPRIS share the same next-entry calculation. Pagination and autoplay append to the source explicitly. Unknown sources use “Next up”. Snapshot version 2 stores the source name, source, manual, current and history; version 1 migrates losslessly into the source and restores paused. Synthetic tests cover these transitions, async cancellation/error/order, migration, offline playback, keyboard/drag editing and real worker/libmpv playback.
+
 ## Downloads and offline behavior
 
 A single song, album or playlist can be downloaded with its metadata, artwork and collection order. Playlist downloads are manual snapshots; repeating Download refreshes the snapshot.

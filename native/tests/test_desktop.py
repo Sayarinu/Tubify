@@ -134,3 +134,22 @@ def test_duplicate_sleep_and_wake_signals_restart_audio_only_once(tmp_path):
     assert player.audio.loads[-1][1] == 22 and player.playing
     desktop.close()
     player.close()
+
+
+def test_desktop_capabilities_and_next_follow_manual_priority_and_history(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    desktop = Desktop(ShellController(tmp_path / "settings.ini"), player, SimpleNamespace(), bus_factory=Bus)
+    player.playTracks(TRACKS, 1)
+    player.toggleAutoplay()
+    assert not desktop.snapshot()["CanGoNext"] and not desktop.snapshot()["CanGoPrevious"]
+    player.enqueue([TRACKS[0]])
+    assert desktop.snapshot()["CanGoNext"]
+    desktop.command("Next", [])
+    assert player.currentTrack == TRACKS[0]
+    assert desktop.snapshot()["CanGoPrevious"] and not desktop.snapshot()["CanGoNext"]
+    desktop.command("Previous", [])
+    assert player.currentTrack == TRACKS[1] and player.manualCount == 0
+    desktop.close()
+    player.close()

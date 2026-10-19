@@ -7,11 +7,12 @@ Menu {
     property var media: ({})
     property var context: ({})
     property bool song: media.kind === "song" || !!media.videoId
+    property bool queueable: song || media.kind === "album" || media.kind === "playlist"
     property bool canEdit: (accountState.connected || appState.fixtureMode) && !accountState.busy && !actionsState.busy
     property bool playlistEntry: song && !!media.setVideoId && catalogState.route === "playlist" && catalogState.data.editable && context.playlistId === catalogState.parameters.id
     MenuItem { text: "Play"; onTriggered: { if (root.context.queueKey) playerState.selectKey(root.context.queueKey); else browseState.play(root.media) } }
-    MenuItem { text: "Play next"; visible: root.song; height: visible ? implicitHeight : 0; onTriggered: playerState.enqueue([root.media], true) }
-    MenuItem { text: "Add to queue"; visible: root.song; height: visible ? implicitHeight : 0; onTriggered: playerState.enqueue([root.media], false) }
+    MenuItem { text: "Play next"; visible: root.queueable; height: visible ? implicitHeight : 0; onTriggered: browseState.enqueue(root.media, true) }
+    MenuItem { text: "Add to queue"; visible: root.queueable; height: visible ? implicitHeight : 0; onTriggered: browseState.enqueue(root.media, false) }
     MenuItem { text: "Start radio"; visible: root.song; height: visible ? implicitHeight : 0; onTriggered: browseState.startRadioForSong(root.media.videoId || root.media.id) }
     MenuSeparator { visible: root.song; height: visible ? implicitHeight : 0 }
     MenuItem { text: root.media.rating === "LIKE" ? "Remove like" : "Like"; visible: root.song; height: visible ? implicitHeight : 0; enabled: root.canEdit; onTriggered: libraryState.rate(root.media, "LIKE") }
@@ -29,6 +30,6 @@ Menu {
     MenuItem { text: "Delete playlist"; visible: root.media.kind === "playlist" && root.media.owned; height: visible ? implicitHeight : 0; enabled: root.canEdit; onTriggered: libraryState.edit("playlist_delete", root.media) }
     MenuSeparator { visible: !!root.context.queueKey; height: visible ? implicitHeight : 0 }
     MenuItem { text: "Remove from queue"; visible: !!root.context.queueKey; height: visible ? implicitHeight : 0; onTriggered: playerState.removeKey(root.context.queueKey) }
-    MenuItem { text: "Move up in queue"; visible: !!root.context.queueKey; height: visible ? implicitHeight : 0; onTriggered: playerState.moveKey(root.context.queueKey, -1) }
-    MenuItem { text: "Move down in queue"; visible: !!root.context.queueKey; height: visible ? implicitHeight : 0; onTriggered: playerState.moveKey(root.context.queueKey, 1) }
+    MenuItem { text: "Move up in queue"; visible: !!root.context.queueKey && !!root.media.movable; height: visible ? implicitHeight : 0; onTriggered: playerState.moveKey(root.context.queueKey, -1) }
+    MenuItem { text: "Move down in queue"; visible: !!root.context.queueKey && !!root.media.movable; height: visible ? implicitHeight : 0; onTriggered: playerState.moveKey(root.context.queueKey, 1) }
 }

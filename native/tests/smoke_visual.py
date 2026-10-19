@@ -95,6 +95,8 @@ def main():
                 player.save_timer.start()
                 player.playTracks([entry["track"] for entry in player.queue.entries])
                 player.setRepeat("all")
+            player.queue.source_label = "Evening sessions"
+            player.enqueue([dict(entry["track"]) for entry in player.queue.entries[1:3]])
             player.changed.emit()
             scenarios = [
                 ("home", lambda: shell.navigate("Home")),

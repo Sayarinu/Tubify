@@ -50,8 +50,8 @@ class Desktop(QObject):
             "Rate": 1., "Shuffle": self.player.shuffled, "Metadata": metadata,
             "Volume": self.shell.volume / 100., "Position": int(self.player.position * 1000000),
             "MinimumRate": 1., "MaximumRate": 1.,
-            "CanGoNext": queue.index + 1 < len(queue.entries) or self.player.hasTrack and (self.player.repeat == "all" or self.player.autoplay and self.player.radio_worker is not None),
-            "CanGoPrevious": self.player.hasTrack and (queue.index > 0 or self.player.position > 3),
+            "CanGoNext": queue.peek() is not None or self.player.hasTrack and self.player.autoplay and self.player.radio_worker is not None,
+            "CanGoPrevious": self.player.hasTrack and (bool(queue.history) or self.player.position > 3),
             "CanPlay": self.player.hasTrack, "CanPause": self.player.hasTrack,
             "CanSeek": self.player.hasTrack and self.player.duration > 0, "CanControl": True,
         }

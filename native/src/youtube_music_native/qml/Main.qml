@@ -273,7 +273,7 @@ ApplicationWindow {
         anchors.bottom: player.top; anchors.bottomMargin: 16
         width: Math.min(600, window.width - 80); height: playbackMessage.implicitHeight + 24
         radius: 6; color: Theme.hover; visible: playbackMessage.text.length > 0
-        Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.pixelSize: 14 }
+        Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: browseState.queueMessage || actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.pixelSize: 14 }
     }
 
     Dialog {

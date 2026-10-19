@@ -1,0 +1,54 @@
+{
+  "ticket": "LUNE-356",
+  "code_revision": "d52e8c4812315ccc566a4cb6f2b56c1d7b684d07",
+  "content": "Synthetic metadata/artwork and generated silent local audio only.",
+  "unit_tests": {
+    "passed": 147,
+    "failed": 0,
+    "seconds": 3.36
+  },
+  "visual": {
+    "passed": true,
+    "renderer": "GraphicsApi.OpenGL",
+    "views_checked": 33,
+    "sizes": [
+      [
+        1600,
+        900
+      ],
+      [
+        1280,
+        820
+      ],
+      [
+        920,
+        620
+      ]
+    ],
+    "rounded_artwork_checks": 25,
+    "large_list_songs": 10000
+  },
+  "runtime": [
+    "Native launch, dialogs, downloads and text-entry shortcut isolation passed.",
+    "Expanded-player manual groups, keyboard reorder, drag reorder, occurrence removal and Clear queued songs passed.",
+    "Real provider workers and libmpv decoded source/manual/source from local generated audio, then restored paused."
+  ],
+  "regressions": [
+    "FIFO and Play next batches, duplicate occurrence keys, source replacement and group-only reordering",
+    "Source-only shuffle/repeat-all, repeat-one, history source continuation and clear",
+    "Atomic paginated collection loading, action ordering, failure, cancellation and stale callbacks",
+    "Downloaded collection metadata without provider requests; unavailable manual tracks before local source",
+    "Version-1 migration and version-2 roundtrip with groups, source names, history anchors and position",
+    "Shared next-entry selection for playback, preparation and MPRIS; paused and empty enqueue; stale autoplay cancellation"
+  ],
+  "review": {
+    "standards": "No findings",
+    "spec": "Both findings resolved: history source continuation and persisted source labels."
+  },
+  "limitations": [
+    "No new real-account or cold streaming timing verification.",
+    "Physical sleep/wake remains deferred.",
+    "Shared platform CI does not constitute complete Windows/macOS ports.",
+    "Development preview only; no release publication or installed-package upgrade."
+  ]
+}

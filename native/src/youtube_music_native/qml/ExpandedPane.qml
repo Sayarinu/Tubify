@@ -65,15 +65,15 @@ Item {
                 Item {
                     Item {
                         id: autoplayHeader
-                        width: parent.width; height: 76
+                        width: parent.width; height: 112
                         Column {
-                            anchors.verticalCenter: parent.verticalCenter; width: parent.width - 68; spacing: 4
+                            y: 22; width: parent.width - 68; spacing: 4
                             Text { text: "Autoplay"; color: "white"; font.pixelSize: 14 }
                             Text { width: parent.width; text: "Add similar music"; color: Theme.secondary; font.pixelSize: 12; elide: Text.ElideRight }
                         }
                         Switch {
                             id: autoplaySwitch
-                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            anchors.right: parent.right; y: 16
                             checked: playerState.autoplay; Accessible.name: "Autoplay similar music"
                             onClicked: playerState.toggleAutoplay()
                             indicator: Rectangle {
@@ -84,12 +84,26 @@ Item {
                             }
                         }
                     }
+                    Button {
+                        objectName: "clearQueuedSongs"
+                        anchors.right: parent.right; y: 70; height: 32
+                        text: "Clear queued songs"
+                        enabled: playerState.manualCount > 0 || browseState.queueBusy
+                        onClicked: playerState.clearManualQueue()
+                    }
                     ListView {
                         id: queue
                         objectName: "queueList"
                         anchors.top: autoplayHeader.bottom; anchors.bottom: parent.bottom; width: parent.width
                         clip: true; boundsBehavior: Flickable.StopAtBounds
                         model: playerState.entries
+                        section.property: "group"
+                        section.criteria: ViewSection.FullString
+                        section.delegate: Text {
+                            required property string section
+                            width: queue.width; height: 40; topPadding: 14
+                            text: section; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.accent; font.pixelSize: 14; font.bold: true
+                        }
                         property string focusKey: ""
                         property string restoreKey: ""
                         ScrollBar.vertical: ScrollBar {}
@@ -124,7 +138,7 @@ Item {
                                 id: handle
                                 objectName: "queueDrag-" + queueEntry.modelData.key
                                 anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                                width: 28; iconName: "drag"; iconSize: 20
+                                width: 28; visible: !!queueEntry.modelData.movable; iconName: "drag"; iconSize: 20
                                 tip: "Reorder song; Alt+Up or Alt+Down also moves it"
                                 onClicked: appState.showMenu(queueEntry.modelData, {queueKey: queueEntry.modelData.key})
                                 DragHandler {

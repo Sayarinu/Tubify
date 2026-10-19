@@ -23,6 +23,8 @@ def main():
         def verify():
             try:
                 position, playing = player.position, player.playing
+                player.enqueue([dict(entry) for entry in player.entries[:3]])
+                assert [row["group"] for row in player.entries[:4]] == ["Now playing"] + ["Next in queue"] * 3
                 shell.requestAction("expandPlayer")
                 QTest.qWait(80)
                 assert window.findChild(QObject, "expandedPlayer")
@@ -92,6 +94,11 @@ def main():
                     QTest.qWait(80)
                     pane = window.findChild(QObject, "expandedPlayer")
                     assert pane.property("width") >= 680 and pane.property("height") == size[1] - 180
+                current = player.currentTrack
+                source = list(player.queue.source)
+                clear = window.findChild(QObject, "clearQueuedSongs")
+                QMetaObject.invokeMethod(clear, "clicked")
+                assert not player.queue.manual and player.queue.source == source and player.currentTrack == current
                 shell.setExpanded(False)
                 assert player.position == state[1] and player.playing == state[0]
                 assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")

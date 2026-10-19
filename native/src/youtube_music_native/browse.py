@@ -3,6 +3,7 @@
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .playlist_ops import apply_change
+from .queue_additions import QueueAdditions
 
 
 class Browse(QObject):
@@ -13,6 +14,7 @@ class Browse(QObject):
         self.shell, self.account, self.view, self.player = shell, account, view, player
         self.worker, self.cache_path, self.fixture = account.worker, str(cache_path), fixture
         self._play_request, self._play_route, self._play_params = None, "", {}
+        self._play_title = ""
         self._mood_request, self._mood_title = None, ""
         self._playlist_request = None
         self._identity = None
@@ -20,6 +22,8 @@ class Browse(QObject):
         self._history, self._play_shuffle = [], False
         self.downloads, self._download_request = downloads, None
         self._download_open_request = None
+        self.additions = QueueAdditions(account, player, cache_path, downloads, fixture, self)
+        self.additions.changed.connect(self.changed)
         if downloads:
             downloads.collectionFound.connect(self._download_result)
             downloads.collectionReady.connect(self.openDownloaded)
@@ -39,6 +43,18 @@ class Browse(QObject):
     @Property(str, notify=changed)
     def message(self):
         return self._message
+
+    @Property(bool, notify=changed)
+    def queueBusy(self):
+        return bool(self.additions.jobs)
+
+    @Property(str, notify=changed)
+    def queueMessage(self):
+        return "Adding to queue…" if self.queueBusy and not self.additions.message else self.additions.message
+
+    @Slot("QVariantMap", bool)
+    def enqueue(self, media, next=False):
+        self.additions.add(media, next)
 
     def _cancel_play_pages(self):
         if self.downloads:
@@ -179,13 +195,14 @@ class Browse(QObject):
     def playCollection(self, media, shuffle):
         self._cancel_play_pages()
         self._play_shuffle = shuffle
+        self._play_title = media.get("title", "")
         kind = media.get("kind", "song")
         if kind == "song":
             self.player.play(media)
         elif self.fixture:
             if kind in {"album", "playlist"}:
                 tracks = [{**track, "kind": "song", "duration": 180} for track in self.fixture.get("shelves", [{}])[0].get("items", [])]
-                self.player.playShuffledTracks(tracks) if shuffle else self.player.playTracks(tracks)
+                self.player.playShuffledTracks(tracks, source_label=self._play_title) if shuffle else self.player.playTracks(tracks, source_label=self._play_title)
         elif kind in {"album", "playlist"}:
             self._play_route, self._play_params = kind, {"id": media.get("id", "")}
             if self.downloads:
@@ -207,7 +224,8 @@ class Browse(QObject):
             if collection:
                 tracks = collection.get("items", [])
                 if tracks:
-                    self.player.playShuffledTracks(tracks) if self._play_shuffle else self.player.playTracks(tracks)
+                    title = collection.get("title") or self._play_title
+                    self.player.playShuffledTracks(tracks, source_label=title) if self._play_shuffle else self.player.playTracks(tracks, source_label=title)
             else:
                 self._request_play_page()
 
@@ -224,9 +242,10 @@ class Browse(QObject):
             self._play_request = None
             tracks = [track for track in result.get("items", []) if track.get("kind") == "song"]
             if self._play_offset:
-                self.player.enqueue(tracks)
+                self.player.appendContext(tracks)
             elif tracks:
-                self.player.playShuffledTracks(tracks) if self._play_shuffle else self.player.playTracks(tracks)
+                title = result.get("title") or self._play_title
+                self.player.playShuffledTracks(tracks, source_label=title) if self._play_shuffle else self.player.playTracks(tracks, source_label=title)
             if result.get("cursor") is not None:
                 self._request_play_page(result["cursor"])
         elif identifier == self._mood_request:
@@ -249,34 +268,35 @@ class Browse(QObject):
             self.view.load("moods", {})
 
     @Slot("QVariantList")
-    def playItems(self, values):
+    def playItems(self, values, source_label=""):
         self._cancel_play_pages()
         songs = [dict(value) for value in values if value.get("kind", "song") == "song"]
         if songs:
-            self.player.playTracks(songs)
+            self.player.playTracks(songs, source_label=source_label)
 
     @Slot()
     def playView(self):
         if self.view.data.get("downloadKey"):
-            self.playItems(self.view.data.get("items", []))
+            self.playItems(self.view.data.get("items", []), self.view.data.get("title", ""))
         elif self.view.route in {"album", "playlist"} and not self.fixture:
-            self.play({"kind": self.view.route, "id": self.view.parameters.get("id", "")})
+            self.play({"kind": self.view.route, "id": self.view.parameters.get("id", ""), "title": self.view.data.get("title", "")})
         else:
-            self.playItems(self.view.data.get("items", []))
+            self.playItems(self.view.data.get("items", []), self.view.data.get("title", ""))
 
     @Slot()
     def shuffleView(self):
         if self.view.route in {"album", "playlist"} and not self.fixture and not self.view.data.get("downloadKey"):
-            self.playCollection({"kind": self.view.route, "id": self.view.parameters.get("id", "")}, True)
+            self.playCollection({"kind": self.view.route, "id": self.view.parameters.get("id", ""), "title": self.view.data.get("title", "")}, True)
         else:
             self._cancel_play_pages()
-            self.player.playShuffledTracks(self.view.data.get("items", []))
+            self.player.playShuffledTracks(self.view.data.get("items", []), source_label=self.view.data.get("title", ""))
 
     @Slot(str, bool)
     def startRadio(self, identifier, shuffle):
         self._cancel_play_pages()
+        self._play_title = (self.view.data.get("title", "") + " radio").strip()
         if self.fixture:
-            self.player.playTracks(self.fixture.get("shelves", [{}])[0].get("items", []))
+            self.player.playTracks(self.fixture.get("shelves", [{}])[0].get("items", []), source_label=self._play_title)
             return
         self._play_shuffle = False
         self._play_route, self._play_params = "radio", {"playlistId": identifier, "shuffle": shuffle}
@@ -285,10 +305,11 @@ class Browse(QObject):
     @Slot(str)
     def startRadioForSong(self, identifier):
         self._cancel_play_pages()
+        self._play_title = "Radio"
         self._play_shuffle = False
         self._play_route, self._play_params = "radio", {"id": identifier, "radio": True}
         if self.fixture:
-            self.player.playTracks(self.fixture.get("shelves", [{}])[0].get("items", []))
+            self.player.playTracks(self.fixture.get("shelves", [{}])[0].get("items", []), source_label=self._play_title)
         else:
             self._request_play_page()
 
@@ -336,7 +357,7 @@ class Browse(QObject):
     @Slot(int)
     def playAt(self, index):
         self._cancel_play_pages()
-        self.player.playTracks(self.view.data.get("items", []), index)
+        self.player.playTracks(self.view.data.get("items", []), index, source_label=self.view.data.get("title", ""))
         cursor = self.view.data.get("cursor")
         if cursor is not None and self.view.route in {"album", "playlist"}:
             self._play_route, self._play_params = self.view.route, self.view.parameters
