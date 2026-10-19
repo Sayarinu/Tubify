@@ -13,17 +13,25 @@ from PySide6.QtQuickControls2 import QQuickStyle
 
 from .shell import ShellController
 from .account import Account
+from .artwork import ArtworkCache
+from .catalog_view import CatalogView
 
 
 PACKAGE = Path(__file__).resolve().parent
 
 
-def load_window(controller, account):
+def load_window(controller, account, catalog=None, artwork_path=None):
     engine = QQmlApplicationEngine()
     engine.setProperty("qmlWarnings", [])
     engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
     engine.rootContext().setContextProperty("appState", controller)
     engine.rootContext().setContextProperty("accountState", account)
+    if catalog:
+        engine.rootContext().setContextProperty("catalogState", catalog)
+    if artwork_path:
+        # QQmlEngine does not take ownership of this factory.
+        engine.artworkFactory = ArtworkCache(artwork_path)
+        engine.setNetworkAccessManagerFactory(engine.artworkFactory)
     engine.load(QUrl.fromLocalFile(str(PACKAGE / "qml" / "Main.qml")))
     return engine
 
@@ -54,11 +62,17 @@ def main(argv=None):
     else:
         data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation))
     data.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if args.data_dir or args.smoke_test or args.screenshot:
+        cache = data / "cache"
+    else:
+        cache = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.CacheLocation))
+    cache.mkdir(parents=True, exist_ok=True, mode=0o700)
     fixture = json.loads((PACKAGE / "assets" / "visual-fixture.json").read_text()) if args.fixture else None
     controller = ShellController(data / "settings.ini", fixture)
     account = Account(data / "settings.ini", fixture=args.fixture, parent=controller)
+    catalog = CatalogView(account.worker, cache / "metadata.sqlite3", account, parent=controller)
     app.aboutToQuit.connect(account.close)
-    engine = load_window(controller, account)
+    engine = load_window(controller, account, catalog, cache / "artwork")
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]

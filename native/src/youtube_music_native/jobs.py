@@ -40,6 +40,9 @@ class Worker(QObject):
         self._pump()
         return self._counter
 
+    def cancelQueued(self, identifier):
+        self._queue = deque(request for request in self._queue if request["id"] != identifier)
+
     def _pump(self):
         if self._closed or self._active or not self._queue:
             return

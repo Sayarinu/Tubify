@@ -55,12 +55,14 @@ def test_provider_requests_are_asynchronous_and_errors_are_sanitized():
 
     worker.failed.connect(failed)
     worker.request("unknown", {"private": "never echo this"})
+    cancelled = worker.request("unknown")
+    worker.cancelQueued(cancelled)
     worker.request("unknown")
     QTimer.singleShot(10000, loop.quit)
     loop.exec()
     timer.stop()
     worker.close()
-    assert [identifier for identifier, _ in results] == [1, 2]
+    assert [identifier for identifier, _ in results] == [1, 3]
     assert ticks
     assert "never echo" not in str(results)
     # Headless CI may have no unlocked OS vault; neither error exposes payloads.

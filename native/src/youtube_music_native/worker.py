@@ -5,8 +5,10 @@ import os
 import sys
 
 from .auth import AuthError, AuthService
+from .catalog import Catalog, CatalogError
 from .credentials import CredentialError
 from .session import SessionError
+from .store import MetadataStore
 
 
 def handle(service, request):
@@ -18,11 +20,17 @@ def handle(service, request):
         return service.import_session(payload["path"], tauri=bool(payload.get("tauri")))
     if operation == "sign_out":
         return service.sign_out()
+    if operation == "catalog":
+        store = MetadataStore(payload["cache_path"])
+        try:
+            return Catalog(service, store).fetch(payload["route"], payload.get("params"), payload.get("offset", 0), bool(payload.get("refresh")))
+        finally:
+            store.close()
     raise AuthError("That account operation is unavailable.")
 
 
 def safe_error(error):
-    if isinstance(error, (AuthError, CredentialError, SessionError)):
+    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError)):
         return {"code": type(error).__name__, "message": str(error)}
     import requests
 
