@@ -64,7 +64,6 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
     }
-    IconButton { x: 8; y: 12; iconName: "left"; tip: "Back"; onClicked: browseState.back() }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running }
     RetryBanner { message: catalogState.error; busy: catalogState.busy; onRetry: catalogState.refresh() }
     property int revision: -1

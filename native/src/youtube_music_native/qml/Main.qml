@@ -57,18 +57,13 @@ ApplicationWindow {
         IconButton {
             x: 12; y: 10
             iconName: "menu"
-            tip: "Toggle navigation"
+            outlined: true
+            tip: appState.sidebarExpanded ? "Collapse sidebar" : "Expand sidebar"
             onClicked: appState.toggleSidebar()
-        }
-        Row {
-            x: 60; y: 12; spacing: 0
-            visible: window.wideNavigation
-            Image { width: 34; height: 40; source: "../assets/music.svg"; fillMode: Image.PreserveAspectFit }
-            Text { text: "Music"; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 24; height: 40; verticalAlignment: Text.AlignVCenter }
         }
         Column {
             id: navigation
-            x: 8; y: 72; width: sidebar.width - 16
+            x: 8; y: 68; width: sidebar.width - 16
             Repeater {
                 model: [{label:"Home",icon:"home"}, {label:"Search",icon:"search"}, {label:"Explore",icon:"explore"}, {label:"Library",icon:"library"}, {label:"Downloads",icon:"download"}]
                 delegate: Button {
@@ -146,7 +141,7 @@ ApplicationWindow {
         anchors.left: sidebar.right
         anchors.right: parent.right
         height: 64
-        IconButton { x: 12; y: 10; iconName: "left"; tip: "Back"; onClicked: { appState.setExpanded(false); browseState.back() } }
+        IconButton { x: 12; y: 10; iconName: "left"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
         TextField {
             id: search
             objectName: "searchField"

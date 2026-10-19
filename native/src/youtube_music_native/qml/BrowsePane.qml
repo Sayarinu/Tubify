@@ -70,7 +70,6 @@ Item {
             }
             Column {
                 width: parent.width; visible: !root.landing; spacing: 12
-                Button { text: "Back"; onClicked: browseState.back() }
                 Text { width: parent.width; text: root.result.title || ""; textFormat: Text.PlainText; color: "white"; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; elide: Text.ElideRight }
             }
         }
@@ -98,7 +97,6 @@ Item {
         ScrollBar.vertical: ScrollBar {}
         header: Column {
             width: songList.width; spacing: 20; bottomPadding: 32
-            Button { text: "Back"; onClicked: browseState.back() }
             Row {
                 width: parent.width; spacing: 24
                 Cover { width: 128; height: 128; source: root.result.thumbnail || ""; visible: source.length > 0 }
@@ -122,7 +120,7 @@ Item {
         visible: !root.songs && (root.result.items || []).length > 0
         cellWidth: Theme.cardWidth + 24; cellHeight: Theme.cardHeight + 24; model: root.result.items || []
         ScrollBar.vertical: ScrollBar {}
-        header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Button { text: "Back"; onClicked: browseState.back() } Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; color: "white" } }
+        header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; color: "white" } }
         delegate: MediaCard { required property var modelData; width: Theme.cardWidth; media: modelData; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()

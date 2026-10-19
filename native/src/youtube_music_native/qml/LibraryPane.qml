@@ -18,7 +18,7 @@ Item {
                 Button { text: "DOWNLOADS"; flat: true; height: 52; palette.windowText: Theme.secondary; onClicked: appState.navigate("Downloads") }
             }
             Rectangle { y: 52; height: 1; width: parent.width; color: Theme.border; visible: !root.history }
-            Row { spacing: 16; visible: root.history; height: 72; IconButton { iconName: "left"; tip: "Back to library"; onClicked: libraryState.select("Playlists") } Text { text: "History"; color: "white"; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 } }
+            Row { spacing: 16; visible: root.history; height: 72; Text { text: "History"; color: "white"; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 } }
             ListView {
                 id: filters
                 y: 84; width: parent.width - (sortOrder.visible ? 180 : 0); height: 36
