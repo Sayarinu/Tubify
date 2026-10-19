@@ -11,6 +11,7 @@ class ShellController(QObject):
     searchRequested = Signal(str)
     accountDialogRequested = Signal()
     actionRequested = Signal(str)
+    playlistsChanged = Signal()
 
     def __init__(self, settings_path, fixture=None, parent=None):
         super().__init__(parent)
@@ -22,6 +23,7 @@ class ShellController(QObject):
         self._unmuted_volume = max(1, min(100, self._integer_setting("lastVolume", self._volume or 70)))
         self._fixture = fixture or {}
         self._shelves = self._fixture.get("shelves", [])
+        self._playlists = self._fixture.get("playlists", [])
 
     def _integer_setting(self, key, default):
         try:
@@ -45,9 +47,13 @@ class ShellController(QObject):
     def shelves(self):
         return self._shelves
 
-    @Property("QVariantList", constant=True)
+    @Property("QVariantList", notify=playlistsChanged)
     def playlists(self):
-        return self._fixture.get("playlists", [])
+        return self._playlists
+
+    def setPlaylists(self, values):
+        self._playlists = values
+        self.playlistsChanged.emit()
 
     @Property(int, notify=volumeChanged)
     def volume(self):

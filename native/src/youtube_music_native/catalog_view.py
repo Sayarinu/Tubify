@@ -36,11 +36,22 @@ class CatalogView(QObject):
     def route(self):
         return self._route
 
+    @Property("QVariantMap", notify=changed)
+    def parameters(self):
+        return self._params
+
     @Slot(str, "QVariantMap")
     def load(self, route, params):
         self._route, self._params = route, dict(params)
         self._data = {}
         self._send()
+
+    def showLocal(self, route, data):
+        if self.worker and self._request is not None:
+            self.worker.cancelQueued(self._request)
+        self._request, self._busy, self._error = None, False, ""
+        self._route, self._data = route, dict(data)
+        self.changed.emit()
 
     @Slot()
     def refresh(self):
@@ -65,6 +76,7 @@ class CatalogView(QObject):
             return
         if self._append:
             result["items"] = self._data.get("items", []) + result.get("items", [])
+            result["shelves"] = self._data.get("shelves", []) + result.get("shelves", [])
         self._data, self._busy, self._request = result, False, None
         if result.get("warning") == "reconnect":
             self.account.requireReconnect("Your session needs reconnecting. Cached music remains available.")

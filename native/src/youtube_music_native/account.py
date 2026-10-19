@@ -12,6 +12,7 @@ from .jobs import Worker
 class Account(QObject):
     changed = Signal()
     connectedChanged = Signal()
+    sessionChanged = Signal()
 
     def __init__(self, settings_path, fixture=False, worker=None, parent=None):
         super().__init__(parent)
@@ -114,6 +115,8 @@ class Account(QObject):
         self.settings.sync()
         self.changed.emit()
         self.connectedChanged.emit()
+        if self._operation in {"import_session", "sign_out"}:
+            self.sessionChanged.emit()
 
     def _failed(self, identifier, error):
         if identifier != self._request:

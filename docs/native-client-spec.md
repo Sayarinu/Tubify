@@ -81,8 +81,8 @@ Fix missed targets before the Linux release and attach actual results. Visual ch
 | Reference | Evidence and follow-up |
 | --- | --- |
 | Home/sidebar/search/shelves/bottom player | Running app inspected during planning; private capture is outside the repository |
-| Explore/search/library | Capture before implementing these views |
-| Playlist/album/artist | Capture layouts and mutation interactions before implementation |
+| Explore/search/library | Explore captured privately from the running app; capture search/library before implementing those views |
+| Playlist/album/artist | Album captured privately from the running app; capture playlist/artist layouts and mutation interactions before implementation |
 | Expanded player/queue/lyrics | Capture layouts, keyboard actions and empty states |
 | Downloads | New view following the existing visual language |
 | Performance | Preliminary memory sample only; controlled baseline belongs to the verification work |

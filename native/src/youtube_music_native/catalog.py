@@ -67,6 +67,7 @@ def item(row, kind=None):
     album = row.get("album") or {}
     return {
         "kind": kind, "id": identifier, "videoId": video, "browseId": browse,
+        "label": text(row.get("type")) if kind == "album" else "",
         "setVideoId": text(row.get("setVideoId")),
         "title": title, "artist": " • ".join(a["name"] for a in artists) or text(author),
         "artists": [{"name": a["name"], "id": text(a.get("id"))} for a in artists],
@@ -105,9 +106,11 @@ class Catalog:
         scope = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         key = json.dumps([scope, route, params], sort_keys=True)
         cached = self.store.read(key)
-        target = offset + self.PAGE_SIZE
+        page_size = 6 if route == "home" else self.PAGE_SIZE
+        list_key = "shelves" if route == "home" else "items"
+        target = offset + page_size
         fresh = cached and time.time() - cached["saved"] < self.TTL
-        complete = cached and (cached["data"].get("complete") or len(cached["data"].get("items", [])) > target)
+        complete = cached and (cached["data"].get("complete") or len(cached["data"].get(list_key, [])) > target)
         stale, warning = False, ""
         if cached and fresh and complete and not refresh:
             data = cached["data"]
@@ -126,8 +129,8 @@ class Catalog:
                 except sqlite3.Error:
                     warning = "cache_unavailable"
         page = dict(data)
-        all_items = data.get("items", [])
-        page["items"] = all_items[offset:target]
+        all_items = data.get(list_key, [])
+        page[list_key] = all_items[offset:target]
         page["cursor"] = target if len(all_items) > target or not data.get("complete", True) else None
         page["stale"], page["warning"] = stale, warning
         return page
@@ -136,14 +139,19 @@ class Catalog:
         identifier = params.get("id", "")
         data = {"title": route.title(), "items": [], "shelves": [], "complete": True}
         if route == "home":
-            data["shelves"] = shelves(client.get_home(limit=3))
+            data["shelves"] = shelves(client.get_home(limit=limit))
+            data["complete"] = len(data["shelves"]) < limit
+            for section in data["shelves"]:
+                if section["title"].lower() == "listen again":
+                    section["subtitle"] = self.auth.profile.get("name", "Your music").upper()
         elif route == "explore":
             raw = client.get_explore()
             for name in ("new_releases", "top_songs", "trending", "new_videos"):
                 content = raw.get(name, [])
                 normalized = items(content.get("items", []) if isinstance(content, dict) else content)
                 if normalized:
-                    data["shelves"].append({"title": name.replace("_", " ").title(), "subtitle": "", "items": normalized})
+                    title = {"new_releases": "New albums & singles", "top_songs": "Top songs", "trending": "Trending", "new_videos": "New music videos"}[name]
+                    data["shelves"].append({"title": title, "subtitle": "", "items": normalized, "layout": "rows" if name in {"top_songs", "trending"} else "cards"})
             data["moods"] = raw.get("moods_and_genres", [])
         elif route == "charts":
             raw = client.get_charts(country=params.get("country", "ZZ"))

@@ -17,12 +17,13 @@ from .artwork import ArtworkCache
 from .catalog_view import CatalogView
 from .jobs import Worker
 from .playback import Playback
+from .browse import Browse
 
 
 PACKAGE = Path(__file__).resolve().parent
 
 
-def load_window(controller, account, player, catalog=None, artwork_path=None):
+def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None):
     engine = QQmlApplicationEngine()
     engine.setProperty("qmlWarnings", [])
     engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
@@ -31,6 +32,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None):
     engine.rootContext().setContextProperty("playerState", player)
     if catalog:
         engine.rootContext().setContextProperty("catalogState", catalog)
+    if browse:
+        engine.rootContext().setContextProperty("browseState", browse)
     if artwork_path:
         # QQmlEngine does not take ownership of this factory.
         engine.artworkFactory = ArtworkCache(artwork_path)
@@ -78,12 +81,13 @@ def main(argv=None):
     media_data.mkdir(parents=True, exist_ok=True, mode=0o700)
     source_worker = None if args.fixture else Worker(controller, idle_ms=15000)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
-    engine = load_window(controller, account, player, catalog, cache / "artwork")
+    engine = load_window(controller, account, player, catalog, cache / "artwork", browse)
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]
@@ -97,7 +101,14 @@ def main(argv=None):
         window.close()
         app.exit(1 if failed else 0)
 
-    if args.smoke_test or args.screenshot:
+    if args.smoke_test and args.fixture:
+        QTimer.singleShot(200, lambda: controller.navigate("Explore"))
+        QTimer.singleShot(400, lambda: browse.shortcut("releases"))
+        QTimer.singleShot(600, lambda: browse.open({"kind": "album", "title": "Fixture album"}))
+        QTimer.singleShot(800, lambda: browse.shortcut("moods"))
+        QTimer.singleShot(1000, lambda: (window.resize(920, 620), controller.navigate("Home")))
+        QTimer.singleShot(1300, finish)
+    elif args.smoke_test or args.screenshot:
         QTimer.singleShot(700, finish)
     result = app.exec()
     # Destroy QML bindings before their Python context disappears.

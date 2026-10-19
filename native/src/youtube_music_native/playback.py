@@ -417,6 +417,17 @@ class Playback(QObject):
             future = self._saver.submit(write_state, self.path, json.dumps(self.queue.snapshot(self._position), separators=(",", ":")))
             future.add_done_callback(lambda completed: self.stateSaveFailed.emit() if completed.exception() else None)
 
+    def resetSession(self):
+        self._request, self._prepare_request, self._radio_request = None, None, None
+        self._prepared, self._preparing_video, self._busy = {}, None, False
+        if self.worker:
+            self.worker.reset()
+        if self._source_kind == "remote":
+            self._playing, self._loaded = False, False
+            if self.audio:
+                self.audio.stop()
+        self.changed.emit()
+
     def close(self):
         self.save_timer.stop()
         self.save()

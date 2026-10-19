@@ -10,6 +10,7 @@ class FakeWorker(QObject):
     def __init__(self):
         super().__init__()
         self.requests = []
+        self.resets = 0
 
     def request(self, operation, payload):
         self.requests.append((operation, payload))
@@ -20,6 +21,9 @@ class FakeWorker(QObject):
 
     def close(self):
         pass
+
+    def reset(self):
+        self.resets += 1
 
 
 class FakeAudio(QObject):
@@ -102,4 +106,20 @@ def test_stale_autoplay_result_cannot_replace_a_new_manual_queue(tmp_path):
     player.play(TRACKS[0])
     radio.succeeded.emit(1, {"items": [TRACKS[1]]})
     assert len(player.entries) == 1 and player.currentTrack["title"] == "First"
+    player.close()
+
+
+def test_session_reset_keeps_local_audio_and_stops_old_remote_credentials(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks(TRACKS[:1])
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/track.opus"})
+    player.resetSession()
+    assert player.playing and worker.resets == 1
+    player.playTracks(TRACKS[:1])
+    worker.succeeded.emit(2, {"kind": "remote", "source": "https://media.invalid/stream"})
+    player.resetSession()
+    assert not player.playing and worker.resets == 2
+    assert player.currentTrack["title"] == "First"
     player.close()

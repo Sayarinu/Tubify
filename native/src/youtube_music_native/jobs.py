@@ -131,6 +131,12 @@ class Worker(QObject):
         if self._hibernating and self.process.state() != QProcess.ProcessState.NotRunning:
             self.process.kill()
 
+    def reset(self):
+        self._fail_all("cancelled", "The account connection changed. Retry this request.")
+        if self.process.state() != QProcess.ProcessState.NotRunning:
+            self._hibernating = True
+            self.process.kill()
+
     def close(self):
         self._closed = True
         self.timer.stop()

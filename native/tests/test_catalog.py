@@ -85,3 +85,19 @@ def test_explore_and_charts_use_their_distinct_provider_shapes(tmp_path):
     assert len(explore["shelves"]) == 2
     assert explore["moods"][0]["title"] == "Chill"
     assert catalog.fetch("charts")["shelves"][0]["items"][0]["kind"] == "playlist"
+
+
+def test_home_pages_shelves_and_personalizes_listen_again(tmp_path):
+    calls = []
+
+    def home(limit):
+        calls.append(limit)
+        return [{"title": "Listen again" if index == 0 else f"Shelf {index}", "contents": [track(index)]} for index in range(min(limit, 10))]
+
+    auth = SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: SimpleNamespace(get_home=home))
+    catalog = Catalog(auth, MetadataStore(tmp_path / "metadata.sqlite3"))
+    first = catalog.fetch("home")
+    second = catalog.fetch("home", offset=first["cursor"])
+    assert len(first["shelves"]) == 6 and len(second["shelves"]) == 4
+    assert first["shelves"][0]["subtitle"] == "FIXTURE"
+    assert second["cursor"] is None and calls == [7, 13]

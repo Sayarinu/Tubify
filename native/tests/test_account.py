@@ -21,6 +21,8 @@ def test_restore_and_failed_reconnect_keep_cached_identity(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     worker = FakeWorker()
     account = Account(tmp_path / "settings.ini", worker=worker)
+    changes = []
+    account.sessionChanged.connect(lambda: changes.append(True))
     app.processEvents()
     assert worker.requests == [("restore", None)]
     worker.succeeded.emit(1, {"connected": True, "profile": {"name": "Listener"}})
@@ -30,12 +32,15 @@ def test_restore_and_failed_reconnect_keep_cached_identity(tmp_path):
     worker.failed.emit(2, {"code": "offline", "message": "Offline"})
     assert account.profile["name"] == "Listener"
     assert account.reconnect and not account.busy
+    assert changes == []
     account.importTauri()
     worker.succeeded.emit(3, {"connected": True, "profile": {"name": "Listener"}})
     assert account.connected and not account.reconnect
+    assert changes == [True]
     account.signOut()
     worker.succeeded.emit(4, {"connected": False, "profile": {}})
     assert not account.connected and account.profile == {}
+    assert changes == [True, True]
 
 
 def test_provider_requests_are_asynchronous_and_errors_are_sanitized():

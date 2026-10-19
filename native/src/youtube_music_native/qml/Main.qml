@@ -22,7 +22,7 @@ ApplicationWindow {
         anchors.right: parent.right
         height: 370
         gradient: Gradient {
-            GradientStop { position: 0; color: "#071b22" }
+            GradientStop { position: 0; color: appState.page === "Home" ? "#071b22" : Theme.background }
             GradientStop { position: 1; color: Theme.background }
         }
     }
@@ -182,124 +182,15 @@ ApplicationWindow {
         anchors.bottom: player.top
         property real gutter: width > 900 ? 106 : 40
 
-        ListView {
-            id: home
-            anchors.fill: parent
-            anchors.leftMargin: content.gutter
-            anchors.rightMargin: Math.min(content.gutter, 72)
-            topMargin: 46
-            clip: true
-            spacing: 80
-            visible: appState.page === "Home" && appState.shelves.length > 0
-            model: appState.shelves
-            boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-            header: Item {
-                width: home.width
-                height: 82
-                ListView {
-                    width: parent.width
-                    height: 36
-                    orientation: ListView.Horizontal
-                    spacing: 12
-                    clip: true
-                    model: ["Energize", "Feel good", "Workout", "Relax", "Party", "Commute", "Romance", "Focus", "Sad"]
-                    delegate: Button {
-                        id: mood
-                        required property string modelData
-                        text: modelData
-                        height: 36
-                        leftPadding: 13; rightPadding: 13
-                        palette.buttonText: Theme.foreground
-                        background: Rectangle { radius: 8; color: mood.hovered ? "#394146" : "#252d31"; border.width: mood.visualFocus ? 2 : 0; border.color: "white" }
-                        onClicked: appState.requestAction("mood:" + text)
-                    }
-                }
-            }
-            delegate: Item {
-                id: shelf
-                required property var modelData
-                width: home.width
-                height: heading.height + 16 + 218
-                Row {
-                    id: heading
-                    spacing: 16
-                    height: shelf.modelData.subtitle ? 56 : 40
-                    Rectangle {
-                        width: 56; height: 56; radius: 28
-                        visible: !!shelf.modelData.subtitle
-                        color: "#29373a"
-                        Symbol { anchors.centerIn: parent; name: "profile"; width: 30; height: 30 }
-                    }
-                    Column {
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 4
-                        Text { visible: !!shelf.modelData.subtitle; text: shelf.modelData.subtitle || ""; color: Theme.secondary; font.pixelSize: 14; font.family: Theme.bodyFont }
-                        Text { text: shelf.modelData.title; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 28 }
-                    }
-                }
-                Row {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: heading.verticalCenter
-                    spacing: 12
-                    IconButton { iconName: "left"; tip: "Previous items"; outlined: true; width: 36; height: 36; onClicked: cards.contentX = Math.max(0, cards.contentX - cards.width) }
-                    IconButton { iconName: "right"; tip: "More items"; outlined: true; width: 36; height: 36; onClicked: cards.contentX = Math.min(Math.max(0, cards.contentWidth - cards.width), cards.contentX + cards.width) }
-                }
-                ListView {
-                    id: cards
-                    anchors.top: heading.bottom
-                    anchors.topMargin: 16
-                    width: parent.width
-                    height: 218
-                    clip: true
-                    orientation: ListView.Horizontal
-                    spacing: 24
-                    model: shelf.modelData.items
-                    boundsBehavior: Flickable.StopAtBounds
-                    delegate: MediaCard {
-                        required property var modelData
-                        media: modelData
-                        width: 146
-                        onPlayRequested: item => appState.requestAction("play:" + item.id)
-                    }
-                }
-            }
+        BrowsePane { anchors.fill: parent; visible: appState.page === "Home" || appState.page === "Explore" }
+        Column {
+            anchors.centerIn: parent; width: parent.width - 80; spacing: 20
+            visible: appState.page !== "Home" && appState.page !== "Explore"
+            Text { width: parent.width; text: appState.page; horizontalAlignment: Text.AlignHCenter; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 }
+            Text { width: parent.width; text: appState.page === "Downloads" ? "Your downloaded music will appear here." : "Connect YouTube Music to browse your music."; horizontalAlignment: Text.AlignHCenter; color: Theme.secondary; font.pixelSize: 15 }
+            Button { anchors.horizontalCenter: parent.horizontalCenter; text: "Connect YouTube Music"; visible: !accountState.connected; onClicked: appState.openAccount() }
         }
 
-        Column {
-            anchors.centerIn: parent
-            width: Math.min(parent.width - 80, 480)
-            spacing: 16
-            visible: !home.visible
-            Symbol { anchors.horizontalCenter: parent.horizontalCenter; width: 52; height: 52; name: appState.page === "Downloads" ? "download" : "music"; color: Theme.secondary }
-            Text {
-                width: parent.width
-                text: appState.page === "Home" ? "Your music, all together" : appState.page
-                color: Theme.foreground
-                font.family: Theme.headingFont
-                font.bold: true
-                font.pixelSize: 30
-                horizontalAlignment: Text.AlignHCenter
-            }
-            Text {
-                width: parent.width
-                text: appState.page === "Downloads" ? "Your downloaded songs, albums and playlists will appear here." : accountState.connected ? "Your account is connected." : "Connect YouTube Music to browse your library and recommendations."
-                color: Theme.secondary
-                font.pixelSize: 15
-                wrapMode: Text.Wrap
-                horizontalAlignment: Text.AlignHCenter
-            }
-            Button {
-                id: connect
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Connect YouTube Music"
-                visible: !accountState.connected
-                topPadding: 12; bottomPadding: 12; leftPadding: 24; rightPadding: 24
-                palette.buttonText: "black"
-                background: Rectangle { radius: 22; color: connect.hovered ? "#dddddd" : "white"; border.width: connect.visualFocus ? 2 : 0; border.color: Theme.accent }
-                onClicked: appState.openAccount()
-            }
-        }
     }
 
     Rectangle {
