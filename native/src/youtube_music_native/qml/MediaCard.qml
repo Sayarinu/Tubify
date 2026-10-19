@@ -5,6 +5,8 @@ FocusScope {
     id: root
     required property var media
     property var menuContext: ({})
+    readonly property bool song: !media.kind || media.kind === "song"
+    readonly property bool currentSong: song && playerState.hasTrack && (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id)
     property string downloadStatus: {
         if (!media.kind || media.kind === "song") return downloadsState.trackStates[media.videoId || media.id] || media.downloadState || ""
         var values = downloadsState.collections
@@ -19,11 +21,26 @@ FocusScope {
     Accessible.description: downloadStatus === "ready" ? "Downloaded" : downloadStatus === "damaged" ? "Download needs repair" : ""
     Accessible.onPressAction: activated(media)
     Keys.onReturnPressed: activated(media)
+    function activateArtwork() {
+        if (root.media.kind === "album" || root.media.kind === "playlist") root.playRequested(root.media)
+        else if (root.currentSong) playerState.togglePlayback()
+        else root.activated(root.media)
+    }
+    function activateCard() {
+        if (root.currentSong) playerState.togglePlayback()
+        else root.activated(root.media)
+    }
     Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { appState.showMenu(root.media, root.menuContext); event.accepted = true } }
     implicitWidth: Theme.cardWidth
     implicitHeight: Theme.cardHeight
     HoverHandler { id: cardHover }
     Rectangle { anchors.fill: parent; radius: 10; color: cardHover.hovered ? Theme.hover : Theme.surface; border.color: root.activeFocus ? Theme.accent : Theme.border; border.width: root.activeFocus ? 2 : 1 }
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        cursorShape: Qt.PointingHandCursor
+        onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activateCard() }
+    }
     Cover {
         id: cover
         x: 16; y: 16
@@ -37,23 +54,23 @@ FocusScope {
         Rectangle {
             anchors.fill: parent
             radius: cover.radius
-            color: "#33000000"
+            color: "#22000000"
             visible: hover.hovered || root.activeFocus
             border.color: root.activeFocus ? Theme.accent : "transparent"
         }
+        Rectangle { anchors.centerIn: parent; width: 44; height: 44; radius: 22; color: Theme.accent; visible: (hover.hovered || root.activeFocus) && root.song }
         Symbol {
             anchors.centerIn: parent
-            name: "play"
-            width: 48
-            height: 48
-            visible: (hover.hovered || root.activeFocus) && (!root.media.kind || root.media.kind === "song")
+            name: root.currentSong && playerState.playing ? "pause" : "play"
+            width: 20; height: 20; color: Theme.onAccent
+            visible: (hover.hovered || root.activeFocus) && root.song
         }
         HoverHandler { id: hover }
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             cursorShape: Qt.PointingHandCursor
-            onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activated(root.media) }
+            onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activateArtwork() }
         }
         IconButton { anchors.right: parent.right; anchors.top: parent.top; width: 36; height: 36; iconName: "more"; tip: "More options for " + (root.media.title || "music"); visible: hover.hovered || root.activeFocus; onClicked: appState.showMenu(root.media, root.menuContext) }
         Rectangle {
@@ -64,7 +81,7 @@ FocusScope {
         Item {
             anchors.right: parent.right; anchors.bottom: parent.bottom; width: 48; height: 48
             visible: (hover.hovered || root.activeFocus) && (root.media.kind === "album" || root.media.kind === "playlist")
-            Rectangle { anchors.centerIn: parent; width: 36; height: 36; radius: 18; color: "#cc000000" }
+            Rectangle { anchors.centerIn: parent; width: 36; height: 36; radius: 18; color: Theme.accent }
             Symbol { anchors.centerIn: parent; name: "play"; width: 24; height: 24 }
             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.playRequested(root.media) }
         }

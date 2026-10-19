@@ -1,0 +1,25 @@
+import QtQuick
+import QtQuick.Controls
+import "Theme.js" as Theme
+
+MenuItem {
+    id: root
+    implicitWidth: 216
+    implicitHeight: 38
+    leftPadding: 12
+    rightPadding: 12
+    contentItem: Text {
+        text: root.text
+        color: root.enabled ? Theme.foreground : Theme.muted
+        font.family: Theme.bodyFont
+        font.pixelSize: 14
+        verticalAlignment: Text.AlignVCenter
+        elide: Text.ElideRight
+    }
+    background: Rectangle {
+        radius: 8
+        color: root.highlighted ? Theme.hover : "transparent"
+        border.width: root.visualFocus ? 1 : 0
+        border.color: Theme.accent
+    }
+}

@@ -99,12 +99,11 @@ class Browse(QObject):
 
     @Slot()
     def back(self):
+        if not self._history:
+            return
         self.shell.setExpanded(False)
         self._cancel_local_navigation()
         self._cancel_mood()
-        if not self._history:
-            self.navigate(self.shell.page)
-            return
         previous = self._history.pop()
         self.shell.restoreNavigation(previous["page"], previous["query"])
         self.view.showLocal(previous["route"], previous["data"], previous["params"], previous["scroll"])
