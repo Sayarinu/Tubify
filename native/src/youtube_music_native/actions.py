@@ -23,19 +23,28 @@ class Actions(QObject):
     def message(self):
         return self._message
 
+    @Slot()
+    def dismiss(self):
+        self._message = ""
+        self.changed.emit()
+
     @Slot(str, str, bool, str)
     def set(self, action, identifier, value, context_id):
+        self.run(action, {"id": identifier, "value": value, "contextId": context_id})
+
+    @Slot(str, "QVariantMap")
+    def run(self, action, payload):
         if self._busy or self.account.busy:
             return
         if self.fixture:
-            self.applied.emit({"action": action, "id": identifier, "value": value, "contextId": context_id})
+            self.applied.emit({**payload, "action": action, "id": payload.get("id") or "PLfixture-created"})
             return
         if not self.account.connected:
             self._message = "Reconnect YouTube Music to change your library."
             self.changed.emit()
             return
         self._busy, self._message = True, ""
-        self._request = self.worker.request("account_action", {"action": action, "id": identifier, "value": value, "contextId": context_id, "cache_path": self.cache_path})
+        self._request = self.worker.request("account_action", {**payload, "action": action, "cache_path": self.cache_path})
         self.changed.emit()
 
     def _succeeded(self, identifier, result):

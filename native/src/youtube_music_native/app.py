@@ -21,12 +21,14 @@ from .browse import Browse
 from .download_view import DownloadView
 from .actions import Actions
 from .search import Search
+from .library import Library
+from .listening import Listening
 
 
 PACKAGE = Path(__file__).resolve().parent
 
 
-def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None, search=None, actions=None):
+def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None, search=None, actions=None, library=None):
     engine = QQmlApplicationEngine()
     engine.setProperty("qmlWarnings", [])
     engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
@@ -43,6 +45,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("searchState", search)
     if actions:
         engine.rootContext().setContextProperty("actionsState", actions)
+    if library:
+        engine.rootContext().setContextProperty("libraryState", library)
     if artwork_path:
         # QQmlEngine does not take ownership of this factory.
         engine.artworkFactory = ArtworkCache(artwork_path)
@@ -97,13 +101,15 @@ def main(argv=None):
     search = Search(controller, account, catalog, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     actions = Actions(account, cache / "metadata.sqlite3", fixture=args.fixture, parent=controller)
     actions.applied.connect(browse.applyAction)
+    library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
     app.aboutToQuit.connect(downloads.close)
-    engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads, search, actions)
+    engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads, search, actions, library)
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]

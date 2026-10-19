@@ -12,6 +12,7 @@ class ShellController(QObject):
     accountDialogRequested = Signal()
     actionRequested = Signal(str)
     playlistsChanged = Signal()
+    menuRequested = Signal(dict, dict)
 
     def __init__(self, settings_path, fixture=None, parent=None):
         super().__init__(parent)
@@ -111,6 +112,10 @@ class ShellController(QObject):
     @Slot(str)
     def requestAction(self, action):
         self.actionRequested.emit(action)
+
+    @Slot("QVariantMap", "QVariantMap")
+    def showMenu(self, media, context):
+        self.menuRequested.emit(dict(media), dict(context))
 
     @Slot()
     def openAccount(self):

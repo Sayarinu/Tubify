@@ -16,6 +16,8 @@ ApplicationWindow {
     font.family: Theme.bodyFont
     font.pixelSize: 14
     onClosing: appState.saveWindow(width, height)
+    property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
+    property bool modalOpen: accountDialog.opened || playlistDialogs.opened
 
     Rectangle {
         anchors.left: sidebar.right
@@ -167,6 +169,7 @@ ApplicationWindow {
             }
         }
         IconButton {
+            id: profileButton
             anchors.right: parent.right
             anchors.rightMargin: header.width > 900 ? 96 : 24
             y: 10
@@ -183,6 +186,7 @@ ApplicationWindow {
                 fillMode: Image.PreserveAspectCrop
             }
         }
+        IconButton { anchors.right: profileButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening history"; onClicked: libraryState.history() }
     }
 
     Rectangle {
@@ -214,16 +218,17 @@ ApplicationWindow {
 
         Loader {
             anchors.fill: parent
-            active: appState.page === "Home" || appState.page === "Explore" || appState.page === "Search"
-            sourceComponent: catalogState.route === "album" ? albumPage : catalogState.route === "artist" ? artistPage : catalogState.route === "search" ? searchPage : browsePage
-            Component { id: albumPage; AlbumPane {} }
+            active: appState.page !== "Downloads"
+            sourceComponent: catalogState.route === "album" || catalogState.route === "playlist" ? collectionPage : catalogState.route === "artist" ? artistPage : catalogState.route === "search" ? searchPage : catalogState.route.indexOf("library_") === 0 || catalogState.route === "history" || appState.page === "Library" && catalogState.route === "home" ? libraryPage : browsePage
+            Component { id: collectionPage; CollectionPane {} }
             Component { id: artistPage; ArtistPane {} }
             Component { id: searchPage; SearchPane {} }
+            Component { id: libraryPage; LibraryPane {} }
             Component { id: browsePage; BrowsePane {} }
         }
         Column {
             anchors.centerIn: parent; width: parent.width - 80; spacing: 20
-            visible: appState.page !== "Home" && appState.page !== "Explore" && appState.page !== "Search"
+            visible: appState.page === "Downloads"
             Text { width: parent.width; text: appState.page; horizontalAlignment: Text.AlignHCenter; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 }
             Text { width: parent.width; text: appState.page === "Downloads" ? "Your downloaded music will appear here." : "Connect YouTube Music to browse your music."; horizontalAlignment: Text.AlignHCenter; color: Theme.secondary; font.pixelSize: 15 }
             Button { anchors.horizontalCenter: parent.horizontalCenter; text: "Connect YouTube Music"; visible: !accountState.connected; onClicked: appState.openAccount() }
@@ -262,9 +267,9 @@ ApplicationWindow {
             anchors.left: trackInfo.right
             anchors.leftMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            IconButton { iconName: "like"; tip: "Like"; enabled: playerState.hasTrack; onClicked: appState.requestAction("like") }
-            IconButton { iconName: "dislike"; tip: "Dislike"; enabled: playerState.hasTrack; onClicked: appState.requestAction("dislike") }
-            IconButton { iconName: "more"; tip: "More options"; enabled: playerState.hasTrack; onClicked: appState.requestAction("trackMenu") }
+            IconButton { iconName: "like"; tip: playerState.currentTrack.rating === "LIKE" ? "Remove like" : "Like"; iconColor: playerState.currentTrack.rating === "LIKE" ? Theme.accent : "white"; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("like") }
+            IconButton { iconName: "dislike"; tip: playerState.currentTrack.rating === "DISLIKE" ? "Remove dislike" : "Dislike"; iconColor: playerState.currentTrack.rating === "DISLIKE" ? Theme.accent : "white"; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("dislike") }
+            IconButton { iconName: "more"; tip: "More options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
         }
         Row {
             anchors.right: parent.right
@@ -282,8 +287,8 @@ ApplicationWindow {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: player.top; anchors.bottomMargin: 16
         width: Math.min(600, window.width - 80); height: playbackMessage.implicitHeight + 24
-        radius: 6; color: "#383838"; visible: playerState.message.length > 0
-        Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: playerState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.pixelSize: 14 }
+        radius: 6; color: "#383838"; visible: playbackMessage.text.length > 0
+        Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.pixelSize: 14 }
     }
 
     Dialog {
@@ -316,8 +321,11 @@ ApplicationWindow {
     }
     Connections { target: appState; function onAccountDialogRequested() { accountDialog.open() } }
     Connections { target: appState; function onPageChanged() { if (appState.page === "Search") search.text = appState.query } }
+    MediaMenu { id: mediaMenu }
+    PlaylistDialogs { id: playlistDialogs; anchors.fill: parent }
+    Connections { target: appState; function onMenuRequested(media, context) { mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
     Shortcut { sequence: "Alt+Left"; onActivated: browseState.back() }
-    Shortcut { sequence: "/"; enabled: !search.activeFocus; onActivated: search.forceActiveFocus() }
-    Shortcut { sequence: "Ctrl+F"; onActivated: search.forceActiveFocus() }
-    Shortcut { sequence: "Space"; enabled: !search.activeFocus && !accountDialog.opened; onActivated: playerState.togglePlayback() }
+    Shortcut { sequence: "/"; enabled: !window.editingText && !window.modalOpen; onActivated: search.forceActiveFocus() }
+    Shortcut { sequence: "Ctrl+F"; enabled: !window.modalOpen; onActivated: search.forceActiveFocus() }
+    Shortcut { sequence: "Space"; enabled: !window.editingText && !window.modalOpen && !mediaMenu.opened; onActivated: playerState.togglePlayback() }
 }

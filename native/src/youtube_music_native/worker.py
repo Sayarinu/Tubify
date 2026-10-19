@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sqlite3
 import sys
+import time
 
 from .auth import AuthError, AuthService
 from .catalog import Catalog, CatalogError
@@ -15,11 +16,13 @@ from .media import MediaFiles
 from .sources import SourceError, Sources
 from .downloads import DownloadError, Downloads
 from .mutations import ActionError, perform
+from .playlist_ops import PlaylistError, perform as playlist_action
 
 
 def handle(service, request, resources=None, progress=None):
     operation = request.get("operation")
     payload = request.get("payload") or {}
+    resources = resources if resources is not None else {}
     if isinstance(operation, str) and operation.startswith("downloads_"):
         resources = resources if resources is not None else {}
         root = str(Path(payload["data_dir"]).resolve())
@@ -53,11 +56,26 @@ def handle(service, request, resources=None, progress=None):
     if operation == "restore":
         return service.restore()
     if operation == "import_session":
-        return service.import_session(payload["path"], tauri=bool(payload.get("tauri")))
+        result = service.import_session(payload["path"], tauri=bool(payload.get("tauri")))
+        resources.clear()
+        return result
     if operation == "sign_out":
-        return service.sign_out()
-    if operation == "account_action":
-        result = perform(service.catalog(), payload["action"], payload["id"], bool(payload["value"]))
+        result = service.sign_out()
+        resources.clear()
+        return result
+    if operation in {"account_action", "account_history"}:
+        client = service.catalog()
+        if operation == "account_history":
+            response = client.add_history_item(client.get_song(payload["videoId"]))
+            if response.status_code != 204:
+                raise ActionError("Listening history could not be updated.")
+            result = {"recorded": True}
+        elif payload["action"] in {"playlist_create", "playlist_rename", "playlist_delete", "playlist_add", "playlist_remove", "playlist_move"}:
+            result = playlist_action(client, payload["action"], payload)
+        else:
+            result = perform(client, payload["action"], payload["id"], payload.get("value"), payload)
+        if result.get("action") in {"playlist_rename", "playlist_remove", "playlist_move", "playlist_delete"}:
+            resources.setdefault("playlist_changes", []).append({"saved": time.time(), "result": result})
         store = None
         try:
             store = MetadataStore(payload["cache_path"])
@@ -69,9 +87,12 @@ def handle(service, request, resources=None, progress=None):
                 store.close()
         return {**result, "contextId": payload.get("contextId", "")}
     if operation == "catalog":
+        # Keep delayed read responses from undoing confirmed edits or skipping songs.
+        changes = [change for change in resources.get("playlist_changes", []) if time.time() - change["saved"] < 30][-100:]
+        resources["playlist_changes"] = changes
         store = MetadataStore(payload["cache_path"])
         try:
-            return Catalog(service, store).fetch(payload["route"], payload.get("params"), payload.get("offset", 0), bool(payload.get("refresh")))
+            return Catalog(service, store, changes).fetch(payload["route"], payload.get("params"), payload.get("offset", 0), bool(payload.get("refresh")), payload.get("page_size"))
         finally:
             store.close()
     if operation == "resolve":
@@ -87,7 +108,7 @@ def handle(service, request, resources=None, progress=None):
 
 
 def safe_error(error):
-    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError, ActionError)):
+    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError, ActionError, PlaylistError)):
         return {"code": type(error).__name__, "message": str(error)}
     import requests
 

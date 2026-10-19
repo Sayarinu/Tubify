@@ -36,5 +36,7 @@ var paths = {
     music: "M9 4v12a4 3 0 1 1-2-2V6l12-3v11a4 3 0 1 1-2-2V1z",
     profile: "M12 3a4 4 0 1 0 0 8a4 4 0 1 0 0-8M4 22v-3a8 6 0 0 1 16 0v3",
     close: "M5 5l14 14M19 5L5 19",
-    check: "M4 12l5 5L20 6"
+    check: "M4 12l5 5L20 6",
+    history: "M3 10a9 9 0 1 1 1 7M3 4v6h6M12 7v6l4 2",
+    edit: "M4 16l12-12l4 4L8 20H4zM14 6l4 4"
 }

@@ -82,20 +82,22 @@ class CatalogView(QObject):
 
     @Slot()
     def refresh(self):
-        self._send(refresh=True)
+        count = max(len(self._data.get("items", [])), len(self._data.get("shelves", [])))
+        self._revision += 1
+        self._send(refresh=True, page_size=count or None)
 
     @Slot()
     def more(self):
         if not self._busy and self._data.get("cursor") is not None:
             self._send(offset=self._data["cursor"])
 
-    def _send(self, offset=0, refresh=False):
+    def _send(self, offset=0, refresh=False, page_size=None):
         if not self.worker:
             return
         if self._request is not None:
             self.worker.cancelQueued(self._request)
         self._busy, self._error, self._append = True, "", offset > 0
-        self._request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": self._route, "params": self._params, "offset": offset, "refresh": refresh})
+        self._request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": self._route, "params": self._params, "offset": offset, "refresh": refresh, "page_size": page_size})
         self.changed.emit()
 
     def _succeeded(self, identifier, result):

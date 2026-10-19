@@ -148,6 +148,12 @@ class Playback(QObject):
     def play(self, track):
         self.playTracks([track], 0)
 
+    def updateTrack(self, identifier, values):
+        for entry in self.queue.entries:
+            if entry["track"].get("videoId") == identifier:
+                entry["track"].update(values)
+        self._queue_changed()
+
     @Slot("QVariantList")
     def playShuffledTracks(self, tracks):
         self._prepared = {}

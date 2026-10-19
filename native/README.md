@@ -2,7 +2,7 @@
 
 Shared Python code for the native Qt client. The first development gate is a repeatable real-account compatibility check, tracked by [LUNE-336](https://linear.app/nouvelle-lune-atelier/issue/LUNE-336/prove-premium-account-access-streaming-and-offline-playback).
 
-The client connects accounts, renders personalized Home and Explore, searches music and opens artist/album pages, and plays music through libmpv. The window remains a development preview while the library, expanded-player, Downloads screen and release tickets are completed.
+The client connects accounts, renders personalized Home and Explore, searches music, manages the library/playlists, and plays music through libmpv. The window remains a development preview while the expanded-player, Downloads screen and release tickets are completed.
 
 ## Development
 
@@ -35,6 +35,10 @@ The native player owns the queue, audio-only source selection, transport, seek, 
 Home shows personalized shelves and compact Quick picks; Explore offers new releases, charts, moods and genres. Artwork cards open collections, their play targets begin playback, and collection queues start with the first page while later pages load. Sidebar playlist shortcuts use the connected account. Signing out clears those account views and the extractor's in-memory session while allowing local audio to continue.
 
 Search includes debounced suggestions, music filters, pagination and stale-response protection. Album pages offer full-album playback, shuffle, library and download controls; artist pages include subscriptions, top songs, releases and mixes. Back navigation restores loaded results, filters and scroll position without another provider request. Library/subscription changes use provider mutation identifiers and update the current view after success. These controls are tested with fake mutations; live page verification makes read-only account requests.
+
+Library sections include playlists, saved songs, albums, artists, subscriptions, liked songs and history. Song/card menus offer queue actions, radio, ratings, saving, playlist addition and downloads. Owned playlists support private creation, renaming, deletion, single-entry removal and reordering, using each occurrence's unique identifier so duplicates remain distinct. Confirmed changes update immediately while the provider's read responses catch up. Empty playlists remain usable. Playback reports online listening after progress without blocking audio; history tracking URLs stay inside the provider worker. The native dialog check verifies that typing spaces does not trigger playback.
+
+Real-account verification covers all library sections and the playlist view. The user-approved private test playlist passed creation, renaming, duplicate addition, movement, single-occurrence removal and deletion; native empty-playlist creation/reopening also passed and its test playlist was deleted. Existing playlists and ratings were not modified by these checks. History writes and ratings use fake-provider tests; the real account's history tracking data was checked read-only. Redacted results are in evidence/linux-library.json.
 
 The durable download backend stores song, album and manual playlist snapshots with shared-file references. Jobs recover after interruption, resume supported HTTP transfers, retain completed songs on cancellation/failure, and validate audio with FFprobe before publishing it. Images and metadata are retained beside the audio for offline use. Removing a collection retains files referenced by another download; refreshing a snapshot retains its old files until the replacement finishes. Separate control and transfer workers keep storage operations responsive. Collection controls and the Downloads screen are integrated by the subsequent UI tickets.
 

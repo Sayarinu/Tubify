@@ -81,8 +81,8 @@ Fix missed targets before the Linux release and attach actual results. Visual ch
 | Reference | Evidence and follow-up |
 | --- | --- |
 | Home/sidebar/search/shelves/bottom player | Running app inspected during planning; private capture is outside the repository |
-| Explore/search/library | Explore captured privately; search input inspected through accessibility. Search-results visual comparison remains in LUNE-348; capture library before its layout work |
-| Playlist/album/artist | Album and artist captured privately from the running app; live native pages checked at both target sizes. Capture playlist layouts and mutation interactions before implementation |
+| Explore/search/library | Explore and Library captured privately; search input inspected through accessibility. Search-results visual comparison remains in LUNE-348 |
+| Playlist/album/artist | Album/artist private captures and playlist accessibility geometry inspected; live native pages checked at both sizes. Final playlist screenshot comparison remains in LUNE-348 |
 | Expanded player/queue/lyrics | Capture layouts, keyboard actions and empty states |
 | Downloads | New view following the existing visual language |
 | Performance | Preliminary memory sample only; controlled baseline belongs to the verification work |

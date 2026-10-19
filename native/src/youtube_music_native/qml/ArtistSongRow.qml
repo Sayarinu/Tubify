@@ -11,6 +11,7 @@ FocusScope {
     Accessible.name: media.title || "Song"
     Accessible.onPressAction: activated(media)
     Keys.onReturnPressed: activated(media)
+    Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { appState.showMenu(root.media, {}); event.accepted = true } }
     Rectangle { anchors.fill: parent; color: hover.hovered ? "#202020" : "transparent"; border.color: root.activeFocus ? "white" : "transparent" }
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#222222" }
     Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 32; height: 32; radius: 3; source: root.media.thumbnail || ""; accent: root.media.accent || "#283238" }
@@ -19,5 +20,6 @@ FocusScope {
     Text { x: parent.width * 0.54; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.13; text: root.media.views ? root.media.views + " plays" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14; visible: root.width > 650 }
     Text { x: parent.width * 0.69; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.23; text: root.media.album ? root.media.album.name || "" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14 }
     HoverHandler { id: hover }
-    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.activated(root.media) }
+    MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: mouse => { if (mouse.button === Qt.RightButton) appState.showMenu(root.media, {}); else root.activated(root.media) } }
+    IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: "More options for " + (root.media.title || "song"); visible: hover.hovered || root.activeFocus; onClicked: appState.showMenu(root.media, {}) }
 }

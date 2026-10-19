@@ -99,3 +99,25 @@ def test_back_restores_results_query_filter_and_scroll_without_provider_request(
     assert view.route == "search" and view.parameters["filter"] == "albums"
     assert view.scrollPosition == 240 and browse.shell.query == "fixture query"
     assert len(worker.requests) == 1
+
+
+def test_confirmed_playlist_edits_update_occurrences_without_waiting_for_stale_readback(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    tracks = [{"videoId": "abcdefghijk", "setVideoId": key, "duration": 60} for key in ("one", "two", "three")]
+    view.showLocal("playlist", {"title": "Original", "items": tracks, "trackCount": 3, "duration": 180, "cursor": None}, {"id": "PLfixture"})
+    browse.updatePlaylist({"action": "playlist_move", "id": "PLfixture", "movedSetVideoId": "two", "successor": "one"})
+    assert [track["setVideoId"] for track in view.data["items"]] == ["two", "one", "three"]
+    browse.updatePlaylist({"action": "playlist_remove", "id": "PLfixture", "removedSetVideoId": "one"})
+    assert [track["setVideoId"] for track in view.data["items"]] == ["two", "three"]
+    assert view.data["duration"] == 120 and view.data["trackCount"] == 2
+    assert not worker.requests
+
+
+def test_removing_loaded_entry_adjusts_the_next_page_offset(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    tracks = [{"kind": "song", "videoId": "abcdefghijk", "setVideoId": str(index)} for index in range(40)]
+    view.showLocal("playlist", {"items": tracks, "cursor": 40, "trackCount": 80}, {"id": "PLfixture"})
+    browse.updatePlaylist({"action": "playlist_remove", "id": "PLfixture", "removedSetVideoId": "10"})
+    assert len(view.data["items"]) == 39 and view.data["cursor"] == 39
+    view.more()
+    assert worker.requests[-1][1]["offset"] == 39

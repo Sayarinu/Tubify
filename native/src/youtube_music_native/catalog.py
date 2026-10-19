@@ -5,6 +5,8 @@ import json
 import sqlite3
 import time
 
+from .playlist_ops import apply_change
+
 
 class CatalogError(RuntimeError):
     pass
@@ -53,7 +55,7 @@ def item(row, kind=None):
     elif not kind:
         kind = "artist" if browse.startswith("UC") else "album" if browse.startswith("MPRE") else "playlist"
     identifier = video if kind == "song" else (browse or playlist) if kind in {"album", "artist"} else playlist or browse
-    title = text(row.get("title") or row.get("name"))
+    title = text(row.get("title") or row.get("name") or (row.get("artist") if kind == "artist" else ""))
     if not title and row.get("isAvailable") is False:
         title = "Unavailable song"
     if not title:
@@ -76,6 +78,8 @@ def item(row, kind=None):
         "duration": duration(row.get("duration_seconds") or row.get("duration")),
         "views": text(row.get("views")).removesuffix(" plays"), "year": text(row.get("year")),
         "inLibrary": bool(row.get("inLibrary")),
+        "libraryTokens": {k: text(v) for k, v in (row.get("feedbackTokens") or {}).items() if k in {"add", "remove"}},
+        "owned": bool(row.get("owned")), "count": text(row.get("count")), "played": text(row.get("played")),
         "explicit": bool(row.get("isExplicit")), "rating": text(row.get("likeStatus")),
         "available": bool(identifier) and row.get("isAvailable", True) is not False,
     }
@@ -94,10 +98,15 @@ class Catalog:
     PAGE_SIZE = 40
     TTL = 300
 
-    def __init__(self, auth, store):
+    def __init__(self, auth, store, changes=()):
         self.auth, self.store = auth, store
+        self.changes = changes
 
-    def fetch(self, route, params=None, offset=0, refresh=False):
+    def _apply_changes(self, data, route, params):
+        for change in self.changes:
+            apply_change(data, change["result"], params.get("id") if route == "playlist" else None)
+
+    def fetch(self, route, params=None, offset=0, refresh=False, page_size=None):
         params = params or {}
         if not isinstance(params, dict) or not isinstance(offset, int) or not 0 <= offset <= 100000:
             raise CatalogError("This catalog page is invalid. Open it again.")
@@ -108,7 +117,9 @@ class Catalog:
         scope = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         key = json.dumps([scope, route, params], sort_keys=True)
         cached = self.store.read(key)
-        page_size = 100000 if route == "album" and params.get("allTracks") else 6 if route == "home" else self.PAGE_SIZE
+        if page_size is not None and (not isinstance(page_size, int) or not 1 <= page_size <= 100000):
+            raise CatalogError("This catalog page size is invalid.")
+        page_size = page_size or (100000 if route == "album" and params.get("allTracks") else 6 if route == "home" else self.PAGE_SIZE)
         list_key = "shelves" if route == "home" else "items"
         target = offset + page_size
         fresh = cached and time.time() - cached["saved"] < self.TTL
@@ -126,10 +137,12 @@ class Catalog:
                 name = type(error).__name__
                 warning = "reconnect" if name in {"AuthError", "YTMusicUserError"} or str(error).startswith(("Server returned HTTP 401", "Server returned HTTP 403")) else "offline"
             else:
+                self._apply_changes(data, route, params)
                 try:
                     self.store.write(key, data)
                 except sqlite3.Error:
                     warning = "cache_unavailable"
+        self._apply_changes(data, route, params)
         page = dict(data)
         all_items = data.get(list_key, [])
         page[list_key] = all_items[offset:target]
@@ -172,11 +185,21 @@ class Catalog:
                 raw_limit = min(100000, raw_limit * 2)
             data["complete"] = len(raw) < raw_limit or raw_limit >= 100000
         elif route in {"album", "playlist"}:
-            raw = client.get_album(identifier) if route == "album" else client.get_playlist(identifier, limit=limit)
+            try:
+                raw = client.get_album(identifier) if route == "album" else client.get_playlist(identifier, limit=limit)
+            except KeyError:
+                if route != "playlist":
+                    raise
+                # The provider omits the song shelf for an empty owned playlist.
+                candidate = next((row for row in client.get_library_playlists(limit=None) if (row.get("playlistId") or text(row.get("browseId")).removeprefix("VL")) == identifier), None)
+                if not candidate or not candidate.get("owned") or str(candidate.get("count")) not in {"0", "0 songs"}:
+                    raise CatalogError("This playlist could not be loaded. Refresh and retry.") from None
+                raw = {**candidate, "tracks": [], "trackCount": 0, "author": {"name": self.auth.profile.get("name", "Your music")}}
             if not isinstance(raw, dict) or not raw.get("title"):
                 raise CatalogError("This release is unavailable. Go back and choose another item.")
             data.update(title=text(raw.get("title")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")), items=items(raw.get("tracks", []), "song"), editable=bool(raw.get("owned")))
-            data.update(id=identifier, kind=route, artists=raw.get("artists") or [], year=text(raw.get("year")), trackCount=raw.get("trackCount") or len(data["items"]), duration=duration(raw.get("duration_seconds")), audioPlaylistId=text(raw.get("audioPlaylistId")), saved=bool(raw.get("isSaved")) or bool(data["items"]) and all(track.get("inLibrary") for track in data["items"]))
+            data.update(id=identifier, kind=route, artists=raw.get("artists") or [], year=text(raw.get("year")), trackCount=duration(raw.get("trackCount")) or len(data["items"]), duration=duration(raw.get("duration_seconds")), audioPlaylistId=text(raw.get("audioPlaylistId")), saved=bool(raw.get("isSaved")) or bool(data["items"]) and all(track.get("inLibrary") for track in data["items"]))
+            data.update(author=text((raw.get("author") or {}).get("name")) if isinstance(raw.get("author"), dict) else text(raw.get("author")), privacy=text(raw.get("privacy")))
             if route == "album":
                 artists = raw.get("artists") or []
                 for track in data["items"]:
@@ -207,11 +230,14 @@ class Catalog:
             data["items"] = items(client.get_artist_albums(identifier, params["params"], limit=limit), "album")
             data["complete"] = len(data["items"]) < limit
         elif route.startswith("library_"):
-            methods = {"library_songs": (client.get_library_songs, "song"), "library_albums": (client.get_library_albums, "album"), "library_artists": (client.get_library_artists, "artist"), "library_playlists": (client.get_library_playlists, "playlist")}
+            methods = {"library_songs": ("get_library_songs", "song"), "library_albums": ("get_library_albums", "album"), "library_artists": ("get_library_artists", "artist"), "library_playlists": ("get_library_playlists", "playlist"), "library_subscriptions": ("get_library_subscriptions", "artist"), "library_liked": ("get_liked_songs", "song")}
             if route not in methods:
                 raise CatalogError("This library section is unavailable.")
             method, kind = methods[route]
-            data["items"] = items(method(limit=limit), kind)
+            kwargs = {"order": params["order"]} if params.get("order") in {"a_to_z", "z_to_a", "recently_added"} and route not in {"library_playlists", "library_liked"} else {}
+            raw = getattr(client, method)(limit=limit, **kwargs)
+            data["items"] = items(raw.get("tracks", []) if isinstance(raw, dict) else raw, kind)
+            data["title"] = "Liked songs" if route == "library_liked" else route.removeprefix("library_").title()
             data["complete"] = len(data["items"]) < limit
         elif route == "history":
             data["items"] = items(client.get_history(), "song")

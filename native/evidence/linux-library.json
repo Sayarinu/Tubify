@@ -1,0 +1,39 @@
+{
+  "ticket": "LUNE-343",
+  "platform": "Arch Linux x86_64",
+  "account": "real account, restored from OS keyring",
+  "read_only_views": {
+    "playlists": true,
+    "saved_songs": true,
+    "albums": true,
+    "artists": true,
+    "subscriptions": true,
+    "liked_songs": true,
+    "history": true,
+    "owned_playlist": true,
+    "history_tracking_available": true
+  },
+  "user_approved_private_test_playlist": {
+    "created_private": true,
+    "renamed": true,
+    "duplicate_entries_preserved": true,
+    "selected_occurrence_moved": true,
+    "selected_occurrence_moved_to_end": true,
+    "only_selected_duplicate_removed": true,
+    "test_playlist_deleted": true
+  },
+  "native_empty_playlist_test": {
+    "created_view": true,
+    "reopened": true,
+    "test_playlist_deleted": true,
+    "qml_clean": true
+  },
+  "native_views": {
+    "qml_clean": true,
+    "local_audio_continued_while_browsing": true,
+    "reference_size": "1280x820",
+    "minimum_size": "920x620"
+  },
+  "fixture_checks": ["ratings", "history_write_protocol", "dialogs", "text_entry_shortcuts", "queue_menu", "mutation_errors", "pagination_boundary_reorder"],
+  "privacy": "No account identities, content identifiers, session data, tracking URLs or private screenshots included."
+}
