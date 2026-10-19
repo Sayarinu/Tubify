@@ -148,6 +148,14 @@ class Playback(QObject):
     def play(self, track):
         self.playTracks([track], 0)
 
+    @Slot("QVariantList")
+    def playShuffledTracks(self, tracks):
+        self._prepared = {}
+        self.queue.replace([dict(track) for track in tracks])
+        self.queue.shuffle_all()
+        self._failures = 0
+        self._start()
+
     @Slot("QVariantList", bool)
     def enqueue(self, tracks, next=False):
         self.queue.append([dict(track) for track in tracks], next=next)

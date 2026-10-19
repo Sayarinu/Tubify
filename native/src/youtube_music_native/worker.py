@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import sqlite3
 import sys
 
 from .auth import AuthError, AuthService
@@ -13,6 +14,7 @@ from .store import MetadataStore
 from .media import MediaFiles
 from .sources import SourceError, Sources
 from .downloads import DownloadError, Downloads
+from .mutations import ActionError, perform
 
 
 def handle(service, request, resources=None, progress=None):
@@ -54,6 +56,18 @@ def handle(service, request, resources=None, progress=None):
         return service.import_session(payload["path"], tauri=bool(payload.get("tauri")))
     if operation == "sign_out":
         return service.sign_out()
+    if operation == "account_action":
+        result = perform(service.catalog(), payload["action"], payload["id"], bool(payload["value"]))
+        store = None
+        try:
+            store = MetadataStore(payload["cache_path"])
+            store.invalidate()
+        except sqlite3.Error:
+            pass
+        finally:
+            if store:
+                store.close()
+        return {**result, "contextId": payload.get("contextId", "")}
     if operation == "catalog":
         store = MetadataStore(payload["cache_path"])
         try:
@@ -73,13 +87,13 @@ def handle(service, request, resources=None, progress=None):
 
 
 def safe_error(error):
-    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError)):
+    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError, ActionError)):
         return {"code": type(error).__name__, "message": str(error)}
     import requests
 
     if isinstance(error, (requests.ConnectionError, requests.Timeout)):
         return {"code": "offline", "message": "YouTube Music could not be reached. Downloads remain available offline."}
-    if type(error).__name__ == "YTMusicUserError" or str(error).startswith(("Server returned HTTP 401", "Server returned HTTP 403")):
+    if str(error).startswith(("Server returned HTTP 401", "Server returned HTTP 403")):
         return {"code": "reconnect", "message": "Your session needs reconnecting. Downloaded music remains available."}
     return {"code": "provider_error", "message": "YouTube Music could not complete this request. Retry or reconnect your account."}
 

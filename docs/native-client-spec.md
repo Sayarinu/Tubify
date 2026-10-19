@@ -81,8 +81,8 @@ Fix missed targets before the Linux release and attach actual results. Visual ch
 | Reference | Evidence and follow-up |
 | --- | --- |
 | Home/sidebar/search/shelves/bottom player | Running app inspected during planning; private capture is outside the repository |
-| Explore/search/library | Explore captured privately from the running app; capture search/library before implementing those views |
-| Playlist/album/artist | Album captured privately from the running app; capture playlist/artist layouts and mutation interactions before implementation |
+| Explore/search/library | Explore captured privately; search input inspected through accessibility. Search-results visual comparison remains in LUNE-348; capture library before its layout work |
+| Playlist/album/artist | Album and artist captured privately from the running app; live native pages checked at both target sizes. Capture playlist layouts and mutation interactions before implementation |
 | Expanded player/queue/lyrics | Capture layouts, keyboard actions and empty states |
 | Downloads | New view following the existing visual language |
 | Performance | Preliminary memory sample only; controlled baseline belongs to the verification work |
@@ -112,7 +112,7 @@ Actual assigned issue identifiers and titles are listed below. Branches use the 
 | [LUNE-351](https://linear.app/nouvelle-lune-atelier/issue/LUNE-351/port-and-package-the-native-client-for-windows) | Port and package the native client for Windows |
 | [LUNE-352](https://linear.app/nouvelle-lune-atelier/issue/LUNE-352/port-and-package-the-native-client-for-macos) | Port and package the native client for macOS |
 
-The Linear issues contain milestones, blocking relations, acceptance criteria and verification requirements. M0 is Todo/In Progress; subsequent work starts in Backlog. Windows and macOS are later delivery milestones, while portability checks start during the native foundation.
+The Linear issues contain milestones, blocking relations, acceptance criteria and verification requirements. M0 is complete, including the real-account compatibility gate recorded in native/evidence/linux-compatibility.json. Windows and macOS are later delivery milestones, while portability checks start during the native foundation.
 
 ## Git and release workflow
 

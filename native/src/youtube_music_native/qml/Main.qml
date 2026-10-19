@@ -22,7 +22,7 @@ ApplicationWindow {
         anchors.right: parent.right
         height: 370
         gradient: Gradient {
-            GradientStop { position: 0; color: appState.page === "Home" ? "#071b22" : Theme.background }
+            GradientStop { position: 0; color: appState.page === "Home" && catalogState.route === "home" ? "#071b22" : Theme.background }
             GradientStop { position: 1; color: Theme.background }
         }
     }
@@ -103,8 +103,8 @@ ApplicationWindow {
                 leftPadding: 24
                 contentItem: Column {
                     spacing: 5
-                    Text { text: modelData.title; color: Theme.foreground; font.family: Theme.bodyFont; font.pixelSize: 14; width: sidebar.width - 48; elide: Text.ElideRight }
-                    Text { text: modelData.owner || ""; color: Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 12 }
+                    Text { text: modelData.title; textFormat: Text.PlainText; color: Theme.foreground; font.family: Theme.bodyFont; font.pixelSize: 14; width: sidebar.width - 48; elide: Text.ElideRight }
+                    Text { text: modelData.owner || ""; textFormat: Text.PlainText; color: Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 12 }
                 }
                 background: Rectangle { color: parent.hovered ? "#151515" : "transparent" }
                 onClicked: appState.requestAction("playlist:" + modelData.id)
@@ -125,7 +125,7 @@ ApplicationWindow {
             width: Math.min(480, header.width - 160)
             height: 42
             leftPadding: 52
-            rightPadding: 16
+            rightPadding: text.length > 0 ? 48 : 16
             color: Theme.foreground
             placeholderText: "Search songs, albums, artists"
             placeholderTextColor: "#999fa1"
@@ -134,7 +134,37 @@ ApplicationWindow {
             Accessible.name: "Search YouTube Music"
             background: Rectangle { radius: 8; color: search.activeFocus ? "#303539" : "#2c3337"; border.color: search.activeFocus ? "#aaaaaa" : "#495155"; border.width: 1 }
             Symbol { x: 16; anchors.verticalCenter: parent.verticalCenter; name: "search"; width: 20; height: 20; color: "#a2abad" }
-            onAccepted: appState.search(text)
+            IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; visible: search.text.length > 0; iconName: "close"; tip: "Clear search"; onClicked: { search.clear(); searchState.clearSuggestions(); search.forceActiveFocus() } }
+            onAccepted: {
+                var chosen = suggestions.currentIndex >= 0 ? searchState.suggestions[suggestions.currentIndex] : search.text
+                search.text = chosen
+                appState.search(chosen)
+            }
+            onTextEdited: { suggestions.currentIndex = -1; searchState.suggest(text) }
+            Keys.onDownPressed: suggestions.currentIndex = Math.min(suggestions.count - 1, suggestions.currentIndex + 1)
+            Keys.onUpPressed: suggestions.currentIndex = Math.max(-1, suggestions.currentIndex - 1)
+            Keys.onEscapePressed: searchState.clearSuggestions()
+            Popup {
+                id: suggestionPopup
+                y: search.height + 4; width: search.width
+                height: Math.min(360, searchState.suggestions.length * 44 + 16)
+                padding: 8; focus: false
+                visible: search.activeFocus && searchState.suggestions.length > 0
+                background: Rectangle { color: "#292929"; radius: 8 }
+                contentItem: ListView {
+                    id: suggestions
+                    clip: true; currentIndex: -1; model: searchState.suggestions
+                    delegate: ItemDelegate {
+                        required property string modelData
+                        required property int index
+                        width: suggestions.width; height: 44
+                        highlighted: index === suggestions.currentIndex
+                        background: Rectangle { color: parent.highlighted ? "#414141" : parent.hovered ? "#373737" : "transparent"; radius: 4 }
+                        contentItem: Text { text: modelData; textFormat: Text.PlainText; color: "white"; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; font.pixelSize: 15 }
+                        onClicked: { search.text = modelData; appState.search(modelData) }
+                    }
+                }
+            }
         }
         IconButton {
             anchors.right: parent.right
@@ -182,10 +212,18 @@ ApplicationWindow {
         anchors.bottom: player.top
         property real gutter: width > 900 ? 106 : 40
 
-        BrowsePane { anchors.fill: parent; visible: appState.page === "Home" || appState.page === "Explore" }
+        Loader {
+            anchors.fill: parent
+            active: appState.page === "Home" || appState.page === "Explore" || appState.page === "Search"
+            sourceComponent: catalogState.route === "album" ? albumPage : catalogState.route === "artist" ? artistPage : catalogState.route === "search" ? searchPage : browsePage
+            Component { id: albumPage; AlbumPane {} }
+            Component { id: artistPage; ArtistPane {} }
+            Component { id: searchPage; SearchPane {} }
+            Component { id: browsePage; BrowsePane {} }
+        }
         Column {
             anchors.centerIn: parent; width: parent.width - 80; spacing: 20
-            visible: appState.page !== "Home" && appState.page !== "Explore"
+            visible: appState.page !== "Home" && appState.page !== "Explore" && appState.page !== "Search"
             Text { width: parent.width; text: appState.page; horizontalAlignment: Text.AlignHCenter; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 }
             Text { width: parent.width; text: appState.page === "Downloads" ? "Your downloaded music will appear here." : "Connect YouTube Music to browse your music."; horizontalAlignment: Text.AlignHCenter; color: Theme.secondary; font.pixelSize: 15 }
             Button { anchors.horizontalCenter: parent.horizontalCenter; text: "Connect YouTube Music"; visible: !accountState.connected; onClicked: appState.openAccount() }
@@ -277,6 +315,8 @@ ApplicationWindow {
         onAccepted: accountState.importFile(selectedFile)
     }
     Connections { target: appState; function onAccountDialogRequested() { accountDialog.open() } }
+    Connections { target: appState; function onPageChanged() { if (appState.page === "Search") search.text = appState.query } }
+    Shortcut { sequence: "Alt+Left"; onActivated: browseState.back() }
     Shortcut { sequence: "/"; enabled: !search.activeFocus; onActivated: search.forceActiveFocus() }
     Shortcut { sequence: "Ctrl+F"; onActivated: search.forceActiveFocus() }
     Shortcut { sequence: "Space"; enabled: !search.activeFocus && !accountDialog.opened; onActivated: playerState.togglePlayback() }

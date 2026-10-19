@@ -19,6 +19,9 @@ def test_normalizes_provider_variants_and_unavailable_tracks():
     assert item({"title": "Artist", "browseId": "UCfixture"})["kind"] == "artist"
     assert item({"title": "List", "playlistId": "PLfixture"})["kind"] == "playlist"
     assert item({"isAvailable": False})["title"] == "Unavailable song"
+    album = item({"title": "Album", "browseId": "MPREfixture", "playlistId": "OLAKfixture"}, "album")
+    assert album["kind"] == "album" and album["id"] == "MPREfixture"
+    assert album["playlistId"] == "OLAKfixture"
 
 
 def test_pages_provider_continuations_and_restores_cache_offline(tmp_path):
@@ -101,3 +104,25 @@ def test_home_pages_shelves_and_personalizes_listen_again(tmp_path):
     assert len(first["shelves"]) == 6 and len(second["shelves"]) == 4
     assert first["shelves"][0]["subtitle"] == "FIXTURE"
     assert second["cursor"] is None and calls == [7, 13]
+
+
+def test_artist_subscription_uses_its_channel_id_and_unavailable_release_is_actionable(tmp_path):
+    import pytest
+    from youtube_music_native.catalog import CatalogError
+
+    provider = SimpleNamespace(get_artist=lambda identifier: {"name": "Artist", "channelId": "UCsubscription", "subscribed": True, "songs": {"results": [track(1)]}}, get_album=lambda identifier: None)
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "metadata.sqlite3"))
+    artist = catalog.fetch("artist", {"id": "UCbrowse"})
+    assert artist["subscriptionId"] == "UCsubscription" and artist["subscribed"]
+    with pytest.raises(CatalogError, match="unavailable"):
+        catalog.fetch("album", {"id": "MPREunavailable"})
+
+
+def test_music_search_filters_deferred_types_without_skipping_between_pages(tmp_path):
+    rows = [{**track(i), "resultType": "video" if i % 3 == 0 else "song"} for i in range(100)]
+    provider = SimpleNamespace(search=lambda query, filter, limit: rows[:limit])
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "cache.sqlite3"))
+    first = catalog.fetch("search", {"query": "music"})
+    second = catalog.fetch("search", {"query": "music"}, offset=first["cursor"])
+    assert [row["videoId"] for row in first["items"] + second["items"]] == [row["videoId"] for row in rows if row["resultType"] == "song"]
+    assert second["cursor"] is None

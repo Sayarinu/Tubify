@@ -17,6 +17,18 @@ Item {
         }
         return values
     }
+    property int revision: -1
+    function restoreScroll() {
+        if (catalogState.busy || revision === catalogState.revision) return
+        revision = catalogState.revision
+        Qt.callLater(function() {
+            var view = sections.visible ? sections : songList.visible ? songList : collectionGrid
+            if (catalogState.hasScrollPosition) view.contentY = catalogState.scrollPosition
+            else view.positionViewAtBeginning()
+        })
+    }
+    Component.onCompleted: restoreScroll()
+    Connections { target: catalogState; function onChanged() { root.restoreScroll() } }
     ListView {
         id: sections
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
@@ -24,6 +36,7 @@ Item {
         clip: true; spacing: 80; boundsBehavior: Flickable.StopAtBounds
         visible: (root.result.shelves || []).length > 0
         model: root.result.shelves || []
+        onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         ScrollBar.vertical: ScrollBar {}
         header: Item {
             width: sections.width
@@ -57,7 +70,7 @@ Item {
             }
             Column {
                 width: parent.width; visible: !root.landing; spacing: 12
-                Button { text: "Back"; onClicked: browseState.navigate(appState.page) }
+                Button { text: "Back"; onClicked: browseState.back() }
                 Text { width: parent.width; text: root.result.title || ""; textFormat: Text.PlainText; color: "white"; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; elide: Text.ElideRight }
             }
         }
@@ -85,7 +98,7 @@ Item {
         ScrollBar.vertical: ScrollBar {}
         header: Column {
             width: songList.width; spacing: 20; bottomPadding: 32
-            Button { text: "Back"; onClicked: browseState.navigate(appState.page) }
+            Button { text: "Back"; onClicked: browseState.back() }
             Row {
                 width: parent.width; spacing: 24
                 Cover { width: 128; height: 128; source: root.result.thumbnail || ""; visible: source.length > 0 }
@@ -97,6 +110,7 @@ Item {
             }
         }
         delegate: SongRow { required property int index; required property var modelData; width: songList.width; media: modelData; number: index + 1; onActivated: browseState.playAt(index) }
+        onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Button { text: "Load more"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
     }
@@ -108,8 +122,9 @@ Item {
         visible: !root.songs && (root.result.items || []).length > 0
         cellWidth: 170; cellHeight: 231; model: root.result.items || []
         ScrollBar.vertical: ScrollBar {}
-        header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Button { text: "Back"; onClicked: browseState.navigate(appState.page) } Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; color: "white" } }
+        header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Button { text: "Back"; onClicked: browseState.back() } Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; color: "white" } }
         delegate: MediaCard { required property var modelData; width: 146; media: modelData; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item) }
+        onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Button { text: "Load more"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
     }

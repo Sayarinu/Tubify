@@ -29,7 +29,14 @@ class Queue:
         self.entries[position:position] = entries
         if self.index < 0 and entries:
             self.index = 0
-        self._original = [entry["key"] for entry in self.entries]
+        keys = [entry["key"] for entry in entries]
+        if next and self.current:
+            location = self._original.index(self.current["key"]) + 1 if self.current["key"] in self._original else 0
+            self._original[location:location] = keys
+        else:
+            self._original.extend(keys)
+        if self.shuffled and not next:
+            self._shuffle_remaining()
 
     def select(self, index):
         if 0 <= index < len(self.entries):
@@ -77,6 +84,11 @@ class Queue:
         remaining = self.entries[self.index + 1:]
         random.shuffle(remaining)
         self.entries[self.index + 1:] = remaining
+
+    def shuffle_all(self):
+        self.shuffled = True
+        random.shuffle(self.entries)
+        self.index = 0 if self.entries else -1
 
     def toggle_shuffle(self):
         self.shuffled = not self.shuffled

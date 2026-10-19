@@ -45,3 +45,14 @@ def test_last_track_stays_selected_at_end_and_bad_state_is_ignored():
     assert queue.advance(automatic=True) is None
     assert queue.current["track"]["title"] == "Third"
     assert Queue().restore({"entries": [{"key": "broken"}]}) == 0
+
+
+def test_initial_shuffle_can_start_anywhere_and_unshuffle_keeps_remaining_original_order(monkeypatch):
+    monkeypatch.setattr("youtube_music_native.queue.random.shuffle", lambda values: values.reverse())
+    queue = Queue()
+    queue.replace(tracks())
+    queue.shuffle_all()
+    assert queue.current["track"]["title"] == "Third"
+    queue.append([{"title": "Added", "videoId": "new-track"}])
+    queue.toggle_shuffle()
+    assert [entry["track"]["title"] for entry in queue.entries] == ["Third", "First", "Duplicate", "Added"]

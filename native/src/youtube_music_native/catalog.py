@@ -46,13 +46,13 @@ def item(row, kind=None):
     result_type = text(row.get("resultType") or row.get("type")).lower()
     if video:
         kind = "song"
-    elif playlist or result_type.endswith("playlist") or browse.startswith("VL"):
-        kind = "playlist"
     elif result_type in {"artist", "album"}:
         kind = result_type
+    elif result_type.endswith("playlist") or browse.startswith("VL"):
+        kind = "playlist"
     elif not kind:
         kind = "artist" if browse.startswith("UC") else "album" if browse.startswith("MPRE") else "playlist"
-    identifier = video or playlist or browse
+    identifier = video if kind == "song" else (browse or playlist) if kind in {"album", "artist"} else playlist or browse
     title = text(row.get("title") or row.get("name"))
     if not title and row.get("isAvailable") is False:
         title = "Unavailable song"
@@ -66,7 +66,7 @@ def item(row, kind=None):
         artists = [a for a in author if isinstance(a, dict) and isinstance(a.get("name"), str)]
     album = row.get("album") or {}
     return {
-        "kind": kind, "id": identifier, "videoId": video, "browseId": browse,
+        "kind": kind, "id": identifier, "videoId": video, "browseId": browse, "playlistId": playlist,
         "label": text(row.get("type")) if kind == "album" else "",
         "setVideoId": text(row.get("setVideoId")),
         "title": title, "artist": " • ".join(a["name"] for a in artists) or text(author),
@@ -74,6 +74,8 @@ def item(row, kind=None):
         "album": {"name": text(album.get("name")), "id": text(album.get("id"))} if isinstance(album, dict) else {},
         "thumbnail": thumbnail(row.get("thumbnails") or row.get("thumbnail")),
         "duration": duration(row.get("duration_seconds") or row.get("duration")),
+        "views": text(row.get("views")).removesuffix(" plays"), "year": text(row.get("year")),
+        "inLibrary": bool(row.get("inLibrary")),
         "explicit": bool(row.get("isExplicit")), "rating": text(row.get("likeStatus")),
         "available": bool(identifier) and row.get("isAvailable", True) is not False,
     }
@@ -106,7 +108,7 @@ class Catalog:
         scope = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         key = json.dumps([scope, route, params], sort_keys=True)
         cached = self.store.read(key)
-        page_size = 6 if route == "home" else self.PAGE_SIZE
+        page_size = 100000 if route == "album" and params.get("allTracks") else 6 if route == "home" else self.PAGE_SIZE
         list_key = "shelves" if route == "home" else "items"
         target = offset + page_size
         fresh = cached and time.time() - cached["saved"] < self.TTL
@@ -131,13 +133,13 @@ class Catalog:
         page = dict(data)
         all_items = data.get(list_key, [])
         page[list_key] = all_items[offset:target]
-        page["cursor"] = target if len(all_items) > target or not data.get("complete", True) else None
+        page["cursor"] = target if route != "radio" and (len(all_items) > target or not data.get("complete", True)) else None
         page["stale"], page["warning"] = stale, warning
         return page
 
     def _fetch(self, client, route, params, limit):
         identifier = params.get("id", "")
-        data = {"title": route.title(), "items": [], "shelves": [], "complete": True}
+        data = {"title": text(params.get("title")) or route.title(), "items": [], "shelves": [], "complete": True}
         if route == "home":
             data["shelves"] = shelves(client.get_home(limit=limit))
             data["complete"] = len(data["shelves"]) < limit
@@ -161,11 +163,20 @@ class Catalog:
             if not query:
                 raise CatalogError("Enter a song, artist, album or playlist.")
             data["title"] = query
-            data["items"] = items(client.search(query, filter=params.get("filter"), limit=limit))
-            data["complete"] = len(data["items"]) < limit
+            raw_limit = limit
+            while True:
+                raw = client.search(query, filter=params.get("filter"), limit=raw_limit)
+                data["items"] = items([row for row in raw if row.get("resultType", "song") in {"song", "album", "artist", "playlist"}])
+                if len(data["items"]) >= limit or len(raw) < raw_limit or raw_limit >= 100000:
+                    break
+                raw_limit = min(100000, raw_limit * 2)
+            data["complete"] = len(raw) < raw_limit or raw_limit >= 100000
         elif route in {"album", "playlist"}:
             raw = client.get_album(identifier) if route == "album" else client.get_playlist(identifier, limit=limit)
+            if not isinstance(raw, dict) or not raw.get("title"):
+                raise CatalogError("This release is unavailable. Go back and choose another item.")
             data.update(title=text(raw.get("title")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")), items=items(raw.get("tracks", []), "song"), editable=bool(raw.get("owned")))
+            data.update(id=identifier, kind=route, artists=raw.get("artists") or [], year=text(raw.get("year")), trackCount=raw.get("trackCount") or len(data["items"]), duration=duration(raw.get("duration_seconds")), audioPlaylistId=text(raw.get("audioPlaylistId")), saved=bool(raw.get("isSaved")) or bool(data["items"]) and all(track.get("inLibrary") for track in data["items"]))
             if route == "album":
                 artists = raw.get("artists") or []
                 for track in data["items"]:
@@ -178,12 +189,20 @@ class Catalog:
                 data["complete"] = len(data["items"]) < limit
         elif route == "artist":
             raw = client.get_artist(identifier)
+            if not isinstance(raw, dict) or not raw.get("name"):
+                raise CatalogError("This artist is unavailable. Go back and choose another artist.")
             data.update(title=text(raw.get("name")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")))
-            for name in ("songs", "albums", "singles", "videos", "related"):
+            wide = [photo for photo in (raw.get("thumbnails") or []) if isinstance(photo, dict) and (photo.get("width") or 0) >= (photo.get("height") or 1) * 1.4 and text(photo.get("url")).startswith("https://")]
+            data.update(id=identifier, kind="artist", subscriptionId=text(raw.get("channelId")), subscribed=bool(raw.get("subscribed")), subscribers=text(raw.get("subscribers")), monthlyListeners=text(raw.get("monthlyListeners")), shuffleId=text(raw.get("shuffleId")), radioId=text(raw.get("radioId")), hero=wide[-1]["url"] if wide else "")
+            for name in ("songs", "albums", "singles", "related"):
                 section = raw.get(name) or {}
                 content = items(section.get("results", []))
+                for value in content:
+                    if value["kind"] == "song" and not value["artist"]:
+                        value["artist"] = data["title"]
+                        value["artists"] = [{"id": identifier, "name": data["title"]}]
                 if content:
-                    data["shelves"].append({"title": name.title(), "subtitle": "", "items": content, "browseId": text(section.get("browseId")), "params": text(section.get("params"))})
+                    data["shelves"].append({"title": "Top songs" if name == "songs" else name.title(), "subtitle": "", "items": content, "browseId": text(section.get("browseId")), "params": text(section.get("params"))})
         elif route == "artist_albums":
             data["items"] = items(client.get_artist_albums(identifier, params["params"], limit=limit), "album")
             data["complete"] = len(data["items"]) < limit
@@ -199,7 +218,7 @@ class Catalog:
         elif route == "suggestions":
             data["suggestions"] = client.get_search_suggestions(text(params.get("query")))
         elif route == "radio":
-            raw = client.get_watch_playlist(videoId=identifier or None, playlistId=params.get("playlistId"), radio=True, limit=limit)
+            raw = client.get_watch_playlist(videoId=identifier or None, playlistId=params.get("playlistId"), radio=bool(params.get("radio", True)), shuffle=bool(params.get("shuffle")), limit=limit)
             data.update(items=items(raw.get("tracks", []), "song"), lyricsId=raw.get("lyrics"), relatedId=raw.get("related"))
         elif route == "moods":
             data["groups"] = client.get_mood_categories()

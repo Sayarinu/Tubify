@@ -55,6 +55,10 @@ class ShellController(QObject):
         self._playlists = values
         self.playlistsChanged.emit()
 
+    def restoreNavigation(self, page, query):
+        self._page, self._query = page, query
+        self.pageChanged.emit()
+
     @Property(int, notify=volumeChanged)
     def volume(self):
         return self._volume

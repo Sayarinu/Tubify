@@ -16,6 +16,7 @@ class CatalogView(QObject):
         self._route, self._params = "home", {}
         self._data = {}
         self._busy, self._error, self._append = False, "", False
+        self._revision, self._scroll = 0, None
         if worker:
             worker.succeeded.connect(self._succeeded)
             worker.failed.connect(self._failed)
@@ -40,17 +41,43 @@ class CatalogView(QObject):
     def parameters(self):
         return self._params
 
+    @Property(int, notify=changed)
+    def revision(self):
+        return self._revision
+
+    @Property(float, notify=changed)
+    def scrollPosition(self):
+        return self._scroll if self._scroll is not None else 0.
+
+    @Property(bool, notify=changed)
+    def hasScrollPosition(self):
+        return self._scroll is not None
+
+    @Slot(float)
+    def saveScroll(self, value):
+        self._scroll = float(value)
+
     @Slot(str, "QVariantMap")
     def load(self, route, params):
         self._route, self._params = route, dict(params)
         self._data = {}
+        self._revision, self._scroll = self._revision + 1, None
         self._send()
 
-    def showLocal(self, route, data):
+    def showLocal(self, route, data, params=None, scroll=None):
         if self.worker and self._request is not None:
             self.worker.cancelQueued(self._request)
         self._request, self._busy, self._error = None, False, ""
         self._route, self._data = route, dict(data)
+        self._params = dict(params or {})
+        self._revision, self._scroll = self._revision + 1, scroll
+        self.changed.emit()
+
+    def snapshot(self):
+        return {"route": self._route, "params": self._params, "data": self._data, "scroll": self._scroll}
+
+    def patch(self, values):
+        self._data.update(values)
         self.changed.emit()
 
     @Slot()

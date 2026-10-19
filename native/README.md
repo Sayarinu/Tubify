@@ -2,7 +2,7 @@
 
 Shared Python code for the native Qt client. The first development gate is a repeatable real-account compatibility check, tracked by [LUNE-336](https://linear.app/nouvelle-lune-atelier/issue/LUNE-336/prove-premium-account-access-streaming-and-offline-playback).
 
-The client now connects accounts, renders personalized Home and Explore, and plays music through libmpv. The window remains a development preview while the remaining search, library, expanded-player, downloads and release tickets are completed.
+The client connects accounts, renders personalized Home and Explore, searches music and opens artist/album pages, and plays music through libmpv. The window remains a development preview while the library, expanded-player, Downloads screen and release tickets are completed.
 
 ## Development
 
@@ -33,6 +33,8 @@ Catalog responses use normalized song/album/artist/playlist models. The catalog 
 The native player owns the queue, audio-only source selection, transport, seek, volume, shuffle/repeat and autoplay. It checks verified local media before touching credentials or resolving a stream. Extraction runs in a separate worker, prepares the next track, caches sources only until expiry and retries a failed source once. The extraction worker exits after idle time to release memory. Queue order and position survive restart, with playback restored paused; signed audio URLs are never saved. Playback data uses the platform's application-data directory, separate from disposable caches.
 
 Home shows personalized shelves and compact Quick picks; Explore offers new releases, charts, moods and genres. Artwork cards open collections, their play targets begin playback, and collection queues start with the first page while later pages load. Sidebar playlist shortcuts use the connected account. Signing out clears those account views and the extractor's in-memory session while allowing local audio to continue.
+
+Search includes debounced suggestions, music filters, pagination and stale-response protection. Album pages offer full-album playback, shuffle, library and download controls; artist pages include subscriptions, top songs, releases and mixes. Back navigation restores loaded results, filters and scroll position without another provider request. Library/subscription changes use provider mutation identifiers and update the current view after success. These controls are tested with fake mutations; live page verification makes read-only account requests.
 
 The durable download backend stores song, album and manual playlist snapshots with shared-file references. Jobs recover after interruption, resume supported HTTP transfers, retain completed songs on cancellation/failure, and validate audio with FFprobe before publishing it. Images and metadata are retained beside the audio for offline use. Removing a collection retains files referenced by another download; refreshing a snapshot retains its old files until the replacement finishes. Separate control and transfer workers keep storage operations responsive. Collection controls and the Downloads screen are integrated by the subsequent UI tickets.
 

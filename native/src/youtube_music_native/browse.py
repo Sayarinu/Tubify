@@ -15,6 +15,7 @@ class Browse(QObject):
         self._playlist_request = None
         self._identity = None
         self._message = ""
+        self._history, self._play_shuffle = [], False
         shell.navigationRequested.connect(self.navigate)
         shell.actionRequested.connect(self._action)
         account.connectedChanged.connect(self._account_changed)
@@ -40,6 +41,25 @@ class Browse(QObject):
         if self.worker and self._mood_request is not None:
             self.worker.cancelQueued(self._mood_request)
         self._mood_request = None
+
+    def _remember(self):
+        if self.view.data:
+            self._history.append({**self.view.snapshot(), "page": self.shell.page, "query": self.shell.query})
+            self._history = self._history[-20:]
+
+    def _load(self, route, params):
+        self._remember()
+        self.view.load(route, params)
+
+    @Slot()
+    def back(self):
+        self._cancel_mood()
+        if not self._history:
+            self.navigate(self.shell.page)
+            return
+        previous = self._history.pop()
+        self.shell.restoreNavigation(previous["page"], previous["query"])
+        self.view.showLocal(previous["route"], previous["data"], previous["params"], previous["scroll"])
 
     def _account_changed(self):
         identity = (self.account.profile.get("name"), self.account.profile.get("handle"))
@@ -70,6 +90,7 @@ class Browse(QObject):
 
     @Slot(str)
     def navigate(self, page):
+        self._history = []
         if page not in {"Home", "Explore"}:
             return
         self._cancel_mood()
@@ -88,13 +109,20 @@ class Browse(QObject):
         if kind == "song":
             self.play(media)
         elif not self.fixture:
-            self.view.load(kind, {"id": media.get("id", "")})
+            self._load(kind, {"id": media.get("id", "")})
         else:
-            self.showShelf({"title": media.get("title", ""), "items": self.fixture.get("shelves", [{}])[0].get("items", [])})
+            self._remember()
+            songs = [{**value, "kind": "song", "duration": 180} for value in self.fixture.get("shelves", [{}])[0].get("items", [])]
+            if kind == "artist":
+                data = {"title": media.get("title", "Fixture artist"), "subtitle": "A fixture artist and their music, created for native layout verification.", "monthlyListeners": "2.7M", "subscribers": "41K", "subscriptionId": "UCfixture", "shuffleId": "fixture", "radioId": "fixture", "shelves": [{"title": "Top songs", "items": songs}, {"title": "Albums", "items": [{**value, "kind": "album", "id": "MPREfixture"} for value in songs]}]}
+            else:
+                data = {"title": media.get("title", "Fixture album"), "items": songs, "artists": [{"id": "UCfixture", "name": "Fixture artist"}], "year": "2026", "trackCount": len(songs), "audioPlaylistId": "OLAKfixture", "shelves": []}
+            self.view.showLocal(kind, data, {"id": media.get("id", "fixture")})
 
     @Slot("QVariantMap")
     def play(self, media):
         self._cancel_play_pages()
+        self._play_shuffle = False
         kind = media.get("kind", "song")
         if kind == "song" or self.fixture:
             self.player.play(media)
@@ -102,10 +130,11 @@ class Browse(QObject):
             self._play_route, self._play_params = kind, {"id": media.get("id", "")}
             self._request_play_page()
         else:
-            self.view.load("artist", {"id": media.get("id", "")})
+            self._load("artist", {"id": media.get("id", "")})
 
     def _request_play_page(self, offset=0):
-        self._play_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": self._play_route, "params": self._play_params, "offset": offset})
+        params = {**self._play_params, **({"allTracks": True} if self._play_route == "album" else {})}
+        self._play_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": self._play_route, "params": params, "offset": offset})
         self._play_offset = offset
 
     def _result(self, identifier, result):
@@ -118,7 +147,7 @@ class Browse(QObject):
             if self._play_offset:
                 self.player.enqueue(tracks)
             elif tracks:
-                self.player.playTracks(tracks)
+                self.player.playShuffledTracks(tracks) if self._play_shuffle else self.player.playTracks(tracks)
             if result.get("cursor") is not None:
                 self._request_play_page(result["cursor"])
         elif identifier == self._mood_request:
@@ -149,10 +178,47 @@ class Browse(QObject):
 
     @Slot()
     def playView(self):
-        if self.view.route in {"album", "playlist"}:
+        if self.view.route in {"album", "playlist"} and not self.fixture:
             self.play({"kind": self.view.route, "id": self.view.parameters.get("id", "")})
         else:
             self.playItems(self.view.data.get("items", []))
+
+    @Slot()
+    def shuffleView(self):
+        if self.view.route in {"album", "playlist"} and not self.fixture:
+            self.play({"kind": self.view.route, "id": self.view.parameters.get("id", "")})
+            self._play_shuffle = True
+        else:
+            self._cancel_play_pages()
+            self.player.playShuffledTracks(self.view.data.get("items", []))
+
+    @Slot(str, bool)
+    def startRadio(self, identifier, shuffle):
+        self._cancel_play_pages()
+        if self.fixture:
+            self.player.playTracks(self.fixture.get("shelves", [{}])[0].get("items", []))
+            return
+        self._play_shuffle = False
+        self._play_route, self._play_params = "radio", {"playlistId": identifier, "shuffle": shuffle}
+        self._request_play_page()
+
+    @Slot("QVariantMap")
+    def openSection(self, section):
+        if section.get("params") and section.get("browseId"):
+            self._load("artist_albums", {"id": section["browseId"], "params": section["params"], "title": section.get("title", "Albums")})
+        elif section.get("browseId"):
+            self._load("playlist", {"id": section["browseId"]})
+        else:
+            self.showShelf(section)
+
+    def applyAction(self, result):
+        field = "subscribed" if result["action"] == "artist_subscription" else "saved"
+        context = result.get("contextId")
+        if self.view.parameters.get("id") == context:
+            self.view.patch({field: result["value"]})
+        for page in self._history:
+            if page["params"].get("id") == context:
+                page["data"][field] = result["value"]
 
     @Slot(int)
     def playAt(self, index):
@@ -166,6 +232,7 @@ class Browse(QObject):
     @Slot("QVariantMap")
     def showShelf(self, section):
         self._cancel_mood()
+        self._remember()
         self.view.showLocal("shelf", {"title": section.get("title", ""), "items": section.get("items", []), "shelves": [], "cursor": None})
 
     @Slot(str)
@@ -179,9 +246,9 @@ class Browse(QObject):
             self.view.showLocal("moods", {"title": "Moods & genres", "groups": {"Moods": [{"title": title, "params": title} for title in ("Chill", "Focus", "Workout", "Party")]}})
             return
         if action == "charts":
-            self.view.load("charts", {})
+            self._load("charts", {})
         elif action == "moods":
-            self.view.load("moods", {})
+            self._load("moods", {})
         elif action == "releases":
             sections = self.view.data.get("shelves", [])
             if sections:
@@ -200,4 +267,4 @@ class Browse(QObject):
         if self.fixture:
             self.homeMood(value.get("title", ""))
         else:
-            self.view.load("mood", {"params": value.get("params", "")})
+            self._load("mood", {"params": value.get("params", ""), "title": value.get("title", "Mood")})

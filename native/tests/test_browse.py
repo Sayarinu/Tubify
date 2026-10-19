@@ -86,3 +86,16 @@ def test_old_mood_result_cannot_replace_new_navigation(tmp_path):
     worker.succeeded.emit(1, {"groups": {"Moods": [{"title": "Relax", "params": "fixture"}]}})
     worker.succeeded.emit(2, {"title": "Explore", "shelves": []})
     assert view.route == "explore" and view.data["title"] == "Explore"
+
+
+def test_back_restores_results_query_filter_and_scroll_without_provider_request(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    browse.shell.restoreNavigation("Search", "fixture query")
+    view.showLocal("search", {"title": "Fixture", "items": [{"kind": "album", "id": "MPREfixture"}]}, {"query": "fixture query", "filter": "albums"})
+    view.saveScroll(240)
+    browse.open({"kind": "album", "id": "MPREfixture"})
+    worker.succeeded.emit(1, {"title": "Album", "items": []})
+    browse.back()
+    assert view.route == "search" and view.parameters["filter"] == "albums"
+    assert view.scrollPosition == 240 and browse.shell.query == "fixture query"
+    assert len(worker.requests) == 1

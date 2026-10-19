@@ -19,12 +19,14 @@ from .jobs import Worker
 from .playback import Playback
 from .browse import Browse
 from .download_view import DownloadView
+from .actions import Actions
+from .search import Search
 
 
 PACKAGE = Path(__file__).resolve().parent
 
 
-def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None):
+def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None, search=None, actions=None):
     engine = QQmlApplicationEngine()
     engine.setProperty("qmlWarnings", [])
     engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
@@ -37,6 +39,10 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("browseState", browse)
     if downloads:
         engine.rootContext().setContextProperty("downloadsState", downloads)
+    if search:
+        engine.rootContext().setContextProperty("searchState", search)
+    if actions:
+        engine.rootContext().setContextProperty("actionsState", actions)
     if artwork_path:
         # QQmlEngine does not take ownership of this factory.
         engine.artworkFactory = ArtworkCache(artwork_path)
@@ -88,13 +94,16 @@ def main(argv=None):
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
     account.sessionChanged.connect(downloads.resetSession)
     browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    search = Search(controller, account, catalog, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    actions = Actions(account, cache / "metadata.sqlite3", fixture=args.fixture, parent=controller)
+    actions.applied.connect(browse.applyAction)
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
     app.aboutToQuit.connect(downloads.close)
-    engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads)
+    engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads, search, actions)
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]
@@ -112,9 +121,11 @@ def main(argv=None):
         QTimer.singleShot(200, lambda: controller.navigate("Explore"))
         QTimer.singleShot(400, lambda: browse.shortcut("releases"))
         QTimer.singleShot(600, lambda: browse.open({"kind": "album", "title": "Fixture album"}))
-        QTimer.singleShot(800, lambda: browse.shortcut("moods"))
-        QTimer.singleShot(1000, lambda: (window.resize(920, 620), controller.navigate("Home")))
-        QTimer.singleShot(1300, finish)
+        QTimer.singleShot(800, lambda: browse.open({"kind": "artist", "id": "UCfixture", "title": "Fixture artist"}))
+        QTimer.singleShot(1000, lambda: controller.search("fixture music"))
+        QTimer.singleShot(1200, lambda: browse.shortcut("moods"))
+        QTimer.singleShot(1400, lambda: (window.resize(920, 620), controller.navigate("Home")))
+        QTimer.singleShot(1700, finish)
     elif args.smoke_test or args.screenshot:
         QTimer.singleShot(700, finish)
     result = app.exec()
