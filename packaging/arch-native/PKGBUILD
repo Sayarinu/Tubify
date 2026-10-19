@@ -1,0 +1,47 @@
+pkgname=youtube-music-native
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Native Qt audio client for YouTube Music'
+arch=('x86_64')
+url='https://github.com/Sayarinu/YouTube-Music-App'
+license=('MIT')
+depends=(
+  'python>=3.12' 'pyside6>=6.8' 'qt6-svg' 'qt6-imageformats'
+  'python-keyring>=25.7' 'python-ytmusicapi>=1.12.3' 'python-mpv>=1.0.8'
+  'python-jeepney>=0.9' 'yt-dlp>=2026.08.19' 'yt-dlp-ejs' 'deno' 'ffmpeg'
+  'python-brotli' 'python-mutagen' 'python-pycryptodomex' 'python-websockets'
+  'python-gobject' 'libsoup3'
+)
+makedepends=('python-build' 'python-installer' 'python-setuptools')
+checkdepends=('python-pytest' 'desktop-file-utils' 'dbus')
+source=("${pkgname}-${pkgver}.tar.gz")
+# The build script supplies the digest of its clean, local Git archive.
+sha256sums=()
+
+build() {
+  cd "${srcdir}/${pkgname}-${pkgver}/native"
+  python -m build --wheel --no-isolation
+}
+
+check() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  export PYTHONPATH="$PWD/native/src"
+  export QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software
+  python -m pytest native/tests -q
+  python native/tests/smoke_runtime.py
+  dbus-run-session -- python native/tests/smoke_desktop.py
+  desktop-file-validate packaging/arch-native/youtube-music-native.desktop
+}
+
+package() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  python -m installer --destdir="$pkgdir" native/dist/*.whl
+  install -Dm644 packaging/arch-native/youtube-music-native.desktop \
+    "$pkgdir/usr/share/applications/youtube-music-native.desktop"
+  install -Dm644 native/src/youtube_music_native/assets/music.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/youtube-music-native.svg"
+  install -Dm644 native/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 native/src/youtube_music_native/assets/Roboto-OFL.txt \
+    "$pkgdir/usr/share/licenses/$pkgname/Roboto-OFL.txt"
+  install -Dm644 native/README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

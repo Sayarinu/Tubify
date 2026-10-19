@@ -2,7 +2,7 @@
 
 Shared Python code for the native Qt client. The first development gate is a repeatable real-account compatibility check, tracked by [LUNE-336](https://linear.app/nouvelle-lune-atelier/issue/LUNE-336/prove-premium-account-access-streaming-and-offline-playback).
 
-The client connects accounts, renders personalized Home and Explore, searches music, manages the library/playlists, downloads collections and plays music through libmpv. The window remains a development preview while Linux integration, verification and release tickets are completed.
+The client connects accounts, renders personalized Home and Explore, searches music, manages the library/playlists, downloads collections and plays music through libmpv. The first release targets Arch Linux/KDE. Windows and macOS packaging is tracked by LUNE-351 and LUNE-352.
 
 ## Development
 
@@ -19,6 +19,21 @@ On Windows use `.venv\Scripts\python.exe`. Session import and shared logic work 
 Launch the Qt window with `youtube-music-native`. For repeatable visual checks, `youtube-music-native --fixture --screenshot /tmp/native-music.png` uses synthetic data and exits after saving an image. The ordinary window does not load this fixture. `--data-dir` supplies isolated preferences for development and tests.
 
 The interface bundles the existing music mark and OFL-licensed Roboto fonts, uses native Qt Quick rendering, and keeps provider work outside the GUI thread. CI creates a real window and decodes a generated local WAV through libmpv on Linux, Windows and macOS. These smoke checks do not replace the later full platform-port acceptance work.
+
+## Arch package
+
+The separate `youtube-music-native` package uses Arch's Python, PySide6/Qt, libmpv, provider libraries, FFmpeg and Deno packages. It installs a **YouTube Music Native** desktop entry alongside the existing Tauri wrapper. Application data, credentials and downloaded media are retained across package upgrades.
+
+From a clean checkout, build with:
+
+```sh
+./scripts/build-native-arch-package.sh --syncdeps --noconfirm
+sudo pacman -U ./dist/native/youtube-music-native-*.pkg.tar.zst
+```
+
+The build script checks the Python/Arch versions, hashes its Git source archive, runs the Python/Qt/audio checks and creates binary and source packages under `dist/native`. Runtime dependencies stay under pacman management. The clean-container check installs the package, launches the installed entry points and upgrades a temporary package revision while checking saved audio, duplicate collection entries, queue position and settings.
+
+Published native releases use `native-v*` tags and include `SHA256SUMS`. Native publication requires the measured performance gate, and native releases do not replace the wrapper's latest-release designation. Existing wrapper tags and workflows remain separate. Windows/macOS packaging is tracked by LUNE-351 and LUNE-352.
 
 ## Connect an account
 

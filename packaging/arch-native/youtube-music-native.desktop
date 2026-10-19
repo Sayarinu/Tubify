@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=YouTube Music Native
+Comment=Play and download music with a native Qt client
+Exec=youtube-music-native
+Icon=youtube-music-native
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+StartupNotify=true
+StartupWMClass=youtube-music-native

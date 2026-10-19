@@ -72,6 +72,7 @@ def main(argv=None):
     QGuiApplication.setApplicationDisplayName("YouTube Music")
     QQuickStyle.setStyle("Basic")
     app = QGuiApplication([sys.argv[0]])
+    app.setDesktopFileName("youtube-music-native")
     app.setWindowIcon(QIcon(str(PACKAGE / "assets" / "music.svg")))
     for font in (PACKAGE / "assets").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(font))

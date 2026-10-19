@@ -1,0 +1,68 @@
+name: Build and release native Arch client
+
+on:
+  pull_request:
+    paths: ['native/**', 'packaging/arch-native/**', 'scripts/*native*', '.github/workflows/native-release-linux.yml']
+  push:
+    branches: [main]
+    tags: ['native-v*']
+    paths: ['native/**', 'packaging/arch-native/**', 'scripts/*native*', '.github/workflows/native-release-linux.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-native-arch:
+    name: Native Arch install and upgrade
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate native release gate
+        if: startsWith(github.ref, 'refs/tags/native-v')
+        run: |
+          test "${GITHUB_REF_NAME#native-v}" = "$(python -c 'import pathlib,tomllib; print(tomllib.loads(pathlib.Path("native/pyproject.toml").read_text())["project"]["version"])')"
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          python native/release_gate.py
+      - name: Build, install, launch and upgrade in clean Arch
+        run: |
+          docker run --rm --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace archlinux:latest bash -lc '
+            set -euo pipefail
+            pacman -Syu --noconfirm --needed base-devel git
+            source packaging/arch-native/PKGBUILD
+            pacman -S --noconfirm --needed "${depends[@]}" "${makedepends[@]}" "${checkdepends[@]}"
+            useradd --create-home builder
+            chown -R builder:builder /workspace
+            runuser -u builder -- ./scripts/build-native-arch-package.sh --noconfirm
+            packages=(/workspace/dist/native/*.pkg.tar.zst)
+            sources=(/workspace/dist/native/*.src.tar.gz)
+            ./scripts/check-native-arch-package.sh "${packages[0]}" "${sources[0]}"
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-arch-package
+          path: dist/native/*
+          if-no-files-found: error
+
+  release-native:
+    name: Publish native Arch package
+    needs: build-native-arch
+    if: startsWith(github.ref, 'refs/tags/native-v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-arch-package
+          path: release
+      - name: Generate checksums
+        working-directory: release
+        run: sha256sum *.pkg.tar.zst *.src.tar.gz > SHA256SUMS
+      - name: Publish separate native release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --title "YouTube Music Native ${GITHUB_REF_NAME#native-v}" --notes-file native/RELEASE_NOTES.md --latest=false

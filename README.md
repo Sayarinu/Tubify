@@ -2,7 +2,7 @@
 
 A lightweight Tauri wrapper that opens YouTube Music in a native desktop window.
 
-The native Python/Qt client is tracked in the [native client specification](docs/native-client-spec.md). The existing Tauri application remains available during development.
+The native Python/Qt client has its own [launch and Arch package instructions](native/README.md) and [specification](docs/native-client-spec.md). It installs alongside the existing Tauri application.
 
 ## Requirements
 
