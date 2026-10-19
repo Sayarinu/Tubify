@@ -30,11 +30,13 @@ FocusScope {
         width: root.width - 32
         height: width
         radius: root.media.kind === "artist" ? width / 2 : 8
+        placeholder: root.media.kind === "artist" ? "profile" : "music"
         source: root.media.thumbnail || ""
         mediaKey: root.media.kind === "album" || root.media.kind === "playlist" ? root.media.kind + ":" + root.media.id : root.media.videoId || root.media.id || ""
         accent: root.media.accent || Theme.selected
         Rectangle {
             anchors.fill: parent
+            radius: cover.radius
             color: "#33000000"
             visible: hover.hovered || root.activeFocus
             border.color: root.activeFocus ? Theme.accent : "transparent"

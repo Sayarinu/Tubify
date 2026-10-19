@@ -205,12 +205,12 @@ ApplicationWindow {
             iconName: "profile"
             tip: accountState.profile.name || "Account"
             onClicked: appState.openAccount()
-            Cover {
-                anchors.centerIn: parent
-                width: 28; height: 28
-                source: accountState.profile.avatar || ""
-                radius: 14
-                visible: ready
+            contentItem: Item {
+                Avatar {
+                    anchors.centerIn: parent
+                    width: 28; height: 28
+                    source: accountState.profile.avatar || ""
+                }
             }
         }
         IconButton { anchors.right: profileButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening history"; onClicked: libraryState.history() }

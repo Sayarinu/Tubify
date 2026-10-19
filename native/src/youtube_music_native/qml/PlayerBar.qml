@@ -32,7 +32,7 @@ Rectangle {
             IconButton { iconName: "previous"; tip: "Previous"; enabled: playerState.hasTrack; onClicked: playerState.previous() }
             IconButton { iconName: playerState.playing ? "pause" : "play"; iconSize: 28; iconColor: Theme.onAccent; tip: playerState.playing ? "Pause" : "Play"; enabled: playerState.hasTrack; onClicked: playerState.togglePlayback(); background: Rectangle { radius: 22; color: parent.hovered ? Theme.accentHover : Theme.accent; border.width: parent.visualFocus ? 2 : 0; border.color: Theme.foreground } }
             IconButton { iconName: "next"; tip: "Next"; enabled: playerState.hasTrack; onClicked: playerState.next() }
-            IconButton { iconName: "repeat"; iconColor: playerState.repeat !== "off" ? Theme.accent : Theme.secondary; tip: "Repeat: " + playerState.repeat; enabled: playerState.hasTrack; onClicked: appState.requestAction("repeat"); Text { visible: playerState.repeat === "one"; anchors.centerIn: parent; text: "1"; font.pixelSize: 9; color: Theme.accent } }
+            IconButton { iconName: playerState.repeat === "one" ? "repeatOne" : "repeat"; iconColor: playerState.repeat !== "off" ? Theme.accent : Theme.secondary; tip: "Repeat: " + playerState.repeat; enabled: playerState.hasTrack; onClicked: appState.requestAction("repeat") }
         }
         Text { x: 0; y: 63; width: 38; text: Theme.timeLabel(playerState.position); color: Theme.secondary; font.pixelSize: 11; horizontalAlignment: Text.AlignRight }
         AccentSlider {

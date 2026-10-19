@@ -123,6 +123,7 @@ Actual assigned issue identifiers and titles are listed below. Branches use the 
 | [LUNE-350](https://linear.app/nouvelle-lune-atelier/issue/LUNE-350/package-and-release-the-arch-native-client) | Package and release the Arch native client |
 | [LUNE-355](https://linear.app/nouvelle-lune-atelier/issue/LUNE-355) | Redesign the native client with purple accents and artwork-led collection pages |
 | [LUNE-356](https://linear.app/nouvelle-lune-atelier/issue/LUNE-356) | Add a priority manual queue ahead of the playback source |
+| [LUNE-357](https://linear.app/nouvelle-lune-atelier/issue/LUNE-357) | Polish native icons and circular profile and artist artwork |
 | [LUNE-351](https://linear.app/nouvelle-lune-atelier/issue/LUNE-351/port-and-package-the-native-client-for-windows) | Port and package the native client for Windows |
 | [LUNE-352](https://linear.app/nouvelle-lune-atelier/issue/LUNE-352/port-and-package-the-native-client-for-macos) | Port and package the native client for macOS |
 

@@ -17,11 +17,9 @@ Item {
         width: parent.width - actions.width - 24
         spacing: 16
         height: root.section.subtitle ? 56 : 40
-        Rectangle {
-            width: 56; height: 56; radius: 28; visible: !!root.section.subtitle
-            color: "#29373a"
-            Symbol { anchors.centerIn: parent; name: "profile"; width: 30; height: 30 }
-            Image { anchors.fill: parent; source: root.profile.avatar || ""; asynchronous: true; fillMode: Image.PreserveAspectCrop; visible: status === Image.Ready }
+        Avatar {
+            width: 56; height: 56; visible: !!root.section.subtitle
+            source: root.profile.avatar || ""
         }
         Column {
             width: parent.width - (root.section.subtitle ? 72 : 0)

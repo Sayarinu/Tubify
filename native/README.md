@@ -24,6 +24,8 @@ The interface bundles the existing music mark and OFL-licensed Roboto fonts, use
 
 The redesigned UI uses charcoal surfaces and purple accents, a compact expandable navigation rail, a floating player and artwork headers on playlist/album pages. Queue and lyrics open in the expanded player. Navigation collapses below 1100 pixels; the minimum window remains 920×620.
 
+Controls use bundled [Lucide SVG icons](https://lucide.dev/) with consistent strokes and theme colors; source revision and licenses are included under `src/youtube_music_native/assets/lucide-*`. Profile photos and artist thumbnails are circular in both GPU and software rendering. Account buttons show the photo when loaded and a person fallback otherwise.
+
 With the native dependencies installed, run the checkout directly from the repository root:
 
 ```sh
@@ -90,7 +92,7 @@ The visual verification script renders all required views at 1280×820 and 920×
 python native/tests/smoke_visual.py --output-dir /tmp/native-visual-check
 ```
 
-On Linux, `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=rhi QSG_RHI_BACKEND=opengl` with `--native-gpu` also verifies rounded artwork without mapping a desktop window. `--soak-seconds 300` adds generated silent audio and repeated navigation. The software renderer checks layout and controls; image masking requires the normal GPU renderer. Evidence and outstanding reference-capture limits are in evidence/linux-verification.json. The performance ticket separately measures latency, resources and a 30-minute soak.
+On Linux, `QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=rhi QSG_RHI_BACKEND=opengl` with `--native-gpu` also verifies rounded artwork without mapping a desktop window. `--soak-seconds 300` adds generated silent audio and repeated navigation. The software renderer checks layout and controls; its rounded artwork uses a Canvas clip while the GPU renderer uses an effect mask. Evidence and outstanding reference-capture limits are in evidence/linux-verification.json. The performance ticket separately measures latency, resources and a 30-minute soak.
 
 `python native/tests/benchmark_interaction.py --onscreen --output /tmp/native-interaction.json` measures the first rendered frame, visible mute response and five seconds of animated scrolling through 10,000 synthetic songs. `--launch-only` measures just the first frame. The default requires `QT_QPA_PLATFORM=offscreen`; choose `--onscreen` explicitly to use a desktop window. Artwork decoding follows the screen's device pixel ratio.
 
