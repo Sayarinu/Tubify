@@ -1,0 +1,29 @@
+{
+  "ticket": "LUNE-347",
+  "platform": "Arch Linux / KDE / PipeWire PulseAudio compatibility",
+  "private_session_bus": {
+    "typed_metadata_and_position": true,
+    "transport_and_writable_properties": true,
+    "seek_signal_and_stale_track_protection": true,
+    "invalid_property_type_rejected": true,
+    "local_libmpv_playback": true
+  },
+  "host_desktop": {
+    "mpris_registered_and_queried": true,
+    "logind_sleep_monitor_connected": true,
+    "only_native_silent_stream_moved": true,
+    "temporary_output_removed": true,
+    "desktop_pause_received_on_output_removal": true,
+    "scoped_play_resumed_audio": true,
+    "single_audio_stream_and_queue_retained": true
+  },
+  "automated_recovery": {
+    "position_retained": true,
+    "duplicate_wake_events_do_not_duplicate_audio": true,
+    "newer_user_commands_override_recovery": true,
+    "remote_sources_resolved_again_after_interruption": true,
+    "output_failure_does_not_mark_download_damaged": true
+  },
+  "actual_machine_sleep_wake": "deferred at the user's explicit request; remains unverified and is not inferred from simulated recovery",
+  "privacy": "Generated silent audio and synthetic metadata only; no account or device identifiers included."
+}

@@ -50,6 +50,8 @@ Press `?` for keyboard shortcuts: Space toggles playback, Shift+N/P changes trac
 
 ## Account and offline compatibility check
 
+On Linux, MPRIS exposes metadata, transport, position, repeat/shuffle and volume to KDE desktop media controls. D-Bus and logind monitoring live in a Linux module; their I/O runs outside the GUI thread. Sleep interruption retains the queue and position and clears prepared remote sources; wake recovery respects newer user commands. Device errors keep valid local audio intact and allow retry. KDE pauses playback when an output is removed; explicit desktop Play was verified to resume the single native stream. Actual machine sleep/wake verification was deferred at the user's request and remains unverified; simulated recovery and output-change tests do not replace it.
+
 The check requires libmpv, FFmpeg/ffprobe, Deno or a supported Node.js runtime, and Linux `unshare`. Importing the existing Tauri profile also requires system PyGObject and libsoup 3. On Arch these native dependencies are provided by `mpv`, `ffmpeg`, `deno`, `python-gobject` and `libsoup3`. A virtual environment created with `--system-site-packages` can access the system PyGObject bindings.
 
 Select the existing Tauri cookie file explicitly:

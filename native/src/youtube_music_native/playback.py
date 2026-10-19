@@ -32,6 +32,7 @@ class Playback(QObject):
     positionChanged = Signal()
     trackStarted = Signal("QVariantMap")
     stateSaveFailed = Signal()
+    seeked = Signal(float)
 
     def __init__(self, data_dir, worker, radio_worker=None, cache_path=None, fixture=None, audio_factory=Audio, parent=None):
         super().__init__(parent)
@@ -53,6 +54,7 @@ class Playback(QObject):
         self._autoplay = True
         self._saver = ThreadPoolExecutor(max_workers=1, thread_name_prefix="playback-state")
         self._closed = False
+        self._transport_revision, self._stopped, self._device_wait = 0, False, False
         self.stateSaveFailed.connect(self._save_failed)
         if fixture:
             self.queue.replace(fixture.get("shelves", [{}])[0].get("items", []))
@@ -92,6 +94,14 @@ class Playback(QObject):
     @Property(bool, notify=changed)
     def playing(self):
         return self._playing
+
+    @Property(bool, notify=changed)
+    def wantsPlayback(self):
+        return self._playing or self._busy and not self._want_paused
+
+    @Property(bool, notify=changed)
+    def stopped(self):
+        return self._stopped or not self.hasTrack
 
     @Property(bool, notify=changed)
     def busy(self):
@@ -139,6 +149,7 @@ class Playback(QObject):
 
     @Slot("QVariantList", int)
     def playTracks(self, tracks, index=0):
+        self._transport_revision += 1
         self._prepared = {}
         self.queue.replace([dict(track) for track in tracks], index)
         self._failures = 0
@@ -156,6 +167,7 @@ class Playback(QObject):
 
     @Slot("QVariantList")
     def playShuffledTracks(self, tracks):
+        self._transport_revision += 1
         self._prepared = {}
         self.queue.replace([dict(track) for track in tracks])
         self.queue.shuffle_all()
@@ -169,6 +181,7 @@ class Playback(QObject):
 
     @Slot(int)
     def select(self, index):
+        self._transport_revision += 1
         if self.queue.select(index):
             self._failures = 0
             self._start()
@@ -201,6 +214,7 @@ class Playback(QObject):
             self.move(source, destination)
 
     def _start(self, position=0, paused=False, force=False, damaged=False):
+        self._stopped, self._device_wait = False, False
         if self.worker:
             if self._request is not None:
                 self.worker.cancelQueued(self._request)
@@ -247,11 +261,15 @@ class Playback(QObject):
                 self.audio = self.audio_factory(parent=self)
                 self.audio.updated.connect(self._audio_update)
                 self.audio.ended.connect(self._ended)
+                self.audio.deviceFailed.connect(self._output_failed)
+                self.audio.outputChanged.connect(self._output_changed)
                 self.audio.volume(self._volume)
             self._source_kind = source["kind"]
             self.audio.load(source, self._start_position, self._want_paused)
             self._loaded, self._playing = True, not self._want_paused
             self.trackStarted.emit(self.currentTrack)
+            if self._start_position:
+                self.seeked.emit(self._start_position)
             self._prepare_next()
         except Exception:
             self._message = "The native player could not start. Check the audio device and libmpv installation."
@@ -314,6 +332,7 @@ class Playback(QObject):
 
     @Slot()
     def togglePlayback(self):
+        self._transport_revision += 1
         if not self.hasTrack:
             return
         if not self._loaded and not self._fixture:
@@ -331,7 +350,77 @@ class Playback(QObject):
         self.save()
 
     @Slot()
+    def pause(self):
+        self._transport_revision += 1
+        self._device_wait = False
+        self._want_paused, self._playing = True, False
+        if self.audio and self._loaded:
+            self.audio.pause(True)
+        self.changed.emit()
+        self.save()
+
+    @Slot()
+    def resume(self):
+        self._transport_revision += 1
+        if self.wantsPlayback or not self.hasTrack:
+            return
+        if self._busy:
+            self._want_paused = False
+            self.changed.emit()
+        else:
+            self.togglePlayback()
+
+    @Slot()
+    def stop(self):
+        self._transport_revision += 1
+        self._halt()
+        self._position, self._stopped = 0., True
+        self.positionChanged.emit()
+        self.changed.emit()
+        self.save()
+
+    def _halt(self):
+        if self.radio_worker and self._radio_request is not None:
+            self.radio_worker.cancelQueued(self._radio_request)
+        self._request, self._prepare_request, self._radio_request = None, None, None
+        self._prepared, self._preparing_video, self._busy = {}, None, False
+        self._playing, self._loaded = False, False
+        self._device_wait = False
+        if self.worker:
+            self.worker.reset()
+        if self.audio:
+            self.audio.stop()
+
+    def interrupt(self):
+        self._transport_revision += 1
+        token = {"key": self.queue.current["key"] if self.hasTrack else None, "position": self._position, "playing": self.wantsPlayback, "revision": self._transport_revision}
+        self._halt()
+        self.changed.emit()
+        self.save()
+        return token
+
+    def recover(self, token):
+        current = self.queue.current["key"] if self.hasTrack else None
+        if not self._closed and token["playing"] and current == token["key"] and token["revision"] == self._transport_revision:
+            self._transport_revision += 1
+            self._start(token["position"])
+
+    @Slot()
+    def _output_failed(self):
+        self._device_wait = self.wantsPlayback
+        self._loaded, self._playing, self._busy = False, False, False
+        self._message = "The audio output is unavailable. Reconnect it and press Play to retry."
+        self.changed.emit()
+        self.save()
+
+    @Slot()
+    def _output_changed(self):
+        if self._device_wait and not self._closed:
+            self._start(self._position)
+
+    @Slot()
     def next(self):
+        self._transport_revision += 1
         self._failures = 0
         self._advance()
 
@@ -343,7 +432,7 @@ class Playback(QObject):
             self._radio_request = self.radio_worker.request("catalog", {"cache_path": self.cache_path, "route": "radio", "params": {"id": self.currentTrack.get("videoId", "")}, "refresh": True})
             self.changed.emit()
         else:
-            self._playing = False
+            self._playing, self._stopped = False, True
             if self.audio:
                 self.audio.pause(True)
             self.changed.emit()
@@ -370,6 +459,7 @@ class Playback(QObject):
 
     @Slot()
     def previous(self):
+        self._transport_revision += 1
         if self._position > 3:
             self.seek(0)
         elif self.queue.previous():
@@ -377,6 +467,7 @@ class Playback(QObject):
 
     @Slot(float)
     def seek(self, position):
+        self._transport_revision += 1
         self._position = min(self._duration, max(0., float(position)))
         if self.audio and self._loaded:
             try:
@@ -385,6 +476,7 @@ class Playback(QObject):
                 self._message = "This song could not seek yet. Try again after playback starts."
                 self.changed.emit()
         self.positionChanged.emit()
+        self.seeked.emit(self._position)
         self.save()
 
     @Slot(float)
@@ -426,6 +518,17 @@ class Playback(QObject):
     def toggleAutoplay(self):
         self._autoplay = not self._autoplay
         self.changed.emit()
+
+    @Slot(str)
+    def setRepeat(self, value):
+        if value in {"off", "one", "all"} and value != self.queue.repeat:
+            self.queue.repeat = value
+            self._queue_changed()
+
+    @Slot(bool)
+    def setShuffle(self, value):
+        if value != self.queue.shuffled:
+            self.handleAction("shuffle")
 
     def _queue_changed(self):
         if self._loaded:

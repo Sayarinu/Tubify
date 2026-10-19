@@ -29,6 +29,8 @@ class FakeWorker(QObject):
 class FakeAudio(QObject):
     updated = Signal(dict)
     ended = Signal(bool)
+    deviceFailed = Signal()
+    outputChanged = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

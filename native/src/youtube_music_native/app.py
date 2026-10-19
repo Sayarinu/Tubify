@@ -24,6 +24,7 @@ from .search import Search
 from .library import Library
 from .listening import Listening
 from .lyric_view import LyricView
+from .desktop import Desktop
 
 
 PACKAGE = Path(__file__).resolve().parent
@@ -120,6 +121,9 @@ def main(argv=None):
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]
+    desktop = None if args.fixture else Desktop(controller, player, window, downloads, parent=controller)
+    if desktop:
+        app.aboutToQuit.connect(desktop.close)
 
     def finish():
         failed = bool(engine.property("qmlWarnings"))

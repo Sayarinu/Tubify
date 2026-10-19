@@ -8,16 +8,21 @@ from PySide6.QtCore import QObject, Signal
 class Audio(QObject):
     updated = Signal(dict)
     ended = Signal(bool)
+    deviceFailed = Signal()
+    outputChanged = Signal()
 
     def __init__(self, parent=None, output=None):
         super().__init__(parent)
         locale.setlocale(locale.LC_NUMERIC, "C")
         import mpv
 
-        options = dict(vid="no", vo="null", ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True)
+        options = dict(vid="no", vo="null", ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True, audio_client_name="YouTube Music Native")
         if output:
             options["ao"] = output
         self.player = mpv.MPV(**options)
+        @self.player.event_callback("audio-reconfig")
+        def reconfigured(event):
+            self.outputChanged.emit()
         for name in ("time-pos", "duration", "pause", "volume", "paused-for-cache"):
             self.player.observe_property(name, lambda key, value: self.updated.emit({key: value}))
 
@@ -27,7 +32,10 @@ class Audio(QObject):
             if reason == 0:
                 self.ended.emit(False)
             elif reason == 4:
-                self.ended.emit(True)
+                if event.data.error == -14:  # MPV_ERROR_AO_INIT_FAILED is not a corrupt download.
+                    self.deviceFailed.emit()
+                else:
+                    self.ended.emit(True)
 
     def load(self, source, position=0, paused=False):
         self.player.http_header_fields = source.get("headers", [])
