@@ -4,6 +4,7 @@ import "Theme.js" as Theme
 Rectangle {
     id: root
     property string source: ""
+    property string mediaKey: ""
     property color accent: "#283238"
     radius: 8
     clip: true
@@ -14,7 +15,7 @@ Rectangle {
     Image {
         id: artwork
         anchors.fill: parent
-        source: root.source
+        source: root.mediaKey ? !downloadsState.initialized ? "" : downloadsState.artwork[root.mediaKey] || root.source : root.source
         asynchronous: true
         fillMode: Image.PreserveAspectCrop
         sourceSize.width: Math.ceil(root.width * 2)

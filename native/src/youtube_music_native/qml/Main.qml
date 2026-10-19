@@ -17,7 +17,7 @@ ApplicationWindow {
     font.pixelSize: 14
     onClosing: appState.saveWindow(width, height)
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened
+    property bool modalOpen: accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     Rectangle {
@@ -218,21 +218,16 @@ ApplicationWindow {
         property real gutter: width > 900 ? 106 : 40
 
         Loader {
+            id: pages
             anchors.fill: parent
-            active: appState.page !== "Downloads" && !appState.expanded
-            sourceComponent: catalogState.route === "album" || catalogState.route === "playlist" ? collectionPage : catalogState.route === "artist" ? artistPage : catalogState.route === "search" ? searchPage : catalogState.route.indexOf("library_") === 0 || catalogState.route === "history" || appState.page === "Library" && catalogState.route === "home" ? libraryPage : browsePage
+            active: !appState.expanded
+            sourceComponent: catalogState.route === "downloads" ? downloadsPage : catalogState.route === "album" || catalogState.route === "playlist" ? collectionPage : catalogState.route === "artist" ? artistPage : catalogState.route === "search" ? searchPage : catalogState.route.indexOf("library_") === 0 || catalogState.route === "history" || appState.page === "Library" && catalogState.route === "home" ? libraryPage : browsePage
+            Component { id: downloadsPage; DownloadsPane {} }
             Component { id: collectionPage; CollectionPane {} }
             Component { id: artistPage; ArtistPane {} }
             Component { id: searchPage; SearchPane {} }
             Component { id: libraryPage; LibraryPane {} }
             Component { id: browsePage; BrowsePane {} }
-        }
-        Column {
-            anchors.centerIn: parent; width: parent.width - 80; spacing: 20
-            visible: appState.page === "Downloads" && !appState.expanded
-            Text { width: parent.width; text: appState.page; horizontalAlignment: Text.AlignHCenter; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 }
-            Text { width: parent.width; text: appState.page === "Downloads" ? "Your downloaded music will appear here." : "Connect YouTube Music to browse your music."; horizontalAlignment: Text.AlignHCenter; color: Theme.secondary; font.pixelSize: 15 }
-            Button { anchors.horizontalCenter: parent.horizontalCenter; text: "Connect YouTube Music"; visible: !accountState.connected; onClicked: appState.openAccount() }
         }
 
         Loader { anchors.fill: parent; active: appState.expanded; sourceComponent: Component { ExpandedPane {} } }
@@ -257,7 +252,7 @@ ApplicationWindow {
             IconButton { iconName: "next"; tip: "Next"; enabled: playerState.hasTrack; onClicked: appState.requestAction("next") }
         }
         Text { x: 168; anchors.verticalCenter: parent.verticalCenter; text: playerState.progressText; color: Theme.secondary; font.pixelSize: 11 }
-        Cover { id: trackCover; x: 280; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 2; source: playerState.currentTrack.thumbnail || ""; accent: playerState.currentTrack.accent || "#333333" }
+        Cover { id: trackCover; x: 280; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 2; source: playerState.currentTrack.thumbnail || ""; mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""; accent: playerState.currentTrack.accent || "#333333" }
         Column {
             id: trackInfo
             x: 336; anchors.verticalCenter: parent.verticalCenter

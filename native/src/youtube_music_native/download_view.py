@@ -1,6 +1,7 @@
 """Non-blocking download controls, with separate planning and transfer workers."""
 
 from pathlib import Path
+import json
 
 from PySide6.QtCore import QObject, Property, QProcess, QTimer, Signal, Slot
 
@@ -10,6 +11,8 @@ from .jobs import Worker
 class DownloadView(QObject):
     changed = Signal()
     collectionReady = Signal(dict)
+    collectionFound = Signal(int, dict)
+    playRequested = Signal(dict, bool)
 
     def __init__(self, data_dir, fixture=False, parent=None):
         super().__init__(parent)
@@ -17,10 +20,21 @@ class DownloadView(QObject):
         self.control = None if fixture else Worker(self, idle_ms=30000)
         self.transfer = None if fixture else Worker(self, idle_ms=1000)
         self._collections, self._pending, self._stopped = [], {}, []
+        self._track_states, self._open_request = {}, None
+        self._artwork, self._initialized = {}, fixture
+        self._fixture_bodies = {}
         self._active, self._transfer_request, self._next = None, None, None
         self._bytes, self._free, self._message = 0, 0, ""
         self._minimum_request, self._status_pending = 0, False
         self._allow_network, self._resetting, self._closed = False, False, False
+        if fixture:
+            tracks = json.loads((Path(__file__).parent / "assets" / "visual-fixture.json").read_text())["shelves"][0]["items"]
+            for index, (kind, title, state) in enumerate((("playlist", "Evening focus", "complete"), ("album", "Somewhere quiet", "downloading"), ("playlist", "Long way home", "damaged"), ("song", "A familiar tune", "cancelled"))):
+                key = kind + ":fixture-" + str(index)
+                values = [{**track, "kind": "song", "duration": 180, "downloadState": "ready" if state == "complete" else "missing"} for track in tracks[:1 if kind == "song" else 6]]
+                self._fixture_bodies[key] = {"kind": kind, "id": key.split(":", 1)[1], "title": title, "items": values, "downloadKey": key, "cursor": None, "trackCount": len(values), "duration": sum(track["duration"] for track in values)}
+                self._collections.append({"key": key, "id": key.split(":", 1)[1], "kind": kind, "title": title, "state": state, "ready": len(values) if state == "complete" else 1, "total": len(values), "progress": 0.42 if state == "downloading" else 1., "error": ""})
+            self._bytes, self._free = 127000000, 32000000000
         self.poll = QTimer(self)
         self.poll.setInterval(2000)
         self.poll.timeout.connect(self.refresh)
@@ -36,6 +50,18 @@ class DownloadView(QObject):
     @Property("QVariantList", notify=changed)
     def collections(self):
         return self._collections
+
+    @Property("QVariantMap", notify=changed)
+    def trackStates(self):
+        return self._track_states
+
+    @Property("QVariantMap", notify=changed)
+    def artwork(self):
+        return self._artwork
+
+    @Property(bool, notify=changed)
+    def initialized(self):
+        return self._initialized
 
     @Property(str, notify=changed)
     def message(self):
@@ -86,19 +112,58 @@ class DownloadView(QObject):
 
     @Slot(str)
     def open(self, identifier):
-        self._send("collection", {"id": identifier})
+        if self.fixture:
+            if identifier in self._fixture_bodies:
+                self.collectionReady.emit(self._fixture_bodies[identifier])
+            return
+        if self._open_request is not None:
+            self.control.cancelQueued(self._open_request)
+        self._open_request = self._send("collection", {"id": identifier})
+
+    @Slot(str, bool)
+    def play(self, identifier, shuffle):
+        kind, _, media_id = identifier.partition(":")
+        self.playRequested.emit({"kind": kind, "id": media_id}, shuffle)
+
+    def lookup(self, kind, identifier):
+        return self._send("lookup", {"kind": kind, "id": identifier})
+
+    def cancelLookup(self, request):
+        if self.control and request is not None:
+            self.control.cancelQueued(request)
+
+    def cancelOpen(self):
+        self.cancelLookup(self._open_request)
+        self._open_request = None
 
     @Slot(str)
     def retry(self, identifier):
+        if self.fixture:
+            self._fixture_update(identifier, "complete")
+            return
         self._send("retry", {"id": identifier}, authoritative=True)
 
     @Slot(str)
     def cancel(self, identifier):
+        if self.fixture:
+            self._fixture_update(identifier, "cancelled")
+            return
         self._stop_and_send("cancel", identifier)
 
     @Slot(str)
     def remove(self, identifier):
+        if self.fixture:
+            self._collections = [entry for entry in self._collections if entry["key"] != identifier]
+            self._fixture_bodies.pop(identifier, None)
+            self.changed.emit()
+            return
         self._stop_and_send("remove", identifier)
+
+    def _fixture_update(self, identifier, state):
+        for entry in self._collections:
+            if entry["key"] == identifier:
+                entry.update(state=state, ready=entry["total"] if state == "complete" else entry["ready"])
+        self.changed.emit()
 
     def _stop_and_send(self, operation, identifier):
         if self._active == identifier:
@@ -121,12 +186,19 @@ class DownloadView(QObject):
         if operation == "status":
             self._status_pending = False
         if operation == "collection":
-            self.collectionReady.emit(result)
+            if identifier == self._open_request:
+                self._open_request = None
+                self.collectionReady.emit(result)
+            return
+        if operation == "lookup":
+            self.collectionFound.emit(identifier, result)
             return
         if identifier < self._minimum_request or operation is None:
             return
         self._message = ""
         self._collections = result.get("collections", [])
+        self._track_states = result.get("trackStates", {})
+        self._artwork, self._initialized = result.get("artwork", {}), True
         self._bytes, self._free, self._next = result.get("bytes", 0), result.get("freeBytes", 0), result.get("next")
         self.changed.emit()
         self._pump()
@@ -172,6 +244,10 @@ class DownloadView(QObject):
     @Slot(int, dict)
     def _failed(self, identifier, error):
         operation = self._pending.pop(identifier, None)
+        if operation == "initialize":
+            self._initialized = True
+        if operation == "lookup":
+            self.collectionFound.emit(identifier, {})
         if operation == "status":
             self._status_pending = False
         if not self._resetting:

@@ -5,11 +5,18 @@ FocusScope {
     id: root
     required property var media
     property var menuContext: ({})
+    property string downloadStatus: {
+        if (!media.kind || media.kind === "song") return downloadsState.trackStates[media.videoId || media.id] || media.downloadState || ""
+        var values = downloadsState.collections
+        for (var i = 0; i < values.length; i++) if (values[i].key === media.kind + ":" + media.id) return values[i].state === "complete" ? "ready" : values[i].state
+        return ""
+    }
     signal playRequested(var item)
     signal activated(var item)
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: media.title || "Music"
+    Accessible.description: downloadStatus === "ready" ? "Downloaded" : downloadStatus === "damaged" ? "Download needs repair" : ""
     Accessible.onPressAction: activated(media)
     Keys.onReturnPressed: activated(media)
     Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { appState.showMenu(root.media, root.menuContext); event.accepted = true } }
@@ -20,6 +27,7 @@ FocusScope {
         width: root.width
         height: width
         source: root.media.thumbnail || ""
+        mediaKey: root.media.kind === "album" || root.media.kind === "playlist" ? root.media.kind + ":" + root.media.id : root.media.videoId || root.media.id || ""
         accent: root.media.accent || "#283238"
         Rectangle {
             anchors.fill: parent
@@ -42,6 +50,11 @@ FocusScope {
             onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activated(root.media) }
         }
         IconButton { anchors.right: parent.right; anchors.top: parent.top; width: 36; height: 36; iconName: "more"; tip: "More options for " + (root.media.title || "music"); visible: hover.hovered || root.activeFocus; onClicked: appState.showMenu(root.media, root.menuContext) }
+        Rectangle {
+            x: 8; anchors.bottom: parent.bottom; anchors.bottomMargin: 8
+            width: 24; height: 24; radius: 12; color: "#dd212121"; visible: !!root.downloadStatus
+            Symbol { anchors.centerIn: parent; width: 16; height: 16; name: root.downloadStatus === "ready" ? "check" : "download"; color: root.downloadStatus === "damaged" ? "#ffb4a6" : "white" }
+        }
         Item {
             anchors.right: parent.right; anchors.bottom: parent.bottom; width: 48; height: 48
             visible: (hover.hovered || root.activeFocus) && (root.media.kind === "album" || root.media.kind === "playlist")

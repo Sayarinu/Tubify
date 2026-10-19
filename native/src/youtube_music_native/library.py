@@ -97,6 +97,8 @@ class Library(QObject):
     def select(self, section):
         if section not in SECTIONS:
             return
+        if self.shell.page != "Library":
+            self.shell.restoreNavigation("Library", self.shell.query)
         self._selected = section
         params = {"order": ORDERS[self._order]}
         if self.fixture:

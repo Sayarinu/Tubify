@@ -20,6 +20,7 @@ Item {
             height: width
             y: 64 + (artworkPane.height - 64 - height) / 2
             source: playerState.currentTrack.thumbnail || ""
+            mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""
             accent: playerState.currentTrack.accent || "#29363b"
             radius: 4
             Accessible.role: Accessible.Graphic

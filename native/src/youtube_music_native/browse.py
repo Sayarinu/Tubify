@@ -8,7 +8,7 @@ from .playlist_ops import apply_change
 class Browse(QObject):
     changed = Signal()
 
-    def __init__(self, shell, account, view, player, cache_path, fixture=None, parent=None):
+    def __init__(self, shell, account, view, player, cache_path, fixture=None, parent=None, downloads=None):
         super().__init__(parent)
         self.shell, self.account, self.view, self.player = shell, account, view, player
         self.worker, self.cache_path, self.fixture = account.worker, str(cache_path), fixture
@@ -18,7 +18,15 @@ class Browse(QObject):
         self._identity = None
         self._message = ""
         self._history, self._play_shuffle = [], False
+        self.downloads, self._download_request = downloads, None
+        self._download_open_request = None
+        if downloads:
+            downloads.collectionFound.connect(self._download_result)
+            downloads.collectionReady.connect(self.openDownloaded)
+            downloads.playRequested.connect(self.playCollection)
         shell.navigationRequested.connect(self.navigate)
+        shell.pageChanged.connect(self._cancel_local_navigation)
+        view.navigationStarted.connect(self._cancel_local_navigation)
         shell.actionRequested.connect(self._action)
         account.connectedChanged.connect(self._account_changed)
         account.sessionChanged.connect(player.resetSession)
@@ -33,6 +41,9 @@ class Browse(QObject):
         return self._message
 
     def _cancel_play_pages(self):
+        if self.downloads:
+            self.downloads.cancelLookup(self._download_request)
+        self._download_request = None
         if self.worker and self._play_request is not None:
             self.worker.cancelQueued(self._play_request)
         self._play_request = None
@@ -54,11 +65,26 @@ class Browse(QObject):
         self.view.load(route, params)
 
     def showCollection(self, collection):
+        self.shell.setExpanded(False)
         self._remember()
         self.view.showLocal(collection["kind"], collection, {"id": collection["id"]})
 
+    def openDownloaded(self, collection):
+        if collection["kind"] == "song":
+            self.playItems(collection["items"])
+        else:
+            self.showCollection(collection)
+
+    def _cancel_local_navigation(self):
+        if self.downloads:
+            self.downloads.cancelOpen()
+            self.downloads.cancelLookup(self._download_open_request)
+        self._download_open_request = None
+
     @Slot()
     def back(self):
+        self.shell.setExpanded(False)
+        self._cancel_local_navigation()
         self._cancel_mood()
         if not self._history:
             self.navigate(self.shell.page)
@@ -76,7 +102,8 @@ class Browse(QObject):
             if self.worker and self._playlist_request is not None:
                 self.worker.cancelQueued(self._playlist_request)
             self._playlist_request = None
-            self.view.showLocal("home", {"items": [], "shelves": []})
+            if not self.view.data.get("downloadKey") and self.view.route != "downloads":
+                self.view.showLocal("home", {"items": [], "shelves": []})
             self.shell.setPlaylists([])
             return
         if self.account.connected and identity != self._identity:
@@ -90,17 +117,24 @@ class Browse(QObject):
 
     def _action(self, action):
         if action.startswith("playlist:"):
+            self._cancel_local_navigation()
             if self.shell.page == "Downloads":
                 self.shell.restoreNavigation("Library", self.shell.query)
             if self.fixture:
                 media = next((value for value in self.shell.playlists if value["id"] == action.split(":", 1)[1]), {})
                 self.open({**media, "id": action.split(":", 1)[1], "kind": "playlist"})
             else:
-                self._load("playlist", {"id": action.split(":", 1)[1]})
+                self.open({"kind": "playlist", "id": action.split(":", 1)[1]})
 
     @Slot(str)
     def navigate(self, page):
+        self._cancel_local_navigation()
         self._history = []
+        if page == "Downloads":
+            self.view.showLocal("downloads", {})
+            if self.downloads:
+                self.downloads.refresh()
+            return
         if page not in {"Home", "Explore"}:
             return
         self._cancel_mood()
@@ -114,12 +148,18 @@ class Browse(QObject):
 
     @Slot("QVariantMap")
     def open(self, media):
+        self.shell.setExpanded(False)
+        self._cancel_local_navigation()
         self._cancel_mood()
         kind = media.get("kind", "song")
         if kind == "song":
             self.play(media)
         elif not self.fixture:
-            self._load(kind, {"id": media.get("id", "")})
+            if self.downloads and kind in {"album", "playlist"}:
+                self._open_media = dict(media)
+                self._download_open_request = self.downloads.lookup(kind, media.get("id", ""))
+            else:
+                self._load(kind, {"id": media.get("id", "")})
         else:
             self._remember()
             songs = [{**value, "kind": "song", "duration": 180} for value in self.fixture.get("shelves", [{}])[0].get("items", [])]
@@ -133,16 +173,43 @@ class Browse(QObject):
 
     @Slot("QVariantMap")
     def play(self, media):
+        self.playCollection(media, False)
+
+    @Slot("QVariantMap", bool)
+    def playCollection(self, media, shuffle):
         self._cancel_play_pages()
-        self._play_shuffle = False
+        self._play_shuffle = shuffle
         kind = media.get("kind", "song")
-        if kind == "song" or self.fixture:
+        if kind == "song":
             self.player.play(media)
+        elif self.fixture:
+            if kind in {"album", "playlist"}:
+                tracks = [{**track, "kind": "song", "duration": 180} for track in self.fixture.get("shelves", [{}])[0].get("items", [])]
+                self.player.playShuffledTracks(tracks) if shuffle else self.player.playTracks(tracks)
         elif kind in {"album", "playlist"}:
             self._play_route, self._play_params = kind, {"id": media.get("id", "")}
-            self._request_play_page()
+            if self.downloads:
+                self._download_request = self.downloads.lookup(kind, media.get("id", ""))
+            else:
+                self._request_play_page()
         else:
             self._load("artist", {"id": media.get("id", "")})
+
+    def _download_result(self, identifier, collection):
+        if identifier == self._download_open_request:
+            self._download_open_request = None
+            if collection:
+                self.showCollection(collection)
+            else:
+                self._load(self._open_media["kind"], {"id": self._open_media.get("id", "")})
+        elif identifier == self._download_request:
+            self._download_request = None
+            if collection:
+                tracks = collection.get("items", [])
+                if tracks:
+                    self.player.playShuffledTracks(tracks) if self._play_shuffle else self.player.playTracks(tracks)
+            else:
+                self._request_play_page()
 
     def _request_play_page(self, offset=0):
         params = {**self._play_params, **({"allTracks": True} if self._play_route == "album" else {})}
@@ -190,16 +257,17 @@ class Browse(QObject):
 
     @Slot()
     def playView(self):
-        if self.view.route in {"album", "playlist"} and not self.fixture:
+        if self.view.data.get("downloadKey"):
+            self.playItems(self.view.data.get("items", []))
+        elif self.view.route in {"album", "playlist"} and not self.fixture:
             self.play({"kind": self.view.route, "id": self.view.parameters.get("id", "")})
         else:
             self.playItems(self.view.data.get("items", []))
 
     @Slot()
     def shuffleView(self):
-        if self.view.route in {"album", "playlist"} and not self.fixture:
-            self.play({"kind": self.view.route, "id": self.view.parameters.get("id", "")})
-            self._play_shuffle = True
+        if self.view.route in {"album", "playlist"} and not self.fixture and not self.view.data.get("downloadKey"):
+            self.playCollection({"kind": self.view.route, "id": self.view.parameters.get("id", "")}, True)
         else:
             self._cancel_play_pages()
             self.player.playShuffledTracks(self.view.data.get("items", []))

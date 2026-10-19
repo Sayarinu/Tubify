@@ -25,7 +25,7 @@ Item {
             Text { anchors.horizontalCenter: parent.horizontalCenter; height: 16; visible: root.playlist; text: root.album.author || "YouTube Music"; textFormat: Text.PlainText; color: "white"; font.pixelSize: 14 }
             Button { id: artist; anchors.horizontalCenter: parent.horizontalCenter; height: 16; topPadding: 0; bottomPadding: 0; visible: !root.playlist; text: root.album.artists && root.album.artists.length ? root.album.artists[0].name : "Artist"; flat: true; palette.windowText: Theme.foreground; contentItem: Text { text: artist.text; textFormat: Text.PlainText; color: "white"; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter } enabled: !!(root.album.artists && root.album.artists.length && root.album.artists[0].id); onClicked: browseState.open({kind: "artist", id: root.album.artists[0].id, title: text}) }
             Item { width: 1; height: 16 }
-            Cover { anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(240, parent.width - 32, Math.max(128, root.height - 350)); height: width; source: root.album.thumbnail || "" }
+            Cover { anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(240, parent.width - 32, Math.max(128, root.height - 350)); height: width; source: root.album.thumbnail || ""; mediaKey: catalogState.route + ":" + (catalogState.parameters.id || "") }
             Item { width: 1; height: 16 }
             Text { width: parent.width; text: root.album.title || (root.playlist ? "Playlist" : "Album"); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; color: "white"; font.family: Theme.headingFont; font.pixelSize: 28; font.bold: true }
             Item { width: 1; height: 8 }

@@ -11,7 +11,8 @@ IconButton {
         return ({})
     }
     iconName: entry.state === "complete" ? "check" : "download"
-    tip: entry.state === "complete" ? "Remove download" : entry.state === "downloading" || entry.state === "queued" ? "Cancel download" : "Download"
+    tip: entry.state === "complete" ? "Remove download" : entry.state === "downloading" || entry.state === "queued" ? "Cancel download" : entry.state === "damaged" ? "Repair download" : "Download"
+    iconColor: entry.state === "damaged" ? "#ffb4a6" : "white"
     enabled: !!media.id
     onClicked: {
         if (entry.state === "complete") removal.open()

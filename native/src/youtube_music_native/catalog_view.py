@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, Property, Signal, Slot
 
 class CatalogView(QObject):
     changed = Signal()
+    navigationStarted = Signal()
 
     def __init__(self, worker, cache_path, account, parent=None):
         super().__init__(parent)
@@ -59,12 +60,14 @@ class CatalogView(QObject):
 
     @Slot(str, "QVariantMap")
     def load(self, route, params):
+        self.navigationStarted.emit()
         self._route, self._params = route, dict(params)
         self._data = {}
         self._revision, self._scroll = self._revision + 1, None
         self._send()
 
     def showLocal(self, route, data, params=None, scroll=None):
+        self.navigationStarted.emit()
         if self.worker and self._request is not None:
             self.worker.cancelQueued(self._request)
         self._request, self._busy, self._error = None, False, ""

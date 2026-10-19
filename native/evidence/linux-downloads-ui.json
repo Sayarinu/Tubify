@@ -1,0 +1,40 @@
+{
+  "ticket": "LUNE-346",
+  "platform": "Arch Linux x86_64",
+  "live_account_read_only": {
+    "saved_song_downloaded_and_validated": true,
+    "artwork_retained": true
+  },
+  "network_isolated_native_app": {
+    "network": "unshare --user --map-root-user --net",
+    "audio": "real downloaded song, libmpv null output",
+    "collections": "synthetic album and duplicate playlist snapshots referencing that downloaded song",
+    "downloads_song": true,
+    "home_song_entry_point": true,
+    "search_song_entry_point": true,
+    "album": true,
+    "playlist_duplicates": true,
+    "offline_collection_browsing": true,
+    "collection_row": true,
+    "collection_shuffle": true,
+    "queue_selection": true,
+    "mixed_queue_skip_and_explanation": true,
+    "no_catalog_or_session_import_requests": true,
+    "qml_clean": true
+  },
+  "second_offline_process": {
+    "restored_paused_with_position": true,
+    "resumed_from_disk": true,
+    "no_catalog_or_session_import_requests": true,
+    "qml_clean": true
+  },
+  "automated_checks": {
+    "unit_tests_passed": 95,
+    "expired_credentials_never_accessed_for_downloaded_audio": true,
+    "missing_files_marked_for_repair": true,
+    "stale_local_navigation_ignored": true,
+    "download_filters_cancel_retry_removal_dialog": true,
+    "reference_and_minimum_window_sizes": true
+  },
+  "privacy": "No account identities, song identifiers, downloaded media, sessions, signed URLs or private screenshots included."
+}

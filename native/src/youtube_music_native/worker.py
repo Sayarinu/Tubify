@@ -53,6 +53,8 @@ def handle(service, request, resources=None, progress=None):
             downloads.store.remove(payload["id"])
         elif operation == "downloads_collection":
             return downloads.store.view(payload["id"])
+        elif operation == "downloads_lookup":
+            return downloads.store.lookup(payload["kind"], payload["id"])
         elif operation == "downloads_fail":
             if downloads.store.state(payload["id"]) in {"queued", "downloading"}:
                 body = downloads.store.collection(payload["id"])
