@@ -22,7 +22,7 @@ class DownloadView(QObject):
         self.transfer = None if fixture else Worker(self, idle_ms=1000)
         self._planning = set()
         self._collections, self._pending, self._stopped = [], {}, []
-        self._track_states, self._open_request = {}, None
+        self._track_states, self._track_progress, self._open_request = {}, {}, None
         self._artwork, self._initialized = {}, fixture
         self._fixture_bodies = {}
         self._active, self._transfer_request, self._next = None, None, None
@@ -58,6 +58,10 @@ class DownloadView(QObject):
     @Property("QVariantMap", notify=changed)
     def trackStates(self):
         return self._track_states
+
+    @Property("QVariantMap", notify=changed)
+    def trackProgress(self):
+        return self._track_progress
 
     @Property("QVariantMap", notify=changed)
     def artwork(self):
@@ -216,6 +220,7 @@ class DownloadView(QObject):
         self._message = "Preparing download…" if self._planning else ""
         self._collections = result.get("collections", [])
         self._track_states = result.get("trackStates", {})
+        self._track_progress = result.get("trackProgress", {})
         self._artwork, self._initialized = result.get("artwork", {}), True
         self._bytes, self._free, self._next = result.get("bytes", 0), result.get("freeBytes", 0), result.get("next")
         self.changed.emit()
@@ -238,6 +243,9 @@ class DownloadView(QObject):
             if collection["key"] == self._active:
                 collection["state"] = "downloading"
                 collection["progress"] = (progress.get("completed", 0) + progress.get("fraction", 0)) / max(1, progress.get("total", 1))
+        video_id = progress.get("videoId", "")
+        if video_id:
+            self._track_progress[video_id] = progress.get("fraction", 0)
         self.changed.emit()
 
     @Slot(int, dict)

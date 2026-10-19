@@ -12,6 +12,7 @@ IconButton {
         return ({})
     }
     readonly property string status: song ? (downloadsState.trackStates[mediaId] || "") : entry.state || ""
+    readonly property real progress: song ? (downloadsState.trackProgress[mediaId] || 0) : (entry.progress || 0)
     iconName: status === "complete" || status === "ready" ? "circleCheck" : "download"
     tip: status === "complete" || status === "ready" ? entry.state === "complete" ? "Remove download" : "Downloaded" : status === "downloading" || status === "queued" ? "Cancel download" : status === "damaged" ? "Repair download" : "Download"
     iconColor: status === "complete" || status === "ready" ? Theme.accent : status === "damaged" ? "#ffb4a6" : Theme.foreground
@@ -22,5 +23,32 @@ IconButton {
         else if (entry.key) downloadsState.retry(entry.key)
         else downloadsState.download(media)
     }
-    Rectangle { anchors.bottom: parent.bottom; height: 2; width: parent.width * (root.entry.progress || 0); color: Theme.accent; visible: root.entry.state === "downloading" }
+    Canvas {
+        id: progressRing
+        anchors.centerIn: parent
+        width: 32; height: 32
+        visible: root.status === "downloading"
+        onPaint: {
+            var ctx = getContext("2d")
+            ctx.clearRect(0, 0, width, height)
+            ctx.beginPath()
+            ctx.arc(width / 2, height / 2, 14, 0, Math.PI * 2)
+            ctx.strokeStyle = Theme.border
+            ctx.lineWidth = 2
+            ctx.stroke()
+            if (root.progress > 0) {
+                ctx.beginPath()
+                ctx.arc(width / 2, height / 2, 14, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, root.progress))
+                ctx.strokeStyle = Theme.accent
+                ctx.lineWidth = 2
+                ctx.lineCap = "round"
+                ctx.stroke()
+            }
+        }
+        Connections {
+            target: downloadsState
+            function onChanged() { progressRing.requestPaint() }
+        }
+        Component.onCompleted: requestPaint()
+    }
 }

@@ -84,12 +84,13 @@ Item {
                             }
                         }
                     }
-                    Button {
+                    ToolButton {
                         objectName: "clearQueuedSongs"
-                        anchors.right: parent.right; y: 70; height: 32
-                        text: "Clear queued songs"
+                        anchors.right: parent.right; y: 70; height: 32; width: clearLabel.implicitWidth + 24
                         enabled: playerState.manualCount > 0 || browseState.queueBusy
                         onClicked: playerState.clearManualQueue()
+                        contentItem: Text { id: clearLabel; text: "Clear manual queue"; color: parent.enabled ? Theme.secondary : Theme.muted; font.pixelSize: 13; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        background: Rectangle { radius: 16; color: parent.down ? Theme.border : parent.hovered ? Theme.hover : "transparent"; border.color: parent.hovered ? Theme.border : "transparent"; border.width: 1 }
                     }
                     ListView {
                         id: queue

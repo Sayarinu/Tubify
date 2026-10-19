@@ -215,18 +215,21 @@ class DownloadStore:
 
     def status(self):
         collections = []
-        ready, track_states, artwork = {}, {}, {}
+        ready, track_states, track_progress, artwork = {}, {}, {}, {}
         for identifier, raw, state, completed, total, fraction, error in self.db.execute("""SELECT c.id, c.body, j.state, j.completed, j.total, j.fraction, j.error
             FROM collections c JOIN download_jobs j ON c.id=j.collection_id ORDER BY j.created DESC""").fetchall():
             body = json.loads(raw)
             artwork[identifier] = self._artwork_uri(body.get("localThumbnail", ""))
-            for track in body["items"]:
+            for index, track in enumerate(body["items"]):
                 video_id = track["videoId"]
                 if video_id not in ready:
                     ready[video_id] = self.media.ready(video_id) is not None
-                status = "ready" if ready[video_id] else "damaged" if state == "complete" else state
+                status = "ready" if ready[video_id] else "damaged" if state == "complete" else "downloading" if state == "downloading" and index == completed else "queued" if state in {"downloading", "queued"} else state
                 if track_states.get(video_id) != "ready":
                     track_states[video_id] = status
+                if state == "downloading" and not ready[video_id]:
+                    progress = 1.0 if index < completed else fraction if index == completed else 0.0
+                    track_progress[video_id] = max(track_progress.get(video_id, 0.0), progress)
                 local_art = self._artwork_uri(track.get("localThumbnail", ""))
                 if local_art or video_id not in artwork:
                     artwork[video_id] = local_art
@@ -235,7 +238,7 @@ class DownloadStore:
             collections.append({"key": identifier, "id": body["id"], "kind": body["kind"], "title": body["title"], "thumbnail": body.get("localThumbnail") or body.get("thumbnail", ""), "state": "damaged" if damaged else state, "ready": count, "total": total, "progress": (completed + fraction) / max(1, total), "error": error})
         next_row = self.db.execute("SELECT collection_id FROM download_jobs WHERE state='queued' ORDER BY created LIMIT 1").fetchone()
         used = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready'").fetchone()[0]
-        return {"collections": collections, "trackStates": track_states, "artwork": artwork, "next": next_row[0] if next_row else None, "bytes": used, "freeBytes": shutil.disk_usage(self.root).free}
+        return {"collections": collections, "trackStates": track_states, "trackProgress": track_progress, "artwork": artwork, "next": next_row[0] if next_row else None, "bytes": used, "freeBytes": shutil.disk_usage(self.root).free}
 
     def _artwork_uri(self, value):
         from PySide6.QtCore import QUrl
@@ -321,10 +324,11 @@ class Downloads:
         total, completed, unavailable = len(body["items"]), 0, 0
         staging, audio = self.store.root / "staging", self.store.root / "audio"
         extractor, last_progress = None, [0.]
+        active_video_id = ""
 
         def report(fraction=0., byte_count=0):
             self.store.progress(identifier, completed, total, fraction)
-            self.notify({"collection": identifier, "completed": completed, "total": total, "fraction": fraction, "bytes": max(0, int(byte_count))})
+            self.notify({"collection": identifier, "videoId": active_video_id, "completed": completed, "total": total, "fraction": fraction, "bytes": max(0, int(byte_count))})
 
         def hook(value):
             if self.store.state(identifier) in {"cancelled", "removed"}:
@@ -347,6 +351,7 @@ class Downloads:
                     if self.store.state(identifier) in {"cancelled", "removed"}:
                         raise DownloadCancelled("Download cancelled. Completed songs were kept.")
                     video_id = track["videoId"]
+                    active_video_id = video_id
                     ready = self.store.media.ready(video_id)
                     if not track["available"] and not ready:
                         unavailable += 1
