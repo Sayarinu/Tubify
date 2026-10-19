@@ -72,9 +72,8 @@ class Browse(QObject):
         self._mood_request = None
 
     def _remember(self):
-        if self.view.data:
-            self._history.append({**self.view.snapshot(), "page": self.shell.page, "query": self.shell.query})
-            self._history = self._history[-20:]
+        self._history.append({**self.view.snapshot(), "page": self.shell.page, "query": self.shell.query})
+        self._history = self._history[-20:]
 
     def _load(self, route, params):
         self._remember()

@@ -52,12 +52,33 @@ FocusScope {
         Row {
             width: parent.width; spacing: 6
             Symbol { id: downloaded; width: 16; height: 16; visible: !!root.downloadStatus; name: root.downloadStatus === "ready" ? "check" : "download"; color: root.downloadStatus === "damaged" || root.downloadStatus === "missing" ? "#ffb4a6" : Theme.secondary }
-            Text { width: parent.width - (downloaded.visible ? 22 : 0); text: root.tableLayout ? root.media.artist || "" : root.showArtwork ? root.subtitle : root.media.views ? root.media.views + " plays" : (root.media.artist || ""); textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14 }
+            Text {
+                id: metadata
+                width: parent.width - (downloaded.visible ? 22 : 0)
+                text: root.tableLayout ? root.media.artist || "" : root.showArtwork ? root.subtitle : root.media.views ? root.media.views + " plays" : (root.media.artist || "")
+                textFormat: Text.PlainText; elide: Text.ElideRight; color: metadataLink.containsMouse ? Theme.foreground : Theme.secondary; font.pixelSize: 14
+                MouseArea {
+                    id: metadataLink
+                    anchors.fill: parent; z: 2
+                    enabled: !!(root.media.album && root.media.album.id)
+                    hoverEnabled: enabled
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: browseState.open({kind: "album", id: root.media.album.id, title: root.media.album.name})
+                }
+            }
         }
     }
     Text { x: parent.width * 0.56; width: parent.width * 0.44 - 120; anchors.verticalCenter: parent.verticalCenter; visible: root.showAlbum; text: root.media.album ? root.media.album.name || "" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 13 }
     Text { anchors.right: parent.right; anchors.rightMargin: 56; anchors.verticalCenter: parent.verticalCenter; visible: root.showDuration; text: root.media.duration ? Theme.timeLabel(root.media.duration) : "–"; color: Theme.secondary; font.pixelSize: 13 }
     HoverHandler { id: hover }
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { if (mouse.button === Qt.RightButton) root.menuRequested(root.media); else root.activateSong() } }
+    IconButton {
+        anchors.right: parent.right; anchors.rightMargin: 40; anchors.verticalCenter: parent.verticalCenter
+        iconName: root.downloadStatus === "ready" ? "check" : "download"
+        iconColor: root.downloadStatus === "ready" ? Theme.accent : Theme.secondary
+        tip: root.downloadStatus === "ready" ? "Downloaded" : "Download " + (root.media.title || "song")
+        visible: hover.hovered || root.activeFocus
+        onClicked: if (!root.downloadStatus || root.downloadStatus === "failed" || root.downloadStatus === "cancelled") downloadsState.download(root.media)
+    }
     IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: "More options for " + (root.media.title || "song"); visible: hover.hovered || root.activeFocus; onClicked: root.menuRequested(root.media) }
 }

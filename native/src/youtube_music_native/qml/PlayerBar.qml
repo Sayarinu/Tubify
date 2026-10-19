@@ -18,7 +18,19 @@ Rectangle {
         Column {
             x: 64; width: parent.width - x - like.width; anchors.verticalCenter: parent.verticalCenter; spacing: 5
             Text { width: parent.width; text: playerState.currentTrack.title || "Nothing playing"; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.foreground; font.bold: true; font.pixelSize: 14 }
-            Text { width: parent.width; text: playerState.currentTrack.artist || "Choose a song"; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 12 }
+            Text {
+                width: parent.width
+                text: playerState.currentTrack.artist || "Choose a song"
+                textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 12
+                Accessible.role: playerState.currentTrack.album && playerState.currentTrack.album.id ? Accessible.Link : Accessible.StaticText
+                Accessible.onPressAction: if (playerState.currentTrack.album && playerState.currentTrack.album.id) browseState.open({kind: "album", id: playerState.currentTrack.album.id, title: playerState.currentTrack.album.name})
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: !!(playerState.currentTrack.album && playerState.currentTrack.album.id)
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: browseState.open({kind: "album", id: playerState.currentTrack.album.id, title: playerState.currentTrack.album.name})
+                }
+            }
         }
         IconButton { id: like; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "like"; tip: playerState.currentTrack.rating === "LIKE" ? "Remove like" : "Like"; iconColor: playerState.currentTrack.rating === "LIKE" ? Theme.accent : Theme.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("like") }
     }
@@ -40,6 +52,7 @@ Rectangle {
             objectName: "playbackSeek"
             x: 46; y: 48; width: parent.width - 92; height: 40
             from: 0; to: 1; value: playerState.progress
+            trackColor: "#574374"
             enabled: playerState.hasTrack; Accessible.name: "Playback position"
             onMoved: playerState.seekFraction(value)
         }
@@ -50,8 +63,8 @@ Rectangle {
         id: tools
         anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter
         IconButton { iconName: "more"; tip: "Current song options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
-        IconButton { iconName: "lyrics"; tip: "Lyrics"; iconColor: appState.expanded && appState.playerTab === "Lyrics" ? Theme.accent : Theme.secondary; onClicked: { appState.setPlayerTab("Lyrics"); appState.setExpanded(true) } }
         IconButton { iconName: "queue"; tip: "Queue"; iconColor: appState.expanded && appState.playerTab === "Up next" ? Theme.accent : Theme.secondary; onClicked: { appState.setPlayerTab("Up next"); appState.setExpanded(true) } }
+        IconButton { iconName: "music"; tip: "Lyrics"; iconColor: appState.expanded && appState.playerTab === "Lyrics" ? Theme.accent : Theme.secondary; onClicked: { appState.setPlayerTab("Lyrics"); appState.setExpanded(true) } }
         IconButton { id: volume; iconName: appState.volume > 0 ? "volume" : "muted"; tip: root.compact ? "Volume" : appState.volume > 0 ? "Mute" : "Unmute"; onClicked: root.compact ? volumePopup.open() : appState.toggleMute() }
         AccentSlider { width: 84; height: 44; visible: !root.compact; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
         IconButton { iconName: appState.expanded ? "down" : "up"; tip: appState.expanded ? "Close player page" : "Expand player"; onClicked: appState.requestAction("expandPlayer") }

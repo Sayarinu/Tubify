@@ -24,7 +24,7 @@ Rectangle {
             if (!root.mediaKey) return root.source
             if (!downloadsState.initialized) return ""
             var cached = downloadsState.artwork[root.mediaKey]
-            return cached !== undefined ? cached : root.source
+            return cached || root.source
         }
         onStatusChanged: if (softwareMask.active) softwareMask.requestPaint()
         onPaintedWidthChanged: if (softwareMask.active) softwareMask.requestPaint()
