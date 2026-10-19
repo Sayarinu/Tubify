@@ -18,8 +18,27 @@ FocusScope {
     Text { x: 64; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.30; text: root.media.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: "white"; font.pixelSize: 14 }
     Text { x: parent.width * 0.39; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.13; text: root.media.artist || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14; visible: root.width > 650 }
     Text { x: parent.width * 0.54; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.13; text: root.media.views ? root.media.views + " plays" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14; visible: root.width > 650 }
-    Text { x: parent.width * 0.69; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.23; text: root.media.album ? root.media.album.name || "" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14 }
+    Text {
+        id: albumName
+        x: parent.width * 0.69; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.23
+        text: root.media.album ? root.media.album.name || "" : ""
+        textFormat: Text.PlainText; elide: Text.ElideRight; color: albumLink.containsMouse ? Theme.foreground : Theme.secondary; font.pixelSize: 14
+        MouseArea {
+            id: albumLink
+            anchors.fill: parent; z: 2
+            enabled: !!(root.media.album && root.media.album.id)
+            hoverEnabled: enabled
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: browseState.open({kind: "album", id: root.media.album.id, title: root.media.album.name})
+        }
+    }
     HoverHandler { id: hover }
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: mouse => { if (mouse.button === Qt.RightButton) appState.showMenu(root.media, {}); else root.activated(root.media) } }
+    IconButton {
+        anchors.right: parent.right; anchors.rightMargin: 40; anchors.verticalCenter: parent.verticalCenter
+        iconName: "download"; tip: "Download " + (root.media.title || "song")
+        visible: hover.hovered || root.activeFocus
+        onClicked: downloadsState.download(root.media)
+    }
     IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: "More options for " + (root.media.title || "song"); visible: hover.hovered || root.activeFocus; onClicked: appState.showMenu(root.media, {}) }
 }

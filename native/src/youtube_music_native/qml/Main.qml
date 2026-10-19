@@ -65,7 +65,7 @@ ApplicationWindow {
             id: navigation
             x: 8; y: 68; width: sidebar.width - 16
             Repeater {
-                model: [{label:"Home",icon:"home"}, {label:"Search",icon:"search"}, {label:"Explore",icon:"explore"}, {label:"Library",icon:"library"}, {label:"Downloads",icon:"download"}]
+                model: [{label:"Home",icon:"home"}, {label:"Explore",icon:"explore"}, {label:"Library",icon:"library"}, {label:"Downloads",icon:"download"}]
                 delegate: Button {
                     id: nav
                     required property var modelData
@@ -74,7 +74,7 @@ ApplicationWindow {
                     padding: 0
                     text: modelData.label
                     Accessible.name: text
-                    onClicked: { if (text === "Search") search.forceActiveFocus(); else appState.navigate(text) }
+                    onClicked: appState.navigate(text)
                     background: Rectangle {
                         radius: 8
                         color: appState.page === nav.text ? Theme.selected : nav.hovered ? Theme.hover : "transparent"

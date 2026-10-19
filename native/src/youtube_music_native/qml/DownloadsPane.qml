@@ -54,9 +54,8 @@ Item {
             Column {
                 y: 148; width: parent.width - 48; spacing: 5
                 Text { width: parent.width; text: root.bytesLabel(downloadsState.usedBytes) + " downloaded · " + root.bytesLabel(downloadsState.freeBytes) + " free"; color: Theme.secondary; elide: Text.ElideRight; font.pixelSize: 14 }
-                Text { width: parent.width; text: "Playlist downloads are snapshots. Use Refresh to update them."; color: Theme.secondary; wrapMode: Text.Wrap; font.pixelSize: 12 }
             }
-            IconButton { anchors.right: parent.right; y: 138; iconName: "repeat"; tip: "Refresh download status"; onClicked: downloadsState.refresh() }
+            IconButton { anchors.right: parent.right; y: 138; iconName: "refresh"; tip: "Refresh download status"; onClicked: downloadsState.refresh() }
         }
         delegate: ItemDelegate {
             id: entry

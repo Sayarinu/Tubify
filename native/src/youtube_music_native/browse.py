@@ -72,9 +72,8 @@ class Browse(QObject):
         self._mood_request = None
 
     def _remember(self):
-        if self.view.data:
-            self._history.append({**self.view.snapshot(), "page": self.shell.page, "query": self.shell.query})
-            self._history = self._history[-20:]
+        self._history.append({**self.view.snapshot(), "page": self.shell.page, "query": self.shell.query})
+        self._history = self._history[-20:]
 
     def _load(self, route, params):
         self._remember()
@@ -99,12 +98,11 @@ class Browse(QObject):
 
     @Slot()
     def back(self):
+        if not self._history:
+            return
         self.shell.setExpanded(False)
         self._cancel_local_navigation()
         self._cancel_mood()
-        if not self._history:
-            self.navigate(self.shell.page)
-            return
         previous = self._history.pop()
         self.shell.restoreNavigation(previous["page"], previous["query"])
         self.view.showLocal(previous["route"], previous["data"], previous["params"], previous["scroll"])

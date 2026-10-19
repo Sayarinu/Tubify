@@ -5,6 +5,11 @@ FocusScope {
     id: root
     required property var media
     property var menuContext: ({})
+    readonly property bool song: !media.kind || media.kind === "song"
+    readonly property bool currentSong: song && playerState.hasTrack && (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id)
+    readonly property bool album: media.kind === "album"
+    readonly property bool currentAlbum: !!(album && playerState.hasTrack && ((media.id && playerState.currentTrack.album && media.id === playerState.currentTrack.album.id) || (media.title && playerState.currentTrack.album && media.title === playerState.currentTrack.album.name)))
+    readonly property bool playableCollection: album || media.kind === "playlist"
     property string downloadStatus: {
         if (!media.kind || media.kind === "song") return downloadsState.trackStates[media.videoId || media.id] || media.downloadState || ""
         var values = downloadsState.collections
@@ -17,13 +22,30 @@ FocusScope {
     Accessible.role: Accessible.Button
     Accessible.name: media.title || "Music"
     Accessible.description: downloadStatus === "ready" ? "Downloaded" : downloadStatus === "damaged" ? "Download needs repair" : ""
-    Accessible.onPressAction: activated(media)
-    Keys.onReturnPressed: activated(media)
+    Accessible.onPressAction: activateCard()
+    Keys.onReturnPressed: activateCard()
+    function activateArtwork() {
+        if (root.playableCollection) {
+            if (root.currentAlbum) playerState.togglePlayback()
+            else root.playRequested(root.media)
+        } else if (root.currentSong) playerState.togglePlayback()
+        else root.activated(root.media)
+    }
+    function activateCard() {
+        if (root.currentSong) playerState.togglePlayback()
+        else root.activated(root.media)
+    }
     Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { appState.showMenu(root.media, root.menuContext); event.accepted = true } }
     implicitWidth: Theme.cardWidth
     implicitHeight: Theme.cardHeight
     HoverHandler { id: cardHover }
     Rectangle { anchors.fill: parent; radius: 10; color: cardHover.hovered ? Theme.hover : Theme.surface; border.color: root.activeFocus ? Theme.accent : Theme.border; border.width: root.activeFocus ? 2 : 1 }
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        cursorShape: Qt.PointingHandCursor
+        onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activateCard() }
+    }
     Cover {
         id: cover
         x: 16; y: 16
@@ -37,36 +59,38 @@ FocusScope {
         Rectangle {
             anchors.fill: parent
             radius: cover.radius
-            color: "#33000000"
+            color: "#22000000"
             visible: hover.hovered || root.activeFocus
             border.color: root.activeFocus ? Theme.accent : "transparent"
         }
+        Rectangle { anchors.centerIn: parent; width: 44; height: 44; radius: 22; color: Theme.accent; visible: (hover.hovered || root.activeFocus) && (root.song || root.playableCollection) }
         Symbol {
             anchors.centerIn: parent
-            name: "play"
-            width: 48
-            height: 48
-            visible: (hover.hovered || root.activeFocus) && (!root.media.kind || root.media.kind === "song")
+            name: (root.currentSong || root.currentAlbum) && playerState.playing ? "pause" : "play"
+            width: 20; height: 20; color: Theme.onAccent
+            visible: (hover.hovered || root.activeFocus) && (root.song || root.playableCollection)
         }
         HoverHandler { id: hover }
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             cursorShape: Qt.PointingHandCursor
-            onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activated(root.media) }
+            onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activateArtwork() }
         }
         IconButton { anchors.right: parent.right; anchors.top: parent.top; width: 36; height: 36; iconName: "more"; tip: "More options for " + (root.media.title || "music"); visible: hover.hovered || root.activeFocus; onClicked: appState.showMenu(root.media, root.menuContext) }
         Rectangle {
             x: 8; anchors.bottom: parent.bottom; anchors.bottomMargin: 8
-            width: 24; height: 24; radius: 12; color: "#dd212121"; visible: !!root.downloadStatus
-            Symbol { anchors.centerIn: parent; width: 16; height: 16; name: root.downloadStatus === "ready" ? "check" : "download"; color: root.downloadStatus === "damaged" ? "#ffb4a6" : "white" }
+            width: 20; height: 20; color: "transparent"; visible: !!root.downloadStatus && root.downloadStatus !== "downloading" && root.downloadStatus !== "queued"
+            Symbol { anchors.centerIn: parent; width: 16; height: 16; name: root.downloadStatus === "ready" ? "check" : "download"; color: root.downloadStatus === "damaged" ? "#ffb4a6" : Theme.accent }
         }
-        Item {
-            anchors.right: parent.right; anchors.bottom: parent.bottom; width: 48; height: 48
-            visible: (hover.hovered || root.activeFocus) && (root.media.kind === "album" || root.media.kind === "playlist")
-            Rectangle { anchors.centerIn: parent; width: 36; height: 36; radius: 18; color: "#cc000000" }
-            Symbol { anchors.centerIn: parent; name: "play"; width: 24; height: 24 }
-            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.playRequested(root.media) }
+        IconButton {
+            x: 4; anchors.bottom: parent.bottom; anchors.bottomMargin: 4
+            width: 28; height: 28; iconName: root.downloadStatus === "ready" ? "check" : "download"
+            iconColor: root.downloadStatus === "ready" ? Theme.accent : Theme.foreground
+            tip: root.downloadStatus === "ready" ? "Downloaded" : root.downloadStatus === "downloading" || root.downloadStatus === "queued" ? "Download in progress" : "Download " + (root.media.title || "music")
+            visible: hover.hovered || root.activeFocus
+            enabled: !!(root.media.id || root.media.videoId) && root.downloadStatus !== "ready" && root.downloadStatus !== "downloading" && root.downloadStatus !== "queued"
+            onClicked: downloadsState.download(root.media)
         }
     }
     Text {
@@ -83,6 +107,14 @@ FocusScope {
         wrapMode: Text.Wrap
         maximumLineCount: 1
         elide: Text.ElideRight
+        Accessible.role: root.media.kind === "album" ? Accessible.Link : Accessible.StaticText
+        Accessible.onPressAction: if (root.media.kind === "album") root.activated(root.media)
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.media.kind === "album"
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: root.activated(root.media)
+        }
     }
     Text {
         anchors.top: title.bottom

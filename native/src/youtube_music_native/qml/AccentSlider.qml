@@ -4,9 +4,10 @@ import "Theme.js" as Theme
 
 Slider {
     id: root
+    property color trackColor: Theme.border
     background: Rectangle {
         x: root.leftPadding; y: root.topPadding + root.availableHeight / 2 - 2
-        width: root.availableWidth; height: 4; radius: 2; color: Theme.border
+        width: root.availableWidth; height: 4; radius: 2; color: root.trackColor
         Rectangle { width: root.visualPosition * parent.width; height: parent.height; radius: 2; color: Theme.accent }
     }
     handle: Rectangle {
