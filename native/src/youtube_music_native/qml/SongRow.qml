@@ -26,8 +26,9 @@ FocusScope {
     Accessible.role: Accessible.Button
     Accessible.name: (media.title || "Song") + ", " + (media.artist || "")
     Accessible.description: downloadStatus === "ready" ? "Downloaded" : downloadStatus === "damaged" || downloadStatus === "missing" ? "Download needs repair" : downloadStatus === "downloading" || downloadStatus === "queued" ? "Downloading" : ""
-    Accessible.onPressAction: activated(media)
-    Keys.onReturnPressed: activated(media)
+    Accessible.onPressAction: activateSong()
+    Keys.onReturnPressed: activateSong()
+    function activateSong() { if (root.currentSong) playerState.togglePlayback(); else root.activated(root.media) }
     Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { root.menuRequested(root.media); event.accepted = true } }
     Rectangle { anchors.fill: parent; radius: 4; color: hover.hovered ? "#1affffff" : "transparent"; border.color: root.activeFocus ? Theme.accent : "transparent"; border.width: 1 }
     Cover {
@@ -57,6 +58,6 @@ FocusScope {
     Text { x: parent.width * 0.56; width: parent.width * 0.44 - 120; anchors.verticalCenter: parent.verticalCenter; visible: root.showAlbum; text: root.media.album ? root.media.album.name || "" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 13 }
     Text { anchors.right: parent.right; anchors.rightMargin: 56; anchors.verticalCenter: parent.verticalCenter; visible: root.showDuration; text: root.media.duration ? Theme.timeLabel(root.media.duration) : "–"; color: Theme.secondary; font.pixelSize: 13 }
     HoverHandler { id: hover }
-    MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { if (mouse.button === Qt.RightButton) root.menuRequested(root.media); else if (root.currentSong) playerState.togglePlayback(); else root.activated(root.media) } }
+    MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { if (mouse.button === Qt.RightButton) root.menuRequested(root.media); else root.activateSong() } }
     IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: "More options for " + (root.media.title || "song"); visible: hover.hovered || root.activeFocus; onClicked: root.menuRequested(root.media) }
 }

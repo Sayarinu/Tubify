@@ -19,8 +19,8 @@ FocusScope {
     Accessible.role: Accessible.Button
     Accessible.name: media.title || "Music"
     Accessible.description: downloadStatus === "ready" ? "Downloaded" : downloadStatus === "damaged" ? "Download needs repair" : ""
-    Accessible.onPressAction: activated(media)
-    Keys.onReturnPressed: activated(media)
+    Accessible.onPressAction: activateCard()
+    Keys.onReturnPressed: activateCard()
     function activateArtwork() {
         if (root.media.kind === "album" || root.media.kind === "playlist") root.playRequested(root.media)
         else if (root.currentSong) playerState.togglePlayback()
