@@ -20,7 +20,7 @@ FocusScope {
     Text { x: parent.width * 0.54; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.13; text: root.media.views ? root.media.views + " plays" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14; visible: root.width > 650 }
     Text {
         id: albumName
-        x: parent.width * 0.69; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.23
+        x: parent.width * 0.69; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.23 - 112
         text: root.media.album ? root.media.album.name || "" : ""
         textFormat: Text.PlainText; elide: Text.ElideRight; color: albumLink.containsMouse ? Theme.foreground : Theme.secondary; font.pixelSize: 14
         MouseArea {
@@ -34,11 +34,11 @@ FocusScope {
     }
     HoverHandler { id: hover }
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: mouse => { if (mouse.button === Qt.RightButton) appState.showMenu(root.media, {}); else root.activated(root.media) } }
-    IconButton {
-        anchors.right: parent.right; anchors.rightMargin: 40; anchors.verticalCenter: parent.verticalCenter
-        iconName: "download"; tip: "Download " + (root.media.title || "song")
-        visible: hover.hovered || root.activeFocus
-        onClicked: downloadsState.download(root.media)
+    DownloadButton {
+        id: downloadButton
+        anchors.right: parent.right; anchors.rightMargin: 56; anchors.verticalCenter: parent.verticalCenter
+        visible: hover.hovered || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued"
+        media: ({kind: "song", id: root.media.videoId || root.media.id || "", videoId: root.media.videoId || "", title: root.media.title || "", thumbnail: root.media.thumbnail || ""})
     }
     IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: "More options for " + (root.media.title || "song"); visible: hover.hovered || root.activeFocus; onClicked: appState.showMenu(root.media, {}) }
 }

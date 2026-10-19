@@ -46,15 +46,14 @@ FocusScope {
     Column {
         x: root.tableLayout ? root.showArtwork ? 100 : 48 : root.showArtwork ? root.number > 0 ? 104 : 72 : 56
         anchors.verticalCenter: parent.verticalCenter
-        width: (root.showAlbum ? parent.width * 0.54 : parent.width - (root.showDuration ? 112 : 56)) - x; spacing: 3
+        width: (root.showAlbum ? parent.width * 0.54 : parent.width - (root.showDuration ? 112 : 104)) - x; spacing: 3
         opacity: root.media.available === false ? 0.5 : 1
         Text { width: parent.width; text: root.media.title || "Unavailable song"; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.foreground; font.pixelSize: 14 }
         Row {
             width: parent.width; spacing: 6
-            Symbol { id: downloaded; width: 16; height: 16; visible: !!root.downloadStatus; name: root.downloadStatus === "ready" ? "check" : "download"; color: root.downloadStatus === "damaged" || root.downloadStatus === "missing" ? "#ffb4a6" : Theme.secondary }
             Text {
                 id: metadata
-                width: parent.width - (downloaded.visible ? 22 : 0)
+                width: parent.width
                 text: root.tableLayout ? root.media.artist || "" : root.showArtwork ? root.subtitle : root.media.views ? root.media.views + " plays" : (root.media.artist || "")
                 textFormat: Text.PlainText; elide: Text.ElideRight; color: metadataLink.containsMouse ? Theme.foreground : Theme.secondary; font.pixelSize: 14
                 MouseArea {
@@ -72,13 +71,11 @@ FocusScope {
     Text { anchors.right: parent.right; anchors.rightMargin: 56; anchors.verticalCenter: parent.verticalCenter; visible: root.showDuration; text: root.media.duration ? Theme.timeLabel(root.media.duration) : "–"; color: Theme.secondary; font.pixelSize: 13 }
     HoverHandler { id: hover }
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { if (mouse.button === Qt.RightButton) root.menuRequested(root.media); else root.activateSong() } }
-    IconButton {
-        anchors.right: parent.right; anchors.rightMargin: 40; anchors.verticalCenter: parent.verticalCenter
-        iconName: root.downloadStatus === "ready" ? "check" : "download"
-        iconColor: root.downloadStatus === "ready" ? Theme.accent : Theme.secondary
-        tip: root.downloadStatus === "ready" ? "Downloaded" : "Download " + (root.media.title || "song")
-        visible: hover.hovered || root.activeFocus
-        onClicked: if (!root.downloadStatus || root.downloadStatus === "failed" || root.downloadStatus === "cancelled") downloadsState.download(root.media)
+    DownloadButton {
+        id: downloadButton
+        anchors.right: parent.right; anchors.rightMargin: 56; anchors.verticalCenter: parent.verticalCenter
+        visible: hover.hovered || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued"
+        media: ({kind: "song", id: root.media.videoId || root.media.id || "", videoId: root.media.videoId || "", title: root.media.title || "", thumbnail: root.media.thumbnail || ""})
     }
     IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: "More options for " + (root.media.title || "song"); visible: hover.hovered || root.activeFocus; onClicked: root.menuRequested(root.media) }
 }

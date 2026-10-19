@@ -10,30 +10,26 @@ FocusScope {
     readonly property bool album: media.kind === "album"
     readonly property bool currentAlbum: !!(album && playerState.hasTrack && ((media.id && playerState.currentTrack.album && media.id === playerState.currentTrack.album.id) || (media.title && playerState.currentTrack.album && media.title === playerState.currentTrack.album.name)))
     readonly property bool playableCollection: album || media.kind === "playlist"
-    property string downloadStatus: {
-        if (!media.kind || media.kind === "song") return downloadsState.trackStates[media.videoId || media.id] || media.downloadState || ""
-        var values = downloadsState.collections
-        for (var i = 0; i < values.length; i++) if (values[i].key === media.kind + ":" + media.id) return values[i].state === "complete" ? "ready" : values[i].state
-        return ""
-    }
+    readonly property var primaryArtist: media.artists && media.artists.length ? media.artists[0] : ({})
     signal playRequested(var item)
     signal activated(var item)
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: media.title || "Music"
-    Accessible.description: downloadStatus === "ready" ? "Downloaded" : downloadStatus === "damaged" ? "Download needs repair" : ""
+    Accessible.description: ""
     Accessible.onPressAction: activateCard()
     Keys.onReturnPressed: activateCard()
     function activateArtwork() {
         if (root.playableCollection) {
             if (root.currentAlbum) playerState.togglePlayback()
             else root.playRequested(root.media)
-        } else if (root.currentSong) playerState.togglePlayback()
-        else root.activated(root.media)
+        } else if (root.song) {
+            if (root.currentSong) playerState.togglePlayback()
+            else root.playRequested(root.media)
+        } else root.activated(root.media)
     }
     function activateCard() {
-        if (root.currentSong) playerState.togglePlayback()
-        else root.activated(root.media)
+        if (root.media.kind === "artist" || root.playableCollection) root.activated(root.media)
     }
     Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { appState.showMenu(root.media, root.menuContext); event.accepted = true } }
     implicitWidth: Theme.cardWidth
@@ -78,20 +74,6 @@ FocusScope {
             onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activateArtwork() }
         }
         IconButton { anchors.right: parent.right; anchors.top: parent.top; width: 36; height: 36; iconName: "more"; tip: "More options for " + (root.media.title || "music"); visible: hover.hovered || root.activeFocus; onClicked: appState.showMenu(root.media, root.menuContext) }
-        Rectangle {
-            x: 8; anchors.bottom: parent.bottom; anchors.bottomMargin: 8
-            width: 20; height: 20; color: "transparent"; visible: !!root.downloadStatus && root.downloadStatus !== "downloading" && root.downloadStatus !== "queued"
-            Symbol { anchors.centerIn: parent; width: 16; height: 16; name: root.downloadStatus === "ready" ? "check" : "download"; color: root.downloadStatus === "damaged" ? "#ffb4a6" : Theme.accent }
-        }
-        IconButton {
-            x: 4; anchors.bottom: parent.bottom; anchors.bottomMargin: 4
-            width: 28; height: 28; iconName: root.downloadStatus === "ready" ? "check" : "download"
-            iconColor: root.downloadStatus === "ready" ? Theme.accent : Theme.foreground
-            tip: root.downloadStatus === "ready" ? "Downloaded" : root.downloadStatus === "downloading" || root.downloadStatus === "queued" ? "Download in progress" : "Download " + (root.media.title || "music")
-            visible: hover.hovered || root.activeFocus
-            enabled: !!(root.media.id || root.media.videoId) && root.downloadStatus !== "ready" && root.downloadStatus !== "downloading" && root.downloadStatus !== "queued"
-            onClicked: downloadsState.download(root.media)
-        }
     }
     Text {
         id: title
@@ -107,26 +89,33 @@ FocusScope {
         wrapMode: Text.Wrap
         maximumLineCount: 1
         elide: Text.ElideRight
-        Accessible.role: root.media.kind === "album" ? Accessible.Link : Accessible.StaticText
-        Accessible.onPressAction: if (root.media.kind === "album") root.activated(root.media)
+        Accessible.role: root.playableCollection ? Accessible.Link : Accessible.StaticText
+        Accessible.onPressAction: if (root.playableCollection) root.activated(root.media)
         MouseArea {
             anchors.fill: parent
-            enabled: root.media.kind === "album"
+            enabled: root.playableCollection
             cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: root.activated(root.media)
         }
     }
-    Text {
+    Row {
+        id: subtitle
         anchors.top: title.bottom
         anchors.topMargin: 6
         x: 16; width: parent.width - 32
-        text: (root.media.label || (root.media.kind ? root.media.kind.charAt(0).toUpperCase() + root.media.kind.slice(1) : "Song")) + (root.media.artist ? " · " + root.media.artist : "")
-        textFormat: Text.PlainText
-        color: Theme.secondary
-        font.family: Theme.bodyFont
-        font.pixelSize: 14
-        wrapMode: Text.Wrap
-        maximumLineCount: 2
-        elide: Text.ElideRight
+        spacing: 5
+        Text {
+            text: root.media.label || (root.media.kind ? root.media.kind.charAt(0).toUpperCase() + root.media.kind.slice(1) : "Song")
+            color: Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 14
+        }
+        Text { text: root.media.artist || root.primaryArtist.name || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: artistLink.containsMouse ? Theme.foreground : Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 14; visible: text.length > 0; width: Math.max(0, subtitle.width - x - 4)
+            MouseArea { id: artistLink; anchors.fill: parent; z: 2; enabled: !!root.primaryArtist.id; hoverEnabled: enabled; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: browseState.open({kind: "artist", id: root.primaryArtist.id, title: root.primaryArtist.name}) }
+        }
+    }
+    DownloadButton {
+        id: downloadButton
+        x: 8; anchors.top: subtitle.bottom; anchors.topMargin: 4; width: 36; height: 32
+        visible: root.media.kind !== "artist" && (cardHover.hovered || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued")
+        media: ({kind: root.song ? "song" : root.media.kind, id: root.media.videoId || root.media.id || "", videoId: root.media.videoId || "", title: root.media.title || "", thumbnail: root.media.thumbnail || ""})
     }
 }

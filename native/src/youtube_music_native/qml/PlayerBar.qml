@@ -61,7 +61,8 @@ Rectangle {
     }
     Row {
         id: tools
-        anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter
+        anchors.right: parent.right; anchors.rightMargin: 12
+        y: progress.y + (progress.height - height) / 2
         IconButton { iconName: "more"; tip: "Current song options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
         IconButton { iconName: "queue"; tip: "Queue"; iconColor: appState.expanded && appState.playerTab === "Up next" ? Theme.accent : Theme.secondary; onClicked: { appState.setPlayerTab("Up next"); appState.setExpanded(true) } }
         IconButton { iconName: "music"; tip: "Lyrics"; iconColor: appState.expanded && appState.playerTab === "Lyrics" ? Theme.accent : Theme.secondary; onClicked: { appState.setPlayerTab("Lyrics"); appState.setExpanded(true) } }
