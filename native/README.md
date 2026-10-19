@@ -2,7 +2,7 @@
 
 Shared Python code for the native Qt client. The first development gate is a repeatable real-account compatibility check, tracked by [LUNE-336](https://linear.app/nouvelle-lune-atelier/issue/LUNE-336/prove-premium-account-access-streaming-and-offline-playback).
 
-The client connects accounts, renders personalized Home and Explore, searches music, manages the library/playlists, and plays music through libmpv. The window remains a development preview while the expanded-player, Downloads screen and release tickets are completed.
+The client connects accounts, renders personalized Home and Explore, searches music, manages the library/playlists, and plays music through libmpv. The window remains a development preview while the Downloads screen and release tickets are completed.
 
 ## Development
 
@@ -41,6 +41,10 @@ Library sections include playlists, saved songs, albums, artists, subscriptions,
 Real-account verification covers all library sections and the playlist view. The user-approved private test playlist passed creation, renaming, duplicate addition, movement, single-occurrence removal and deletion; native empty-playlist creation/reopening also passed and its test playlist was deleted. Existing playlists and ratings were not modified by these checks. History writes and ratings use fake-provider tests; the real account's history tracking data was checked read-only. Redacted results are in evidence/linux-library.json.
 
 The durable download backend stores song, album and manual playlist snapshots with shared-file references. Jobs recover after interruption, resume supported HTTP transfers, retain completed songs on cancellation/failure, and validate audio with FFprobe before publishing it. Images and metadata are retained beside the audio for offline use. Removing a collection retains files referenced by another download; refreshing a snapshot retains its old files until the replacement finishes. Separate control and transfer workers keep storage operations responsive. Collection controls and the Downloads screen are integrated by the subsequent UI tickets.
+
+The expanded player retains audio and position while switching views, and includes a virtualized queue with drag handles, occurrence-specific menus and keyboard editing. Use Alt+Up/Down to move a focused queue entry and Delete to remove it. Lyrics load on demand, highlight and seek when timing is available, and remain cached for offline use. The real account returned plain lyrics through the desktop fallback; timed lyrics use synthetic tests. Evidence is in evidence/linux-expanded-player.json.
+
+Press `?` for keyboard shortcuts: Space toggles playback, Shift+N/P changes tracks, arrows seek, M mutes, S/R changes shuffle/repeat, and F/Escape opens/closes the player. Playback shortcuts respect text fields, account/playlist dialogs and menus. `/` or Ctrl+F focuses search.
 
 ## Account and offline compatibility check
 

@@ -13,6 +13,7 @@ class ShellController(QObject):
     actionRequested = Signal(str)
     playlistsChanged = Signal()
     menuRequested = Signal(dict, dict)
+    playerViewChanged = Signal()
 
     def __init__(self, settings_path, fixture=None, parent=None):
         super().__init__(parent)
@@ -25,6 +26,7 @@ class ShellController(QObject):
         self._fixture = fixture or {}
         self._shelves = self._fixture.get("shelves", [])
         self._playlists = self._fixture.get("playlists", [])
+        self._expanded, self._player_tab = False, "Up next"
 
     def _integer_setting(self, key, default):
         try:
@@ -81,6 +83,7 @@ class ShellController(QObject):
         if page not in {"Home", "Explore", "Library", "Downloads", "Search"}:
             return
         self._page = page
+        self.setExpanded(False)
         self.pageChanged.emit()
         self.navigationRequested.emit(page)
 
@@ -111,7 +114,28 @@ class ShellController(QObject):
 
     @Slot(str)
     def requestAction(self, action):
+        if action == "expandPlayer":
+            self.setExpanded(not self._expanded)
         self.actionRequested.emit(action)
+
+    @Property(bool, notify=playerViewChanged)
+    def expanded(self):
+        return self._expanded
+
+    @Property(str, notify=playerViewChanged)
+    def playerTab(self):
+        return self._player_tab
+
+    @Slot(bool)
+    def setExpanded(self, value):
+        self._expanded = value
+        self.playerViewChanged.emit()
+
+    @Slot(str)
+    def setPlayerTab(self, value):
+        if value in {"Up next", "Lyrics"}:
+            self._player_tab = value
+            self.playerViewChanged.emit()
 
     @Slot("QVariantMap", "QVariantMap")
     def showMenu(self, media, context):

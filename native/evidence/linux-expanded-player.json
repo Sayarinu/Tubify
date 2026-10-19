@@ -1,0 +1,29 @@
+{
+  "ticket": "LUNE-344",
+  "platform": "Arch Linux x86_64",
+  "reference": {
+    "expanded_layout_inspected_through_accessibility": true,
+    "artwork_at_1280x820": "538x538 at 296,169",
+    "queue_and_lyrics_tabs": true,
+    "targeted_screenshot": "KDE denied window capture; final screenshot comparison remains in LUNE-348"
+  },
+  "real_account_read_only": {
+    "lyrics_retrieved": true,
+    "plain_text_fallback_verified": true,
+    "timed_lyrics_returned": false
+  },
+  "fixture_and_local_checks": {
+    "reference_and_minimum_window_sizes": true,
+    "expanded_view_retains_playback_position": true,
+    "duplicate_queue_edits_retain_current_audio": true,
+    "keyboard_queue_reordering_retains_focus": true,
+    "queue_menu_removal": true,
+    "timed_lyric_seek_and_highlight": true,
+    "missing_lyrics_and_retry": true,
+    "stale_lyric_responses_ignored": true,
+    "cached_lyrics_reopen_without_authentication": true,
+    "text_entry_shortcut_isolation": true,
+    "qml_clean": true
+  },
+  "privacy": "No lyrics, account identifiers, content identifiers, sessions, media URLs or private screenshots included."
+}

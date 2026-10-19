@@ -123,3 +123,23 @@ def test_session_reset_keeps_local_audio_and_stops_old_remote_credentials(tmp_pa
     assert not player.playing and worker.resets == 2
     assert player.currentTrack["title"] == "First"
     player.close()
+
+
+def test_duplicate_queue_edits_preserve_current_audio_and_position(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks([TRACKS[0], TRACKS[0], TRACKS[1]])
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/track.opus"})
+    player.seek(37)
+    first, duplicate, last = [entry["key"] for entry in player.entries]
+    player.moveToKey(first, last)
+    player.removeKey(duplicate)
+    assert player.queue.current["key"] == first
+    assert player.position == 37 and player.playing and len(player.audio.loads) == 1
+    player.moveKey("stale", -1)
+    player.removeKey("stale")
+    assert len(player.entries) == 2
+    player.removeKey(first)
+    assert player.currentTrack == TRACKS[1] and player.position == 0
+    player.close()

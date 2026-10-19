@@ -20,6 +20,7 @@ def main():
             check=True, timeout=30,
         )
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_library.py"))], check=True, timeout=30)
+        subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_player.py"))], check=True, timeout=30)
         audio = root / "fixture.wav"
         with wave.open(str(audio), "wb") as handle:
             handle.setnchannels(1)

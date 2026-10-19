@@ -17,14 +17,15 @@ ApplicationWindow {
     font.pixelSize: 14
     onClosing: appState.saveWindow(width, height)
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: accountDialog.opened || playlistDialogs.opened
+    property bool modalOpen: accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened
+    property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     Rectangle {
         anchors.left: sidebar.right
         anchors.right: parent.right
         height: 370
         gradient: Gradient {
-            GradientStop { position: 0; color: appState.page === "Home" && catalogState.route === "home" ? "#071b22" : Theme.background }
+            GradientStop { position: 0; color: !appState.expanded && appState.page === "Home" && catalogState.route === "home" ? "#071b22" : Theme.background }
             GradientStop { position: 1; color: Theme.background }
         }
     }
@@ -218,7 +219,7 @@ ApplicationWindow {
 
         Loader {
             anchors.fill: parent
-            active: appState.page !== "Downloads"
+            active: appState.page !== "Downloads" && !appState.expanded
             sourceComponent: catalogState.route === "album" || catalogState.route === "playlist" ? collectionPage : catalogState.route === "artist" ? artistPage : catalogState.route === "search" ? searchPage : catalogState.route.indexOf("library_") === 0 || catalogState.route === "history" || appState.page === "Library" && catalogState.route === "home" ? libraryPage : browsePage
             Component { id: collectionPage; CollectionPane {} }
             Component { id: artistPage; ArtistPane {} }
@@ -228,11 +229,13 @@ ApplicationWindow {
         }
         Column {
             anchors.centerIn: parent; width: parent.width - 80; spacing: 20
-            visible: appState.page === "Downloads"
+            visible: appState.page === "Downloads" && !appState.expanded
             Text { width: parent.width; text: appState.page; horizontalAlignment: Text.AlignHCenter; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 }
             Text { width: parent.width; text: appState.page === "Downloads" ? "Your downloaded music will appear here." : "Connect YouTube Music to browse your music."; horizontalAlignment: Text.AlignHCenter; color: Theme.secondary; font.pixelSize: 15 }
             Button { anchors.horizontalCenter: parent.horizontalCenter; text: "Connect YouTube Music"; visible: !accountState.connected; onClicked: appState.openAccount() }
         }
+
+        Loader { anchors.fill: parent; active: appState.expanded; sourceComponent: Component { ExpandedPane {} } }
 
     }
 
@@ -279,7 +282,7 @@ ApplicationWindow {
             Slider { width: 84; height: 40; visible: window.width >= 1200; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
             IconButton { iconName: "repeat"; iconColor: playerState.repeat !== "off" ? "white" : Theme.secondary; tip: "Repeat: " + playerState.repeat; enabled: playerState.hasTrack; onClicked: appState.requestAction("repeat"); Text { visible: playerState.repeat === "one"; anchors.centerIn: parent; text: "1"; font.pixelSize: 9; color: "white" } }
             IconButton { iconName: "shuffle"; iconColor: playerState.shuffled ? "white" : Theme.secondary; tip: "Shuffle"; enabled: playerState.hasTrack; onClicked: appState.requestAction("shuffle") }
-            IconButton { iconName: "up"; tip: "Expand player"; enabled: playerState.hasTrack; onClicked: appState.requestAction("expandPlayer") }
+            IconButton { iconName: appState.expanded ? "down" : "up"; tip: appState.expanded ? "Close player page" : "Expand player"; enabled: playerState.hasTrack || appState.expanded; onClicked: appState.requestAction("expandPlayer") }
         }
     }
 
@@ -324,8 +327,32 @@ ApplicationWindow {
     MediaMenu { id: mediaMenu }
     PlaylistDialogs { id: playlistDialogs; anchors.fill: parent }
     Connections { target: appState; function onMenuRequested(media, context) { mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
-    Shortcut { sequence: "Alt+Left"; onActivated: browseState.back() }
-    Shortcut { sequence: "/"; enabled: !window.editingText && !window.modalOpen; onActivated: search.forceActiveFocus() }
+    Dialog {
+        id: shortcutHelp
+        width: Math.min(580, window.width - 80)
+        anchors.centerIn: parent; modal: true; title: "Keyboard shortcuts"; standardButtons: Dialog.Close
+        palette.window: "#212121"; palette.windowText: "white"
+        contentItem: Label {
+            color: "white"; lineHeight: 1.7
+            text: "Space — Play / pause\nShift+N / Shift+P — Next / previous\nLeft / Right — Seek 5 seconds\nShift+Left / Shift+Right — Seek 10 seconds\n+ / − — Volume\nM — Mute\nS / R — Shuffle / repeat\nF / Escape — Open / close player\n/ or Ctrl+F — Search\nAlt+Left — Back\nAlt+Up / Alt+Down — Move focused queue entry\nDelete — Remove focused queue entry"
+        }
+    }
+    Shortcut { sequence: "Alt+Left"; enabled: window.playbackShortcuts; onActivated: { appState.setExpanded(false); browseState.back() } }
+    Shortcut { sequence: "/"; enabled: window.playbackShortcuts; onActivated: search.forceActiveFocus() }
     Shortcut { sequence: "Ctrl+F"; enabled: !window.modalOpen; onActivated: search.forceActiveFocus() }
-    Shortcut { sequence: "Space"; enabled: !window.editingText && !window.modalOpen && !mediaMenu.opened; onActivated: playerState.togglePlayback() }
+    Shortcut { sequence: "Space"; enabled: window.playbackShortcuts; onActivated: playerState.togglePlayback() }
+    Shortcut { sequence: "Shift+N"; enabled: window.playbackShortcuts; onActivated: playerState.next() }
+    Shortcut { sequence: "Shift+P"; enabled: window.playbackShortcuts; onActivated: playerState.previous() }
+    Shortcut { sequence: "Left"; enabled: window.playbackShortcuts; onActivated: playerState.seek(playerState.position - 5) }
+    Shortcut { sequence: "Right"; enabled: window.playbackShortcuts; onActivated: playerState.seek(playerState.position + 5) }
+    Shortcut { sequence: "Shift+Left"; enabled: window.playbackShortcuts; onActivated: playerState.seek(playerState.position - 10) }
+    Shortcut { sequence: "Shift+Right"; enabled: window.playbackShortcuts; onActivated: playerState.seek(playerState.position + 10) }
+    Shortcut { sequences: ["+", "="]; enabled: window.playbackShortcuts; onActivated: appState.setVolume(appState.volume + 5) }
+    Shortcut { sequence: "-"; enabled: window.playbackShortcuts; onActivated: appState.setVolume(appState.volume - 5) }
+    Shortcut { sequence: "M"; enabled: window.playbackShortcuts; onActivated: appState.toggleMute() }
+    Shortcut { sequence: "S"; enabled: window.playbackShortcuts; onActivated: appState.requestAction("shuffle") }
+    Shortcut { sequence: "R"; enabled: window.playbackShortcuts; onActivated: appState.requestAction("repeat") }
+    Shortcut { sequence: "F"; enabled: window.playbackShortcuts && playerState.hasTrack; onActivated: appState.requestAction("expandPlayer") }
+    Shortcut { sequence: "Escape"; enabled: window.playbackShortcuts && appState.expanded; onActivated: appState.setExpanded(false) }
+    Shortcut { sequence: "?"; enabled: window.playbackShortcuts; onActivated: shortcutHelp.open() }
 }

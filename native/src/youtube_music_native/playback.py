@@ -173,6 +173,33 @@ class Playback(QObject):
             self._failures = 0
             self._start()
 
+    def _key_index(self, key):
+        return next((index for index, entry in enumerate(self.queue.entries) if entry["key"] == key), -1)
+
+    @Slot(str)
+    def selectKey(self, key):
+        index = self._key_index(key)
+        if index >= 0:
+            self.select(index)
+
+    @Slot(str)
+    def removeKey(self, key):
+        index = self._key_index(key)
+        if index >= 0:
+            self.remove(index)
+
+    @Slot(str, int)
+    def moveKey(self, key, direction):
+        index = self._key_index(key)
+        if index >= 0:
+            self.move(index, index + direction)
+
+    @Slot(str, str)
+    def moveToKey(self, key, target):
+        source, destination = self._key_index(key), self._key_index(target)
+        if source >= 0 and destination >= 0:
+            self.move(source, destination)
+
     def _start(self, position=0, paused=False, force=False, damaged=False):
         if self.worker:
             if self._request is not None:

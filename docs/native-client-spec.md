@@ -83,7 +83,7 @@ Fix missed targets before the Linux release and attach actual results. Visual ch
 | Home/sidebar/search/shelves/bottom player | Running app inspected during planning; private capture is outside the repository |
 | Explore/search/library | Explore and Library captured privately; search input inspected through accessibility. Search-results visual comparison remains in LUNE-348 |
 | Playlist/album/artist | Album/artist private captures and playlist accessibility geometry inspected; live native pages checked at both sizes. Final playlist screenshot comparison remains in LUNE-348 |
-| Expanded player/queue/lyrics | Capture layouts, keyboard actions and empty states |
+| Expanded player/queue/lyrics | Expanded artwork/queue/tab geometry inspected through accessibility; native layouts checked at both sizes, with queue keyboard editing and missing/timed lyric tests. KDE denied targeted window capture; final screenshot comparison remains in LUNE-348 |
 | Downloads | New view following the existing visual language |
 | Performance | Preliminary memory sample only; controlled baseline belongs to the verification work |
 

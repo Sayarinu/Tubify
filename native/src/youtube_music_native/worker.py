@@ -17,12 +17,19 @@ from .sources import SourceError, Sources
 from .downloads import DownloadError, Downloads
 from .mutations import ActionError, perform
 from .playlist_ops import PlaylistError, perform as playlist_action
+from .lyric_data import Lyrics, LyricsError
 
 
 def handle(service, request, resources=None, progress=None):
     operation = request.get("operation")
     payload = request.get("payload") or {}
     resources = resources if resources is not None else {}
+    if operation == "lyrics":
+        root = str(Path(payload["data_dir"]).resolve())
+        key = ("lyrics", root)
+        if key not in resources:
+            resources[key] = Lyrics(service, root)
+        return resources[key].fetch(payload["videoId"], bool(payload.get("refresh")))
     if isinstance(operation, str) and operation.startswith("downloads_"):
         resources = resources if resources is not None else {}
         root = str(Path(payload["data_dir"]).resolve())
@@ -108,7 +115,7 @@ def handle(service, request, resources=None, progress=None):
 
 
 def safe_error(error):
-    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError, ActionError, PlaylistError)):
+    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError, ActionError, PlaylistError, LyricsError)):
         return {"code": type(error).__name__, "message": str(error)}
     import requests
 

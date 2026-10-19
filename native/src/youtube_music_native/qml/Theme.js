@@ -33,6 +33,7 @@ var paths = {
     right: "M9 5l7 7l-7 7",
     up: "M5 15l7-7l7 7",
     down: "M5 9l7 7l7-7",
+    drag: "M5 8h14M5 12h14M5 16h14",
     music: "M9 4v12a4 3 0 1 1-2-2V6l12-3v11a4 3 0 1 1-2-2V1z",
     profile: "M12 3a4 4 0 1 0 0 8a4 4 0 1 0 0-8M4 22v-3a8 6 0 0 1 16 0v3",
     close: "M5 5l14 14M19 5L5 19",
