@@ -7,12 +7,12 @@ Item {
     objectName: "expandedPlayer"
     Item {
         id: artworkPane
-        width: parent.width * 0.625
+        width: parent.width * (root.width < 1000 ? 0.40 : 0.48)
         height: parent.height
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter; y: 32
-            width: 76; height: 32; radius: 16; color: "#303030"
-            Text { anchors.centerIn: parent; text: "Song"; color: "white"; font.pixelSize: 14 }
+            width: 120; height: 32; radius: 16; color: Theme.hover
+            Text { anchors.centerIn: parent; text: "Now playing"; color: "white"; font.pixelSize: 14 }
         }
         Cover {
             anchors.horizontalCenter: parent.horizontalCenter
@@ -21,7 +21,7 @@ Item {
             y: 64 + (artworkPane.height - 64 - height) / 2
             source: playerState.currentTrack.thumbnail || ""
             mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""
-            accent: playerState.currentTrack.accent || "#29363b"
+            accent: playerState.currentTrack.accent || Theme.selected
             radius: 4
             Accessible.role: Accessible.Graphic
             Accessible.name: "Artwork for " + (playerState.currentTrack.title || "current song")
@@ -48,9 +48,9 @@ Item {
                     onClicked: appState.setPlayerTab(modelData)
                     contentItem: Text { text: parent.text; color: parent.checked ? "white" : Theme.secondary; font: parent.font; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     background: Rectangle {
-                        color: parent.hovered ? "#202020" : "transparent"
+                        color: parent.hovered ? Theme.surface : "transparent"
                         border.width: parent.visualFocus ? 1 : 0; border.color: "white"
-                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: "white"; visible: parent.parent.checked }
+                        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent; visible: parent.parent.checked }
                     }
                 }
             }
@@ -71,7 +71,18 @@ Item {
                             Text { text: "Autoplay"; color: "white"; font.pixelSize: 14 }
                             Text { width: parent.width; text: "Add similar music"; color: Theme.secondary; font.pixelSize: 12; elide: Text.ElideRight }
                         }
-                        Switch { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; checked: playerState.autoplay; Accessible.name: "Autoplay similar music"; onClicked: playerState.toggleAutoplay() }
+                        Switch {
+                            id: autoplaySwitch
+                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            checked: playerState.autoplay; Accessible.name: "Autoplay similar music"
+                            onClicked: playerState.toggleAutoplay()
+                            indicator: Rectangle {
+                                implicitWidth: 40; implicitHeight: 24; x: autoplaySwitch.leftPadding; y: (autoplaySwitch.height - height) / 2
+                                radius: 12; color: autoplaySwitch.checked ? Theme.accent : Theme.border
+                                border.width: autoplaySwitch.visualFocus ? 2 : 0; border.color: Theme.foreground
+                                Rectangle { x: autoplaySwitch.checked ? parent.width - width - 3 : 3; y: 3; width: 18; height: 18; radius: 9; color: autoplaySwitch.checked ? Theme.onAccent : Theme.secondary }
+                            }
+                        }
                     }
                     ListView {
                         id: queue
@@ -88,7 +99,7 @@ Item {
                             required property int index
                             width: queue.width; height: 64
                             function focusEntry() { song.forceActiveFocus() }
-                            Rectangle { anchors.fill: parent; color: queueEntry.modelData.current ? "#292929" : "transparent" }
+                            Rectangle { anchors.fill: parent; color: queueEntry.modelData.current ? Theme.hover : "transparent" }
                             SongRow {
                                 id: song
                                 focus: true

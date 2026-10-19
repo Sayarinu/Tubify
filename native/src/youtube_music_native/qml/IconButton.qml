@@ -17,9 +17,9 @@ ToolButton {
     ToolTip.delay: 600
     background: Rectangle {
         radius: width / 2
-        color: root.down ? "#444444" : root.hovered ? Theme.hover : "transparent"
+        color: root.down ? Theme.border : root.hovered ? Theme.hover : "transparent"
         border.width: root.visualFocus ? 2 : root.outlined ? 1 : 0
-        border.color: root.visualFocus ? Theme.foreground : "#3a3a3a"
+        border.color: root.visualFocus ? Theme.accent : Theme.border
     }
     contentItem: Item {
         Symbol {
@@ -27,7 +27,7 @@ ToolButton {
             width: root.iconSize
             height: root.iconSize
             name: root.iconName
-            color: root.enabled ? root.iconColor : "#666666"
+            color: root.enabled ? root.iconColor : Theme.muted
         }
     }
 }

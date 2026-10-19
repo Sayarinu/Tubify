@@ -91,7 +91,7 @@ def main():
                     window.resize(*size)
                     QTest.qWait(80)
                     pane = window.findChild(QObject, "expandedPlayer")
-                    assert pane.property("width") >= 680 and pane.property("height") >= 480
+                    assert pane.property("width") >= 680 and pane.property("height") == size[1] - 180
                 shell.setExpanded(False)
                 assert player.position == state[1] and player.playing == state[0]
                 assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")

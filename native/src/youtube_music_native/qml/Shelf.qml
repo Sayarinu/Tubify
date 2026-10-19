@@ -11,7 +11,7 @@ Item {
     signal playRequested(var item)
     signal moreRequested()
     signal playAllRequested()
-    implicitHeight: heading.height + (compact ? 4 : 16) + (compact ? 256 : 231)
+    implicitHeight: heading.height + (compact ? 4 : 16) + (compact ? 256 : Theme.cardHeight)
     Row {
         id: heading
         width: parent.width - actions.width - 24
@@ -27,7 +27,7 @@ Item {
             width: parent.width - (root.section.subtitle ? 72 : 0)
             anchors.verticalCenter: parent.verticalCenter; spacing: 4
             Text { width: parent.width; visible: !!root.section.subtitle; text: root.section.subtitle || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.pixelSize: 14; font.family: Theme.bodyFont }
-            Text { width: parent.width; text: root.section.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 28 }
+            Text { width: parent.width; text: root.section.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 24 }
         }
     }
     Row {
@@ -39,7 +39,7 @@ Item {
             text: root.compact ? "Play all" : "More"
             height: 36; leftPadding: 16; rightPadding: 16
             palette.buttonText: Theme.foreground
-            background: Rectangle { radius: 18; color: more.hovered ? "#222222" : "transparent"; border.color: more.visualFocus ? "white" : "#333333" }
+            background: Rectangle { radius: 18; color: more.hovered ? Theme.surface : "transparent"; border.color: more.visualFocus ? "white" : Theme.border }
             onClicked: root.compact ? root.playAllRequested() : root.moreRequested()
         }
         IconButton { iconName: "left"; tip: "Previous items"; outlined: true; width: 36; height: 36; enabled: cards.contentX > 0; onClicked: cards.contentX = Math.max(0, cards.contentX - cards.width) }
@@ -48,14 +48,14 @@ Item {
     ListView {
         id: cards
         anchors.top: heading.bottom; anchors.topMargin: root.compact ? 4 : 16
-        width: parent.width; height: root.compact ? 256 : 231
+        width: parent.width; height: root.compact ? 256 : Theme.cardHeight
         clip: true; orientation: ListView.Horizontal; spacing: root.compact ? 28 : 24
         model: root.compact ? Math.ceil((root.section.items || []).length / 4) : (root.section.items || [])
         boundsBehavior: Flickable.StopAtBounds
         delegate: Loader {
             required property int index
             property var media: root.compact ? ({}) : root.section.items[index]
-            width: root.compact ? Math.min(436, Math.max(280, cards.width * 0.53)) : 146
+            width: root.compact ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
             height: cards.height
             sourceComponent: root.compact ? rowColumn : mediaCard
             Component {

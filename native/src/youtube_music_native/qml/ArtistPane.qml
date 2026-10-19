@@ -6,21 +6,21 @@ Item {
     id: root
     clip: true
     property var artist: catalogState.data
-    property real gutter: width > 900 ? 106 : 40
+    property real gutter: Theme.gutter(width)
     property bool descriptionExpanded: false
     Image { id: hero; objectName: "artistHero"; y: (sections.headerItem ? sections.headerItem.y : 0) - sections.contentY; width: root.width; height: 400; source: root.artist.hero || ""; visible: !!root.artist.hero; asynchronous: true; fillMode: Image.PreserveAspectCrop; opacity: 0.45 }
-    Rectangle { y: hero.y; width: root.width; height: 400; visible: !!root.artist.hero; gradient: Gradient { GradientStop { position: 0; color: "#00000000" } GradientStop { position: 1; color: "black" } } }
+    Rectangle { y: hero.y; width: root.width; height: 400; visible: !!root.artist.hero; gradient: Gradient { GradientStop { position: 0; color: "#00000000" } GradientStop { position: 1; color: Theme.background } } }
     ListView {
         id: sections
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
-        clip: true; spacing: 64; bottomMargin: 48
+        clip: true; spacing: 36; bottomMargin: 48
         model: root.artist.shelves || []; ScrollBar.vertical: ScrollBar {}
         header: Item {
             width: sections.width; height: summary.y + summary.height + 48
             Column {
                 id: summary
                 y: 224; width: parent.width
-                Text { width: parent.width; text: root.artist.title || "Artist"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.family: Theme.headingFont; font.pixelSize: 30; font.bold: true }
+                Text { width: parent.width; text: root.artist.title || "Artist"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.family: Theme.headingFont; font.pixelSize: root.width > 900 ? 48 : 36; font.bold: true }
                 Text { text: root.artist.monthlyListeners ? root.artist.monthlyListeners + " monthly audience" : ""; textFormat: Text.PlainText; color: Theme.secondary; font.pixelSize: 14; height: 17 }
                 Item { width: 1; height: 16 }
                 Text { width: Math.min(parent.width, 700); text: root.artist.subtitle || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: root.descriptionExpanded ? 1000 : 2; elide: Text.ElideRight; color: "white"; font.pixelSize: 14; lineHeight: 1.25 }
@@ -28,16 +28,17 @@ Item {
                 Item { width: 1; height: 20 }
                 Row {
                     spacing: 8
-                    Button { id: shuffle; text: "Shuffle"; height: 36; width: 136; enabled: !!root.artist.shuffleId; palette.buttonText: "black"; background: Rectangle { radius: 18; color: shuffle.hovered ? "#dddddd" : "white" } onClicked: browseState.startRadio(root.artist.shuffleId, true) }
-                    Button { id: mix; text: "Mix"; height: 36; width: 136; enabled: !!root.artist.radioId; palette.buttonText: "black"; background: Rectangle { radius: 18; color: mix.hovered ? "#dddddd" : "white" } onClicked: browseState.startRadio(root.artist.radioId, false) }
+                    Button { id: shuffle; objectName: "artistShuffle"; text: "Shuffle"; height: 36; width: 136; enabled: !!root.artist.shuffleId; palette.buttonText: Theme.onAccent; background: Rectangle { radius: 18; color: shuffle.hovered ? Theme.accentHover : Theme.accent; border.width: shuffle.visualFocus ? 2 : 0; border.color: Theme.foreground } onClicked: browseState.startRadio(root.artist.shuffleId, true) }
+                    Button { id: mix; objectName: "artistMix"; text: "Mix"; height: 36; width: 136; enabled: !!root.artist.radioId; palette.buttonText: Theme.onAccent; background: Rectangle { radius: 18; color: mix.hovered ? Theme.accentHover : Theme.accent; border.width: mix.visualFocus ? 2 : 0; border.color: Theme.foreground } onClicked: browseState.startRadio(root.artist.radioId, false) }
                     Button {
                         id: subscription
+                        objectName: "artistSubscribe"
                         text: (root.artist.subscribed ? "Subscribed" : "Subscribe") + (root.artist.subscribers ? " " + root.artist.subscribers : "")
                         height: 36; leftPadding: 16; rightPadding: 16
                         visible: !!root.artist.subscriptionId
                         enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode)
                         palette.buttonText: root.artist.subscribed ? "white" : Theme.accent
-                        background: Rectangle { radius: 18; color: subscription.hovered ? "#222222" : "transparent"; border.color: root.artist.subscribed ? "#666666" : Theme.accent }
+                        background: Rectangle { radius: 18; color: subscription.hovered ? Theme.surface : "transparent"; border.width: subscription.visualFocus ? 2 : 1; border.color: subscription.visualFocus ? Theme.foreground : root.artist.subscribed ? Theme.muted : Theme.accent }
                         onClicked: actionsState.set("artist_subscription", root.artist.subscriptionId, !root.artist.subscribed, catalogState.parameters.id)
                     }
                 }

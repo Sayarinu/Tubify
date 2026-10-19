@@ -15,6 +15,22 @@ ApplicationWindow {
     color: Theme.background
     font.family: Theme.bodyFont
     font.pixelSize: 14
+    palette.window: Theme.surface
+    palette.base: Theme.background
+    palette.alternateBase: Theme.surface
+    palette.button: Theme.surface
+    palette.text: Theme.foreground
+    palette.windowText: Theme.foreground
+    palette.buttonText: Theme.foreground
+    palette.accent: Theme.accent
+    palette.highlight: Theme.accent
+    palette.highlightedText: Theme.onAccent
+    palette.midlight: Theme.hover
+    palette.mid: Theme.border
+    palette.light: Theme.border
+    palette.dark: Theme.background
+    palette.link: Theme.accent
+    property bool wideNavigation: appState.sidebarExpanded && width >= 1100
     onClosing: appState.saveWindow(width, height)
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
     property bool modalOpen: accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
@@ -25,14 +41,15 @@ ApplicationWindow {
         anchors.right: parent.right
         height: 370
         gradient: Gradient {
-            GradientStop { position: 0; color: !appState.expanded && appState.page === "Home" && catalogState.route === "home" ? "#071b22" : Theme.background }
+            GradientStop { position: 0; color: !appState.expanded && appState.page === "Home" && catalogState.route === "home" ? "#251e36" : Theme.background }
             GradientStop { position: 1; color: Theme.background }
         }
     }
 
     Rectangle {
         id: sidebar
-        width: appState.sidebarExpanded ? 240 : 72
+        objectName: "navigationRail"
+        width: window.wideNavigation ? 240 : 72
         anchors.top: parent.top
         anchors.bottom: player.top
         color: Theme.background
@@ -45,7 +62,7 @@ ApplicationWindow {
         }
         Row {
             x: 60; y: 12; spacing: 0
-            visible: appState.sidebarExpanded
+            visible: window.wideNavigation
             Image { width: 34; height: 40; source: "../assets/music.svg"; fillMode: Image.PreserveAspectFit }
             Text { text: "Music"; color: Theme.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 24; height: 40; verticalAlignment: Text.AlignVCenter }
         }
@@ -53,7 +70,7 @@ ApplicationWindow {
             id: navigation
             x: 8; y: 72; width: sidebar.width - 16
             Repeater {
-                model: [{label:"Home",icon:"home"}, {label:"Explore",icon:"explore"}, {label:"Library",icon:"library"}, {label:"Downloads",icon:"download"}]
+                model: [{label:"Home",icon:"home"}, {label:"Search",icon:"search"}, {label:"Explore",icon:"explore"}, {label:"Library",icon:"library"}, {label:"Downloads",icon:"download"}]
                 delegate: Button {
                     id: nav
                     required property var modelData
@@ -62,54 +79,63 @@ ApplicationWindow {
                     padding: 0
                     text: modelData.label
                     Accessible.name: text
-                    onClicked: appState.navigate(text)
+                    onClicked: { if (text === "Search") search.forceActiveFocus(); else appState.navigate(text) }
                     background: Rectangle {
                         radius: 8
-                        color: appState.page === nav.text ? "#212121" : nav.hovered ? "#141414" : "transparent"
+                        color: appState.page === nav.text ? Theme.selected : nav.hovered ? Theme.hover : "transparent"
                         border.width: nav.visualFocus ? 2 : 0
-                        border.color: "white"
+                        border.color: Theme.accent
+                        Rectangle { x: 0; y: 12; width: 3; height: 24; radius: 2; color: Theme.accent; visible: appState.page === nav.text }
                     }
                     contentItem: Row {
                         leftPadding: 16; spacing: 20
-                        Symbol { anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon }
-                        Text { anchors.verticalCenter: parent.verticalCenter; visible: appState.sidebarExpanded; text: nav.text; color: Theme.foreground; font.family: Theme.bodyFont; font.pixelSize: 16 }
+                        Symbol { anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon; color: appState.page === nav.text ? Theme.accent : Theme.secondary }
+                        Text { anchors.verticalCenter: parent.verticalCenter; visible: window.wideNavigation; text: nav.text; color: Theme.foreground; font.family: Theme.bodyFont; font.pixelSize: 16 }
                     }
                     ToolTip.text: text
-                    ToolTip.visible: !appState.sidebarExpanded && hovered
+                    ToolTip.visible: !window.wideNavigation && hovered
                 }
             }
         }
-        Rectangle { x: 24; y: navigation.y + navigation.height + 24; width: sidebar.width - 48; height: 1; color: Theme.border }
+        Rectangle { x: 16; y: navigation.y + navigation.height + 12; width: sidebar.width - 48; height: 1; color: Theme.border }
         Button {
             id: newPlaylist
-            x: 20; y: navigation.y + navigation.height + 48
-            width: sidebar.width - 40; height: 36
-            visible: appState.sidebarExpanded
-            text: "+  New playlist"
+            x: 12; y: navigation.y + navigation.height + 24
+            width: sidebar.width - 24; height: 40
+            text: window.wideNavigation ? "+  New playlist" : "+"
+            Accessible.name: "New playlist"
+            ToolTip.text: "New playlist"
+            ToolTip.visible: hovered
             font.pixelSize: 14
             palette.buttonText: Theme.foreground
-            background: Rectangle { radius: 20; color: newPlaylist.hovered ? "#303030" : "#212121"; border.width: newPlaylist.visualFocus ? 2 : 0; border.color: "white" }
+            background: Rectangle { radius: 20; color: newPlaylist.hovered ? Theme.hover : Theme.surface; border.width: newPlaylist.visualFocus ? 2 : 0; border.color: "white" }
             onClicked: appState.requestAction("newPlaylist")
         }
         ListView {
             anchors.top: newPlaylist.bottom
-            anchors.topMargin: 24
+            anchors.topMargin: 12
             anchors.bottom: parent.bottom
             width: parent.width
             clip: true
-            visible: appState.sidebarExpanded
             model: appState.playlists
             delegate: ItemDelegate {
                 required property var modelData
                 width: ListView.view.width
                 height: 56
-                leftPadding: 24
-                contentItem: Column {
-                    spacing: 5
-                    Text { text: modelData.title; textFormat: Text.PlainText; color: Theme.foreground; font.family: Theme.bodyFont; font.pixelSize: 14; width: sidebar.width - 48; elide: Text.ElideRight }
-                    Text { text: modelData.owner || ""; textFormat: Text.PlainText; color: Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 12 }
+                padding: 0
+                Accessible.name: modelData.title
+                ToolTip.text: modelData.title
+                ToolTip.visible: hovered && !window.wideNavigation
+                contentItem: Item {
+                    Cover { x: 16; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 8; source: modelData.thumbnail || ""; mediaKey: "playlist:" + modelData.id; accent: Theme.selected }
+                    Column {
+                        x: 68; anchors.verticalCenter: parent.verticalCenter; width: parent.width - 80; spacing: 4
+                        visible: window.wideNavigation
+                        Text { width: parent.width; text: modelData.title; textFormat: Text.PlainText; color: Theme.foreground; font.pixelSize: 14; elide: Text.ElideRight }
+                        Text { width: parent.width; text: modelData.owner || ""; textFormat: Text.PlainText; color: Theme.secondary; font.pixelSize: 12; elide: Text.ElideRight }
+                    }
                 }
-                background: Rectangle { color: parent.hovered ? "#151515" : "transparent" }
+                background: Rectangle { radius: 8; color: parent.hovered ? Theme.hover : "transparent"; border.color: parent.visualFocus ? Theme.accent : "transparent" }
                 onClicked: appState.requestAction("playlist:" + modelData.id)
             }
         }
@@ -120,12 +146,13 @@ ApplicationWindow {
         anchors.left: sidebar.right
         anchors.right: parent.right
         height: 64
+        IconButton { x: 12; y: 10; iconName: "left"; tip: "Back"; onClicked: { appState.setExpanded(false); browseState.back() } }
         TextField {
             id: search
             objectName: "searchField"
-            x: Math.min(100, Math.max(32, (header.width - 720) / 2))
+            x: 68
             y: 11
-            width: Math.min(480, header.width - 160)
+            width: Math.min(480, header.width - 200)
             height: 42
             leftPadding: 52
             rightPadding: text.length > 0 ? 48 : 16
@@ -135,7 +162,7 @@ ApplicationWindow {
             font.pixelSize: 16
             selectByMouse: true
             Accessible.name: "Search YouTube Music"
-            background: Rectangle { radius: 8; color: search.activeFocus ? "#303539" : "#2c3337"; border.color: search.activeFocus ? "#aaaaaa" : "#495155"; border.width: 1 }
+            background: Rectangle { radius: 12; color: search.activeFocus ? Theme.hover : Theme.surface; border.color: search.activeFocus ? Theme.accent : Theme.border; border.width: 1 }
             Symbol { x: 16; anchors.verticalCenter: parent.verticalCenter; name: "search"; width: 20; height: 20; color: "#a2abad" }
             IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; visible: search.text.length > 0; iconName: "close"; tip: "Clear search"; onClicked: { search.clear(); searchState.clearSuggestions(); search.forceActiveFocus() } }
             onAccepted: {
@@ -153,7 +180,7 @@ ApplicationWindow {
                 height: Math.min(360, searchState.suggestions.length * 44 + 16)
                 padding: 8; focus: false
                 visible: search.activeFocus && searchState.suggestions.length > 0
-                background: Rectangle { color: "#292929"; radius: 8 }
+                background: Rectangle { color: Theme.hover; radius: 8 }
                 contentItem: ListView {
                     id: suggestions
                     clip: true; currentIndex: -1; model: searchState.suggestions
@@ -162,7 +189,7 @@ ApplicationWindow {
                         required property int index
                         width: suggestions.width; height: 44
                         highlighted: index === suggestions.currentIndex
-                        background: Rectangle { color: parent.highlighted ? "#414141" : parent.hovered ? "#373737" : "transparent"; radius: 4 }
+                        background: Rectangle { color: parent.highlighted ? Theme.selected : parent.hovered ? Theme.hover : "transparent"; radius: 4 }
                         contentItem: Text { text: modelData; textFormat: Text.PlainText; color: "white"; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; font.pixelSize: 15 }
                         onClicked: { search.text = modelData; appState.search(modelData) }
                     }
@@ -172,7 +199,7 @@ ApplicationWindow {
         IconButton {
             id: profileButton
             anchors.right: parent.right
-            anchors.rightMargin: header.width > 900 ? 96 : 24
+            anchors.rightMargin: 16
             y: 10
             width: 44; height: 44
             iconName: "profile"
@@ -210,11 +237,13 @@ ApplicationWindow {
 
     Item {
         id: content
+        objectName: "pageContent"
         anchors.left: sidebar.right
         anchors.right: parent.right
         anchors.top: reconnectBanner.bottom
         anchors.bottom: player.top
-        property real gutter: width > 900 ? 106 : 40
+        anchors.bottomMargin: 12
+        property real gutter: Theme.gutter(width)
 
         Loader {
             id: pages
@@ -233,59 +262,17 @@ ApplicationWindow {
 
     }
 
-    Rectangle {
+    PlayerBar {
         id: player
-        objectName: "playerBar"
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: 72
-        color: Theme.surface
-        Rectangle { width: parent.width; height: 1; color: "#444444" }
-        Rectangle { width: parent.width * playerState.progress; height: 2; color: Theme.accent }
-        ProgressBar { width: parent.width; height: 3; visible: playerState.busy; indeterminate: visible }
-        MouseArea { anchors.left: parent.left; anchors.right: parent.right; y: -4; height: 12; enabled: playerState.hasTrack; cursorShape: Qt.PointingHandCursor; onPressed: function(mouse) { playerState.seekFraction(mouse.x / width) } }
-        Row {
-            x: 4; anchors.verticalCenter: parent.verticalCenter
-            IconButton { iconName: "previous"; tip: "Previous"; enabled: playerState.hasTrack; onClicked: appState.requestAction("previous") }
-            IconButton { iconName: playerState.playing ? "pause" : "play"; iconSize: 32; width: 56; tip: playerState.playing ? "Pause" : "Play"; enabled: playerState.hasTrack; onClicked: playerState.togglePlayback() }
-            IconButton { iconName: "next"; tip: "Next"; enabled: playerState.hasTrack; onClicked: appState.requestAction("next") }
-        }
-        Text { x: 168; anchors.verticalCenter: parent.verticalCenter; text: playerState.progressText; color: Theme.secondary; font.pixelSize: 11 }
-        Cover { id: trackCover; x: 280; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 2; source: playerState.currentTrack.thumbnail || ""; mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""; accent: playerState.currentTrack.accent || "#333333" }
-        Column {
-            id: trackInfo
-            x: 336; anchors.verticalCenter: parent.verticalCenter
-            width: Math.max(160, window.width - 800)
-            spacing: 1
-            Text { width: parent.width; text: playerState.currentTrack.title || "Nothing playing"; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.foreground; font.family: Theme.bodyFont; font.pixelSize: 14 }
-            Text { width: parent.width; text: playerState.currentTrack.artist || "Choose a song to get started"; textFormat: Text.PlainText; elide: Text.ElideRight; color: Theme.secondary; font.family: Theme.bodyFont; font.pixelSize: 14 }
-        }
-        Row {
-            anchors.left: trackInfo.right
-            anchors.leftMargin: 16
-            anchors.verticalCenter: parent.verticalCenter
-            IconButton { iconName: "like"; tip: playerState.currentTrack.rating === "LIKE" ? "Remove like" : "Like"; iconColor: playerState.currentTrack.rating === "LIKE" ? Theme.accent : "white"; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("like") }
-            IconButton { iconName: "dislike"; tip: playerState.currentTrack.rating === "DISLIKE" ? "Remove dislike" : "Dislike"; iconColor: playerState.currentTrack.rating === "DISLIKE" ? Theme.accent : "white"; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("dislike") }
-            IconButton { iconName: "more"; tip: "More options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
-        }
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: 12
-            anchors.verticalCenter: parent.verticalCenter
-            IconButton { iconName: appState.volume > 0 ? "volume" : "muted"; iconColor: Theme.secondary; tip: appState.volume > 0 ? "Mute" : "Unmute"; onClicked: appState.toggleMute() }
-            Slider { width: 84; height: 40; visible: window.width >= 1200; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
-            IconButton { iconName: "repeat"; iconColor: playerState.repeat !== "off" ? "white" : Theme.secondary; tip: "Repeat: " + playerState.repeat; enabled: playerState.hasTrack; onClicked: appState.requestAction("repeat"); Text { visible: playerState.repeat === "one"; anchors.centerIn: parent; text: "1"; font.pixelSize: 9; color: "white" } }
-            IconButton { iconName: "shuffle"; iconColor: playerState.shuffled ? "white" : Theme.secondary; tip: "Shuffle"; enabled: playerState.hasTrack; onClicked: appState.requestAction("shuffle") }
-            IconButton { iconName: appState.expanded ? "down" : "up"; tip: appState.expanded ? "Close player page" : "Expand player"; enabled: playerState.hasTrack || appState.expanded; onClicked: appState.requestAction("expandPlayer") }
-        }
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        anchors.margins: 12
     }
 
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: player.top; anchors.bottomMargin: 16
         width: Math.min(600, window.width - 80); height: playbackMessage.implicitHeight + 24
-        radius: 6; color: "#383838"; visible: playbackMessage.text.length > 0
+        radius: 6; color: Theme.hover; visible: playbackMessage.text.length > 0
         Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white"; font.pixelSize: 14 }
     }
 
@@ -296,7 +283,7 @@ ApplicationWindow {
         modal: true
         title: "Connect YouTube Music"
         standardButtons: Dialog.Close
-        palette.window: "#212121"
+        palette.window: Theme.surface
         palette.windowText: "white"
         palette.text: "white"
         contentItem: ColumnLayout {
@@ -326,7 +313,7 @@ ApplicationWindow {
         id: shortcutHelp
         width: Math.min(580, window.width - 80)
         anchors.centerIn: parent; modal: true; title: "Keyboard shortcuts"; standardButtons: Dialog.Close
-        palette.window: "#212121"; palette.windowText: "white"
+        palette.window: Theme.surface; palette.windowText: "white"
         contentItem: Label {
             color: "white"; lineHeight: 1.7
             text: "Space — Play / pause\nShift+N / Shift+P — Next / previous\nLeft / Right — Seek 5 seconds\nShift+Left / Shift+Right — Seek 10 seconds\n+ / − — Volume\nM — Mute\nS / R — Shuffle / repeat\nF / Escape — Open / close player\n/ or Ctrl+F — Search\nAlt+Left — Back\nAlt+Up / Alt+Down — Move focused queue entry\nDelete — Remove focused queue entry"

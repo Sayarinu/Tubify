@@ -20,6 +20,18 @@ Launch the Qt window with `youtube-music-native`. For repeatable visual checks, 
 
 The interface bundles the existing music mark and OFL-licensed Roboto fonts, uses native Qt Quick rendering, and keeps provider work outside the GUI thread. CI creates a real window and decodes a generated local WAV through libmpv on Linux, Windows and macOS. These smoke checks do not replace the later full platform-port acceptance work.
 
+## Development preview
+
+The redesigned UI uses charcoal surfaces and purple accents, a compact expandable navigation rail, a floating player and artwork headers on playlist/album pages. Queue and lyrics open in the expanded player. Navigation collapses below 1100 pixels; the minimum window remains 920×620.
+
+With the native dependencies installed, run the checkout directly from the repository root:
+
+```sh
+PYTHONPATH="$PWD/native/src" python -m youtube_music_native --data-dir /tmp/youtube-music-native-preview
+```
+
+Add `--fixture` to explore synthetic content without account requests. The separate data directory holds preview settings, queue, cache and downloads; `/tmp` contents may disappear after reboot. The OS-keyring account is shared with the installed native application, so importing a session or signing out also affects that application. This preview does not install an Arch package.
+
 ## Arch package
 
 The separate `youtube-music-native` package uses Arch's Python, PySide6/Qt, libmpv, provider libraries, FFmpeg and Deno packages. It installs a **YouTube Music Native** desktop entry alongside the existing Tauri wrapper. Application data, credentials and downloaded media are retained across package upgrades.

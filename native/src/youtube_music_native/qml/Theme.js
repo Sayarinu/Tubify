@@ -1,14 +1,25 @@
 .pragma library
 
-var background = "#030303"
-var surface = "#212121"
-var hover = "#292929"
-var foreground = "#ffffff"
-var secondary = "#b3b3b3"
-var border = "#292929"
-var accent = "#ff0033"
+var background = "#14131b"
+var surface = "#22212b"
+var hover = "#302d3e"
+var foreground = "#f6f4fb"
+var secondary = "#aaa6b8"
+var border = "#36323f"
+var accent = "#a78bfa"
+var accentHover = "#c4b5fd"
+var onAccent = "#201630"
+var selected = "#332b49"
+var muted = "#716b80"
 var bodyFont = "Roboto"
-var headingFont = "Roboto Condensed"
+var headingFont = "Roboto"
+var cardWidth = 208
+var cardHeight = 284
+function gutter(width) { return width > 1200 ? 40 : 24 }
+function timeLabel(value) {
+    var seconds = Math.max(0, Math.floor(value || 0))
+    return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0")
+}
 var filled = { play: true, pause: true, previous: true, next: true, home: true, music: true }
 var paths = {
     menu: "M4 6h16M4 12h16M4 18h16",
@@ -39,5 +50,7 @@ var paths = {
     close: "M5 5l14 14M19 5L5 19",
     check: "M4 12l5 5L20 6",
     history: "M3 10a9 9 0 1 1 1 7M3 4v6h6M12 7v6l4 2",
+    queue: "M3 5h18M3 10h18M3 15h10M16 14l6 4l-6 4z",
+    lyrics: "M4 3h16v15H9l-5 4zM8 7h8M8 11h6",
     edit: "M4 16l12-12l4 4L8 20H4zM14 6l4 4"
 }

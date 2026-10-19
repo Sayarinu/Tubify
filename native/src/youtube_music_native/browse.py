@@ -166,9 +166,9 @@ class Browse(QObject):
             if kind == "artist":
                 data = {"title": media.get("title", "Fixture artist"), "subtitle": "A fixture artist and their music, created for native layout verification.", "monthlyListeners": "2.7M", "subscribers": "41K", "subscriptionId": "UCfixture", "shuffleId": "fixture", "radioId": "fixture", "shelves": [{"title": "Top songs", "items": songs}, {"title": "Albums", "items": [{**value, "kind": "album", "id": "MPREfixture"} for value in songs]}]}
             else:
-                data = {"title": media.get("title", "Fixture album"), "items": songs, "artists": [{"id": "UCfixture", "name": "Fixture artist"}], "year": "2026", "trackCount": len(songs), "audioPlaylistId": "OLAKfixture", "shelves": []}
+                data = {"title": media.get("title", "Fixture album"), "thumbnail": media.get("thumbnail") or (songs[0].get("thumbnail", "") if songs else ""), "subtitle": "A collection for quiet mornings and late nights.", "duration": len(songs) * 180, "items": [{**song, "album": {"name": "Evening sessions", "id": "MPREfixture"}} for song in songs], "artists": [{"id": "UCfixture", "name": "Fixture artist"}], "year": "2026", "trackCount": len(songs), "audioPlaylistId": "OLAKfixture", "shelves": []}
                 if kind == "playlist":
-                    data.update(editable=True, author="Your music", privacy="PRIVATE", items=[{**song, "setVideoId": "entry-" + str(index)} for index, song in enumerate(songs)])
+                    data.update(editable=True, author="Your music", privacy="PRIVATE", items=[{**song, "setVideoId": "entry-" + str(index)} for index, song in enumerate(data["items"])])
             self.view.showLocal(kind, data, {"id": media.get("id", "fixture")})
 
     @Slot("QVariantMap")

@@ -5,7 +5,7 @@ import "Theme.js" as Theme
 Item {
     id: root
     objectName: "libraryPane"
-    property real gutter: width > 900 ? 106 : 40
+    property real gutter: Theme.gutter(width)
     property var result: catalogState.data
     property bool history: catalogState.route === "history"
     property bool rows: history || catalogState.route === "library_songs" || catalogState.route === "library_liked"
@@ -14,7 +14,7 @@ Item {
         Item {
             Row {
                 width: parent.width; height: 52; spacing: 24; visible: !root.history
-                Button { id: libraryTab; text: "LIBRARY"; flat: true; height: 52; palette.windowText: "white"; onClicked: libraryState.select("Playlists"); Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: "white" } }
+                Button { id: libraryTab; text: "LIBRARY"; flat: true; height: 52; palette.windowText: "white"; onClicked: libraryState.select("Playlists"); Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent } }
                 Button { text: "DOWNLOADS"; flat: true; height: 52; palette.windowText: Theme.secondary; onClicked: appState.navigate("Downloads") }
             }
             Rectangle { y: 52; height: 1; width: parent.width; color: Theme.border; visible: !root.history }
@@ -28,8 +28,8 @@ Item {
                     id: filter
                     required property string modelData
                     text: modelData; height: 36; leftPadding: 14; rightPadding: 14
-                    palette.buttonText: libraryState.selectedSection === text ? "black" : "white"
-                    background: Rectangle { radius: 8; color: libraryState.selectedSection === filter.text ? "white" : filter.hovered ? "#353535" : "#222222"; border.color: filter.visualFocus ? Theme.accent : "transparent" }
+                    palette.buttonText: libraryState.selectedSection === text ? Theme.onAccent : Theme.foreground
+                    background: Rectangle { radius: 8; color: libraryState.selectedSection === filter.text ? Theme.accent : filter.hovered ? Theme.hover : Theme.surface; border.color: filter.visualFocus ? Theme.accent : "transparent" }
                     onClicked: libraryState.select(text)
                 }
             }
@@ -38,7 +38,7 @@ Item {
                 x: parent.width - width; y: 84; width: 164; height: 36
                 visible: !root.history && libraryState.selectedSection !== "Playlists" && libraryState.selectedSection !== "Liked songs"
                 model: libraryState.orders; currentIndex: libraryState.orders.indexOf(libraryState.selectedOrder)
-                palette.text: "white"; palette.buttonText: "white"; palette.windowText: "white"; palette.base: "#252525"; palette.button: "#252525"
+                palette.text: "white"; palette.buttonText: "white"; palette.windowText: "white"; palette.base: Theme.surface; palette.button: Theme.surface
                 Accessible.name: "Library sort order"
                 onActivated: libraryState.sort(currentText)
             }
@@ -48,13 +48,13 @@ Item {
         id: grid
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         visible: !root.rows; clip: true; bottomMargin: 32
-        property int columns: Math.max(1, Math.floor((width + 16) / 136))
-        cellWidth: width / columns; cellHeight: cellWidth + 112
+        property int columns: Math.max(1, Math.floor((width + 24) / (Theme.cardWidth + 24)))
+        cellWidth: width / columns; cellHeight: cellWidth + 84
         model: root.result.items || []; ScrollBar.vertical: ScrollBar {}
         header: Loader { width: grid.width; height: 158; sourceComponent: controls }
         delegate: MediaCard {
             required property var modelData
-            width: grid.cellWidth - 16; height: grid.cellHeight - 32; media: modelData
+            width: grid.cellWidth - 24; height: grid.cellHeight - 24; media: modelData
             onActivated: item => browseState.open(item)
             onPlayRequested: item => browseState.play(item)
         }

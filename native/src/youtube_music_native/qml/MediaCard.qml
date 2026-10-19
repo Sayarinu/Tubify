@@ -20,21 +20,24 @@ FocusScope {
     Accessible.onPressAction: activated(media)
     Keys.onReturnPressed: activated(media)
     Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { appState.showMenu(root.media, root.menuContext); event.accepted = true } }
-    implicitWidth: 146
-    implicitHeight: 218
+    implicitWidth: Theme.cardWidth
+    implicitHeight: Theme.cardHeight
+    HoverHandler { id: cardHover }
+    Rectangle { anchors.fill: parent; radius: 10; color: cardHover.hovered ? Theme.hover : Theme.surface; border.color: root.activeFocus ? Theme.accent : Theme.border; border.width: root.activeFocus ? 2 : 1 }
     Cover {
         id: cover
-        width: root.width
+        x: 16; y: 16
+        width: root.width - 32
         height: width
         radius: root.media.kind === "artist" ? width / 2 : 8
         source: root.media.thumbnail || ""
         mediaKey: root.media.kind === "album" || root.media.kind === "playlist" ? root.media.kind + ":" + root.media.id : root.media.videoId || root.media.id || ""
-        accent: root.media.accent || "#283238"
+        accent: root.media.accent || Theme.selected
         Rectangle {
             anchors.fill: parent
             color: "#33000000"
             visible: hover.hovered || root.activeFocus
-            border.color: root.activeFocus ? "white" : "transparent"
+            border.color: root.activeFocus ? Theme.accent : "transparent"
         }
         Symbol {
             anchors.centerIn: parent
@@ -67,28 +70,29 @@ FocusScope {
     Text {
         id: title
         anchors.top: cover.bottom
-        anchors.topMargin: 16
-        width: parent.width
+        anchors.topMargin: 12
+        x: 16; width: parent.width - 32
         text: root.media.title || ""
         textFormat: Text.PlainText
         color: Theme.foreground
         font.family: Theme.bodyFont
         font.pixelSize: 14
-        font.weight: Font.Medium
+        font.weight: Font.Bold
         wrapMode: Text.Wrap
-        maximumLineCount: 2
+        maximumLineCount: 1
         elide: Text.ElideRight
     }
     Text {
         anchors.top: title.bottom
-        anchors.topMargin: 4
-        width: parent.width
+        anchors.topMargin: 6
+        x: 16; width: parent.width - 32
         text: (root.media.label || (root.media.kind ? root.media.kind.charAt(0).toUpperCase() + root.media.kind.slice(1) : "Song")) + (root.media.artist ? " · " + root.media.artist : "")
         textFormat: Text.PlainText
         color: Theme.secondary
         font.family: Theme.bodyFont
         font.pixelSize: 14
-        maximumLineCount: 1
+        wrapMode: Text.Wrap
+        maximumLineCount: 2
         elide: Text.ElideRight
     }
 }

@@ -4,7 +4,7 @@ import "Theme.js" as Theme
 
 Item {
     id: root
-    property real gutter: width > 900 ? 106 : 40
+    property real gutter: Theme.gutter(width)
     property var result: catalogState.data
     ListView {
         id: results
@@ -21,8 +21,8 @@ Item {
                         id: filter
                         required property string modelData
                         text: modelData; height: 36
-                        palette.buttonText: searchState.selectedFilter === text ? "black" : "white"
-                        background: Rectangle { radius: 8; color: searchState.selectedFilter === filter.text ? "white" : filter.hovered ? "#393939" : "#252525"; border.color: filter.visualFocus ? Theme.accent : "transparent" }
+                        palette.buttonText: searchState.selectedFilter === text ? Theme.onAccent : Theme.foreground
+                        background: Rectangle { radius: 8; color: searchState.selectedFilter === filter.text ? Theme.accent : filter.hovered ? Theme.hover : Theme.surface; border.color: filter.visualFocus ? Theme.accent : "transparent" }
                         onClicked: searchState.selectFilter(text)
                     }
                 }

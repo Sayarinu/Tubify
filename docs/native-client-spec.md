@@ -6,9 +6,11 @@ Project: [YouTube Music Native Client](https://linear.app/nouvelle-lune-atelier/
 
 ## Required experience
 
-Use the current signed-in desktop app as the visual reference: dark background, typography hierarchy, top search, left navigation and playlist shortcuts, artwork shelves, context menus and fixed bottom player. Reference geometry is 1280 by 820 pixels with a 240 pixel sidebar and approximately 72 pixel player. Preserve a 920 by 620 minimum, responsive content, visible keyboard focus and accessible controls.
+The post-release visual baseline is the user-approved purple redesign (LUNE-355): charcoal background (#14131B), raised surfaces (#22212B), lavender accents (#A78BFA), bundled Roboto typography, padded artwork cards and full-width browsing. A compact 72 pixel navigation rail expands to 240 pixels when the window is at least 1100 pixels wide; the remembered preference returns when the window grows. The floating bottom player is 92 pixels tall and inset 12 pixels, with content reserved above it. Preserve a 920 by 620 minimum, responsive content, visible keyboard focus and accessible controls.
 
-Required views are Home, Explore, search, library, playlist, album, artist, expanded player, queue, lyrics and Downloads. Capture each reference before implementing its layout. Exclude deferred features from the native controls rather than displaying inactive promises.
+Playlist and album pages use a wide artwork header with cover, title, description and available metadata, followed by collection actions and a virtualized track table. Artwork blurs only within the bounded header and fades into solid charcoal. Software rendering uses a gradient fallback. Artist banners and shelves follow the same theme. Queue and lyrics remain in the expanded player; browsing has no persistent right panel.
+
+Required views are Home, Explore, search, library, playlist, album, artist, expanded player, queue, lyrics and Downloads. Synthetic visual checks cover 1600 by 900, 1280 by 820 and 920 by 620. The original YouTube Music reference inventory below records historical v0.1.0 verification; it is not a pixel-parity requirement for the redesigned UI. Keep private reference screenshots outside the repository.
 
 Required account behavior for the user's single Premium account:
 
@@ -111,6 +113,8 @@ Actual assigned issue identifiers and titles are listed below. Branches use the 
 | [LUNE-348](https://linear.app/nouvelle-lune-atelier/issue/LUNE-348/verify-visual-parity-accessibility-and-failure-recovery) | Verify visual parity, accessibility and failure recovery |
 | [LUNE-349](https://linear.app/nouvelle-lune-atelier/issue/LUNE-349/tune-responsiveness-resource-usage-and-playback-latency) | Tune responsiveness, resource usage and playback latency |
 | [LUNE-350](https://linear.app/nouvelle-lune-atelier/issue/LUNE-350/package-and-release-the-arch-native-client) | Package and release the Arch native client |
+| [LUNE-355](https://linear.app/nouvelle-lune-atelier/issue/LUNE-355) | Redesign the native client with purple accents and artwork-led collection pages |
+| [LUNE-356](https://linear.app/nouvelle-lune-atelier/issue/LUNE-356) | Add a priority manual queue ahead of the playback source |
 | [LUNE-351](https://linear.app/nouvelle-lune-atelier/issue/LUNE-351/port-and-package-the-native-client-for-windows) | Port and package the native client for Windows |
 | [LUNE-352](https://linear.app/nouvelle-lune-atelier/issue/LUNE-352/port-and-package-the-native-client-for-macos) | Port and package the native client for macOS |
 

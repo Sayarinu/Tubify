@@ -1,0 +1,215 @@
+{
+  "ticket": "LUNE-355",
+  "revision": "e58ee58",
+  "content": "Synthetic metadata/artwork and generated local silent audio; no real-account verification in this run.",
+  "unit_tests": {
+    "passed": 119,
+    "note": "118 in sandbox; loopback downloader test passed separately with host socket permission."
+  },
+  "runtime_smoke": "Qt launch, library dialogs, expanded player, keyboard/drag queue editing, downloads and libmpv local decoding passed.",
+  "visual": {
+    "views": [
+      {
+        "view": "home",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "explore",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "search",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "library",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "artists",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "album",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "playlist",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "artist",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "queue",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "lyrics",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "downloads",
+        "width": 1600,
+        "height": 900
+      },
+      {
+        "view": "home",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "explore",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "search",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "library",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "artists",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "album",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "playlist",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "artist",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "queue",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "lyrics",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "downloads",
+        "width": 1280,
+        "height": 820
+      },
+      {
+        "view": "home",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "explore",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "search",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "library",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "artists",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "album",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "playlist",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "artist",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "queue",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "lyrics",
+        "width": 920,
+        "height": 620
+      },
+      {
+        "view": "downloads",
+        "width": 920,
+        "height": 620
+      }
+    ],
+    "passed": true,
+    "soak_seconds": 60.4,
+    "renderer": "GraphicsApi.OpenGL",
+    "rounded_artwork_checks": 52
+  },
+  "interaction": {
+    "shell_ms": 392.857,
+    "scroll_frames": 331,
+    "scroll_p95_frame_ms": 16.424,
+    "scroll_median_frame_ms": 16.22,
+    "scroll_mean_fps": 66.49,
+    "list_songs": 10000,
+    "local_input_p95_ms": 6.057,
+    "local_input_max_ms": 6.057,
+    "platform": "offscreen",
+    "renderer": "GraphicsApi.OpenGL",
+    "client_size": [
+      1280,
+      820
+    ],
+    "passed": true,
+    "qml_clean": true
+  },
+  "short_soak": {
+    "status": "passed",
+    "exit_code": 0,
+    "steady_pss_mib": 227.566,
+    "steady_cpu_one_core_percent": 4.087,
+    "measurement_seconds": 60.054
+  },
+  "peak_pss_mib": 247.62,
+  "limitations": [
+    "The resource run repeatedly navigates synthetic views and plays generated local audio for 60 seconds; its CPU result is active navigation, not minimized playback.",
+    "This is not a new 30-minute soak or matched real-account streaming comparison.",
+    "Physical sleep/wake and full Windows/macOS ports remain deferred.",
+    "Published v0.1.0 performance evidence remains historical."
+  ]
+}

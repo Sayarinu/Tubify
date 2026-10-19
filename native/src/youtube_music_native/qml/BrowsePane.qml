@@ -5,7 +5,7 @@ import "Theme.js" as Theme
 
 Item {
     id: root
-    property real gutter: width > 900 ? 106 : 40
+    property real gutter: Theme.gutter(width)
     property var result: catalogState.data
     property bool landing: catalogState.route === "home" || catalogState.route === "explore"
     property bool songs: (root.result.items || []).length > 0 && (root.result.items || []).every(item => (item.kind || "song") === "song")
@@ -50,7 +50,7 @@ Item {
                     required property string modelData
                     text: modelData; height: 36; leftPadding: 13; rightPadding: 13
                     palette.buttonText: Theme.foreground
-                    background: Rectangle { radius: 8; color: mood.hovered ? "#394146" : "#252d31"; border.width: mood.visualFocus ? 2 : 0; border.color: "white" }
+                    background: Rectangle { radius: 8; color: mood.hovered ? Theme.hover : Theme.surface; border.width: mood.visualFocus ? 2 : 0; border.color: "white" }
                     onClicked: browseState.homeMood(text)
                 }
             }
@@ -62,7 +62,7 @@ Item {
                         id: category
                         required property var modelData
                         Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.preferredHeight: 60
-                        background: Rectangle { radius: 6; color: category.hovered ? "#393939" : "#252525"; border.color: category.visualFocus ? "white" : "transparent" }
+                        background: Rectangle { radius: 6; color: category.hovered ? Theme.hover : Theme.surface; border.color: category.visualFocus ? Theme.accent : "transparent" }
                         contentItem: Row { spacing: 14; leftPadding: 16; topPadding: 16; Symbol { name: category.modelData.icon; width: 24; height: 24; color: Theme.secondary } Text { text: category.modelData.title; color: "white"; font.pixelSize: 16; font.bold: true } }
                         onClicked: browseState.shortcut(modelData.action)
                     }
@@ -120,10 +120,10 @@ Item {
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: 32; bottomMargin: 48; clip: true
         visible: !root.songs && (root.result.items || []).length > 0
-        cellWidth: 170; cellHeight: 231; model: root.result.items || []
+        cellWidth: Theme.cardWidth + 24; cellHeight: Theme.cardHeight + 24; model: root.result.items || []
         ScrollBar.vertical: ScrollBar {}
         header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Button { text: "Back"; onClicked: browseState.back() } Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; color: "white" } }
-        delegate: MediaCard { required property var modelData; width: 146; media: modelData; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item) }
+        delegate: MediaCard { required property var modelData; width: Theme.cardWidth; media: modelData; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Button { text: "Load more"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
@@ -145,5 +145,5 @@ Item {
         Button { anchors.horizontalCenter: parent.horizontalCenter; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
     }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running && !(root.result.items || []).length && !(root.result.shelves || []).length }
-    Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(600, root.width - 48); padding: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music. Refresh when you’re online." : ""); visible: text.length > 0; color: Theme.secondary; background: Rectangle { color: "#222222"; radius: 4 } }
+    Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(600, root.width - 48); padding: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music. Refresh when you’re online." : ""); visible: text.length > 0; color: Theme.secondary; background: Rectangle { color: Theme.surface; radius: 4 } }
 }

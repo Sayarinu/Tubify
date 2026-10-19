@@ -33,8 +33,8 @@ Item {
             Accessible.description: lyricState.data.timed ? "Seek to this line" : ""
             activeFocusOnTab: !!lyricState.data.timed
             onClicked: lyricState.seekLine(index)
-            contentItem: Text { id: label; text: parent.modelData.text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: !lyricState.data.timed || parent.index === lyricState.currentLine ? "white" : "#aaaaaa"; font.family: Theme.bodyFont; font.bold: true; font.pixelSize: lyricState.data.timed ? 24 : 20 }
-            background: Rectangle { color: parent.hovered && lyricState.data.timed ? "#202020" : "transparent"; border.color: parent.visualFocus ? "white" : "transparent"; border.width: 1; radius: 4 }
+            contentItem: Text { id: label; text: parent.modelData.text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: !lyricState.data.timed || parent.index === lyricState.currentLine ? Theme.accent : Theme.secondary; font.family: Theme.bodyFont; font.bold: true; font.pixelSize: lyricState.data.timed ? 24 : 20 }
+            background: Rectangle { color: parent.hovered && lyricState.data.timed ? Theme.surface : "transparent"; border.color: parent.visualFocus ? Theme.accent : "transparent"; border.width: 1; radius: 4 }
         }
         footer: Text { width: lines.width; topPadding: 24; bottomPadding: 16; text: lyricState.data.source || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: Theme.secondary; font.pixelSize: 12 }
         Connections {

@@ -5,7 +5,7 @@ import "Theme.js" as Theme
 Item {
     id: root
     objectName: "downloadsPane"
-    property real gutter: width > 900 ? 106 : 40
+    property real gutter: Theme.gutter(width)
     property string selectedKind: "All"
     property var selectedEntry: ({})
     property bool blockingShortcuts: options.opened || removal.opened
@@ -34,7 +34,7 @@ Item {
             Row {
                 width: parent.width; height: 52; spacing: 24
                 Button { text: "LIBRARY"; flat: true; height: 52; palette.windowText: Theme.secondary; onClicked: libraryState.select("Playlists") }
-                Button { text: "DOWNLOADS"; flat: true; height: 52; palette.windowText: "white"; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: "white" } }
+                Button { text: "DOWNLOADS"; flat: true; height: 52; palette.windowText: "white"; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent } }
             }
             Rectangle { y: 52; height: 1; width: parent.width; color: Theme.border }
             Row {
@@ -45,8 +45,8 @@ Item {
                         id: filter
                         required property string modelData
                         text: modelData; height: 36; leftPadding: 14; rightPadding: 14
-                        palette.buttonText: root.selectedKind === text ? "black" : "white"
-                        background: Rectangle { radius: 8; color: root.selectedKind === filter.text ? "white" : filter.hovered ? "#353535" : "#222222"; border.width: filter.visualFocus ? 2 : 0; border.color: Theme.accent }
+                        palette.buttonText: root.selectedKind === text ? Theme.onAccent : Theme.foreground
+                        background: Rectangle { radius: 8; color: root.selectedKind === filter.text ? Theme.accent : filter.hovered ? Theme.hover : Theme.surface; border.width: filter.visualFocus ? 2 : 0; border.color: Theme.accent }
                         onClicked: root.selectedKind = text
                     }
                 }
@@ -64,7 +64,7 @@ Item {
             width: list.width; height: 104; padding: 0
             Accessible.name: modelData.title + ", " + root.stateLabel(modelData)
             onClicked: downloadsState.open(modelData.key)
-            background: Rectangle { radius: 4; color: entry.hovered ? "#191919" : "transparent"; border.color: entry.visualFocus ? "white" : "transparent"; border.width: 1 }
+            background: Rectangle { radius: 4; color: entry.hovered ? Theme.surface : "transparent"; border.color: entry.visualFocus ? Theme.accent : "transparent"; border.width: 1 }
             contentItem: Item {
                 Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 64; height: 64; source: entry.modelData.thumbnail || ""; mediaKey: entry.modelData.key; radius: 3 }
                 Column {
@@ -104,7 +104,7 @@ Item {
         parent: Overlay.overlay; anchors.centerIn: parent
         width: Math.min(460, root.width - 48); modal: true
         title: "Remove download?"; standardButtons: Dialog.Ok | Dialog.Cancel
-        palette.window: "#212121"; palette.windowText: "white"
+        palette.window: Theme.surface; palette.windowText: "white"
         contentItem: Label { text: "Remove “" + (root.selectedEntry.title || "this music") + "” from this device? Songs used by another download will stay."; textFormat: Text.PlainText; color: "white"; wrapMode: Text.Wrap }
         onAccepted: downloadsState.remove(root.selectedEntry.key)
     }

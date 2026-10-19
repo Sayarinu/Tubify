@@ -6,11 +6,12 @@ from youtube_music_native.shell import ShellController
 def test_preferences_survive_restart_and_invalid_geometry_is_bounded(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     controller = ShellController(tmp_path / "settings.ini")
+    assert controller.sidebarExpanded is False
     controller.toggleSidebar()
     controller.setVolume(800)
     controller.saveWindow(100, 99999)
     restored = ShellController(tmp_path / "settings.ini")
-    assert restored.sidebarExpanded is False
+    assert restored.sidebarExpanded is True
     assert restored.volume == 100
     assert restored.initialWidth == 920
     assert restored.initialHeight == 4320

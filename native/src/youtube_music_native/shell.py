@@ -20,7 +20,7 @@ class ShellController(QObject):
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
         self._page = "Home"
         self._query = ""
-        self._sidebar = self.settings.value("sidebarExpanded", True, type=bool)
+        self._sidebar = self.settings.value("sidebarExpanded", False, type=bool)
         self._volume = max(0, min(100, self._integer_setting("volume", 70)))
         self._unmuted_volume = max(1, min(100, self._integer_setting("lastVolume", self._volume or 70)))
         self._fixture = fixture or {}

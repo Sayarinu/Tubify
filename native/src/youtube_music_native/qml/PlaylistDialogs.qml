@@ -13,10 +13,10 @@ Item {
         objectName: "playlistEditor"
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
         title: root.operation === "playlist_create" ? "New playlist" : "Rename playlist"
-        palette.window: "#212121"; palette.windowText: "white"; palette.text: "white"
+        palette.window: Theme.surface; palette.windowText: "white"; palette.text: "white"
         contentItem: ColumnLayout {
             spacing: 16
-            TextField { id: name; objectName: "playlistNameField"; Layout.fillWidth: true; maximumLength: 150; placeholderText: "Playlist name"; color: "white"; placeholderTextColor: Theme.secondary; selectByMouse: true; Accessible.name: "Playlist name"; background: Rectangle { color: "#303030"; radius: 4; border.color: name.activeFocus ? "white" : "#666666" } onAccepted: if (save.enabled) save.clicked() }
+            TextField { id: name; objectName: "playlistNameField"; Layout.fillWidth: true; maximumLength: 150; placeholderText: "Playlist name"; color: "white"; placeholderTextColor: Theme.secondary; selectByMouse: true; Accessible.name: "Playlist name"; background: Rectangle { color: Theme.hover; radius: 4; border.color: name.activeFocus ? "white" : Theme.muted } onAccepted: if (save.enabled) save.clicked() }
             Label { text: root.operation === "playlist_create" ? "New playlists are private." : ""; visible: text.length > 0; color: Theme.secondary }
             Label { Layout.fillWidth: true; text: actionsState.message; textFormat: Text.PlainText; visible: !!text; wrapMode: Text.Wrap; color: Theme.secondary }
         }
@@ -31,7 +31,7 @@ Item {
         id: removal
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
         title: "Delete playlist"
-        palette.window: "#212121"; palette.windowText: "white"; palette.text: "white"
+        palette.window: Theme.surface; palette.windowText: "white"; palette.text: "white"
         contentItem: ColumnLayout {
             spacing: 16
             Label { Layout.fillWidth: true; text: "Delete “" + (root.target.title || "this playlist") + "” from YouTube Music?"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: "white" }
@@ -47,10 +47,10 @@ Item {
         id: chooser
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
         title: "Add to playlist"; standardButtons: Dialog.Cancel
-        palette.window: "#212121"; palette.windowText: "white"; palette.text: "white"
+        palette.window: Theme.surface; palette.windowText: "white"; palette.text: "white"
         contentItem: ColumnLayout {
             spacing: 16
-            TextField { id: find; Layout.fillWidth: true; placeholderText: "Find a playlist"; color: "white"; placeholderTextColor: Theme.secondary; Accessible.name: "Find a playlist"; background: Rectangle { color: "#303030"; radius: 4 } }
+            TextField { id: find; Layout.fillWidth: true; placeholderText: "Find a playlist"; color: "white"; placeholderTextColor: Theme.secondary; Accessible.name: "Find a playlist"; background: Rectangle { color: Theme.hover; radius: 4 } }
             ListView {
                 Layout.fillWidth: true; Layout.preferredHeight: 280; clip: true; model: libraryState.playlists
                 ScrollBar.vertical: ScrollBar {}
