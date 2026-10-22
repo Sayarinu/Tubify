@@ -15,6 +15,8 @@ Item {
             Text { anchors.centerIn: parent; text: "Now playing"; color: themeState.foreground; font.pixelSize: 14 }
         }
         Cover {
+            largeArtwork: true
+            media: playerState.currentTrack
             anchors.horizontalCenter: parent.horizontalCenter
             width: Math.max(120, Math.min(artworkPane.width - 112, artworkPane.height - 144))
             height: width

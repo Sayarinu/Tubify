@@ -24,6 +24,9 @@ def handle(service, request, resources=None, progress=None):
     operation = request.get("operation")
     payload = request.get("payload") or {}
     resources = resources if resources is not None else {}
+    if operation == "artwork":
+        from .large_artwork import resolve
+        return resolve(service, payload["data_dir"], payload["media"], payload["pixels"], bool(payload.get("online")))
     if operation == "lyrics":
         root = str(Path(payload["data_dir"]).resolve())
         key = ("lyrics", root)
