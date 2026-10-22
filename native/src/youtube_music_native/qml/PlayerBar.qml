@@ -144,7 +144,6 @@ Rectangle {
             z: -1
             x: 46; y: 54; width: parent.width - 92; height: 16
             from: 0; to: 1; value: playerState.progress
-            trackColor: "#574374"
             enabled: playerState.hasTrack; Accessible.name: "Playback position"
             onMoved: playerState.seekFraction(value)
         }

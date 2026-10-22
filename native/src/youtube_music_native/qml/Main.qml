@@ -104,22 +104,28 @@ ApplicationWindow {
                 delegate: Button {
                     id: nav
                     required property var modelData
+                    objectName: "navigationButton-" + modelData.label
+                    readonly property bool selected: appState.page === text
+                    hoverEnabled: true
                     width: navigation.width
                     height: 48
                     padding: 0
+                    leftInset: 0; rightInset: 0; topInset: 0; bottomInset: 0
                     text: modelData.label
                     Accessible.name: text
                     onClicked: appState.navigate(text)
                     background: Rectangle {
+                        objectName: "navigationBackground-" + nav.text
+                        anchors.fill: parent
                         radius: 8
-                        color: appState.page === nav.text ? themeState.selected : nav.hovered ? themeState.hover : "transparent"
+                        color: nav.selected ? themeState.selected : nav.hovered ? themeState.hover : "transparent"
                         border.width: nav.visualFocus ? 2 : 0
                         border.color: themeState.accent
-                        Rectangle { x: 0; y: 12; width: 3; height: 24; radius: 2; color: themeState.accent; visible: appState.page === nav.text }
+                        Rectangle { objectName: "navigationMarker-" + nav.text; x: 4; anchors.verticalCenter: parent.verticalCenter; width: 3; height: 24; radius: 2; color: themeState.accent; visible: nav.selected }
                     }
                     contentItem: Row {
                         leftPadding: 16; spacing: 20
-                        Symbol { anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon; color: appState.page === nav.text ? themeState.accent : themeState.secondary }
+                        Symbol { anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon; color: nav.selected ? themeState.accent : themeState.secondary }
                         Text { anchors.verticalCenter: parent.verticalCenter; visible: window.wideNavigation; text: nav.text; color: themeState.foreground; font.family: Theme.bodyFont; font.pixelSize: 16 }
                     }
                     ToolTip.text: text

@@ -151,6 +151,18 @@ def main():
                 assert abs(duration.x() + duration.width() - seek.x() - seek.width() + seek.property("rightPadding")) < 0.1
                 assert transport.y() + transport.height() <= seek.y()
                 assert content.y() + content.height() + 12 == player_bar.y()
+                for label in ("Home", "Explore", "Library", "Downloads"):
+                    button = next(item for item in visual_items(window.contentItem()) if item.objectName() == "navigationButton-" + label)
+                    background = button.findChild(QObject, "navigationBackground-" + label)
+                    marker = button.findChild(QObject, "navigationMarker-" + label)
+                    assert button and background and marker
+                    assert background.mapToScene(QPointF()) == button.mapToScene(QPointF())
+                    assert (background.width(), background.height()) == (button.width(), button.height())
+                    assert marker.isVisible() == (shell.page == label)
+                    assert marker.x() >= 0 and marker.x() + marker.width() <= background.width()
+                    assert marker.y() + marker.height() / 2 == background.height() / 2
+                    if button.property("selected"):
+                        assert background.property("color").name().upper() == theme_state.selected
                 image = window.grabWindow()
                 assert not image.isNull()
                 scale = image.width() / window.width()
@@ -263,6 +275,9 @@ def main():
                         assert home_backdrop.property("heroVisible")
                         assert home_backdrop.property("themeTint").name().upper() != theme["colors"]["background"]
                         assert home_backdrop.property("themeTint").name().upper() == theme_state.heroTint
+                        sliders = [item for item in visual_items(window.contentItem()) if item.property("trackColor") is not None]
+                        assert len(sliders) >= 2  # Seek and volume share the derived track token.
+                        assert all(item.property("trackColor").name().upper() == theme_state.progressTrack for item in sliders)
                     theme_state.selectTheme("classic-dark")
                     for width, height in ((1280, 820), (920, 620)):
                         window.resize(width, height)
@@ -329,6 +344,32 @@ def main():
                     QTest.mouseMove(window, QPointF(800, 700).toPoint(), delay=20)
                     for size in ((1600, 900), (1280, 820), (920, 620)):
                         window.resize(*size)
+                        shell.navigate("Home")
+                        QTest.qWait(30)
+                        home = next(item for item in visual_items(window.contentItem()) if item.objectName() == "navigationButton-Home")
+                        library_button = next(item for item in visual_items(window.contentItem()) if item.objectName() == "navigationButton-Library")
+                        library_background = library_button.findChild(QObject, "navigationBackground-Library")
+                        hover_point = library_button.mapToScene(library_button.boundingRect().center()).toPoint()
+                        QTest.mouseMove(window, hover_point, delay=20)
+                        QTest.qWait(20)
+                        assert library_button.property("hovered") and not library_button.property("selected"), (size, hover_point, library_button.property("hovered"), library_button.property("selected"), shell.page)
+                        assert home.property("selected") and view.route == "home"
+                        assert library_background.property("color").name().upper() == theme_state.hover
+                        library_button.forceActiveFocus(Qt.FocusReason.TabFocusReason)
+                        assert library_button.property("visualFocus")
+                        assert QQmlProperty(library_background, "border.width").read() == 2
+                        check()
+                        QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=hover_point)
+                        QTest.qWait(30)
+                        assert shell.page == "Library" and view.route.startswith("library_")
+                        assert library_button.property("selected") and not home.property("selected")
+                        browse.open({"kind": "album", "id": "MPREfixture", "title": "Fixture album"})
+                        QTest.qWait(80)
+                        browse.back()
+                        QTest.qWait(80)
+                        assert shell.page == "Library" and view.route.startswith("library_")
+                        assert library_button.property("selected")
+                        QTest.mouseMove(window, QPointF(800, 500).toPoint(), delay=20)
                         for name, action in scenarios:
                             action()
                             QTest.qWait(80)
