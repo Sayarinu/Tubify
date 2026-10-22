@@ -387,6 +387,8 @@ class Playback(QObject):
             self._advance(automatic=True)
 
     def _skip_failed(self):
+        if self._closed or self._want_paused:
+            return
         self._loaded = False
         if self.queue.current:
             self._failures.add(self.queue.current["key"])
@@ -499,8 +501,10 @@ class Playback(QObject):
         self._advance()
 
     def _advance_entry(self, automatic=False):
+        return self._eligible_entry(self.queue.advance(automatic))
+
+    def _eligible_entry(self, entry):
         visited = set()
-        entry = self.queue.advance(automatic)
         while entry and self._skip_disliked and entry["track"].get("rating") == "DISLIKE":
             if entry["key"] in visited:
                 return None, True
@@ -509,10 +513,10 @@ class Playback(QObject):
             entry = self.queue.advance(False)
         return entry, bool(visited)
 
-    def _advance(self, automatic=False):
+    def _advance(self, automatic=False, paused=False):
         entry, skipped = self._advance_entry(automatic)
         if entry:
-            self._start()
+            self._start(paused=paused)
         elif skipped:
             self._stop_disliked()
         elif self._autoplay and self.repeat == "off" and self.radio_worker and self.hasTrack:
@@ -535,13 +539,14 @@ class Playback(QObject):
     def _radio_result(self, identifier, result):
         if identifier != self._radio_request:
             return
+        paused = not self.wantsPlayback
         self._radio_request, self._busy = None, False
         video_id = self.currentTrack.get("videoId")
         tracks = [track for track in result.get("items", []) if track.get("videoId") != video_id and track.get("available", True) and not (self._skip_disliked and track.get("rating") == "DISLIKE")]
         if tracks:
             self.queue.append_context(tracks)
             self.queue.source_label = "Autoplay"
-            self._advance()
+            self._advance(paused=paused)
         else:
             self._playing, self._stopped = False, True
             if self._skip_disliked and result.get("items"):
@@ -602,7 +607,11 @@ class Playback(QObject):
     def remove(self, index):
         paused = not self.wantsPlayback
         if self.queue.remove(index):
-            self._start(paused=paused)
+            entry, skipped = self._eligible_entry(self.queue.current)
+            if entry or not skipped:
+                self._start(paused=paused)
+            else:
+                self._stop_disliked()
         else:
             self._queue_changed()
 

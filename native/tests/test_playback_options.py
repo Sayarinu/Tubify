@@ -125,3 +125,36 @@ def test_disliked_filter_applies_to_autoplay_and_failed_song_transitions(tmp_pat
     player._radio_result(18, {"items": [track("disliked-radio", "DISLIKE")]})
     assert not player.playing and player.stopped
     player.close()
+
+
+def test_sleep_expiry_wins_over_pending_autoplay_and_failure_callbacks(tmp_path):
+    player = player_at(tmp_path)
+    now = [0.]
+    options = PlaybackOptions(tmp_path / "settings.ini", player, clock=lambda: now[0])
+    options.startSleep(5)
+    player._radio_request, player._busy = 17, True
+    now[0] = 301
+    options.tick()
+    player._radio_result(17, {"items": [track("late-radio")]})
+    assert not player.playing and player._want_paused
+    player.playTracks([track("failed"), track("next")])
+    options.startSleep(5)
+    now[0] += 301
+    options.tick()
+    player._skip_failed()
+    assert player.currentTrack["videoId"] == "failed" and not player.playing
+    options.close()
+    player.close()
+
+
+@pytest.mark.parametrize("paused", [False, True])
+def test_remove_current_skips_disliked_and_preserves_pause_intent(tmp_path, paused):
+    player = player_at(tmp_path)
+    player.playTracks([track("a"), track("b", "DISLIKE"), track("c")])
+    player.setSkipDisliked(True)
+    if paused:
+        player.pause()
+    player.removeKey(player.queue.current["key"])
+    assert player.currentTrack["videoId"] == "c"
+    assert player.playing is not paused
+    player.close()
