@@ -370,6 +370,12 @@ def main():
                         assert shell.page == "Library" and view.route.startswith("library_")
                         assert library_button.property("selected")
                         QTest.mouseMove(window, QPointF(800, 500).toPoint(), delay=20)
+                        for _ in range(12):
+                            shell.navigate("Library")
+                            shell.navigate("Home")
+                        QTest.qWait(80)
+                        assert window.findChild(QObject, "browsePane")
+                        assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                         for name, action in scenarios:
                             action()
                             QTest.qWait(80)

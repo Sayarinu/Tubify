@@ -340,9 +340,10 @@ ApplicationWindow {
                     : browsePage
                 if (sourceComponent !== target) sourceComponent = target
             }
-            Component.onCompleted: syncPage()
-            Connections { target: catalogState; function onChanged() { pages.syncPage() } }
-            Connections { target: appState; function onPageChanged() { pages.syncPage() } }
+            // Coalesce route and shell updates before replacing an incubating page.
+            Component.onCompleted: Qt.callLater(syncPage)
+            Connections { target: catalogState; function onChanged() { Qt.callLater(pages.syncPage) } }
+            Connections { target: appState; function onPageChanged() { Qt.callLater(pages.syncPage) } }
             Component { id: downloadsPage; DownloadsPane {} }
             Component { id: collectionPage; CollectionPane {} }
             Component { id: artistPage; ArtistPane {} }
