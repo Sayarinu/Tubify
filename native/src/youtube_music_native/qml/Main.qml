@@ -32,10 +32,12 @@ ApplicationWindow {
     palette.dark: themeState.background
     palette.link: themeState.accent
     property bool wideNavigation: true
+    readonly property bool compactNavigation: !appState.expanded && (appState.queueOpen || appState.lyricsOpen) && uiRoot.width < 780
+    onCompactNavigationChanged: navigationDrawer.close()
     readonly property bool docksVisible: (appState.queueOpen || appState.lyricsOpen)
     readonly property bool bothDocks: appState.queueOpen && appState.lyricsOpen
-    readonly property bool tabbedDocks: bothDocks && width - sidebar.width < 1040
-    readonly property real dockBudget: Math.max(280, width - sidebar.width - (bothDocks && !tabbedDocks ? 480 : 320))
+    readonly property bool tabbedDocks: bothDocks && uiRoot.width - navigationEdge.width < 1040
+    readonly property real dockBudget: Math.max(280, uiRoot.width - navigationEdge.width - (bothDocks && !tabbedDocks ? 480 : 320))
     readonly property real dockExtra: appState.queueWidth + appState.lyricsWidth - 560
     readonly property real fittedExtra: Math.min(dockExtra, Math.max(0, dockBudget - 560))
     readonly property real fittedQueueWidth: bothDocks && !tabbedDocks
@@ -84,15 +86,41 @@ ApplicationWindow {
             })
         }
     }
-    onClosing: appState.saveWindow(width, height)
+    onClosing: appState.saveWindowGeometry(x, y, width, height)
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
+    // Content zoom is independent of the platform device-pixel ratio.
+    Overlay.overlay.transform: Scale { xScale: appState.uiScaleFactor; yScale: appState.uiScaleFactor }
+    Binding { target: window.Overlay.overlay; property: "width"; value: uiRoot.width }
+    Binding { target: window.Overlay.overlay; property: "height"; value: uiRoot.height }
+    Item {
+        id: uiRoot
+        objectName: "scaledContent"
+        width: window.width / appState.uiScaleFactor
+        height: window.height / appState.uiScaleFactor
+        scale: appState.uiScaleFactor
+        transformOrigin: Item.TopLeft
+
+    Item { id: navigationEdge; width: window.compactNavigation ? 0 : sidebar.width }
+    Drawer {
+        id: navigationDrawer
+        objectName: "navigationDrawer"
+        width: Math.min(appState.sidebarWidth, uiRoot.width - 48)
+        height: uiRoot.height - player.height - 24
+        padding: 0
+        modal: true
+        onOpened: sidebar.forceActiveFocus()
+        onClosed: if (window.compactNavigation) navigationToggle.forceActiveFocus()
+        enter: Transition { enabled: !appState.reducedMotion }
+        exit: Transition { enabled: !appState.reducedMotion }
+        contentItem: Item { id: drawerContent }
+    }
     Rectangle {
         id: homeBackdrop
         objectName: "homeBackdrop"
-        anchors.left: sidebar.right
+        anchors.left: navigationEdge.right
         anchors.right: parent.right
         height: 370
         property bool heroVisible: !appState.expanded && appState.page === "Home" && catalogState.route === "home"
@@ -106,10 +134,12 @@ ApplicationWindow {
     Rectangle {
         id: sidebar
         objectName: "navigationRail"
-        width: appState.expanded ? 0 : Math.min(appState.sidebarWidth, Math.max(180, window.width - (appState.queueOpen || appState.lyricsOpen ? 280 : 0) - 320))
+        parent: window.compactNavigation ? drawerContent : uiRoot
+        focus: true
+        width: appState.expanded ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (appState.queueOpen || appState.lyricsOpen ? 280 : 0) - 320))
         visible: !appState.expanded
         anchors.top: parent.top
-        anchors.bottom: player.top
+        anchors.bottom: window.compactNavigation ? parent.bottom : player.top
         color: themeState.background
         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: themeState.border }
         Item {
@@ -143,7 +173,7 @@ ApplicationWindow {
                 onPositionChanged: function(mouse) {
                     if (pressed) {
                         var sceneX = sidebarResizeMouse.mapToItem(null, mouse.x, mouse.y).x
-                        appState.setSidebarWidth(startWidth + sceneX - startX)
+                        appState.setSidebarWidth(startWidth + (sceneX - startX) / appState.uiScaleFactor)
                     }
                 }
                 onReleased: appState.saveSidebarWidths()
@@ -166,7 +196,7 @@ ApplicationWindow {
                     leftInset: 0; rightInset: 0; topInset: 0; bottomInset: 0
                     text: modelData.label
                     Accessible.name: text
-                    onClicked: appState.navigate(text)
+                    onClicked: { appState.navigate(text); navigationDrawer.close() }
                     background: Rectangle {
                         objectName: "navigationBackground-" + nav.text
                         anchors.fill: parent
@@ -225,7 +255,7 @@ ApplicationWindow {
                     }
                 }
                 background: Rectangle { radius: 8; color: parent.hovered ? themeState.hover : "transparent"; border.color: parent.visualFocus ? themeState.accent : "transparent" }
-                onClicked: appState.requestAction("playlist:" + modelData.id)
+                onClicked: { appState.requestAction("playlist:" + modelData.id); navigationDrawer.close() }
             }
         }
     }
@@ -233,28 +263,29 @@ ApplicationWindow {
     Item {
         id: header
         objectName: "mainHeader"
-        anchors.left: sidebar.right
+        anchors.left: navigationEdge.right
         anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
         height: appState.expanded ? 0 : 64
         visible: !appState.expanded
-        IconButton { x: header.width < 480 ? 8 : 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
+        IconButton { id: navigationToggle; objectName: "navigationToggle"; visible: window.compactNavigation; x: 8; y: 10; width: 36; height: 44; iconName: "menu"; tip: "Open navigation"; Keys.onShortcutOverride: function(event) { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return) event.accepted = true }; Keys.onReturnPressed: navigationDrawer.open(); onClicked: navigationDrawer.open() }
+        IconButton { x: window.compactNavigation ? 44 : header.width < 480 ? 8 : 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
         TextField {
             id: search
             objectName: "searchField"
-            x: header.width < 480 ? 56 : 96
+            x: window.compactNavigation ? 92 : header.width < 480 ? 56 : 96
             y: 11
-            width: Math.max(96, Math.min(480, (historyButton.visible ? historyButton.x : settingsButton.x) - x - 12))
+            width: Math.max(80, Math.min(480, (historyButton.visible ? historyButton.x : settingsButton.x) - x - 12))
             height: 42
-            leftPadding: 52
+            leftPadding: header.width < 400 ? 34 : 52
             rightPadding: text.length > 0 ? 48 : 16
             color: themeState.foreground
-            placeholderText: "Search songs, albums, artists"
+            placeholderText: header.width < 400 ? "Search" : "Search songs, albums, artists"
             placeholderTextColor: themeState.muted
             font.pixelSize: 16
             selectByMouse: true
             Accessible.name: "Search YouTube Music"
             background: Rectangle { radius: 12; color: search.activeFocus ? themeState.hover : themeState.surface; border.color: search.activeFocus ? themeState.accent : themeState.border; border.width: 1 }
-            Symbol { x: 16; anchors.verticalCenter: parent.verticalCenter; name: "search"; width: 20; height: 20; color: themeState.secondary }
+            Symbol { x: header.width < 400 ? 8 : 16; anchors.verticalCenter: parent.verticalCenter; name: "search"; width: 20; height: 20; color: themeState.secondary }
             IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; visible: search.text.length > 0; iconName: "close"; tip: "Clear search"; onClicked: { search.clear(); searchState.clearSuggestions(); search.forceActiveFocus() } }
             onAccepted: {
                 var chosen = suggestions.currentIndex >= 0 ? searchState.suggestions[suggestions.currentIndex] : search.text
@@ -358,7 +389,7 @@ ApplicationWindow {
 
     Rectangle {
         id: reconnectBanner
-        anchors.left: sidebar.right
+        anchors.left: navigationEdge.right
         anchors.right: parent.right
         anchors.top: header.bottom
         visible: accountState.reconnect
@@ -378,7 +409,7 @@ ApplicationWindow {
     Item {
         id: content
         objectName: "pageContent"
-        anchors.left: sidebar.right
+        anchors.left: navigationEdge.right
         anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
         anchors.top: reconnectBanner.bottom
         anchors.bottom: player.top
@@ -483,7 +514,7 @@ ApplicationWindow {
         id: accountDialog
         objectName: "accountDialog"
         anchors.centerIn: Overlay.overlay
-        width: Math.min(window.width - 64, 440)
+        width: Math.min(uiRoot.width - 64, 440)
         modal: true
         padding: 20
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -535,8 +566,8 @@ ApplicationWindow {
         id: settingsDialog
         objectName: "appearanceSettingsDialog"
         anchors.centerIn: Overlay.overlay
-        width: Math.min(window.width - 48, 720)
-        height: Math.min(window.height - 48, 590)
+        width: Math.min(uiRoot.width - 48, 720)
+        height: Math.min(uiRoot.height - 48, 590)
         modal: true
         padding: 20
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -583,6 +614,23 @@ ApplicationWindow {
                             ColumnLayout {
                                 width: themeScroll.availableWidth
                                 spacing: 6
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Label { text: "Content size"; color: themeState.foreground }
+                                    Item { Layout.fillWidth: true }
+                                    SpinBox {
+                                        objectName: "contentScaleControl"
+                                        from: 80; to: 150; stepSize: 5; value: appState.uiScale
+                                        editable: false
+                                        Accessible.name: "Content size in percent"
+                                        textFromValue: function(value) { return value + "%" }
+                                        onValueModified: appState.setUiScale(value)
+                                    }
+                                    Button { text: "Reset"; enabled: appState.uiScale !== 100; onClicked: appState.setUiScale(100) }
+                                }
+                                CheckBox { objectName: "reducedMotionControl"; text: "Reduce motion"; checked: appState.reducedMotion; onToggled: appState.setReducedMotion(checked) }
+                                CheckBox { objectName: "artworkBackgroundControl"; text: "Artwork backgrounds"; checked: appState.artworkBackground; onToggled: appState.setArtworkBackground(checked) }
+                                CheckBox { objectName: "artworkBlurControl"; text: "Blur artwork backgrounds"; checked: appState.artworkBlur; enabled: appState.artworkBackground; onToggled: appState.setArtworkBlur(checked) }
                                 Label { text: "Dark themes"; color: themeState.secondary; font.pixelSize: 12; font.bold: true }
                                 GridView {
                                     id: darkThemeGrid
@@ -801,7 +849,8 @@ ApplicationWindow {
         id: palettePicker
         objectName: "colorPickerDialog"
         anchors.centerIn: Overlay.overlay
-        width: Math.min(window.width - 48, 430)
+        width: Math.min(uiRoot.width - 48, 430)
+        height: Math.min(implicitHeight, uiRoot.height - 48)
         padding: 20
         modal: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -840,7 +889,13 @@ ApplicationWindow {
             }
         }
         background: Rectangle { radius: 16; color: themeState.surface; border.color: themeState.border; border.width: 1 }
-        contentItem: ColumnLayout {
+        contentItem: ScrollView {
+            id: colorPickerScroll
+            clip: true
+            implicitHeight: colorPickerContent.implicitHeight
+            ColumnLayout {
+                id: colorPickerContent
+                width: colorPickerScroll.availableWidth
             spacing: 14
             RowLayout {
                 Layout.fillWidth: true
@@ -967,6 +1022,7 @@ ApplicationWindow {
                 }
             }
         }
+        }
     }
     Window {
         id: screenPickerOverlay
@@ -1026,12 +1082,22 @@ ApplicationWindow {
     Connections { target: appState; function onMenuRequested(media, context) { mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
     Dialog {
         id: shortcutHelp
-        width: Math.min(580, window.width - 80)
+        objectName: "shortcutHelpDialog"
+        height: Math.min(implicitHeight, uiRoot.height - 48)
+        width: Math.min(580, uiRoot.width - 80)
         anchors.centerIn: parent; modal: true; title: "Keyboard Shortcuts"; standardButtons: Dialog.Close
         palette.window: themeState.surface; palette.windowText: themeState.foreground
-        contentItem: Label {
+        contentItem: ScrollView {
+            id: shortcutScroll
+            clip: true
+            implicitHeight: shortcutText.implicitHeight
+            Label {
+            id: shortcutText
+            width: shortcutScroll.availableWidth
+            wrapMode: Text.Wrap
             color: themeState.foreground; lineHeight: 1.7
             text: "Space — Play / pause\nShift+N / Shift+P — Next / previous\nLeft / Right — Seek 5 seconds\nShift+Left / Shift+Right — Seek 10 seconds\n+ / − — Volume\nM — Mute\nS / R — Shuffle / repeat\nF / Escape — Open / close immersive player\n/ or Ctrl+F — Search\nAlt+Left — Back\nAlt+Up / Alt+Down — Move focused queue entry\nDelete — Remove focused queue entry"
+        }
         }
     }
     Shortcut { sequence: "Alt+Left"; enabled: window.playbackShortcuts; onActivated: { appState.setExpanded(false); browseState.back() } }
@@ -1052,4 +1118,5 @@ ApplicationWindow {
     Shortcut { sequence: "F"; enabled: window.playbackShortcuts && playerState.hasTrack; onActivated: appState.requestAction("expandPlayer") }
     Shortcut { sequence: "Escape"; enabled: window.playbackShortcuts && appState.expanded; onActivated: appState.setExpanded(false) }
     Shortcut { sequence: "?"; enabled: window.playbackShortcuts; onActivated: shortcutHelp.open() }
+    }
 }

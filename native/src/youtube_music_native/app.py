@@ -157,6 +157,8 @@ def main(argv=None):
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]
+    if not args.fixture:
+        controller.restoreWindow(window, [screen.availableGeometry() for screen in app.screens()])
     desktop = None if args.fixture else Desktop(controller, player, window, downloads, parent=controller)
     if desktop:
         app.aboutToQuit.connect(desktop.close)

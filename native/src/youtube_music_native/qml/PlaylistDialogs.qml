@@ -52,7 +52,7 @@ Item {
             spacing: 16
             TextField { id: find; Layout.fillWidth: true; placeholderText: "Find a playlist"; color: themeState.foreground; placeholderTextColor: themeState.secondary; Accessible.name: "Find a playlist"; background: Rectangle { color: themeState.hover; radius: 4 } }
             ListView {
-                Layout.fillWidth: true; Layout.preferredHeight: 280; clip: true; model: libraryState.playlists
+                Layout.fillWidth: true; Layout.preferredHeight: Math.max(80, Math.min(280, root.height - 240)); clip: true; model: libraryState.playlists
                 ScrollBar.vertical: ScrollBar {}
                 delegate: ItemDelegate {
                     required property var modelData
