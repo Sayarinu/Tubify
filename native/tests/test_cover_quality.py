@@ -14,6 +14,7 @@ def test_large_cover_uses_upgraded_source_at_display_pixel_ratio(tmp_path, scale
 import math
 from pathlib import Path
 import sys
+import time
 from PySide6.QtCore import QObject, QUrl, Slot
 from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtQml import QQmlApplicationEngine
@@ -45,14 +46,15 @@ engine.loadData(b'import QtQuick\nimport QtQuick.Controls\nimport "."\nApplicati
 window = engine.rootObjects()[0]
 cover = window.findChild(QObject, 'largeCover')
 art = cover.findChild(QObject, 'coverArtwork')
+def wait_until(predicate, description):
+    deadline = time.monotonic() + 2
+    while not predicate() and time.monotonic() < deadline:
+        QTest.qWait(10)
+    assert predicate(), description
 for size in (300, 600):
     cover.setProperty('width', size)
     cover.setProperty('height', size)
-    for _ in range(100):
-        app.processEvents()
-        QTest.qWait(10)
-        if cover.property('ready'):
-            break
+    wait_until(lambda: cover.property('ready'), 'Cover image did not become ready')
     assert art.property('source').toString() == large
     assert art.property('sourceSize').width() == math.ceil(size * float(sys.argv[2]))
     assert cover.property('ready')
@@ -65,20 +67,20 @@ cover.setProperty('mediaKey', 'lmnopqrstuv')
 cover.setProperty('media', {'videoId': 'lmnopqrstuv'})
 downloads._artwork['lmnopqrstuv'] = (root / 'missing.png').as_uri()
 downloads.changed.emit()
-QTest.qWait(60)
-assert cover.property('failedSource').endswith('missing.png')
+wait_until(lambda: cover.property('failedSource').endswith('missing.png'), 'Missing thumbnail did not report failure')
 downloads._large_artwork['lmnopqrstuv'] = {'url': large, 'width': 1200, 'height': 1200}
 downloads.changed.emit()
-QTest.qWait(100)
-assert art.property('source').toString() == large and cover.property('ready')
+wait_until(lambda: art.property('source').toString() == large and cover.property('ready'), 'Large image did not replace failed thumbnail')
 cover.setProperty('visible', False)
 downloads.calls.clear()
 cover.setProperty('width', 400)
 QTest.qWait(180)
 assert not downloads.calls
 cover.setProperty('visible', True)
-QTest.qWait(180)
-assert downloads.calls and downloads.calls[-1][1] == math.ceil(600 * float(sys.argv[2]))
+# QML timers advance with render frames; a 30ms margin above the debounce is
+# unreliable on macOS CI. Wait for the request, then check its exact resolution.
+wait_until(lambda: bool(downloads.calls), 'Visible Cover did not request an artwork upgrade')
+assert downloads.calls[-1][1] == math.ceil(600 * float(sys.argv[2])), downloads.calls
 window.close()
 engine.deleteLater()
 downloads.close()
