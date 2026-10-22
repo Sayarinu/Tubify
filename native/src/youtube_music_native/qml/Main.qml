@@ -87,6 +87,22 @@ ApplicationWindow {
         }
     }
     onClosing: appState.saveWindowGeometry(x, y, width, height)
+    function revealScrolledFocus(scroll) {
+        var item = window.activeFocusItem
+        if (!item || !scroll || !scroll.visible) return
+        var ancestor = item
+        while (ancestor && ancestor !== scroll) ancestor = ancestor.parent
+        if (!ancestor) return
+        var flick = scroll.contentItem
+        var point = item.mapToItem(flick.contentItem, 0, 0)
+        if (point.y < flick.contentY) flick.contentY = Math.max(0, point.y)
+        else if (point.y + item.height > flick.contentY + flick.height)
+            flick.contentY = Math.min(flick.contentHeight - flick.height, point.y + item.height - flick.height)
+    }
+    onActiveFocusItemChanged: Qt.callLater(function() {
+        revealScrolledFocus(colorPickerScroll)
+        revealScrolledFocus(themeScroll)
+    })
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
     property bool modalOpen: navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
@@ -110,7 +126,7 @@ ApplicationWindow {
         width: Math.min(appState.sidebarWidth, uiRoot.width - 48)
         height: uiRoot.height - player.height - 24
         padding: 0
-        modal: true
+        modal: true; focus: true
         onOpened: sidebar.forceActiveFocus()
         onClosed: if (window.compactNavigation) navigationToggle.forceActiveFocus()
         enter: Transition { enabled: !appState.reducedMotion }
@@ -515,7 +531,7 @@ ApplicationWindow {
         objectName: "accountDialog"
         anchors.centerIn: Overlay.overlay
         width: Math.min(uiRoot.width - 64, 440)
-        modal: true
+        modal: true; focus: true
         padding: 20
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: Rectangle { radius: 16; color: themeState.surface; border.color: themeState.border; border.width: 1 }
@@ -568,7 +584,7 @@ ApplicationWindow {
         anchors.centerIn: Overlay.overlay
         width: Math.min(uiRoot.width - 48, 720)
         height: Math.min(uiRoot.height - 48, 590)
-        modal: true
+        modal: true; focus: true
         padding: 20
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         property string activeColorRole: ""
@@ -761,7 +777,7 @@ ApplicationWindow {
         id: themeNameDialog
         anchors.centerIn: Overlay.overlay
         width: 390
-        modal: true; title: renameMode ? "Rename Theme" : "Create Custom Theme"
+        modal: true; focus: true; title: renameMode ? "Rename Theme" : "Create Custom Theme"
         standardButtons: Dialog.NoButton
         property bool renameMode: false
         contentItem: ColumnLayout {
@@ -788,7 +804,7 @@ ApplicationWindow {
         id: deleteThemeDialog
         anchors.centerIn: Overlay.overlay
         width: 390
-        modal: true; title: "Delete Custom Theme?"; standardButtons: Dialog.NoButton
+        modal: true; focus: true; title: "Delete Custom Theme?"; standardButtons: Dialog.NoButton
         contentItem: ColumnLayout {
             spacing: 10
             Label { Layout.fillWidth: true; text: "Delete “" + themeState.activeThemeName + "”? Classic will become active if this is the selected theme."; wrapMode: Text.Wrap }
@@ -804,7 +820,7 @@ ApplicationWindow {
         id: importThemeDialog
         anchors.centerIn: Overlay.overlay
         width: 420
-        modal: true; title: "Import Theme"; standardButtons: Dialog.NoButton
+        modal: true; focus: true; title: "Import Theme"; standardButtons: Dialog.NoButton
         property bool replaceCustom: false
         contentItem: ColumnLayout {
             spacing: 10
@@ -852,7 +868,7 @@ ApplicationWindow {
         width: Math.min(uiRoot.width - 48, 430)
         height: Math.min(implicitHeight, uiRoot.height - 48)
         padding: 20
-        modal: true
+        modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         property string draftHex: "#A78BFA"
         property color previewColor: "#A78BFA"
@@ -1085,7 +1101,7 @@ ApplicationWindow {
         objectName: "shortcutHelpDialog"
         height: Math.min(implicitHeight, uiRoot.height - 48)
         width: Math.min(580, uiRoot.width - 80)
-        anchors.centerIn: parent; modal: true; title: "Keyboard Shortcuts"; standardButtons: Dialog.Close
+        anchors.centerIn: parent; modal: true; focus: true; title: "Keyboard Shortcuts"; standardButtons: Dialog.Close
         palette.window: themeState.surface; palette.windowText: themeState.foreground
         contentItem: ScrollView {
             id: shortcutScroll
