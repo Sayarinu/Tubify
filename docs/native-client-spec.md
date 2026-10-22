@@ -6,11 +6,15 @@ Project: [YouTube Music Native Client](https://linear.app/nouvelle-lune-atelier/
 
 ## Required experience
 
-The post-release visual baseline is the user-approved purple redesign (LUNE-355): charcoal background (#14131B), raised surfaces (#22212B), lavender accents (#A78BFA), bundled Roboto typography, padded artwork cards and full-width browsing. A compact 72 pixel navigation rail expands to 240 pixels when the window is at least 1100 pixels wide; the remembered preference returns when the window grows. The floating bottom player is 92 pixels tall and inset 12 pixels, with content reserved above it. Preserve a 920 by 620 minimum, responsive content, visible keyboard focus and accessible controls.
+The approved post-release direction is recorded in the [native QoL roadmap](native-qol-roadmap.md), beginning with LUNE-367. Preserve the existing twelve presets and custom themes; Classic remains the default and the user's selected theme is retained. LUNE-355's charcoal/lavender palette remains available as Midnight Violet. Shared foreground, surface, accent and derived neutral progress-track roles replace hardcoded colors. Bundled Roboto, consistent item bounds/insets, visible keyboard focus and accessible controls apply throughout.
 
-Playlist and album pages use a wide artwork header with cover, title, description and available metadata, followed by collection actions and a virtualized track table. Artwork blurs only within the bounded header and fades into solid charcoal. Software rendering uses a gradient fallback. Artist banners and shelves follow the same theme. Queue and lyrics remain in the expanded player; browsing has no persistent right panel.
+Keep the compact navigation rail and expandable sidebar, responsive browsing, and the 92 pixel floating bottom player with content reserved above it. Preserve a 920 by 620 minimum. Playlist/album pages retain artwork headers, collection actions and virtualized track tables. Artwork selects adequate physical resolution for its size and DPR, with large local originals and asynchronous cache upgrades. Bounded optional blur has a software-rendering fallback.
 
-Required views are Home, Explore, search, library, playlist, album, artist, expanded player, queue, lyrics and Downloads. Synthetic visual checks cover 1600 by 900, 1280 by 820 and 920 by 620. The original YouTube Music reference inventory below records historical v0.1.0 verification; it is not a pixel-parity requirement for the redesigned UI. Keep private reference screenshots outside the repository.
+Queue and Lyrics become independent right docks: content, Lyrics, Queue when both are open; Lyrics is rightmost when alone. Keep at least 480 logical pixels for central content and 280 per dock. Below that available width, use a single tabbed dock while remembering both requested open states and widths for restoration. The player remains visible. The far-right player button and F toggle an in-window immersive player that hides browsing navigation; Escape restores route, scroll and focus. This does not enter OS fullscreen.
+
+Required views are Home, Explore, search, library, playlist, album, artist, immersive player, queue, lyrics and Downloads. Reuse queue/lyrics surfaces across browsing and immersive playback. Lyrics use primary text for the active line or plain text, readable secondary context, real timestamp seeking and follow-current-line behavior; manual scrolling suspends follow for six seconds with an explicit Follow lyrics action. Optional external providers are covered by the roadmap.
+
+Synthetic checks cover 1600 by 900, 1280 by 820 and 920 by 620, dock combinations, scaling/DPR and focus/loading/error states. The original reference inventory below records historical v0.1.0 verification, not completed verification of the new roadmap or a pixel-parity requirement. Keep private reference screenshots outside the repository.
 
 Required account behavior for the user's single Premium account:
 
@@ -18,17 +22,17 @@ Required account behavior for the user's single Premium account:
 - Library contents, saved music, subscriptions, playlist shortcuts and ratings.
 - Playlist create/rename/delete, add/remove/reorder and correct handling of duplicate entries.
 - Native audio-only playback, seek, previous/next, volume/mute, shuffle, repeat, radio/autoplay, online history and an editable queue.
-- Expanded player and available lyrics, with timing when returned by the provider.
+- In-window immersive player, independent Queue/Lyrics docks and available lyrics, with seeking/highlighting only when real timing is returned.
 - Persist window/sidebar preferences, volume, queue and position; restore playback paused after restart.
 - Media keys, familiar keyboard shortcuts and KDE media controls; shortcuts must respect text-entry focus.
 
-Videos, podcasts, casting, uploads, free-account behavior, automatic playlist download synchronization and crossfade are outside the first release.
+Videos, podcasts, casting, uploads, free-account behavior, automatic playlist download synchronization and crossfade remain outside the initial release scope. The post-release roadmap adds optional desktop/integration features; LUNE-388 evaluates native casting feasibility only and does not authorize a casting implementation.
 
 ### Priority manual queue (LUNE-356)
 
-The expanded player separates Now playing, Next in queue and Next from [source name]. Add to queue appends to the manual group; Play next prepends. Albums/playlists are gathered asynchronously in full, using downloaded metadata first, then inserted atomically in action order. Failures discard that batch and show a retry explanation. Clear queued songs cancels unfinished additions as well as pending manual entries.
+The queue surface pins Now playing above one virtualized scrolling area containing Queued songs, its compact drop target, and Next from [source name]. History is retained for playback and persistence but is not rendered. The manual section has no fixed height cap or separate scrollbar. Add to queue appends to the manual group; Play next prepends. Albums/playlists are gathered asynchronously in full, using downloaded metadata first, then inserted atomically in action order. Failures discard that batch and show a retry explanation. Clear queued songs cancels unfinished additions as well as pending manual entries.
 
-Explicit new playback replaces source/history and starts the selected song, preserving pending manual additions. Shuffle/repeat-all affect only the source; repeat-one retains its current behavior. Manual additions play once. Previous follows actual selection history without re-enqueuing consumed manual entries; after three seconds it restarts the current song. Next consumes pending manual entries before the source. Selection of a later manual entry skips earlier manual entries; source selection keeps manual additions. Reorder only within pending groups, with stable keys for duplicates. Empty enqueue selects paused; enqueue while paused stays paused.
+Explicit new playback replaces source/history and starts the selected song, preserving pending manual additions. Shuffle/repeat-all affect only the source; repeat-one retains its current behavior. Manual additions play once. Previous follows actual selection history without re-enqueuing consumed manual entries; after three seconds it restarts the current song. Next consumes pending manual entries before the source. Selection of a later manual entry skips earlier manual entries; source selection keeps manual additions. Preserve reordering within pending groups and source-to-manual drag, with stable keys for duplicates and equivalent keyboard operations. Empty enqueue selects paused; enqueue while paused stays paused.
 
 Transport, prefetch and MPRIS share the same next-entry calculation. Pagination and autoplay append to the source explicitly. Unknown sources use “Next up”. Snapshot version 2 stores the source name, source, manual, current and history; version 1 migrates losslessly into the source and restores paused. Synthetic tests cover these transitions, async cancellation/error/order, migration, offline playback, keyboard/drag editing and real worker/libmpv playback.
 
@@ -50,7 +54,7 @@ Handle disk-full, missing and corrupt files clearly without losing other complet
 - Source resolution/downloads: yt-dlp managed workers, yt-dlp-ejs, Deno and FFmpeg/ffprobe. Preserve the best available authenticated audio-only format without routine transcoding. Cache remote sources only until expiry and retry expired resolution once.
 - Playback: libmpv through python-mpv. The app owns LocalFile/RemoteStream selection, queue state and upcoming-track preparation. Do not load the YouTube website for playback.
 - Persistence: SQLite metadata and durable downloads in Qt's standard app-data directory, separate from replaceable artwork caches. Store secrets only through secure keyring backends.
-- Keep catalog, playback/source selection and downloads behind small interfaces with fixture/fake adapters for tests. There is no hosted backend or public HTTP interface.
+- Keep catalog, playback/source selection and downloads behind small interfaces with fixture/fake adapters for tests. There is no hosted backend. LUNE-383 adds an optional authenticated loopback-only HTTP/event interface, disabled by default, with separate read-only overlay and playback-control scopes; it never exposes account sessions or signed media URLs.
 - Use Qt standard paths/settings. Keep OS media controls, secure-storage integration and packaging out of shared application logic.
 - Run early Linux/Windows/macOS launch and local-audio smoke checks. Later ports reuse the UI, catalog, storage and playback code and validate platform-specific dependencies on real machines.
 
@@ -97,11 +101,11 @@ Fix missed targets before the Linux release and attach actual results. Visual ch
 | Downloads | New view following the existing visual language |
 | Performance | Preliminary memory sample only; controlled baseline belongs to the verification work |
 
-The verification checklist and limitations are recorded in native/evidence/linux-verification.json. Synthetic rendering checks cover every required view, keyboard/accessibility behavior and a virtualized 10,000-song list. Reference geometry and inspected captures support close visual parity, but the unavailable reference screenshots prevent a complete pixel comparison. Actual machine sleep/wake remains deferred at the user's request; simulated recovery is reported separately.
+The historical verification checklist and limitations are recorded in native/evidence/linux-verification.json; these results do not establish completion of the post-release QoL acceptance matrix. Synthetic rendering checks cover every required view, keyboard/accessibility behavior and a virtualized 10,000-song list. Reference geometry and inspected captures support close visual parity, but the unavailable reference screenshots prevent a complete pixel comparison. Actual machine sleep/wake remains deferred at the user's request; simulated recovery is reported separately.
 
 ## Linear delivery
 
-Actual assigned issue identifiers and titles are listed below. Branches use the identifier exactly; commits use the identifier followed by a change-specific message. Issue titles and identifiers must not be replaced by planning placeholders.
+The original delivery issues are listed below. The [native QoL roadmap ticket table](native-qol-roadmap.md#linear-tickets-and-dependency-order) records the actual assigned LUNE-367 through LUNE-388 issues, titles, blocking relations and acceptance matrix. Branches use the identifier exactly; commits use the identifier followed by a change-specific message. Issue titles and identifiers must not be replaced by planning placeholders.
 
 | Issue | Actual ticket title |
 | --- | --- |
@@ -144,3 +148,6 @@ The current Tauri application remains available during native development and th
 - [Browser-session authentication](https://ytmusicapi.readthedocs.io/en/stable/setup/browser.html)
 - [yt-dlp dependencies and embedding](https://github.com/yt-dlp/yt-dlp)
 - [python-mpv](https://github.com/jaseg/python-mpv)
+
+- [YTMDesktop official feature overview](https://ytmdesktop.github.io/)
+- [YTMDesktop2 official feature documentation](https://youtube-music.app/docs/features/)
