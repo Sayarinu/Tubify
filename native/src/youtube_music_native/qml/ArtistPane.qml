@@ -5,7 +5,8 @@ import "Theme.js" as Theme
 Item {
     id: root
     clip: true
-    property var artist: catalogState.data
+    // Do not incubate delegates for another route while the page is being replaced.
+    property var artist: (catalogState.route === "artist") ? catalogState.data : ({})
     property real gutter: Theme.gutter(width)
     property bool descriptionExpanded: false
     Image { id: hero; objectName: "artistHero"; y: (sections.headerItem ? sections.headerItem.y : 0) - sections.contentY; width: root.width; height: 400; source: root.artist.hero || ""; visible: !!root.artist.hero; asynchronous: true; fillMode: Image.PreserveAspectCrop; opacity: 0.45 }

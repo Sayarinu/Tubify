@@ -7,7 +7,8 @@ Item {
     id: root
     objectName: "browsePane"
     property real gutter: Theme.gutter(width)
-    property var result: catalogState.data
+    // Do not incubate delegates for another route while the page is being replaced.
+    property var result: (["album", "playlist", "artist", "search", "downloads", "history"].indexOf(catalogState.route) < 0 && catalogState.route.indexOf("library_") !== 0) ? catalogState.data : ({})
     property bool landing: catalogState.route === "home" || catalogState.route === "explore"
     property bool songs: (root.result.items || []).length > 0 && (root.result.items || []).every(item => (item.kind || "song") === "song")
     function moodItems() {

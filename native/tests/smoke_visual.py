@@ -390,7 +390,14 @@ def main():
                                 hero = window.findChild(QObject, "artistHero")
                                 assert hero.isVisible()
                                 point = hero.mapToScene(hero.boundingRect().topLeft())
-                                pixel = image.pixelColor(round(point.x() + hero.width() / 2), round(point.y() + 30))
+                                scale = image.width() / window.width()
+                                px, py = round((point.x() + hero.width() / 2) * scale), round((point.y() + 30) * scale)
+                                pixel = image.pixelColor(px, py)
+                                deadline = time.monotonic() + 3
+                                while max(pixel.red(), pixel.blue()) <= 40 and time.monotonic() < deadline:
+                                    QTest.qWait(30)
+                                    image = window.grabWindow()
+                                    pixel = image.pixelColor(px, py)
                                 assert max(pixel.red(), pixel.blue()) > 40, pixel.name()
                             if name == "queueSidebar":
                                 queue_pane = window.findChild(QObject, "queuePane")

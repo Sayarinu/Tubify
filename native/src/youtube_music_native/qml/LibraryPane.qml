@@ -6,7 +6,8 @@ Item {
     id: root
     objectName: "libraryPane"
     property real gutter: Theme.gutter(width)
-    property var result: catalogState.data
+    // Do not incubate delegates for another route while the page is being replaced.
+    property var result: (catalogState.route.indexOf("library_") === 0 || catalogState.route === "history") ? catalogState.data : ({})
     property bool history: catalogState.route === "history"
     property bool rows: history || catalogState.route === "library_songs" || catalogState.route === "library_liked"
     Component {

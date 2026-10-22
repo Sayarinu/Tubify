@@ -5,7 +5,8 @@ import "Theme.js" as Theme
 Item {
     id: root
     property real gutter: Theme.gutter(width)
-    property var result: catalogState.data
+    // Do not incubate delegates for another route while the page is being replaced.
+    property var result: (catalogState.route === "search") ? catalogState.data : ({})
     ListView {
         id: results
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter

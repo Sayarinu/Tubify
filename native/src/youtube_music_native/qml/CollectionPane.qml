@@ -7,7 +7,8 @@ Item {
     id: root
     objectName: "collectionPane"
     property bool playlist: catalogState.route === "playlist"
-    property var album: catalogState.data
+    // Do not incubate delegates for another route while the page is being replaced.
+    property var album: (catalogState.route === "album" || catalogState.route === "playlist") ? catalogState.data : ({})
     property real margin: Theme.gutter(width)
     property bool compact: width < 1000
     property bool descriptionExpanded: false
