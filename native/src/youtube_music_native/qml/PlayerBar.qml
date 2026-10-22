@@ -148,6 +148,15 @@ Rectangle {
             from: 0; to: 1; value: playerState.progress
             enabled: playerState.hasTrack; Accessible.name: "Playback position"
             onMoved: playerState.seekFraction(value)
+            HoverHandler { id: seekHover }
+            ToolTip {
+                objectName: "seekPreview"
+                visible: progress.enabled && (seekHover.hovered || progress.pressed)
+                delay: 150
+                text: Theme.timeLabel(playerState.duration * (progress.pressed ? progress.value : Math.max(0, Math.min(1, (seekHover.point.position.x - progress.leftPadding) / Math.max(1, progress.availableWidth)))))
+                x: Math.max(0, Math.min(progress.width - width, seekHover.point.position.x - width / 2))
+                y: -height - 8
+            }
         }
         Row {
             id: transport

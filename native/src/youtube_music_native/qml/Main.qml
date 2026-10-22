@@ -86,7 +86,7 @@ ApplicationWindow {
     }
     onClosing: appState.saveWindow(width, height)
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     Rectangle {
@@ -341,6 +341,8 @@ ApplicationWindow {
         ContextMenuItem { text: "Sign Out"; visible: accountState.connected; height: visible ? implicitHeight : 0; onTriggered: accountState.signOut() }
     }
 
+    PlaybackSettings { id: playbackSettings }
+
     Menu {
         id: appearanceMenu
         objectName: "appearanceMenu"
@@ -348,6 +350,7 @@ ApplicationWindow {
         padding: 8
         spacing: 2
         background: Rectangle { radius: 12; color: themeState.surface; border.color: themeState.border; border.width: 1 }
+        ContextMenuItem { text: "Playback" + (playbackOptions.sleepRemaining > 0 ? " · Sleep " + Theme.timeLabel(playbackOptions.sleepRemaining) : ""); onTriggered: playbackSettings.open() }
         ContextMenuItem { text: "Appearance Settings"; onTriggered: settingsDialog.open() }
         ContextMenuItem { text: "Lyrics Settings"; onTriggered: lyricsSettings.open() }
     }

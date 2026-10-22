@@ -17,6 +17,7 @@ from .artwork import ArtworkCache
 from .catalog_view import CatalogView
 from .jobs import Worker
 from .playback import Playback
+from .playback_options import PlaybackOptions
 from .browse import Browse
 from .download_view import DownloadView
 from .actions import Actions
@@ -39,6 +40,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
     engine.rootContext().setContextProperty("appState", controller)
     engine.rootContext().setContextProperty("accountState", account)
     engine.rootContext().setContextProperty("playerState", player)
+    if hasattr(controller, "playbackOptions"):
+        engine.rootContext().setContextProperty("playbackOptions", controller.playbackOptions)
     if theme:
         engine.rootContext().setContextProperty("themeState", theme)
     if color_sampler:
@@ -128,6 +131,7 @@ def main(argv=None):
     media_data.mkdir(parents=True, exist_ok=True, mode=0o700)
     source_worker = None if args.fixture else Worker(controller, idle_ms=15000)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)
     downloads = DownloadView(media_data, fixture=args.fixture, parent=controller)
     player.trackStarted.connect(lambda track: downloads.refresh())
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
@@ -146,6 +150,7 @@ def main(argv=None):
     controller.actionRequested.connect(player.handleAction)
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
+    app.aboutToQuit.connect(controller.playbackOptions.close)
     app.aboutToQuit.connect(downloads.close)
     app.aboutToQuit.connect(lyrics.close)
     engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads, search, actions, library, lyrics, theme, color_sampler)
