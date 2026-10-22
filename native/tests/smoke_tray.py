@@ -46,13 +46,17 @@ def main():
                 args[8].applied.connect(results.append)
                 QMetaObject.invokeMethod(popup.findChild(QObject, "trayLike"), "clicked")
                 assert results[-1]["action"] == "song_rating"
+                popup.setPosition(20, 20)
+                service.settings.setValue("trayX", 200)
                 QMetaObject.invokeMethod(popup.findChild(QObject, "trayQueueToggle"), "clicked")
                 QTest.qWait(80)
                 assert service.queueOpen and popup.findChild(QObject, "queueUpcomingList")
-                assert popup.height() > 292
+                assert popup.height() > 292 and popup.x() == 20
                 service.settings.setValue("trayX", 99999)
                 service.settings.setValue("trayY", 99999)
+                popup.hide()
                 service.positionPopup()
+                service.showPlayer()
                 areas = [screen.availableGeometry() for screen in QGuiApplication.screens()]
                 assert any(area.contains(popup.geometry()) for area in areas)
                 popup.close()

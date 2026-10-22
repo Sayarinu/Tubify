@@ -147,7 +147,10 @@ class TrayPlayer(QObject):
             return
         area = QGuiApplication.primaryScreen().availableGeometry()
         try:
-            x, y = int(self.settings.value("trayX", area.right() - self.popup.width())), int(self.settings.value("trayY", area.bottom() - self.popup.height()))
+            if self.popup.isVisible():
+                x, y = self.popup.x(), self.popup.y()
+            else:
+                x, y = int(self.settings.value("trayX", area.right() - self.popup.width())), int(self.settings.value("trayY", area.bottom() - self.popup.height()))
         except (TypeError, ValueError):
             x, y = area.right() - self.popup.width(), area.bottom() - self.popup.height()
         x, y = clamped_position(x, y, self.popup.width(), self.popup.height(), [screen.availableGeometry() for screen in QGuiApplication.screens()])
