@@ -103,3 +103,15 @@ def test_invalid_dock_preferences_use_safe_defaults(tmp_path):
     assert shell.lyricsWidth == 520
     shell.setLyricsWidth(1)
     assert shell.lyricsWidth == 280
+
+
+def test_immersive_transition_can_snapshot_browsing_before_geometry_changes(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    shell = ShellController(tmp_path / "settings.ini")
+    events = []
+    shell.playerViewChanging.connect(lambda entering: events.append(("before", entering, shell.expanded)))
+    shell.playerViewChanged.connect(lambda: events.append(("after", shell.expanded)))
+    shell.setExpanded(True)
+    shell.setExpanded(True)
+    shell.setExpanded(False)
+    assert events == [("before", True, False), ("after", True), ("before", False, True), ("after", False)]

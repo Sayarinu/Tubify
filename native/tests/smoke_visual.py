@@ -275,8 +275,8 @@ def main():
                 ("album", lambda: browse.open({"kind": "album", "id": "MPREfixture", "title": "Fixture album"})),
                 ("playlist", lambda: browse.open({"kind": "playlist", "id": "PLfixture", "title": "Fixture playlist"})),
                 ("artist", lambda: (browse.open({"kind": "artist", "id": "UCfixture", "title": "Fixture artist"}), view.patch({"hero": uri}))),
-                ("queue", lambda: (shell.setPlayerTab("Up next"), shell.setExpanded(True))),
-                ("lyrics", lambda: (shell.setPlayerTab("Lyrics"), shell.setExpanded(True))),
+                ("queue", lambda: (shell.setLyricsOpen(False), shell.setQueueOpen(True), shell.setExpanded(True))),
+                ("lyrics", lambda: (shell.setQueueOpen(False), shell.setLyricsOpen(True), shell.setExpanded(True))),
                 ("downloads", lambda: shell.navigate("Downloads")),
             ]
             state = {"index": 0, "done": False, "started": time.monotonic(), "audio_position": 0., "rounded_artwork": 0, "queue_drag_checked": False}

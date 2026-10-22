@@ -32,7 +32,7 @@ ApplicationWindow {
     palette.dark: themeState.background
     palette.link: themeState.accent
     property bool wideNavigation: true
-    readonly property bool docksVisible: !appState.expanded && (appState.queueOpen || appState.lyricsOpen)
+    readonly property bool docksVisible: (appState.queueOpen || appState.lyricsOpen)
     readonly property bool bothDocks: appState.queueOpen && appState.lyricsOpen
     readonly property bool tabbedDocks: bothDocks && width - sidebar.width < 1040
     readonly property real dockBudget: Math.max(280, width - sidebar.width - (bothDocks && !tabbedDocks ? 480 : 320))
@@ -46,7 +46,7 @@ ApplicationWindow {
         : Math.min(appState.lyricsWidth, dockBudget)
     readonly property bool showQueueDock: docksVisible && appState.queueOpen && (!tabbedDocks || appState.activeDock === "Queue")
     readonly property bool showLyricsDock: docksVisible && appState.lyricsOpen && (!tabbedDocks || appState.activeDock === "Lyrics")
-    readonly property bool lyricsActive: showLyricsDock || appState.expanded && appState.playerTab === "Lyrics"
+    readonly property bool lyricsActive: showLyricsDock
     function restoreDockFocus() {
         Qt.callLater(function() {
             if (window.activeFocusItem && !window.activeFocusItem.visible) {
@@ -60,6 +60,30 @@ ApplicationWindow {
     onShowQueueDockChanged: restoreDockFocus()
     onLyricsActiveChanged: lyricState.setActive(lyricsActive)
     Component.onCompleted: lyricState.setActive(lyricsActive)
+    property var browseFocus: null
+    property real browseWidth: 0
+    property real browseHeight: 0
+    function focusSearch() {
+        appState.setExpanded(false)
+        Qt.callLater(function() { search.forceActiveFocus() })
+    }
+    Connections {
+        target: appState
+        function onPlayerViewChanging(entering) {
+            if (entering) {
+                window.browseFocus = window.activeFocusItem
+                window.browseWidth = pages.width
+                window.browseHeight = pages.height
+            }
+        }
+        function onPlayerViewChanged() {
+            Qt.callLater(function() {
+                if (appState.expanded && immersive.item) immersive.item.focusStage()
+                else if (window.browseFocus && window.browseFocus.visible && window.browseFocus.enabled) window.browseFocus.forceActiveFocus()
+                else player.focusImmersiveToggle()
+            })
+        }
+    }
     onClosing: appState.saveWindow(width, height)
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
     property bool modalOpen: accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
@@ -82,7 +106,8 @@ ApplicationWindow {
     Rectangle {
         id: sidebar
         objectName: "navigationRail"
-        width: Math.min(appState.sidebarWidth, Math.max(180, window.width - (appState.queueOpen || appState.lyricsOpen ? 280 : 0) - 320))
+        width: appState.expanded ? 0 : Math.min(appState.sidebarWidth, Math.max(180, window.width - (appState.queueOpen || appState.lyricsOpen ? 280 : 0) - 320))
+        visible: !appState.expanded
         anchors.top: parent.top
         anchors.bottom: player.top
         color: themeState.background
@@ -210,7 +235,8 @@ ApplicationWindow {
         objectName: "mainHeader"
         anchors.left: sidebar.right
         anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
-        height: 64
+        height: appState.expanded ? 0 : 64
+        visible: !appState.expanded
         IconButton { x: header.width < 480 ? 8 : 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
         TextField {
             id: search
@@ -356,8 +382,12 @@ ApplicationWindow {
 
         Loader {
             id: pages
-            anchors.fill: parent
-            active: !appState.expanded
+            objectName: "browseLoader"
+            // Keep the page and its viewport alive while the stage uses the available space.
+            width: appState.expanded ? window.browseWidth : parent.width
+            height: appState.expanded ? window.browseHeight : parent.height
+            visible: !appState.expanded
+            enabled: visible
             function syncPage() {
                 var route = catalogState.route
                 var target = route === "downloads" ? downloadsPage
@@ -380,7 +410,13 @@ ApplicationWindow {
             Component { id: browsePage; BrowsePane {} }
         }
 
-        Loader { anchors.fill: parent; active: appState.expanded; sourceComponent: Component { ExpandedPane {} } }
+        Loader {
+            id: immersive
+            anchors.fill: parent
+            active: appState.expanded
+            sourceComponent: Component { ExpandedPane {} }
+            onLoaded: item.focusStage()
+        }
 
     }
 
@@ -990,12 +1026,12 @@ ApplicationWindow {
         palette.window: themeState.surface; palette.windowText: themeState.foreground
         contentItem: Label {
             color: themeState.foreground; lineHeight: 1.7
-            text: "Space — Play / pause\nShift+N / Shift+P — Next / previous\nLeft / Right — Seek 5 seconds\nShift+Left / Shift+Right — Seek 10 seconds\n+ / − — Volume\nM — Mute\nS / R — Shuffle / repeat\nF / Escape — Open / close player\n/ or Ctrl+F — Search\nAlt+Left — Back\nAlt+Up / Alt+Down — Move focused queue entry\nDelete — Remove focused queue entry"
+            text: "Space — Play / pause\nShift+N / Shift+P — Next / previous\nLeft / Right — Seek 5 seconds\nShift+Left / Shift+Right — Seek 10 seconds\n+ / − — Volume\nM — Mute\nS / R — Shuffle / repeat\nF / Escape — Open / close immersive player\n/ or Ctrl+F — Search\nAlt+Left — Back\nAlt+Up / Alt+Down — Move focused queue entry\nDelete — Remove focused queue entry"
         }
     }
     Shortcut { sequence: "Alt+Left"; enabled: window.playbackShortcuts; onActivated: { appState.setExpanded(false); browseState.back() } }
-    Shortcut { sequence: "/"; enabled: window.playbackShortcuts; onActivated: search.forceActiveFocus() }
-    Shortcut { sequence: "Ctrl+F"; enabled: !window.modalOpen; onActivated: search.forceActiveFocus() }
+    Shortcut { sequence: "/"; enabled: window.playbackShortcuts; onActivated: window.focusSearch() }
+    Shortcut { sequence: "Ctrl+F"; enabled: !window.modalOpen; onActivated: window.focusSearch() }
     Shortcut { sequence: "Space"; enabled: window.playbackShortcuts; onActivated: playerState.togglePlayback() }
     Shortcut { sequence: "Shift+N"; enabled: window.playbackShortcuts; onActivated: playerState.next() }
     Shortcut { sequence: "Shift+P"; enabled: window.playbackShortcuts; onActivated: playerState.previous() }

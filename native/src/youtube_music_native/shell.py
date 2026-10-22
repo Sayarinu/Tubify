@@ -15,6 +15,7 @@ class ShellController(QObject):
     playlistsChanged = Signal()
     menuRequested = Signal(dict, dict)
     playerViewChanged = Signal()
+    playerViewChanging = Signal(bool)
     queueOpenChanged = Signal()
     lyricsOpenChanged = Signal()
     lyricsWidthChanged = Signal()
@@ -33,7 +34,7 @@ class ShellController(QObject):
         self._fixture = fixture or {}
         self._shelves = self._fixture.get("shelves", [])
         self._playlists = self._fixture.get("playlists", [])
-        self._expanded, self._player_tab = False, "Up next"
+        self._expanded = False
         self._queue_open = self.settings.value("queueOpen", False, type=bool)
         self._lyrics_open = self.settings.value("lyricsOpen", False, type=bool)
         self._lyrics_width = max(280, min(520, self._integer_setting("lyricsWidth", 360)))
@@ -234,19 +235,11 @@ class ShellController(QObject):
     def expanded(self):
         return self._expanded
 
-    @Property(str, notify=playerViewChanged)
-    def playerTab(self):
-        return self._player_tab
-
     @Slot(bool)
     def setExpanded(self, value):
-        self._expanded = value
-        self.playerViewChanged.emit()
-
-    @Slot(str)
-    def setPlayerTab(self, value):
-        if value in {"Up next", "Lyrics"}:
-            self._player_tab = value
+        if self._expanded != value:
+            self.playerViewChanging.emit(value)
+            self._expanded = value
             self.playerViewChanged.emit()
 
     @Slot("QVariantMap", "QVariantMap")
