@@ -6,7 +6,7 @@ This document records the approved native adaptation of [YTMDesktop](https://ytm
 
 ## Existing baseline and reconciliation
 
-Implementation branches start from freshly fetched main. The foundation baseline is 293042a (LUNE-365, native 0.1.1); it includes ad0f0e0 (LUNE-364). The real-account compatibility gate is already recorded as passed in [linux-compatibility.json](../native/evidence/linux-compatibility.json). This roadmap does not substitute fixture success for further real-account or hardware verification.
+The foundation branch started from freshly fetched main; later QoL branches follow the scoped stacked-PR workflow below. The foundation baseline is 293042a (LUNE-365, native 0.1.1); it includes ad0f0e0 (LUNE-364). The real-account compatibility gate is already recorded as passed in [linux-compatibility.json](../native/evidence/linux-compatibility.json). This roadmap does not substitute fixture success for further real-account or hardware verification.
 
 The original LUNE-364 checkout had six modified tracked files. A read-only comparison of its working diff against that branch and fetched main found:
 
@@ -143,7 +143,7 @@ No hosted backend is required. The later authenticated loopback API is an explic
 
 ## Linear tickets and dependency order
 
-These are actual assigned issues. Blocking relations below were read from Linear after creation. Foundation documents the shared contract; theme/artwork can proceed independently, then docks, queue/lyrics and immersive playback. Subsequent integrations depend on those foundations as listed. Each issue is delivered through its own branch and main-targeted PR.
+These are actual assigned issues. Blocking relations below were read from Linear after creation. Foundation documents the shared contract; the table records functional dependencies for theme/artwork, docks, queue/lyrics, immersive playback and later integrations. Each issue is delivered through its own branch and PR in the user-approved stack described below.
 
 | Issue | Assigned title | Blocked by |
 | --- | --- | --- |
@@ -170,7 +170,9 @@ These are actual assigned issues. Blocking relations below were read from Linear
 | [LUNE-387](https://linear.app/nouvelle-lune-atelier/issue/LUNE-387/evaluate-and-add-optional-native-speaker-fill) | Evaluate and add optional native speaker fill | LUNE-375 |
 | [LUNE-388](https://linear.app/nouvelle-lune-atelier/issue/LUNE-388/evaluate-native-chromecast-audio-compatibility) | Evaluate native Chromecast audio compatibility | LUNE-373 |
 
-Merge prerequisites before starting a dependent implementation branch. Fetch origin/main and create the branch named exactly LUNE-NNN directly from it; never stack unmerged ticket branches. Commit subjects use LUNE-NNN - Change-specific message. Merge only through a PR after scope is complete, review concerns are resolved and required checks pass for its current head.
+On 2026-10-22 the user explicitly requested stacked GitHub PRs for LUNE-367–LUNE-388 and no merges until user verification. This is a scoped exception to the repository's usual direct-from-main, main-target-only and no-unmerged-stacking rules. LUNE-367 is based on and targets main. Each later ticket branch builds on the preceding ticket branch in the rollout stack, and its PR targets that branch. Functional prerequisites must already be present in the stack; they do not need to merge before dependent work begins.
+
+Keep branch names exactly LUNE-NNN and commit subjects LUNE-NNN - Change-specific message. Do not merge any rollout PR until the user has verified the changes and authorizes merging. Review concerns must still be resolved and required checks must pass for the current head before an authorized merge. Do not push implementation changes directly to main. The default repository workflow continues to apply outside this rollout.
 
 ## Acceptance matrix
 

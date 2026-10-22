@@ -135,9 +135,11 @@ The Linear issues contain milestones, blocking relations, acceptance criteria an
 
 ## Git and release workflow
 
-Fetch the latest origin/main and create each ticket branch directly from it. The branch name is exactly the assigned identifier, for example LUNE-335. Do not use agent/* branches as bases, create descriptive branch suffixes or stack work on unmerged ticket branches.
+The default repository workflow is to fetch the latest origin/main and create each ticket branch directly from it. The branch name is exactly the assigned identifier, for example LUNE-335. Outside the scoped exception below, do not use agent/* branches as bases, create descriptive branch suffixes or stack work on unmerged ticket branches.
 
-Commit subjects follow LUNE-335 - Change-specific message, using the current ticket's identifier. Every PR targets main. Merge through the PR only after its work is complete, review concerns are resolved and all required checks pass for the current head. Do not push implementation changes directly to main.
+Commit subjects follow LUNE-335 - Change-specific message, using the current ticket's identifier. The default PR target is main. Merge through the PR only after its work is complete, review concerns are resolved and all required checks pass for the current head. Do not push implementation changes directly to main.
+
+For the LUNE-367–LUNE-388 QoL rollout, the user explicitly approved stacked GitHub PRs on 2026-10-22. This scoped exception overrides the direct-from-main, main-target-only and no-unmerged-stacking defaults: LUNE-367 remains based on and targets main; each later ticket branch builds on the preceding ticket branch in the rollout stack and its PR targets that branch. Branch names remain exactly their assigned issue identifiers, with the same commit format, review and current-head check requirements. Functional prerequisites must be present in the stack before dependent work begins. Do not merge any rollout PR until the user has verified the changes and authorizes merging. See the [QoL roadmap](native-qol-roadmap.md#linear-tickets-and-dependency-order) for delivery scope; this exception does not change the default workflow for other work.
 
 The current Tauri application remains available during native development and the initial separate-package release. Google interface changes remain an ongoing maintenance dependency.
 
