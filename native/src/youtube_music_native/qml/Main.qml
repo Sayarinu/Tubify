@@ -113,7 +113,7 @@ ApplicationWindow {
         function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
     }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: desktopSettings.opened || navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     // Content zoom is independent of the platform device-pixel ratio.
@@ -398,6 +398,8 @@ ApplicationWindow {
     }
 
     PlaybackSettings { id: playbackSettings }
+    DesktopSettings { id: desktopSettings }
+    Loader { active: trayState.enabled; sourceComponent: TrayPlayer {} }
 
     Menu {
         id: appearanceMenu
@@ -407,6 +409,7 @@ ApplicationWindow {
         spacing: 2
         background: Rectangle { radius: 12; color: themeState.surface; border.color: themeState.border; border.width: 1 }
         ContextMenuItem { text: "Playback" + (playbackOptions.sleepRemaining > 0 ? " · Sleep " + Theme.timeLabel(playbackOptions.sleepRemaining) : ""); onTriggered: playbackSettings.open() }
+        ContextMenuItem { text: "Desktop"; onTriggered: desktopSettings.open() }
         ContextMenuItem { text: "Appearance Settings"; onTriggered: settingsDialog.open() }
         ContextMenuItem { text: "Lyrics Settings"; onTriggered: lyricsSettings.open() }
     }
@@ -1104,7 +1107,7 @@ ApplicationWindow {
     Connections { target: appState; function onPageChanged() { if (appState.page === "Search") search.text = appState.query } }
     MediaMenu { id: mediaMenu }
     PlaylistDialogs { id: playlistDialogs; anchors.fill: parent }
-    Connections { target: appState; function onMenuRequested(media, context) { mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
+    Connections { target: appState; function onMenuRequested(media, context) { if (trayState.popupActive) return; mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
     Dialog {
         id: shortcutHelp
         objectName: "shortcutHelpDialog"

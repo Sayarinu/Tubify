@@ -10,6 +10,7 @@ from PySide6.QtCore import QEvent, QStandardPaths, QTimer, QUrl
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QIcon, QPalette
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
+from PySide6.QtWidgets import QApplication
 
 from .shell import ShellController
 from .account import Account
@@ -26,6 +27,7 @@ from .library import Library
 from .listening import Listening
 from .lyric_view import LyricView
 from .desktop import Desktop
+from .tray import TrayPlayer
 from .theme import ThemeState
 from .color_picker import ColorSampler
 
@@ -40,6 +42,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
     engine.rootContext().setContextProperty("appState", controller)
     engine.rootContext().setContextProperty("accountState", account)
     engine.rootContext().setContextProperty("playerState", player)
+    if hasattr(controller, "trayState"):
+        engine.rootContext().setContextProperty("trayState", controller.trayState)
     if hasattr(controller, "playbackOptions"):
         engine.rootContext().setContextProperty("playbackOptions", controller.playbackOptions)
     if theme:
@@ -80,7 +84,7 @@ def main(argv=None):
     QGuiApplication.setApplicationName("youtube-music-native")
     QGuiApplication.setApplicationDisplayName("YouTube Music")
     QQuickStyle.setStyle("Basic")
-    app = QGuiApplication([sys.argv[0]])
+    app = QApplication([sys.argv[0]])
     app.setDesktopFileName("youtube-music-native")
     app.setWindowIcon(QIcon(str(PACKAGE / "assets" / "music.svg")))
     for font in (PACKAGE / "assets").glob("*.ttf"):
@@ -132,6 +136,7 @@ def main(argv=None):
     source_worker = None if args.fixture else Worker(controller, idle_ms=15000)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)
+    controller.trayState = TrayPlayer(controller, player, data / "settings.ini", PACKAGE / "assets" / "music.svg", parent=controller)
     downloads = DownloadView(media_data, fixture=args.fixture, parent=controller)
     player.trackStarted.connect(lambda track: downloads.refresh())
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
@@ -151,6 +156,7 @@ def main(argv=None):
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
     app.aboutToQuit.connect(controller.playbackOptions.close)
+    app.aboutToQuit.connect(controller.trayState.close)
     app.aboutToQuit.connect(downloads.close)
     app.aboutToQuit.connect(lyrics.close)
     engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads, search, actions, library, lyrics, theme, color_sampler)
@@ -159,6 +165,7 @@ def main(argv=None):
     window = engine.rootObjects()[0]
     if not args.fixture:
         controller.restoreWindow(window, [screen.availableGeometry() for screen in app.screens()])
+    controller.trayState.start(window)
     desktop = None if args.fixture else Desktop(controller, player, window, downloads, parent=controller)
     if desktop:
         app.aboutToQuit.connect(desktop.close)
