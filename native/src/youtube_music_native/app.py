@@ -139,7 +139,6 @@ def main(argv=None):
     library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
     lyrics = LyricView(account, player, media_data, fixture=args.fixture, parent=controller)
-    controller.playerViewChanged.connect(lambda: lyrics.setActive(controller.expanded and controller.playerTab == "Lyrics"))
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)

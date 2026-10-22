@@ -5,6 +5,7 @@ import "Theme.js" as Theme
 Rectangle {
     id: root
     objectName: "playerBar"
+    function focusDockToggle(name) { if (name === "Lyrics") lyricsToggle.forceActiveFocus(); else queueToggle.forceActiveFocus() }
     height: 92
     radius: 12
     color: themeState.surface
@@ -166,8 +167,8 @@ Rectangle {
         anchors.right: parent.right; anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
         IconButton { iconName: "more"; tip: "Current song options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
-        IconButton { objectName: "queueToggle"; iconName: "queue"; tip: appState.queueOpen ? "Close Queue" : "Queue"; iconColor: appState.queueOpen ? themeState.accent : themeState.secondary; onClicked: { if (appState.expanded) appState.setExpanded(false); appState.toggleQueue() } }
-        IconButton { iconName: "music"; tip: "Lyrics"; iconColor: appState.expanded && appState.playerTab === "Lyrics" ? themeState.accent : themeState.secondary; onClicked: { appState.setPlayerTab("Lyrics"); appState.setExpanded(true) } }
+        IconButton { id: queueToggle; objectName: "queueToggle"; iconName: "queue"; tip: appState.queueOpen ? "Close Queue" : "Queue"; iconColor: appState.queueOpen ? themeState.accent : themeState.secondary; onClicked: { if (appState.expanded) appState.setExpanded(false); appState.toggleQueue() } }
+        IconButton { id: lyricsToggle; objectName: "lyricsToggle"; iconName: "music"; tip: appState.lyricsOpen ? "Close Lyrics" : "Lyrics"; iconColor: appState.lyricsOpen ? themeState.accent : themeState.secondary; onClicked: { if (appState.expanded) appState.setExpanded(false); appState.toggleLyrics() } }
         IconButton { id: volume; iconName: appState.volume > 0 ? "volume" : "muted"; tip: root.compact ? "Volume" : appState.volume > 0 ? "Mute" : "Unmute"; onClicked: root.compact ? volumePopup.open() : appState.toggleMute() }
         AccentSlider { width: 84; height: 44; visible: !root.compact; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
         IconButton { iconName: appState.expanded ? "down" : "up"; tip: appState.expanded ? "Close player page" : "Expand player"; onClicked: appState.requestAction("expandPlayer") }

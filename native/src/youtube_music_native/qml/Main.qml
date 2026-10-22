@@ -32,6 +32,34 @@ ApplicationWindow {
     palette.dark: themeState.background
     palette.link: themeState.accent
     property bool wideNavigation: true
+    readonly property bool docksVisible: !appState.expanded && (appState.queueOpen || appState.lyricsOpen)
+    readonly property bool bothDocks: appState.queueOpen && appState.lyricsOpen
+    readonly property bool tabbedDocks: bothDocks && width - sidebar.width < 1040
+    readonly property real dockBudget: Math.max(280, width - sidebar.width - (bothDocks && !tabbedDocks ? 480 : 320))
+    readonly property real dockExtra: appState.queueWidth + appState.lyricsWidth - 560
+    readonly property real fittedExtra: Math.min(dockExtra, Math.max(0, dockBudget - 560))
+    readonly property real fittedQueueWidth: bothDocks && !tabbedDocks
+        ? 280 + (dockExtra > 0 ? fittedExtra * (appState.queueWidth - 280) / dockExtra : 0)
+        : Math.min(appState.queueWidth, dockBudget)
+    readonly property real fittedLyricsWidth: bothDocks && !tabbedDocks
+        ? 280 + (dockExtra > 0 ? fittedExtra * (appState.lyricsWidth - 280) / dockExtra : 0)
+        : Math.min(appState.lyricsWidth, dockBudget)
+    readonly property bool showQueueDock: docksVisible && appState.queueOpen && (!tabbedDocks || appState.activeDock === "Queue")
+    readonly property bool showLyricsDock: docksVisible && appState.lyricsOpen && (!tabbedDocks || appState.activeDock === "Lyrics")
+    readonly property bool lyricsActive: showLyricsDock || appState.expanded && appState.playerTab === "Lyrics"
+    function restoreDockFocus() {
+        Qt.callLater(function() {
+            if (window.activeFocusItem && !window.activeFocusItem.visible) {
+                if (showLyricsDock) lyricsHeader.focusControl()
+                else if (showQueueDock) queueHeader.focusControl()
+                else player.focusDockToggle(appState.activeDock)
+            }
+        })
+    }
+    onShowLyricsDockChanged: restoreDockFocus()
+    onShowQueueDockChanged: restoreDockFocus()
+    onLyricsActiveChanged: lyricState.setActive(lyricsActive)
+    Component.onCompleted: lyricState.setActive(lyricsActive)
     onClosing: appState.saveWindow(width, height)
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
     property bool modalOpen: accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
@@ -54,7 +82,7 @@ ApplicationWindow {
     Rectangle {
         id: sidebar
         objectName: "navigationRail"
-        width: Math.min(appState.sidebarWidth, Math.max(180, window.width - (appState.queueOpen ? appState.queueWidth : 0) - 320))
+        width: Math.min(appState.sidebarWidth, Math.max(180, window.width - (appState.queueOpen || appState.lyricsOpen ? 280 : 0) - 320))
         anchors.top: parent.top
         anchors.bottom: player.top
         color: themeState.background
@@ -181,15 +209,15 @@ ApplicationWindow {
         id: header
         objectName: "mainHeader"
         anchors.left: sidebar.right
-        anchors.right: appState.queueOpen && !appState.expanded ? queueSidebar.left : parent.right
+        anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
         height: 64
-        IconButton { x: 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
+        IconButton { x: header.width < 480 ? 8 : 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
         TextField {
             id: search
             objectName: "searchField"
-            x: 96
+            x: header.width < 480 ? 56 : 96
             y: 11
-            width: Math.max(120, Math.min(480, header.width - 328))
+            width: Math.max(96, Math.min(480, (historyButton.visible ? historyButton.x : settingsButton.x) - x - 12))
             height: 42
             leftPadding: 52
             rightPadding: text.length > 0 ? 48 : 16
@@ -237,7 +265,7 @@ ApplicationWindow {
             id: profileButton
             objectName: "profileButton"
             anchors.right: parent.right
-            anchors.rightMargin: 32
+            anchors.rightMargin: header.width < 480 ? 8 : 32
             y: 10
             width: 44; height: 44
             iconName: "profile"
@@ -255,7 +283,7 @@ ApplicationWindow {
             }
         }
         IconButton { id: settingsButton; objectName: "settingsButton"; anchors.right: profileButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "settings"; tip: "Settings"; onClicked: appearanceMenu.popup(settingsButton, settingsButton.width - appearanceMenu.implicitWidth, settingsButton.height, null) }
-        IconButton { id: historyButton; objectName: "historyButton"; anchors.right: settingsButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening history"; onClicked: libraryState.history() }
+        IconButton { id: historyButton; objectName: "historyButton"; visible: header.width >= 640; anchors.right: settingsButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening history"; onClicked: libraryState.history() }
     }
 
     Menu {
@@ -320,7 +348,7 @@ ApplicationWindow {
         id: content
         objectName: "pageContent"
         anchors.left: sidebar.right
-        anchors.right: appState.queueOpen && !appState.expanded ? queueSidebar.left : parent.right
+        anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
         anchors.top: reconnectBanner.bottom
         anchors.bottom: player.top
         anchors.bottomMargin: 12
@@ -357,51 +385,42 @@ ApplicationWindow {
     }
 
     Rectangle {
+        id: lyricsSidebar
+        objectName: "lyricsSidebar"
+        anchors.top: parent.top
+        anchors.right: showQueueDock ? queueSidebar.left : parent.right
+        anchors.bottom: player.top
+        width: fittedLyricsWidth
+        visible: showLyricsDock
+        color: themeState.background
+        Rectangle { width: 1; height: parent.height; color: themeState.border }
+        DockHeader { id: lyricsHeader; title: "Lyrics"; tabbed: window.tabbedDocks; onCloseRequested: appState.setLyricsOpen(false) }
+        LyricsPane { anchors.fill: parent; anchors.topMargin: 48; anchors.leftMargin: 16; anchors.rightMargin: 16 }
+        PanelResizeHandle {
+            objectName: "lyricsResizeHandle"
+            panelWidth: lyricsSidebar.width
+            onResized: function(value) { appState.setLyricsWidth(value) }
+            onFinished: appState.saveSidebarWidths()
+        }
+    }
+
+    Rectangle {
         id: queueSidebar
         objectName: "queueSidebar"
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.bottom: player.top
-        width: Math.min(appState.queueWidth, Math.max(280, window.width - sidebar.width - 320))
-        visible: appState.queueOpen && !appState.expanded
+        width: fittedQueueWidth
+        visible: showQueueDock
         color: themeState.background
-        Rectangle { anchors.left: parent.left; width: 1; height: parent.height; color: themeState.border }
-        QueuePane { anchors.fill: parent }
-        Item {
-            id: queueResizeHandle
+        Rectangle { width: 1; height: parent.height; color: themeState.border }
+        DockHeader { id: queueHeader; title: "Queue"; tabbed: window.tabbedDocks; onCloseRequested: appState.setQueueOpen(false) }
+        QueuePane { anchors.fill: parent; anchors.topMargin: 48; showCloseButton: false }
+        PanelResizeHandle {
             objectName: "queueResizeHandle"
-            z: 10
-            x: -width / 2
-            width: 12
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            HoverHandler { id: queueResizeHover; cursorShape: Qt.SizeHorCursor }
-            Rectangle {
-                anchors.centerIn: parent
-                width: 2
-                height: parent.height
-                color: themeState.accent
-                opacity: queueResizeHover.hovered || queueResizeMouse.pressed ? 0.9 : 0
-            }
-            MouseArea {
-                id: queueResizeMouse
-                anchors.fill: parent
-                cursorShape: Qt.SizeHorCursor
-                preventStealing: true
-                property real startWidth: 360
-                property real startX: 0
-                onPressed: function(mouse) {
-                    startWidth = queueSidebar.width
-                    startX = queueResizeMouse.mapToItem(null, mouse.x, mouse.y).x
-                }
-                onPositionChanged: function(mouse) {
-                    if (pressed) {
-                        var sceneX = queueResizeMouse.mapToItem(null, mouse.x, mouse.y).x
-                        appState.setQueueWidth(startWidth - sceneX + startX)
-                    }
-                }
-                onReleased: appState.saveSidebarWidths()
-            }
+            panelWidth: queueSidebar.width
+            onResized: function(value) { appState.setQueueWidth(value) }
+            onFinished: appState.saveSidebarWidths()
         }
     }
 

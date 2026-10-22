@@ -19,6 +19,7 @@ def main():
             [sys.executable, "-m", "youtube_music_native.app", "--fixture", "--smoke-test", "--data-dir", str(root)],
             check=True, timeout=30,
         )
+        subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_docks.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_library.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_player.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_downloads.py"))], check=True, timeout=30)

@@ -67,3 +67,39 @@ def test_sidebar_widths_are_bounded(tmp_path):
     controller.setQueueWidth(100)
     assert controller.sidebarWidth == 420
     assert controller.queueWidth == 280
+
+
+def test_independent_docks_remember_intent_width_and_last_opened(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    path = tmp_path / "settings.ini"
+    shell = ShellController(path)
+    assert not shell.lyricsOpen and not shell.queueOpen
+    shell.toggleLyrics()
+    assert shell.lyricsOpen and not shell.queueOpen and shell.activeDock == "Lyrics"
+    shell.toggleQueue()
+    assert shell.lyricsOpen and shell.queueOpen and shell.activeDock == "Queue"
+    shell.setActiveDock("Lyrics")
+    shell.setLyricsWidth(412)
+    shell.setQueueWidth(468)
+    shell.saveSidebarWidths()
+    restored = ShellController(path)
+    assert restored.lyricsOpen and restored.queueOpen and restored.activeDock == "Lyrics"
+    assert (restored.lyricsWidth, restored.queueWidth) == (412, 468)
+    restored.setLyricsOpen(False)
+    assert restored.queueOpen and restored.activeDock == "Queue"
+    restored.setActiveDock("Lyrics")
+    assert restored.activeDock == "Queue"
+    restored.setQueueOpen(False)
+    assert not restored.lyricsOpen and not restored.queueOpen
+
+
+def test_invalid_dock_preferences_use_safe_defaults(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    path = tmp_path / "settings.ini"
+    path.write_text("[General]\nlyricsOpen=true\nqueueOpen=false\nactiveDock=invalid\nlyricsWidth=invalid\n")
+    shell = ShellController(path)
+    assert shell.activeDock == "Lyrics" and shell.lyricsWidth == 360
+    shell.setLyricsWidth(999)
+    assert shell.lyricsWidth == 520
+    shell.setLyricsWidth(1)
+    assert shell.lyricsWidth == 280

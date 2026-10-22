@@ -5,6 +5,7 @@ import "Theme.js" as Theme
 Item {
     id: root
     objectName: "queuePane"
+    property bool showCloseButton: true
     property real gutter: Theme.gutter(width)
     property var draggedTrack: ({})
     property string draggingKey: ""
@@ -130,6 +131,7 @@ Item {
             }
             IconButton {
                 objectName: "queueCollapseButton"
+                visible: root.showCloseButton
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.top
                 anchors.verticalCenterOffset: 18
