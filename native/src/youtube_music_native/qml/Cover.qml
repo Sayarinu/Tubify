@@ -12,6 +12,10 @@ Rectangle {
     readonly property int physicalSize: Math.ceil(Math.max(width, height) * Screen.devicePixelRatio)
     onPhysicalSizeChanged: requestUpgrade(true)
     onMediaChanged: { failedSource = ""; requestUpgrade(true) }
+    onMediaKeyChanged: {
+        if (artwork) artwork.hasImage = false
+        if (softwareMask) softwareMask.resetForMedia()
+    }
     onVisibleChanged: if (visible) requestUpgrade(true)
     onLargeArtworkChanged: requestUpgrade(true)
     Component.onCompleted: requestUpgrade(true)
@@ -79,6 +83,16 @@ Rectangle {
     Timer { id: paintAfterLoad; interval: 16; onTriggered: softwareMask.requestPaint() }
     Canvas {
         id: softwareMask
+        objectName: "coverCanvas"
+        property string canvasSource: ""
+        property bool clearForMedia: true
+        function resetForMedia() {
+            if (canvasSource) unloadImage(canvasSource)
+            canvasSource = ""
+            clearForMedia = true
+            requestPaint()
+        }
+        onImageLoaded: if (visible) requestPaint()
         anchors.fill: parent
         readonly property bool active: root.radius > 0 && GraphicsInfo.api === GraphicsInfo.Software
         visible: active && root.ready
@@ -93,14 +107,32 @@ Rectangle {
         onHeightChanged: if (active) requestPaint()
         Connections { target: root; function onRadiusChanged() { if (softwareMask.active) softwareMask.requestPaint() } }
         onPaint: {
-            if (!visible || !root.ready) return
+            if (!visible) return
             var ctx = getContext("2d")
+            if (clearForMedia) {
+                ctx.reset()
+                ctx.clearRect(0, 0, canvasSize.width, canvasSize.height)
+                clearForMedia = false
+            }
+            if (artwork.status !== Image.Ready) return
+            var image = artwork
+            if (root.largeArtwork) {
+                // A large Image item's cached render can be blank after Loader recreation.
+                var imageSource = artwork.source.toString()
+                if (canvasSource !== imageSource) {
+                    if (canvasSource) unloadImage(canvasSource)
+                    canvasSource = imageSource
+                    loadImage(imageSource)
+                }
+                if (!isImageLoaded(imageSource)) return
+                image = imageSource
+            }
             ctx.reset()
             ctx.scale(pixelRatio, pixelRatio)
             ctx.beginPath()
             ctx.roundedRect(0, 0, width, height, root.radius, root.radius)
             ctx.clip()
-            ctx.drawImage(artwork, (width - artwork.paintedWidth) / 2, (height - artwork.paintedHeight) / 2, artwork.paintedWidth, artwork.paintedHeight)
+            ctx.drawImage(image, (width - artwork.paintedWidth) / 2, (height - artwork.paintedHeight) / 2, artwork.paintedWidth, artwork.paintedHeight)
         }
     }
     Image {

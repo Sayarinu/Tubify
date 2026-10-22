@@ -58,11 +58,13 @@ for size in (300, 600):
     assert art.property('source').toString() == large
     assert art.property('sourceSize').width() == math.ceil(size * float(sys.argv[2]))
     assert cover.property('ready')
-    QTest.qWait(100)
-    frame = window.grabWindow()
-    assert not frame.isNull()
-    center = frame.pixelColor(round(size * float(sys.argv[2]) / 2), round(size * float(sys.argv[2]) / 2))
-    assert center.red() > 180 and center.green() < 80, center.name()
+    def painted():
+        frame = window.grabWindow()
+        if frame.isNull():
+            return False
+        center = frame.pixelColor(round(size * float(sys.argv[2]) / 2), round(size * float(sys.argv[2]) / 2))
+        return center.red() > 180 and center.green() < 80
+    wait_until(painted, 'Ready cover did not paint its decoded pixels')
 cover.setProperty('mediaKey', 'lmnopqrstuv')
 cover.setProperty('media', {'videoId': 'lmnopqrstuv'})
 downloads._artwork['lmnopqrstuv'] = (root / 'missing.png').as_uri()
