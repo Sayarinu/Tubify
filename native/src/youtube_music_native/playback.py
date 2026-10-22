@@ -89,14 +89,16 @@ class Playback(QObject):
     def currentTrack(self):
         return self.queue.current["track"] if self.queue.current else {}
 
+    @Property(str, notify=changed)
+    def nextGroup(self):
+        return "Next from " + self.queue.source_label if self.queue.source_label else "Next up"
+
     @Property("QVariantList", notify=changed)
     def entries(self):
-        source_group = ("Next" if self.queue.source_label.casefold() == "radio" else "Next from " + self.queue.source_label) if self.queue.source_label else "Next up"
         groups = (("Now playing", [self.queue.current] if self.queue.current else []),
-                  ("Previously played", reversed(self.queue.history)),
-                  ("Next in queue", self.queue.manual), (source_group, self.queue.remaining))
+                  ("Next in queue", self.queue.manual), (self.nextGroup, self.queue.remaining))
         return [{**entry["track"], "key": entry["key"], "current": group == "Now playing", "group": group,
-                 "movable": group not in ("Previously played", "Now playing")} for group, entries in groups for entry in entries]
+                 "movable": group != "Now playing"} for group, entries in groups for entry in entries]
 
     @Property(int, notify=changed)
     def manualCount(self):
