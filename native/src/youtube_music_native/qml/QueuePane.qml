@@ -102,7 +102,7 @@ Item {
         anchors.right: parent.right
         anchors.leftMargin: root.gutter
         anchors.rightMargin: root.gutter
-        height: 108
+        height: 148
         Text {
             text: "Now playing"
             color: themeState.foreground
@@ -142,6 +142,14 @@ Item {
             elide: Text.ElideRight
             color: themeState.secondary
             font.pixelSize: 13
+        }
+        Switch {
+            objectName: "queueAutoplay"
+            y: 104; width: parent.width; height: 36
+            text: "Autoplay"
+            checked: playerState.autoplay
+            Accessible.name: "Autoplay similar music"
+            onClicked: playerState.toggleAutoplay()
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: themeState.border }
     }

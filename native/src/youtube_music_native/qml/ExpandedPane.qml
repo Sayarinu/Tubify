@@ -6,7 +6,10 @@ Item {
     id: root
     objectName: "expandedPlayer"
     readonly property var track: playerState.currentTrack
-    readonly property var album: track.album || ({})
+    readonly property var artists: track.artists && track.artists.length ? track.artists : track.artist ? [{name: track.artist}] : []
+    readonly property var album: typeof track.album === "object" && track.album ? track.album : ({})
+    readonly property string albumName: typeof track.album === "string" ? track.album : album.name || track.albumName || track.albumTitle || ""
+    readonly property string albumId: album.id || album.browseId || ""
     readonly property real coverSize: Math.max(80, Math.min(width - 48, height - metadata.height - 64, 720))
     function focusStage() { title.forceActiveFocus() }
 
@@ -58,7 +61,7 @@ Item {
                 layoutDirection: Qt.LeftToRight
                 spacing: 4
                 Repeater {
-                    model: root.track.artists || []
+                    model: root.artists
                     Button {
                         id: artist
                         required property var modelData
@@ -81,12 +84,12 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(implicitWidth, parent.width)
                 height: 36
-                visible: !!root.album.name
-                enabled: !!root.album.id
-                text: root.album.name || ""
+                visible: !!root.albumName
+                enabled: !!root.albumId
+                text: root.albumName
                 flat: true
                 Accessible.role: enabled ? Accessible.Link : Accessible.StaticText
-                onClicked: browseState.open({kind: "album", id: root.album.id, title: root.album.name})
+                onClicked: browseState.open({kind: "album", id: root.albumId, title: root.albumName})
                 contentItem: Text { text: albumLink.text; textFormat: Text.PlainText; elide: Text.ElideRight; font.pixelSize: 14; color: themeState.secondary; font.underline: albumLink.hovered && albumLink.enabled; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
                 background: Rectangle { radius: 8; color: albumLink.hovered && albumLink.enabled ? themeState.hover : "transparent"; border.width: albumLink.visualFocus ? 2 : 0; border.color: themeState.accent }
             }

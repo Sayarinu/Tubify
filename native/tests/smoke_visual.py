@@ -325,7 +325,10 @@ def main():
                     assert button and background and marker
                     assert background.mapToScene(QPointF()) == button.mapToScene(QPointF())
                     assert (background.width(), background.height()) == (button.width(), button.height())
-                    assert marker.isVisible() == (shell.page == label)
+                    assert marker.isVisible() == (not shell.expanded and shell.page == label)
+                    if not button.isVisible():
+                        assert shell.expanded
+                        continue
                     assert marker.x() >= 0 and marker.x() + marker.width() <= background.width()
                     assert marker.y() + marker.height() / 2 == background.height() / 2
                     if button.property("selected"):
@@ -523,6 +526,8 @@ def main():
                         assert library_button.property("hovered") and not library_button.property("selected"), (size, hover_point, library_button.property("hovered"), library_button.property("selected"), shell.page)
                         assert home.property("selected") and view.route == "home"
                         assert library_background.property("color").name().upper() == theme_state.hover
+                        # Immersive return may already have restored mouse focus to Library.
+                        home.forceActiveFocus()
                         library_button.forceActiveFocus(Qt.FocusReason.TabFocusReason)
                         assert library_button.property("visualFocus")
                         assert QQmlProperty(library_background, "border.width").read() == 2

@@ -126,12 +126,30 @@ def main():
                 assert shell.expanded and shell.queueOpen and shell.lyricsOpen
                 window.resize(1600, 900)
                 settle()
+                autoplay = find("queueAutoplay")
+                previous_autoplay = player.autoplay
+                QMetaObject.invokeMethod(autoplay, "clicked")
+                assert player.autoplay != previous_autoplay
+                QMetaObject.invokeMethod(autoplay, "clicked")
+                assert player.autoplay == previous_autoplay
                 lyrics.seekLine(1)
                 assert player.position == 5 and lyrics.currentLine == 1
                 shell.setLyricsOpen(False)
                 settle()
                 check_queue(window, shell, player, browse, downloads, None, True)
                 assert shell.expanded
+                # Old downloaded metadata retains readable artist/album fallback strings.
+                legacy = {**track, "videoId": "stage000002", "artists": [], "artist": "Legacy artist", "album": "Legacy album", "thumbnail": "", "largeThumbnail": ""}
+                player.playTracks([legacy])
+                settle()
+                artist = next(item for item in visual_items(window.contentItem()) if item.objectName() == "immersiveArtist-0")
+                assert artist.property("text") == "Legacy artist"
+                assert find("immersiveAlbum").property("text") == "Legacy album"
+                assert not find("immersiveAlbum").isEnabled()
+                canvas = find("immersiveArtwork").findChild(QObject, "coverCanvas")
+                assert canvas.property("canvasSource") == ""
+                player.playTracks([track])
+                settle()
                 # Song options do not replay the track; artist and album links exit into browsing.
                 before = (player.currentTrack, player.position, player.playing)
                 QMetaObject.invokeMethod(find("immersiveTrackTitle"), "clicked")
