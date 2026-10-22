@@ -146,6 +146,12 @@ def main():
             wheel(touchpad=touchpad)
             assert not pane.property("following") and follow.isVisible()
             assert lines.property("contentY") != before, "Manual scrolling was swallowed"
+            # Wheel scrolling can still be decelerating after the delivered event.
+            # Compare playback updates only once the user's scroll has settled.
+            deadline = time.monotonic() + 2
+            while lines.property("moving") and time.monotonic() < deadline:
+                QTest.qWait(10)
+            assert not lines.property("moving"), "Manual scroll did not settle"
             held = lines.property("contentY")
             player.tick(original[20]["start"])
             QTest.qWait(80)
