@@ -76,7 +76,7 @@ Expected values for unchanged built-in palettes:
 | Solarized Light | #718886 |
 | Catppuccin Latte | #808397 |
 
-Navigation selected/hover/focus backgrounds and the active marker must share explicit item bounds and insets. The selected state follows the current route. Align icons, labels, rounded backgrounds and marker at both rail/sidebar widths; distinguish hover from selection. Reuse shared spacing, text and focus roles across player, menus and docks.
+Navigation selected/hover/focus backgrounds and the active marker must share explicit item bounds and insets. The selected state follows the current route. Align icons, labels, rounded backgrounds and marker at supported sidebar widths; distinguish hover from selection. Reuse shared spacing, text and focus roles across player, menus and docks.
 
 ### Artwork — LUNE-369
 
@@ -176,7 +176,7 @@ Merge prerequisites before starting a dependent implementation branch. Fetch ori
 
 | Area | Required checks |
 | --- | --- |
-| Theme/navigation | All twelve expected neutral tracks; >=3:1 track/surface contrast; extreme custom colors and import/export compatibility; route/hover/focus alignment at rail/sidebar widths. |
+| Theme/navigation | All twelve expected neutral tracks; >=3:1 track/surface contrast; extreme custom colors and import/export compatibility; route/hover/focus alignment at supported sidebar widths. |
 | Layout | 1600×900, 1280×820 and 920×620; closed/Queue/Lyrics/both docks; resize across the 480+280+280 content threshold; saved widths and requested states; persistent player; UI scales 80/100/150% and multiple DPRs. |
 | Queue | Empty/manual-only/source-only/mixed/long/duplicate data; no visible history; pinned current entry; one scrollbar; source-to-manual drag, keyboard reorder, delete, clear/cancellation and Previous/repeat/shuffle/snapshot regressions. |
 | Lyrics | Plain/line/word timing, missing/error/offline; click and keyboard seeking; current-line centering on open/resize/seek; each manual scroll input pauses six seconds; Follow action; reduced motion; stale result rejection and provider fallback. |
