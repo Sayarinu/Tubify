@@ -86,7 +86,7 @@ ApplicationWindow {
     }
     onClosing: appState.saveWindow(width, height)
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     Rectangle {
@@ -349,7 +349,9 @@ ApplicationWindow {
         spacing: 2
         background: Rectangle { radius: 12; color: themeState.surface; border.color: themeState.border; border.width: 1 }
         ContextMenuItem { text: "Appearance Settings"; onTriggered: settingsDialog.open() }
+        ContextMenuItem { text: "Lyrics Settings"; onTriggered: lyricsSettings.open() }
     }
+    LyricsSettings { id: lyricsSettings }
 
     Rectangle {
         id: reconnectBanner

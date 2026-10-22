@@ -77,6 +77,17 @@ Item {
             font.family: Theme.bodyFont
             font.pixelSize: 14
         }
+        Text {
+            width: parent.width
+            text: lyricState.data.status || ""
+            textFormat: Text.PlainText
+            visible: !!text
+            wrapMode: Text.Wrap
+            maximumLineCount: 3
+            elide: Text.ElideRight
+            font.pixelSize: 12
+            color: themeState.secondary
+        }
         ThemeActionButton {
             anchors.horizontalCenter: parent.horizontalCenter
             visible: !lyricState.busy
@@ -129,7 +140,8 @@ Item {
             objectName: "lyricLine-" + index
             readonly property bool seekable: root.timed && modelData.start >= 0
             width: Math.max(0, lines.width - scrollBar.width - 8)
-            height: Math.max(44, label.implicitHeight + 20)
+            height: Math.max(44, lineContent.implicitHeight + 20)
+            onHeightChanged: if (index === lyricState.currentLine) Qt.callLater(root.centerCurrent)
             leftPadding: 16
             rightPadding: 8
             topPadding: 10
@@ -149,17 +161,33 @@ Item {
             }
             Keys.onReturnPressed: if (seekable) clicked()
             Keys.onEnterPressed: if (seekable) clicked()
-            contentItem: Text {
+            contentItem: Column {
+                id: lineContent
+                spacing: 4
+                Text {
+                    objectName: "lyricTimestamp-" + line.index
+                    visible: line.seekable && lyricState.options.timestamps
+                    text: Theme.timeLabel(line.modelData.start)
+                    color: themeState.secondary
+                    font.pixelSize: 11
+                }
+                Text {
+                width: parent.width
                 id: label
                 objectName: "lyricText-" + line.index
-                text: line.modelData.text
-                textFormat: Text.PlainText
+                text: {
+                    var revision = lyricState.timingRevision
+                    var style = lyricState.options.style
+                    return lyricState.styledLine(line.index, themeState.foreground, themeState.secondary)
+                }
+                textFormat: Text.StyledText
                 wrapMode: Text.Wrap
                 color: !root.timed || line.index === lyricState.currentLine ? themeState.foreground : themeState.secondary
                 font.family: Theme.bodyFont
                 font.bold: true
                 font.pixelSize: root.lyricFontSize
                 lineHeight: 1.15
+                }
             }
             background: Rectangle {
                 color: line.hovered && line.seekable ? themeState.surface : "transparent"
@@ -189,7 +217,7 @@ Item {
         Text {
             objectName: "lyricSource"
             width: parent.width
-            text: [lyricState.data.source || "", lyricState.data.cached ? "Saved lyrics" : "", root.hasLyrics && !root.timed ? "Unsynced lyrics" : ""].filter(Boolean).join(" · ")
+            text: [lyricState.data.source || "", lyricState.data.cached ? "Saved lyrics" : "", root.hasLyrics ? (lyricState.data.syncLevel === "syllable" ? "Syllable timing" : lyricState.data.syncLevel === "word" ? "Word timing" : root.timed ? "Line timing" : "Unsynced lyrics") : "", lyricState.data.match === "approximate" ? "Approximate match" : ""].filter(Boolean).join(" · ")
             textFormat: Text.PlainText
             color: themeState.secondary
             font.family: Theme.bodyFont
@@ -200,7 +228,9 @@ Item {
         Text {
             objectName: "lyricRefreshStatus"
             width: parent.width
-            text: lyricState.busy ? "Refreshing lyrics…" : lyricState.error
+            maximumLineCount: 2
+            elide: Text.ElideRight
+            text: lyricState.busy ? "Refreshing lyrics…" : lyricState.error || lyricState.data.status || ""
             textFormat: Text.PlainText
             color: themeState.secondary
             font.family: Theme.bodyFont
