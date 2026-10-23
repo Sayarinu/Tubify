@@ -117,7 +117,7 @@ ApplicationWindow {
         function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
     }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: obsSettings.opened || apiSettings.opened || linkPreview.opened || lastFmSettings.opened || discordSettings.opened || shortcutSettings.opened || desktopSettings.opened || navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: maintenanceSettings.opened || obsSettings.opened || apiSettings.opened || linkPreview.opened || lastFmSettings.opened || discordSettings.opened || shortcutSettings.opened || desktopSettings.opened || navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     // Content zoom is independent of the platform device-pixel ratio.
@@ -402,6 +402,7 @@ ApplicationWindow {
     }
 
     PlaybackSettings { id: playbackSettings }
+    MaintenanceSettings { id: maintenanceSettings }
     DesktopSettings { id: desktopSettings }
     ShortcutSettings { id: shortcutSettings }
     ApiSettings { id: apiSettings }
@@ -422,6 +423,7 @@ ApplicationWindow {
         ContextMenuItem { text: "Local API"; onTriggered: apiSettings.open() }
         ContextMenuItem { text: "Global Shortcuts"; onTriggered: shortcutSettings.open() }
         ContextMenuItem { text: "Discord presence"; onTriggered: discordSettings.open() }
+        ContextMenuItem { text: "Updates and troubleshooting"; onTriggered: maintenanceSettings.open() }
         ContextMenuItem { text: "Appearance Settings"; onTriggered: settingsDialog.open() }
         ContextMenuItem { text: "Lyrics Settings"; onTriggered: lyricsSettings.open() }
         ContextMenuItem { text: "Last.fm"; onTriggered: lastFmSettings.open() }
