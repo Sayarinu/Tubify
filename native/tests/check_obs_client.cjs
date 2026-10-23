@@ -10,7 +10,7 @@ async function run(search, hash='', replies=[]) {
   const context = vm.createContext({
     document:{body:element(),documentElement:element(),getElementById(name){if(!nodes.has(name))nodes.set(name,element());return nodes.get(name)}},
     location:{search,hash},URLSearchParams,URL,AbortController,AbortSignal,performance:{now:()=>0},
-    setInterval(fn){intervals.push(fn)},setTimeout(){},addEventListener(){},
+    setInterval(fn){intervals.push(fn)},setTimeout(){},clearTimeout(){},addEventListener(){},
     fetch:async(path, options)=>{calls.push({path, options});return replies.length?replies.shift():new Promise(()=>{})}
   });
   vm.runInContext(source,context);

@@ -44,15 +44,23 @@
   async function artwork(path, current) {
     clearArtwork();
     if (!enabled("art") || !/^\/v1\/artwork\/[A-Za-z0-9_-]+$/.test(path)) return;
-    artRequest = new AbortController();
+    const controller = new AbortController();
+    artRequest = controller;
+    const deadline = setTimeout(() => controller.abort(), 25000);
     try {
-      const response = await request(path, artRequest.signal);
+      const response = await request(path, controller.signal);
       const blob = await response.blob();
-      if (current !== generation || blob.size > 8 * 1024 * 1024 || !["image/png", "image/jpeg", "image/webp"].includes(blob.type)) return;
+      if (current !== generation || blob.size > 8 * 1024 * 1024 || !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(blob.type)) return;
       objectUrl = URL.createObjectURL(blob);
       el("cover").src = objectUrl;
       el("artwork").classList.add("has-image");
-    } catch (_) { if (stopped) clear("Overlay access was revoked. Generate a new source URL in the app."); }
+    } catch (_) {
+      if (stopped) clear("Overlay access was revoked. Generate a new source URL in the app.");
+      else if (current === generation) artKey = ""; // Retry the current cover on the next snapshot.
+    } finally {
+      clearTimeout(deadline);
+      if (artRequest === controller) artRequest = null;
+    }
   }
   function progress() {
     if (!snapshot) return;
