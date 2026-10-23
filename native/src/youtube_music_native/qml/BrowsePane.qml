@@ -32,6 +32,8 @@ Item {
     Component.onCompleted: restoreScroll()
     Connections { target: catalogState; function onChanged() { root.restoreScroll() } }
     ListView {
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+        cacheBuffer: 0
         id: sections
         objectName: "browseSections"
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
@@ -51,6 +53,8 @@ Item {
             width: sections.width
             height: catalogState.route === "home" ? 82 : catalogState.route === "explore" ? 144 : 112
             ListView {
+                // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+                cacheBuffer: 0
                 width: parent.width; height: 36; orientation: ListView.Horizontal; spacing: 12; clip: true
                 visible: catalogState.route === "home"
                 model: ["Energize", "Feel good", "Workout", "Relax", "Party", "Commute", "Romance", "Focus", "Sad"]
@@ -99,6 +103,10 @@ Item {
     }
 
     ListView {
+
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+
+        cacheBuffer: 0
         id: songList
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: 32; bottomMargin: 48; clip: true; visible: root.songs
@@ -128,6 +136,10 @@ Item {
     }
 
     GridView {
+
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+
+        cacheBuffer: 0
         id: collectionGrid
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: 32; bottomMargin: 48; clip: true

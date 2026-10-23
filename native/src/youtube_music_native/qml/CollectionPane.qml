@@ -18,6 +18,8 @@ Item {
         return (hours ? hours + " hr " : "") + (minutes % 60) + " min"
     }
     ListView {
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+        cacheBuffer: 0
         id: songs
         objectName: "collectionSongs"
         anchors.fill: parent; clip: true; bottomMargin: 24

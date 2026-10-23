@@ -342,14 +342,7 @@ ApplicationWindow {
             }
             // Coalesce route and shell updates before replacing an incubating page.
             Component.onCompleted: Qt.callLater(syncPage)
-            Connections {
-                target: catalogState
-                // Retire the old view before its models receive the next route's data.
-                // Resetting a ListView's model during delegate incubation can invalidate
-                // its nested Loaders before their construction has finished.
-                function onNavigationStarted() { pages.sourceComponent = null }
-                function onChanged() { Qt.callLater(pages.syncPage) }
-            }
+            Connections { target: catalogState; function onChanged() { Qt.callLater(pages.syncPage) } }
             Connections { target: appState; function onPageChanged() { Qt.callLater(pages.syncPage) } }
             Component { id: downloadsPage; DownloadsPane {} }
             Component { id: collectionPage; CollectionPane {} }

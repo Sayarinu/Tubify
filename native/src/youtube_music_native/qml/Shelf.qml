@@ -43,6 +43,8 @@ Item {
         IconButton { iconName: "right"; tip: "More items"; outlined: true; width: 36; height: 36; enabled: cards.contentX < cards.contentWidth - cards.width; onClicked: cards.contentX = Math.min(Math.max(0, cards.contentWidth - cards.width), cards.contentX + cards.width) }
     }
     ListView {
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+        cacheBuffer: 0
         id: cards
         anchors.top: heading.bottom; anchors.topMargin: root.compact ? 4 : 16
         width: parent.width; height: root.compact ? 256 : Theme.cardHeight

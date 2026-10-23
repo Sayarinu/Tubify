@@ -21,6 +21,8 @@ Item {
             Rectangle { y: 52; height: 1; width: parent.width; color: themeState.border; visible: !root.history }
             Row { spacing: 16; visible: root.history; height: 72; Text { text: "History"; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 } }
             ListView {
+                // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+                cacheBuffer: 0
                 id: filters
                 y: 84; width: parent.width - (sortOrder.visible ? 180 : 0); height: 36
                 visible: !root.history; orientation: ListView.Horizontal; spacing: 12; clip: true
@@ -46,6 +48,8 @@ Item {
         }
     }
     GridView {
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+        cacheBuffer: 0
         id: grid
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         visible: !root.rows; clip: true; bottomMargin: 32
@@ -64,6 +68,8 @@ Item {
         footer: Button { text: "Load more"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
     }
     ListView {
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+        cacheBuffer: 0
         id: songs
         objectName: "librarySongs"
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
