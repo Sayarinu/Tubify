@@ -104,7 +104,7 @@ Item {
         anchors.rightMargin: root.gutter
         height: 152
         Text {
-            text: "Now playing"
+            text: "Now Playing"
             color: themeState.foreground
             font.pixelSize: 14
             font.bold: true
@@ -119,7 +119,7 @@ Item {
             height: 36
             iconSize: 20
             iconName: "right"
-            tip: "Close queue"
+            tip: "Close Queue"
             onClicked: appState.toggleQueue()
         }
         SongRow {
@@ -264,7 +264,7 @@ Item {
             Text {
                 objectName: modelData.rowType === "manualHeading" ? "queueSectionHeading" : modelData.rowType === "sourceHeading" ? "queueNextHeading" : ""
                 visible: modelData.rowType === "manualHeading" || modelData.rowType === "sourceHeading"
-                text: modelData.rowType === "manualHeading" ? "Queued songs" : playerState.nextGroup
+                text: modelData.rowType === "manualHeading" ? "Queued Songs" : playerState.nextGroup
                 textFormat: Text.PlainText
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
@@ -306,7 +306,7 @@ Item {
                 Text {
                     anchors.fill: parent
                     anchors.margins: 8
-                    text: root.dropToManual ? "Drop to queue" : "+  Drop songs here"
+                    text: root.dropToManual ? "Drop to Queue" : "+  Drop Songs Here"
                     color: themeState.foreground
                     font.pixelSize: 13
                     font.bold: true
@@ -320,7 +320,7 @@ Item {
             Text {
                 visible: modelData.rowType === "empty"
                 anchors.centerIn: parent
-                text: "No upcoming songs"
+                text: "No Upcoming Songs"
                 color: themeState.secondary
                 font.pixelSize: 13
             }

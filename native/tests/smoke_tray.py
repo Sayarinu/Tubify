@@ -33,13 +33,13 @@ def main():
                 assert QGuiApplication.organizationName() == "YouTubeMusicNative"
                 assert QGuiApplication.organizationDomain() == "com.carter"
                 assert QGuiApplication.instance().desktopFileName() == "youtube-music-native"
-                assert window.title() == "Tubify · Visual fixture"
+                assert window.title() == "Tubify · Visual Fixture"
                 assert service.popup is None and not service.enabled
                 service.setEnabled(True)
                 QTest.qWait(80)
                 popup = service.popup
                 assert popup and not popup.isVisible() and service.active
-                assert popup.title() == "Tubify · Tray player"
+                assert popup.title() == "Tubify · Tray Player"
                 service.setPinned(True)
                 service.showPlayer()
                 QTest.qWait(80)

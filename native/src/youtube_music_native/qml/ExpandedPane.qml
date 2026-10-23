@@ -46,7 +46,7 @@ Item {
                 enabled: playerState.hasTrack
                 onClicked: appState.showMenu(root.track, {})
                 contentItem: Text {
-                    text: root.track.title || "Nothing playing"
+                    text: root.track.title || "Nothing Playing"
                     textFormat: Text.PlainText
                     color: themeState.foreground; font.family: Theme.headingFont
                     font.pixelSize: root.width < 600 ? 24 : 32; font.bold: true

@@ -52,13 +52,13 @@ Item {
             required property var modelData
             property var section: modelData
             width: sections.width
-            sourceComponent: modelData.title === "Top songs" ? songSection : cardSection
+            sourceComponent: modelData.title === "Top Songs" ? songSection : cardSection
             Component {
                 id: songSection
                 Column {
                     property var section: parent.section
                     width: parent.width
-                    Text { text: "Top songs"; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 24; font.bold: true; height: 45 }
+                    Text { text: "Top Songs"; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 24; font.bold: true; height: 45 }
                     Repeater { model: parent.section.items; delegate: ArtistSongRow { required property var modelData; width: sections.width; media: modelData; onActivated: item => browseState.play(item) } }
                     Button { text: "More"; flat: true; palette.windowText: themeState.foreground; onClicked: browseState.openSection(parent.section) }
                 }

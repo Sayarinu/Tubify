@@ -13,6 +13,8 @@ import uuid
 from PySide6.QtCore import QObject, Property, QSettings, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
 
+DEFAULT_APPLICATION_ID = "1563325756040286280"
+
 MAX_FRAME = 1024 * 1024
 
 
@@ -198,7 +200,7 @@ class DiscordPresence(QObject):
         self.player, self.factory, self.fixture = player, pipe_factory, fixture
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
         self._enabled = self.settings.value("discord/enabled", False, type=bool)
-        self._client = str(self.settings.value("discord/clientId", ""))
+        self._client = str(self.settings.value("discord/clientId", "") or DEFAULT_APPLICATION_ID)
         self._buttons = self.settings.value("discord/buttons", False, type=bool)
         self._status, self.pipe, self._attempts = "Disabled", None, 0
         self._closed, self._last_sent = False, 0.
@@ -216,6 +218,10 @@ class DiscordPresence(QObject):
     @Property(bool, notify=changed)
     def enabled(self):
         return self._enabled
+
+    @Property(str, constant=True)
+    def defaultClientId(self):
+        return DEFAULT_APPLICATION_ID
 
     @Property(str, notify=changed)
     def clientId(self):
@@ -249,7 +255,7 @@ class DiscordPresence(QObject):
             self._set_status("Enter the numeric Application ID from the Discord Developer Portal.")
             return
         self._disconnect()
-        self._client, self._attempts = value, 0
+        self._client, self._attempts = value or DEFAULT_APPLICATION_ID, 0
         self.settings.setValue("discord/clientId", value)
         self.changed.emit()
         self._refresh()
@@ -278,14 +284,15 @@ class DiscordPresence(QObject):
     def _refresh(self, *args):
         if self._closed:
             return
-        if not self._enabled or not self.player.playing or not self.player.hasTrack:
+        configured = bool(re.fullmatch(r"[0-9]{17,20}", self._client))
+        if not self._enabled or not configured or not self.player.playing or not self.player.hasTrack:
             self._disconnect()
             self._attempts = 0
-            self._set_status("Disabled" if not self._enabled else "Ready — presence appears while music plays.")
+            self._set_status("Disabled" if not self._enabled else
+                             "Setup Required — save your Discord Application ID." if not configured else
+                             "Ready — presence appears while music plays.")
         elif self.fixture:
             self._set_status("Presence is disabled in the visual fixture.")
-        elif not re.fullmatch(r"[0-9]{17,20}", self._client):
-            self._set_status("Add your Discord Application ID to enable presence.")
         elif self.pipe and self.pipe.connected:
             if not self.update_timer.isActive():
                 self.update_timer.start(max(0, round((15 - (time.monotonic() - self._last_sent)) * 1000)))

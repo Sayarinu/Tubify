@@ -24,6 +24,7 @@ def main():
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_tray.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_playback_options.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_appearance.py"))], check=True, timeout=60)
+        subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_settings.py"))], check=True, timeout=40)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_docks.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_obs.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_discord.py"))], check=True, timeout=30)

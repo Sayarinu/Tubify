@@ -3,11 +3,11 @@ import struct
 import time
 from uuid import uuid4
 
-from PySide6.QtCore import QCoreApplication, QObject, Signal
+from PySide6.QtCore import QCoreApplication, QObject, QSettings, Signal
 from PySide6.QtNetwork import QLocalServer
 from PySide6.QtTest import QTest
 
-from youtube_music_native.discord_presence import DiscordPipe, DiscordPresence, activity_for, ipc_paths
+from youtube_music_native.discord_presence import DEFAULT_APPLICATION_ID, DiscordPipe, DiscordPresence, activity_for, ipc_paths
 
 
 class Player(QObject):
@@ -70,7 +70,7 @@ def test_disabled_idle_then_state_transitions_and_throttle(tmp_path):
     assert not service.enabled and service.pipe is None
     assert not service.retry_timer.isActive() and not service.update_timer.isActive()
     service.setEnabled(True)
-    assert service.pipe is None and "Application ID" in service.status
+    assert service.pipe.client == DEFAULT_APPLICATION_ID
     service.setClientId("123456789012345678")
     pipe = service.pipe
     pipe.connected = True
@@ -213,3 +213,27 @@ def test_stalled_endpoint_falls_through_and_nested_frame_closes(tmp_path):
     first.close(); second.close()
     for server in servers:
         server.close()
+
+
+def test_default_id_restores_empty_settings_and_reset_preserves_consent(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    path = tmp_path / "settings.ini"
+    settings = QSettings(str(path), QSettings.Format.IniFormat)
+    settings.setValue("discord/clientId", "")
+    settings.sync()
+    player = Player()
+    player.playing = False
+    service = DiscordPresence(player, path, pipe_factory=Pipe)
+    assert service.clientId == DEFAULT_APPLICATION_ID and not service.enabled
+    service.setEnabled(True)
+    assert "Ready" in service.status and service.pipe is None
+    service.setClientId("123456789012345678")
+    assert service.clientId == "123456789012345678"
+    service.setClientId("")
+    assert service.clientId == DEFAULT_APPLICATION_ID and service.enabled
+    service.setClientId("invalid")
+    assert service.clientId == DEFAULT_APPLICATION_ID
+    service.close()
+    restored = DiscordPresence(player, path, pipe_factory=Pipe)
+    assert restored.clientId == DEFAULT_APPLICATION_ID and restored.enabled
+    restored.close()
