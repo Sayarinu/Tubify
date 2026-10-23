@@ -399,7 +399,7 @@ ApplicationWindow {
 
     PlaybackSettings { id: playbackSettings }
     DesktopSettings { id: desktopSettings }
-    Loader { active: trayState.enabled; sourceComponent: TrayPlayer {} }
+    Loader { active: trayState.enabled; sourceComponent: TrayPlayer { palette: window.palette } }
 
     Menu {
         id: appearanceMenu

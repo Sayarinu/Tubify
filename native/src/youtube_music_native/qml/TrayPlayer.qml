@@ -7,21 +7,56 @@ ApplicationWindow {
     id: root
     objectName: "trayPlayer"
     title: "YouTube Music · Tray player"
-    width: 360
-    height: Math.min(screen.desktopAvailableHeight, trayState.queueOpen ? 700 : 292)
+    width: Math.min(screen.desktopAvailableWidth, Math.round(360 * appState.uiScaleFactor))
+    height: Math.min(screen.desktopAvailableHeight, Math.round((trayState.queueOpen ? 700 : 292) * appState.uiScaleFactor))
     visible: false
     color: themeState.background
     flags: Qt.Tool | Qt.FramelessWindowHint | (trayState.pinned ? Qt.WindowStaysOnTopHint : 0)
     onClosing: function(event) { event.accepted = false; hide() }
     onActiveChanged: if (!active && !trayState.pinned && !moving.active && !mediaMenu.opened && visible) hide()
-    onHeightChanged: if (visible) trayState.positionPopup()
+    onHeightChanged: { if (visible) trayState.positionPopup(); Qt.callLater(revealFocus) }
+    onWidthChanged: { if (visible) trayState.positionPopup(); Qt.callLater(revealFocus) }
+    onActiveFocusItemChanged: Qt.callLater(revealFocus)
+    function revealFocus() {
+        var item = root.activeFocusItem
+        var ancestor = item
+        while (ancestor && ancestor !== content) ancestor = ancestor.parent
+        if (!ancestor) return
+        var flick = viewport.contentItem
+        var point = item.mapToItem(content, 0, 0)
+        flick.contentX = Math.max(0, Math.min(flick.contentX, point.x))
+        flick.contentY = Math.max(0, Math.min(flick.contentY, point.y))
+        if (point.x + item.width > flick.contentX + flick.width) flick.contentX = point.x + item.width - flick.width
+        if (point.y + item.height > flick.contentY + flick.height) flick.contentY = point.y + item.height - flick.height
+    }
     onXChanged: positionSave.restart()
     onYChanged: positionSave.restart()
     Component.onCompleted: trayState.attachPopup(root)
     Component.onDestruction: trayState.detachPopup()
+    Overlay.overlay.transform: Scale { xScale: appState.uiScaleFactor; yScale: appState.uiScaleFactor }
+    Binding { target: root.Overlay.overlay; property: "width"; value: uiRoot.width }
+    Binding { target: root.Overlay.overlay; property: "height"; value: uiRoot.height }
+    Item {
+        id: uiRoot
+        objectName: "trayScaledContent"
+        width: root.width / appState.uiScaleFactor
+        height: root.height / appState.uiScaleFactor
+        scale: appState.uiScaleFactor
+        transformOrigin: Item.TopLeft
     MediaMenu { id: mediaMenu }
     Connections { target: appState; function onMenuRequested(media, context) { if (root.active) { mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } } }
     Timer { id: positionSave; interval: 300; onTriggered: trayState.savePosition() }
+    ScrollView {
+        id: viewport
+        objectName: "trayViewport"
+        anchors.fill: parent
+        clip: true
+        contentWidth: Math.max(uiRoot.width, 360)
+        contentHeight: Math.max(uiRoot.height, trayState.queueOpen ? 460 : 292)
+        Item {
+        id: content
+        width: viewport.contentWidth
+        height: viewport.contentHeight
     Rectangle { anchors.fill: parent; color: "transparent"; border.color: themeState.border; border.width: 1; radius: 12 }
     Item {
         id: titleBar
@@ -62,5 +97,8 @@ ApplicationWindow {
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: 284; anchors.bottom: parent.bottom
         active: trayState.queueOpen
         sourceComponent: QueuePane { showCloseButton: false }
+    }
+        }
+    }
     }
 }

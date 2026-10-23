@@ -1,4 +1,6 @@
 """Render the tray player and dispatch controls using a synthetic native tray."""
+import argparse
+from pathlib import Path
 import tempfile
 import traceback
 
@@ -12,6 +14,9 @@ from test_tray import FakeTray, FakeMenu
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output-dir", type=Path)
+    options = parser.parse_args()
     original, original_tray, passed = app.load_window, app.TrayPlayer, []
     app.TrayPlayer = lambda *args, **kwargs: TrayPlayer(*args, **kwargs, tray_factory=FakeTray, menu_factory=FakeMenu)
 
@@ -59,6 +64,36 @@ def main():
                 service.showPlayer()
                 areas = [screen.availableGeometry() for screen in QGuiApplication.screens()]
                 assert any(area.contains(popup.geometry()) for area in areas)
+                for scale in (80, 100, 150):
+                    shell.setUiScale(scale)
+                    for expanded in (False, True):
+                        service.setQueueOpen(expanded)
+                        QTest.qWait(80)
+                        service.positionPopup()
+                        assert any(area.contains(popup.geometry()) for area in areas), (scale, expanded, popup.geometry())
+                        root = popup.findChild(QObject, "trayScaledContent")
+                        assert abs(root.width() * scale / 100 - popup.width()) < 0.1
+                        assert abs(root.height() * scale / 100 - popup.height()) < 0.1
+                        if not expanded:
+                            toggle = popup.findChild(QObject, "trayQueueToggle")
+                            toggle.forceActiveFocus()
+                            QTest.qWait(30)
+                            bounds = toggle.mapRectToScene(toggle.boundingRect())
+                            assert bounds.left() >= 0 and bounds.right() <= popup.width() + 1, (scale, bounds, popup.width())
+                            assert bounds.top() >= 0 and bounds.bottom() <= popup.height() + 1
+                        if options.output_dir:
+                            options.output_dir.mkdir(parents=True, exist_ok=True)
+                            assert popup.grabWindow().save(str(options.output_dir / f"tray-{scale}-{expanded}.png"))
+                window.resize(920, 620)
+                popup.hide()
+                desktop = window.findChild(QObject, "desktopSettings")
+                QMetaObject.invokeMethod(desktop, "open")
+                QTest.qWait(30)
+                content = desktop.property("contentItem")
+                bounds = content.mapRectToScene(content.boundingRect())
+                assert bounds.left() >= 0 and bounds.right() <= window.width() + 1
+                assert bounds.top() >= 0 and bounds.bottom() <= window.height() + 1
+                QMetaObject.invokeMethod(desktop, "close")
                 popup.close()
                 QTest.qWait(30)
                 assert not popup.isVisible() and window.isVisible()
