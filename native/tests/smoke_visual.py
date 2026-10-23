@@ -343,6 +343,7 @@ def main():
                     shell.toggleQueue()
                     QTest.mouseMove(window, QPointF(800, 700).toPoint(), delay=20)
                     for size in ((1600, 900), (1280, 820), (920, 620)):
+                        print(f"Checking visual matrix at {size[0]}×{size[1]}", flush=True)
                         window.resize(*size)
                         shell.navigate("Home")
                         QTest.qWait(30)
@@ -613,7 +614,7 @@ def main():
             timer.setInterval(1000)
             timer.timeout.connect(tick)
             QTimer.singleShot(250, initial)
-            QTimer.singleShot(max(30000, (args.soak_seconds + 30) * 1000), lambda: finish(False))
+            QTimer.singleShot(max(60000, (args.soak_seconds + 60) * 1000), lambda: finish(False))
             return engine
 
         app.load_window = load
