@@ -7,7 +7,7 @@ import sys
 import tempfile
 
 from PySide6.QtCore import QEvent, QStandardPaths, QTimer, QUrl
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QIcon, QPalette
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QIcon, QPalette, QWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication
@@ -26,6 +26,8 @@ from .search import Search
 from .library import Library
 from .listening import Listening
 from .lastfm import LastFm
+from .deep_links import DeepLinks, LinkError
+from .link_instance import LinkInstance
 from .lyric_view import LyricView
 from .desktop import Desktop
 from .discord_presence import DiscordPresence
@@ -57,6 +59,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("lifecycleState", controller.lifecycleState)
     if hasattr(controller, "playbackOptions"):
         engine.rootContext().setContextProperty("playbackOptions", controller.playbackOptions)
+    if hasattr(controller, "linkState"):
+        engine.rootContext().setContextProperty("linkState", controller.linkState)
     if hasattr(controller, "lastFm"):
         engine.rootContext().setContextProperty("lastFmState", controller.lastFm)
     if theme:
@@ -91,6 +95,7 @@ def main(argv=None):
     parser.add_argument("--smoke-test", action="store_true", help="Verify window creation and exit")
     parser.add_argument("--screenshot", type=Path, help="Save a visual-verification screenshot and exit")
     parser.add_argument("--data-dir", type=Path, help="Override application data for isolated development/tests")
+    parser.add_argument("links", nargs="*", help="YouTube Music URLs or ytmusic-native links")
     args = parser.parse_args(argv)
     QGuiApplication.setOrganizationName("YouTubeMusicNative")
     QGuiApplication.setOrganizationDomain("com.carter")
@@ -112,6 +117,17 @@ def main(argv=None):
     else:
         data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation))
     data.mkdir(parents=True, exist_ok=True, mode=0o700)
+    instance = None
+    if not (args.fixture or args.smoke_test or args.screenshot):
+        instance = LinkInstance(data, app)
+        try:
+            if not instance.claim_or_forward(args.links):
+                return 0
+        except LinkError as error:
+            print(str(error), file=sys.stderr)
+            instance.close()
+            return 1
+        app.installEventFilter(instance)
     if args.data_dir or args.smoke_test or args.screenshot:
         cache = data / "cache"
     else:
@@ -159,6 +175,8 @@ def main(argv=None):
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
     account.sessionChanged.connect(downloads.resetSession)
     browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller, downloads=downloads)
+    controller.linkState = DeepLinks(browse, account, downloads, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
+    app.aboutToQuit.connect(controller.linkState.close)
     search = Search(controller, account, catalog, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     actions = Actions(account, cache / "metadata.sqlite3", fixture=args.fixture, parent=controller)
     actions.applied.connect(browse.applyAction)
@@ -190,9 +208,28 @@ def main(argv=None):
     controller.trayState.start(window)
     controller.lifecycleState.start(window)
     controller.shortcutState.start(window)
+    def show_for_link():
+        window.showNormal() if window.visibility() == QWindow.Visibility.Minimized else window.show()
+        window.raise_()
+        window.requestActivate()
+
+    def receive_links(links):
+        show_for_link()
+        for link in links:
+            controller.linkState.receive(link)
+
+    controller.linkState.activateRequested.connect(show_for_link)
+    if instance:
+        instance.linksReceived.connect(receive_links)
+        QTimer.singleShot(0, instance.ready)
+    elif args.links:
+        QTimer.singleShot(0, lambda: receive_links(args.links))
     desktop = None if args.fixture else Desktop(controller, player, window, downloads, parent=controller)
     if desktop:
         app.aboutToQuit.connect(desktop.close)
+
+    if instance:
+        app.aboutToQuit.connect(instance.close)
 
     def finish():
         warnings = engine.property("qmlWarnings")

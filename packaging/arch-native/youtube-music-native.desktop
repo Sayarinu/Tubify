@@ -2,7 +2,8 @@
 Type=Application
 Name=YouTube Music Native
 Comment=Play and download music with a native Qt client
-Exec=youtube-music-native
+Exec=youtube-music-native -- %u
+MimeType=x-scheme-handler/ytmusic-native;
 Icon=youtube-music-native
 Terminal=false
 Categories=AudioVideo;Audio;Player;

@@ -117,7 +117,7 @@ ApplicationWindow {
         function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
     }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: lastFmSettings.opened || discordSettings.opened || shortcutSettings.opened || desktopSettings.opened || navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: linkPreview.opened || lastFmSettings.opened || discordSettings.opened || shortcutSettings.opened || desktopSettings.opened || navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     // Content zoom is independent of the platform device-pixel ratio.
@@ -424,6 +424,11 @@ ApplicationWindow {
     }
     LyricsSettings { id: lyricsSettings }
     LastFmSettings { id: lastFmSettings }
+    LinkPreview { id: linkPreview }
+    Connections {
+        target: typeof linkState !== "undefined" ? linkState : null
+        function onPreviewRequested() { linkPreview.open() }
+    }
 
     Rectangle {
         id: reconnectBanner
