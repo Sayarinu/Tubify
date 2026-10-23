@@ -102,7 +102,7 @@ Item {
         anchors.right: parent.right
         anchors.leftMargin: root.gutter
         anchors.rightMargin: root.gutter
-        height: 148
+        height: 152
         Text {
             text: "Now playing"
             color: themeState.foreground
@@ -144,11 +144,64 @@ Item {
             font.pixelSize: 13
         }
         Switch {
+            id: autoplaySwitch
             objectName: "queueAutoplay"
-            y: 104; width: parent.width; height: 36
+            y: 104; width: parent.width; height: 40
+            padding: 0
+            spacing: 8
             text: "Autoplay"
             checked: playerState.autoplay
             Accessible.name: "Autoplay similar music"
+            Accessible.checkable: true
+            Keys.onShortcutOverride: event => { if (event.key === Qt.Key_Space) event.accepted = true }
+            Accessible.description: checked ? "On. Play similar music after the queue." : "Off. Stop when the queue ends."
+            contentItem: Text {
+                objectName: "queueAutoplayLabel"
+                text: autoplaySwitch.text
+                color: themeState.foreground
+                font.pixelSize: 14
+                verticalAlignment: Text.AlignVCenter
+                rightPadding: autoplaySwitch.indicator.width + autoplayState.width + autoplaySwitch.spacing * 2
+                elide: Text.ElideRight
+            }
+            Text {
+                id: autoplayState
+                objectName: "queueAutoplayState"
+                x: autoplaySwitch.indicator.x - width - autoplaySwitch.spacing
+                width: 32
+                height: parent.height
+                text: autoplaySwitch.checked ? "On" : "Off"
+                color: autoplaySwitch.checked ? themeState.foreground : themeState.secondary
+                font.pixelSize: 13
+                horizontalAlignment: Text.AlignRight
+                verticalAlignment: Text.AlignVCenter
+                Accessible.ignored: true
+            }
+            indicator: Item {
+                objectName: "queueAutoplayIndicator"
+                implicitWidth: 44
+                implicitHeight: 40
+                x: autoplaySwitch.width - width
+                y: (autoplaySwitch.height - height) / 2
+                Rectangle {
+                    objectName: "queueAutoplayTrack"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 44; height: 24; radius: 12
+                    color: autoplaySwitch.checked ? themeState.accent : themeState.progressTrack
+                    border.width: autoplaySwitch.visualFocus ? 2 : 0
+                    border.color: themeState.foreground
+                    Rectangle {
+                        objectName: "queueAutoplayThumb"
+                        x: 3 + autoplaySwitch.visualPosition * (parent.width - width - 6)
+                        y: 3
+                        width: 18; height: 18; radius: 9
+                        color: autoplaySwitch.checked ? themeState.onAccent : themeState.foreground
+                        border.width: autoplaySwitch.checked ? 0 : 1
+                        border.color: themeState.background
+                    }
+                }
+            }
             onClicked: playerState.toggleAutoplay()
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: themeState.border }

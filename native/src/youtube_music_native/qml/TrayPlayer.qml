@@ -7,7 +7,7 @@ ApplicationWindow {
     id: root
     objectName: "trayPlayer"
     property bool playbackShortcuts: !mediaMenu.opened && !(activeFocusItem instanceof TextInput) && !(activeFocusItem instanceof TextEdit)
-    title: "YouTube Music · Tray player"
+    title: "Tubify · Tray player"
     width: Math.min(screen.desktopAvailableWidth, Math.round(360 * appState.uiScaleFactor))
     height: Math.min(screen.desktopAvailableHeight, Math.round((trayState.queueOpen ? 700 : 292) * appState.uiScaleFactor))
     visible: false
@@ -62,7 +62,7 @@ ApplicationWindow {
     Item {
         id: titleBar
         width: parent.width; height: 44
-        Text { x: 16; anchors.verticalCenter: parent.verticalCenter; text: "YouTube Music"; color: themeState.foreground; font.bold: true; font.pixelSize: 14 }
+        Text { x: 16; anchors.verticalCenter: parent.verticalCenter; text: "Tubify"; color: themeState.foreground; font.bold: true; font.pixelSize: 14 }
         DragHandler { id: moving; target: null; onActiveChanged: if (active) root.startSystemMove() }
         IconButton { x: parent.width - 88; width: 40; height: 40; iconName: "pin"; tip: trayState.pinned ? "Unpin player" : "Keep player on top"; iconColor: trayState.pinned ? themeState.accent : themeState.secondary; onClicked: trayState.setPinned(!trayState.pinned) }
         IconButton { x: parent.width - 44; width: 40; height: 40; iconName: "close"; tip: "Close tray player"; onClicked: root.hide() }

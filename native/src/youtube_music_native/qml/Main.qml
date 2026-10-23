@@ -12,7 +12,7 @@ ApplicationWindow {
     height: appState.initialHeight
     minimumWidth: 920
     minimumHeight: 620
-    title: appState.fixtureMode ? "YouTube Music · Visual fixture" : "YouTube Music"
+    title: appState.fixtureMode ? "Tubify · Visual fixture" : "Tubify"
     color: themeState.background
     font.family: Theme.bodyFont
     font.pixelSize: 14

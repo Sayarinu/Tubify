@@ -24,7 +24,7 @@ Dialog {
             id: body
             width: scroll.availableWidth
             spacing: 16
-            Label { text: "Native client " + maintenanceState.currentVersion; color: themeState.foreground; font.bold: true }
+            Label { text: "Tubify " + maintenanceState.currentVersion; color: themeState.foreground; font.bold: true }
             Label { Layout.fillWidth: true; text: maintenanceState.status; color: themeState.foreground; wrapMode: Text.Wrap }
             Flow {
                 Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8

@@ -28,7 +28,7 @@ Dialog {
                 ThemeActionButton { text: "Save ID"; onClicked: discordState.setClientId(client.text) }
                 ThemeActionButton { text: "Developer Portal"; onClicked: Qt.openUrlExternally("https://discord.com/developers/applications") }
             }
-            Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Create an application named YouTube Music in the Developer Portal, then copy its Application ID from General Information. No bot token or client secret is needed."; color: themeState.secondary; font.pixelSize: 12 }
+            Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Create an application named Tubify in the Developer Portal, then copy its Application ID from General Information. No bot token or client secret is needed."; color: themeState.secondary; font.pixelSize: 12 }
             CheckBox { text: "Include a Listen on YouTube Music button"; checked: discordState.buttons; onClicked: discordState.setButtons(checked) }
             Label { objectName: "discordStatus"; Layout.fillWidth: true; wrapMode: Text.Wrap; text: discordState.status; color: themeState.foreground }
             ThemeActionButton { text: "Retry"; enabled: discordState.enabled; onClicked: discordState.retry() }

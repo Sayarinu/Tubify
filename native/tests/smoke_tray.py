@@ -11,6 +11,7 @@ from PySide6.QtTest import QTest
 from youtube_music_native import app
 from youtube_music_native.tray import TrayPlayer
 from test_tray import FakeTray, FakeMenu
+from smoke_player import check_autoplay
 
 
 def main():
@@ -27,11 +28,18 @@ def main():
         def verify():
             try:
                 service = shell.trayState
+                assert QGuiApplication.applicationDisplayName() == "Tubify"
+                assert QGuiApplication.applicationName() == "youtube-music-native"
+                assert QGuiApplication.organizationName() == "YouTubeMusicNative"
+                assert QGuiApplication.organizationDomain() == "com.carter"
+                assert QGuiApplication.instance().desktopFileName() == "youtube-music-native"
+                assert window.title() == "Tubify · Visual fixture"
                 assert service.popup is None and not service.enabled
                 service.setEnabled(True)
                 QTest.qWait(80)
                 popup = service.popup
                 assert popup and not popup.isVisible() and service.active
+                assert popup.title() == "Tubify · Tray player"
                 service.setPinned(True)
                 service.showPlayer()
                 QTest.qWait(80)
@@ -81,6 +89,8 @@ def main():
                         root = popup.findChild(QObject, "trayScaledContent")
                         assert abs(root.width() * scale / 100 - popup.width()) < 0.1
                         assert abs(root.height() * scale / 100 - popup.height()) < 0.1
+                        if expanded:
+                            check_autoplay(popup, player, args[11], options.output_dir, f"tray-autoplay-{scale}")
                         if not expanded:
                             toggle = popup.findChild(QObject, "trayQueueToggle")
                             toggle.forceActiveFocus()
