@@ -1,6 +1,7 @@
 import json
 import struct
 import time
+from uuid import uuid4
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 from PySide6.QtNetwork import QLocalServer
@@ -139,7 +140,7 @@ def test_settings_persist_and_fixture_never_connects(tmp_path):
 def test_actual_local_ipc_framing_ack_coalescing_and_invalid_length(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     server = QLocalServer()
-    endpoint = str(tmp_path / "discord-fixture")
+    endpoint = "ytm-discord-fixture-" + uuid4().hex
     assert server.listen(endpoint)
     pipe = DiscordPipe("123456789012345678", paths=[endpoint])
     ready, errors = [], []
@@ -150,10 +151,9 @@ def test_actual_local_ipc_framing_ack_coalescing_and_invalid_length(tmp_path):
     peer = server.nextPendingConnection()
     def receive():
         wait_for(lambda: peer.bytesAvailable() >= 8)
-        raw = bytes(peer.readAll())
-        opcode, size = struct.unpack("<II", raw[:8])
-        assert len(raw[8:]) == size
-        return opcode, json.loads(raw[8:])
+        opcode, size = struct.unpack("<II", bytes(peer.read(8)))
+        wait_for(lambda: peer.bytesAvailable() >= size)
+        return opcode, json.loads(bytes(peer.read(size)))
     def send(opcode, body):
         data = json.dumps(body).encode()
         peer.write(struct.pack("<II", opcode, len(data)) + data)
@@ -185,7 +185,7 @@ def test_actual_local_ipc_framing_ack_coalescing_and_invalid_length(tmp_path):
 def test_stalled_endpoint_falls_through_and_nested_frame_closes(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     servers = [QLocalServer(), QLocalServer()]
-    paths = [str(tmp_path / f"discord-fixture-{i}") for i in range(2)]
+    paths = ["ytm-discord-fixture-" + uuid4().hex for _ in range(2)]
     for server, path in zip(servers, paths):
         assert server.listen(path)
     pipe = DiscordPipe("123456789012345678", paths=paths)
