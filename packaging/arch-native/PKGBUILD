@@ -39,7 +39,7 @@ package() {
   install -Dm644 packaging/arch-native/youtube-music-native.desktop \
     "$pkgdir/usr/share/applications/youtube-music-native.desktop"
   install -Dm644 native/src/youtube_music_native/assets/music.svg \
-    "$pkgdir/usr/share/icons/hicolor/scalable/apps/youtube-music-native.svg"
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/tubify.svg"
   install -Dm644 native/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 native/src/youtube_music_native/assets/Roboto-OFL.txt \
     "$pkgdir/usr/share/licenses/$pkgname/Roboto-OFL.txt"

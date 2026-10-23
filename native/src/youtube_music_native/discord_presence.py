@@ -33,7 +33,8 @@ def activity_for(player, buttons=False, now=None):
         return None
     track = player.currentTrack
     artist = " · ".join(str(row.get("name", "")) for row in track.get("artists", []) if isinstance(row, dict) and row.get("name")) or str(track.get("artist") or "")
-    activity = {"type": 2, "details": str(track.get("title") or "Unknown track")[:128], "state": (artist or "YouTube Music")[:128]}
+    title = str(track.get("title") or "Unknown track")[:128]
+    activity = {"type": 2, "name": title, "status_display_type": 2, "details": title, "state": (artist or "YouTube Music")[:128]}
     now = time.time() if now is None else now
     duration, position = player.duration, player.position
     if all(isinstance(value, (float, int)) and math.isfinite(value) for value in (duration, position)) and duration > 0:

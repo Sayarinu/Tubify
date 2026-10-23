@@ -46,11 +46,15 @@ def wait_for(predicate):
 def test_public_payload_has_only_allowlisted_metadata():
     player = Player()
     result = activity_for(player, True, now=1000)
-    assert result == {"type": 2, "details": "Fixture song", "state": "Fixture artist", "timestamps": {"start": 970, "end": 1150}, "buttons": [{"label": "Listen on YouTube Music", "url": "https://music.youtube.com/watch?v=abcdefghijk"}]}
+    assert result == {"type": 2, "name": "Fixture song", "status_display_type": 2, "details": "Fixture song", "state": "Fixture artist", "timestamps": {"start": 970, "end": 1150}, "buttons": [{"label": "Listen on YouTube Music", "url": "https://music.youtube.com/watch?v=abcdefghijk"}]}
     assert "private" not in json.dumps(result)
     player.currentTrack = {"title": "A" * 300, "artist": "Fallback", "videoId": "invalid&token=private"}
     assert len(activity_for(player)["details"]) == 128
+    assert activity_for(player)["name"] == activity_for(player)["details"]
+    assert activity_for(player)["status_display_type"] == 2
     assert "buttons" not in activity_for(player, True)
+    player.currentTrack = {}
+    assert activity_for(player)["name"] == "Unknown track"
     player.playing = False
     assert activity_for(player) is None
 
