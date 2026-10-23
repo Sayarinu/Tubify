@@ -46,5 +46,28 @@ async function run(search, hash='', replies=[]) {
   assert(result.nodes.get('card').hidden);
   result=await run('','#token=fixture-read-only',[{ok:true,json:async()=>({revision:2,playback:{state:'stopped'},track:null})}]);
   assert.equal(result.nodes.get('notice').textContent,'Nothing playing');
-  console.log('OBS layouts, fragment authentication, metadata escaping, revocation and empty/paused states passed.');
+  // A previous cover may finish after a track change; it must never replace the new one.
+  let completeOld;
+  const oldBlob = new Promise(resolve => { completeOld = resolve; });
+  const firstArt = {...state,track:{...state.track,artwork:'/v1/artwork/'+'a'.repeat(24)}};
+  const secondArt = {...firstArt,revision:13,track:{...firstArt.track,artwork:'/v1/artwork/'+'b'.repeat(24)}};
+  result=await run('','#token=fixture-read-only',[
+    {ok:true,json:async()=>firstArt}, {ok:true,blob:()=>oldBlob},
+    {ok:true,json:async()=>secondArt}, {ok:true,blob:async()=>new Blob(['GIF89a'],{type:'image/gif'})}
+  ]);
+  const newestCover=result.nodes.get('cover').src;
+  assert(newestCover.startsWith('blob:'));
+  assert(result.calls[1].options.signal.aborted);
+  completeOld(new Blob(['old'],{type:'image/png'}));
+  for(let i=0;i<4;i++)await new Promise(setImmediate);
+  assert.equal(result.nodes.get('cover').src,newestCover);
+  URL.revokeObjectURL(newestCover);
+  // A transient artwork error is retried on a later snapshot of the same track.
+  result=await run('','#token=fixture-read-only',[
+    {ok:true,json:async()=>firstArt}, {ok:false,status:503},
+    {ok:true,json:async()=>({...firstArt,revision:13})}, {ok:true,blob:async()=>new Blob(['cover'],{type:'image/png'})}
+  ]);
+  assert.equal(result.calls.filter(call=>call.path===firstArt.track.artwork).length,2);
+  URL.revokeObjectURL(result.nodes.get('cover').src);
+  console.log('OBS layouts, fragment authentication, metadata escaping, revocation, stale covers and empty/paused states passed.');
 })();
