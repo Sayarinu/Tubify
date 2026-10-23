@@ -30,6 +30,7 @@ def main():
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_player.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_lyrics.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_lyric_options.py"))], check=True, timeout=30)
+        subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_lastfm.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_downloads.py"))], check=True, timeout=30)
         # The visual matrix renders twelve themes and three window sizes on CI.
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_visual.py"))], check=True, timeout=90)

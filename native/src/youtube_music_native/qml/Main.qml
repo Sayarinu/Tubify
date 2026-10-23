@@ -116,7 +116,7 @@ ApplicationWindow {
         function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
     }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: discordSettings.opened || shortcutSettings.opened || desktopSettings.opened || navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: lastFmSettings.opened || discordSettings.opened || shortcutSettings.opened || desktopSettings.opened || navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     // Content zoom is independent of the platform device-pixel ratio.
@@ -419,8 +419,10 @@ ApplicationWindow {
         ContextMenuItem { text: "Discord presence"; onTriggered: discordSettings.open() }
         ContextMenuItem { text: "Appearance Settings"; onTriggered: settingsDialog.open() }
         ContextMenuItem { text: "Lyrics Settings"; onTriggered: lyricsSettings.open() }
+        ContextMenuItem { text: "Last.fm"; onTriggered: lastFmSettings.open() }
     }
     LyricsSettings { id: lyricsSettings }
+    LastFmSettings { id: lastFmSettings }
 
     Rectangle {
         id: reconnectBanner

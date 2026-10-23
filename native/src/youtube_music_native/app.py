@@ -25,6 +25,7 @@ from .actions import Actions
 from .search import Search
 from .library import Library
 from .listening import Listening
+from .lastfm import LastFm
 from .lyric_view import LyricView
 from .desktop import Desktop
 from .discord_presence import DiscordPresence
@@ -56,6 +57,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("lifecycleState", controller.lifecycleState)
     if hasattr(controller, "playbackOptions"):
         engine.rootContext().setContextProperty("playbackOptions", controller.playbackOptions)
+    if hasattr(controller, "lastFm"):
+        engine.rootContext().setContextProperty("lastFmState", controller.lastFm)
     if theme:
         engine.rootContext().setContextProperty("themeState", theme)
     if color_sampler:
@@ -161,6 +164,7 @@ def main(argv=None):
     actions.applied.connect(browse.applyAction)
     library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     controller.shortcutState = GlobalShortcuts(controller, player, library, account, actions, data / "settings.ini", parent=controller)
+    controller.lastFm = LastFm(player, data / "settings.ini", media_data, parent=controller, fixture=args.fixture)
     listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
     lyrics = LyricView(account, player, media_data, fixture=args.fixture, parent=controller, settings_path=data / "settings.ini")
     lyrics.openRequested.connect(lambda: controller.setLyricsOpen(True))
@@ -169,6 +173,7 @@ def main(argv=None):
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
     app.aboutToQuit.connect(controller.shortcutState.close)
+    app.aboutToQuit.connect(controller.lastFm.close)
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
     app.aboutToQuit.connect(controller.playbackOptions.close)
