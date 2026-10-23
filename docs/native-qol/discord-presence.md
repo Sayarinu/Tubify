@@ -7,7 +7,7 @@ The Qt local socket client searches standard Discord IPC endpoints, including th
 ## Verification
 
 - Seven focused protocol/controller tests, including a real synthetic local socket server: fragmented frames, handshake, ACK/coalescing, ping, oversized/deeply nested input, stalled endpoint fallback, pause/disable and retry limits.
-- Native suite passed (208 tests before the additional malformed-frame regression); full Qt/libmpv runtime suite passed.
+- Integrated native suite passed (310 tests); full Qt/libmpv runtime suite passed on the shortcuts/lifecycle/tray stack.
 - Real QML dialog smoke at 920×620: explicit opt-in, Application ID, status and text-entry shortcut isolation.
 - A live Discord account/client presence has not been verified. User-owned Application ID and desktop-client availability remain runtime prerequisites; platform IPC paths are covered synthetically.
 
