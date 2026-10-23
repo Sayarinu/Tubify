@@ -39,15 +39,20 @@ def main():
                     api.setPort(sock.getsockname()[1])
                 dialog = window.findChild(QObject, 'apiSettings')
                 QMetaObject.invokeMethod(dialog, 'open')
-                QTest.qWait(70)
+                for _ in range(300):
+                    if dialog.property('opened'):
+                        break
+                    QTest.qWait(10)
+                assert dialog.property('opened'), 'Local API dialog did not finish opening'
                 enabled = window.findChild(QObject, 'apiEnabled')
                 point = enabled.mapToScene(QPointF(enabled.width()/2, enabled.height()/2)).toPoint()
                 QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point)
-                for _ in range(100):
+                assert api.enabled, 'Local API checkbox click did not enable the service'
+                for _ in range(300):
                     if api.active:
                         break
                     QTest.qWait(10)
-                assert api.enabled and api.active, api.error
+                assert api.enabled and api.active, (api.enabled, api.active, api.error)
                 assert not window.property('playbackShortcuts')
                 field = window.findChild(QObject, 'apiClientName')
                 field.setProperty('text', 'Synthetic control')
