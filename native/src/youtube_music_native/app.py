@@ -30,6 +30,7 @@ from .desktop import Desktop
 from .tray import TrayPlayer
 from .lifecycle import Lifecycle
 from .startup import StartupRegistration
+from .shortcuts import GlobalShortcuts
 from .theme import ThemeState
 from .color_picker import ColorSampler
 
@@ -44,6 +45,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
     engine.rootContext().setContextProperty("appState", controller)
     engine.rootContext().setContextProperty("accountState", account)
     engine.rootContext().setContextProperty("playerState", player)
+    if hasattr(controller, "shortcutState"):
+        engine.rootContext().setContextProperty("shortcutState", controller.shortcutState)
     if hasattr(controller, "trayState"):
         engine.rootContext().setContextProperty("trayState", controller.trayState)
     if hasattr(controller, "lifecycleState"):
@@ -152,6 +155,7 @@ def main(argv=None):
     actions = Actions(account, cache / "metadata.sqlite3", fixture=args.fixture, parent=controller)
     actions.applied.connect(browse.applyAction)
     library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    controller.shortcutState = GlobalShortcuts(controller, player, library, account, actions, data / "settings.ini", parent=controller)
     listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
     lyrics = LyricView(account, player, media_data, fixture=args.fixture, parent=controller, settings_path=data / "settings.ini")
     lyrics.openRequested.connect(lambda: controller.setLyricsOpen(True))
@@ -159,6 +163,7 @@ def main(argv=None):
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
+    app.aboutToQuit.connect(controller.shortcutState.close)
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
     app.aboutToQuit.connect(controller.playbackOptions.close)
@@ -174,6 +179,7 @@ def main(argv=None):
         controller.restoreWindow(window, [screen.availableGeometry() for screen in app.screens()])
     controller.trayState.start(window)
     controller.lifecycleState.start(window)
+    controller.shortcutState.start(window)
     desktop = None if args.fixture else Desktop(controller, player, window, downloads, parent=controller)
     if desktop:
         app.aboutToQuit.connect(desktop.close)

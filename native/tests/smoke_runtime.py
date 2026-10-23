@@ -20,6 +20,7 @@ def main():
             check=True, timeout=30,
         )
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_lifecycle.py")), "--start-minimized"], check=True, timeout=30)
+        subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_shortcuts.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_tray.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_playback_options.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_appearance.py"))], check=True, timeout=60)

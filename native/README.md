@@ -86,6 +86,8 @@ The expanded player retains audio and position while switching views, and includ
 
 Press `?` for keyboard shortcuts: Space toggles playback, Shift+N/P changes tracks, arrows seek, M mutes, S/R changes shuffle/repeat, and F/Escape opens/closes the player. Playback shortcuts respect text fields, account/playlist dialogs and menus. `/` or Ctrl+F focuses search.
 
+Optional configurable shortcuts are available in **Settings → Global Shortcuts**. They start disabled, show conflicts and registration status per action, and retain the app's text-entry and modal guards. Linux uses the desktop portal; Windows and macOS use native hotkey adapters. See [configuration and platform verification notes](../docs/native-global-shortcuts.md).
+
 The visual verification script renders all required views at 1280×820 and 920×620 with synthetic content, checks accessible control names and a 10,000-song list, and can run a mixed-use local-audio soak:
 
 ```sh

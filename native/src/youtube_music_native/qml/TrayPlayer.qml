@@ -6,6 +6,7 @@ import "Theme.js" as Theme
 ApplicationWindow {
     id: root
     objectName: "trayPlayer"
+    property bool playbackShortcuts: !mediaMenu.opened && !(activeFocusItem instanceof TextInput) && !(activeFocusItem instanceof TextEdit)
     title: "YouTube Music · Tray player"
     width: Math.min(screen.desktopAvailableWidth, Math.round(360 * appState.uiScaleFactor))
     height: Math.min(screen.desktopAvailableHeight, Math.round((trayState.queueOpen ? 700 : 292) * appState.uiScaleFactor))
