@@ -27,6 +27,7 @@ from .library import Library
 from .listening import Listening
 from .lyric_view import LyricView
 from .desktop import Desktop
+from .discord_presence import DiscordPresence
 from .tray import TrayPlayer
 from .lifecycle import Lifecycle
 from .startup import StartupRegistration
@@ -45,6 +46,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
     engine.rootContext().setContextProperty("appState", controller)
     engine.rootContext().setContextProperty("accountState", account)
     engine.rootContext().setContextProperty("playerState", player)
+    if hasattr(controller, "discordState"):
+        engine.rootContext().setContextProperty("discordState", controller.discordState)
     if hasattr(controller, "shortcutState"):
         engine.rootContext().setContextProperty("shortcutState", controller.shortcutState)
     if hasattr(controller, "trayState"):
@@ -142,6 +145,8 @@ def main(argv=None):
     media_data.mkdir(parents=True, exist_ok=True, mode=0o700)
     source_worker = None if args.fixture else Worker(controller, idle_ms=15000)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    controller.discordState = DiscordPresence(player, data / "settings.ini", parent=controller, fixture=args.fixture)
+    app.aboutToQuit.connect(controller.discordState.close)
     controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)
     controller.trayState = TrayPlayer(controller, player, data / "settings.ini", PACKAGE / "assets" / "music.svg", parent=controller)
     controller.lifecycleState = Lifecycle(data / "settings.ini", player, controller.trayState, parent=controller,

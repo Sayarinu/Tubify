@@ -116,7 +116,7 @@ ApplicationWindow {
         function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
     }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: shortcutSettings.opened || desktopSettings.opened || navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: discordSettings.opened || shortcutSettings.opened || desktopSettings.opened || navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     // Content zoom is independent of the platform device-pixel ratio.
@@ -403,6 +403,7 @@ ApplicationWindow {
     PlaybackSettings { id: playbackSettings }
     DesktopSettings { id: desktopSettings }
     ShortcutSettings { id: shortcutSettings }
+    DiscordSettings { id: discordSettings }
     Loader { active: trayState.enabled; sourceComponent: TrayPlayer { palette: window.palette } }
 
     Menu {
@@ -415,6 +416,7 @@ ApplicationWindow {
         ContextMenuItem { text: "Playback" + (playbackOptions.sleepRemaining > 0 ? " · Sleep " + Theme.timeLabel(playbackOptions.sleepRemaining) : ""); onTriggered: playbackSettings.open() }
         ContextMenuItem { text: "Desktop"; onTriggered: desktopSettings.open() }
         ContextMenuItem { text: "Global Shortcuts"; onTriggered: shortcutSettings.open() }
+        ContextMenuItem { text: "Discord presence"; onTriggered: discordSettings.open() }
         ContextMenuItem { text: "Appearance Settings"; onTriggered: settingsDialog.open() }
         ContextMenuItem { text: "Lyrics Settings"; onTriggered: lyricsSettings.open() }
     }
