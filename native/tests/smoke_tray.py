@@ -56,7 +56,14 @@ def main():
                 QMetaObject.invokeMethod(popup.findChild(QObject, "trayQueueToggle"), "clicked")
                 QTest.qWait(80)
                 assert service.queueOpen and popup.findChild(QObject, "queueUpcomingList")
+                assert popup.findChild(QObject, "queueUpcomingList").property("cacheBuffer") == 0
                 assert popup.height() > 292 and popup.x() == 20
+                # Rapidly replacing the queue must not leave asynchronous delegates behind.
+                for _ in range(12):
+                    service.setQueueOpen(False)
+                    service.setQueueOpen(True)
+                    QTest.qWait(1)
+                assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                 service.settings.setValue("trayX", 99999)
                 service.settings.setValue("trayY", 99999)
                 popup.hide()

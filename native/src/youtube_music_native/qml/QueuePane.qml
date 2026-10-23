@@ -166,7 +166,8 @@ Item {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         model: root.rows
-        cacheBuffer: 128
+        // Avoid pending offscreen delegates when a dock or tray queue is destroyed.
+        cacheBuffer: 0
         property string focusKey: ""
         property string restoreKey: ""
         function focusSong(index, direction) {
