@@ -24,6 +24,7 @@ def visual(item, name):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-dir', type=Path)
+    parser.add_argument('--ui-scale', type=int, default=100)
     options = parser.parse_args()
     original, passed = app.load_window, []
 
@@ -36,6 +37,7 @@ def main():
 
         def verify():
             try:
+                shell.setUiScale(options.ui_scale)
                 window.resize(920, 620)
                 window.requestActivate()
                 dialog = window.findChild(QObject, 'shortcutSettings')
@@ -62,7 +64,8 @@ def main():
                 QMetaObject.invokeMethod(field, 'accepted')
                 QTest.qWait(30)
                 assert state.bindings[0]['binding'] == 'Ctrl+Alt+P' and not state.bindings[0]['error']
-                assert dialog.property('width') < window.width() and dialog.property('height') < window.height()
+                assert dialog.property('width') * shell.uiScaleFactor < window.width()
+                assert dialog.property('height') * shell.uiScaleFactor < window.height()
                 if options.output_dir:
                     options.output_dir.mkdir(parents=True, exist_ok=True)
                     assert window.grabWindow().save(str(options.output_dir / 'shortcuts-920.png'))

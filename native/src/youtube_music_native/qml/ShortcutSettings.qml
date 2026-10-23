@@ -9,9 +9,10 @@ Dialog {
     property alias scrollView: shortcutScroll
     property var bindingRows: shortcutState.bindings
     modal: true
-    anchors.centerIn: parent
-    width: Math.min(660, parent.width - 32)
-    height: Math.min(720, parent.height - 32)
+    focus: true
+    anchors.centerIn: Overlay.overlay
+    width: Overlay.overlay ? Math.min(660, Overlay.overlay.width - 32) : 660
+    height: Overlay.overlay ? Math.min(720, Overlay.overlay.height - 32) : 720
     standardButtons: Dialog.Close
     background: Rectangle { color: themeState.background; border.color: themeState.border; radius: 12 }
     contentItem: ColumnLayout {
