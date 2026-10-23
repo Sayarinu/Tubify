@@ -2,7 +2,10 @@
 
 import locale
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Slot
+
+
+from .speaker_fill import SpeakerFill
 
 
 class Audio(QObject):
@@ -10,6 +13,9 @@ class Audio(QObject):
     ended = Signal(bool)
     deviceFailed = Signal()
     outputChanged = Signal()
+    optionsChanged = Signal(dict)
+    fileLoaded = Signal()
+    fileEnded = Signal()
 
     def __init__(self, parent=None, output=None):
         super().__init__(parent)
@@ -20,6 +26,14 @@ class Audio(QObject):
         if output:
             options["ao"] = output
         self.player = mpv.MPV(**options)
+        self._speaker_fill = SpeakerFill(self.player)
+        self._fill_requested, self._ready = False, False
+        self.outputChanged.connect(self._refresh_options)
+        self.fileLoaded.connect(self._file_loaded)
+        self.fileEnded.connect(self._reset_options)
+        @self.player.event_callback("file-loaded")
+        def loaded(event):
+            self.fileLoaded.emit()
         @self.player.event_callback("audio-reconfig")
         def reconfigured(event):
             self.outputChanged.emit()
@@ -28,6 +42,7 @@ class Audio(QObject):
 
         @self.player.event_callback("end-file")
         def ended(event):
+            self.fileEnded.emit()
             reason = event.data.reason
             if reason == 0:
                 self.ended.emit(False)
@@ -37,7 +52,28 @@ class Audio(QObject):
                 else:
                     self.ended.emit(True)
 
+    @Slot()
+    def _file_loaded(self):
+        self._ready = True
+        self._refresh_options()
+
+    @Slot()
+    def _refresh_options(self):
+        self.optionsChanged.emit(self._speaker_fill.refresh(self._fill_requested, self._ready))
+
+    def setSpeakerFill(self, enabled):
+        self._fill_requested = bool(enabled)
+        self._speaker_fill.failed = False
+        self._refresh_options()
+
+    @Slot()
+    def _reset_options(self):
+        self._ready = False
+        self._speaker_fill.failed = False
+        self._refresh_options()
+
     def load(self, source, position=0, paused=False):
+        self._reset_options()
         self.player.http_header_fields = source.get("headers", [])
         self.player.pause = paused
         self.player.loadfile(source["source"], start=str(max(0, position)))
@@ -52,6 +88,7 @@ class Audio(QObject):
         self.player.volume = max(0, min(100, float(value)))
 
     def stop(self):
+        self._reset_options()
         self.player.stop()
 
     def close(self):

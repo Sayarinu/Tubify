@@ -29,6 +29,7 @@ def write_state(path, content):
 
 class Playback(QObject):
     changed = Signal()
+    audioOptionsChanged = Signal()
     positionChanged = Signal()
     manualQueueCleared = Signal()
     trackStarted = Signal("QVariantMap")
@@ -54,6 +55,8 @@ class Playback(QObject):
         self._start_position, self._want_paused = 0., False
         self._autoplay = True
         self._nonlinear_volume, self._skip_disliked = False, False
+        self._speaker_fill = False
+        self._audio_options = {}
         self._saver = ThreadPoolExecutor(max_workers=1, thread_name_prefix="playback-state")
         self._closed = False
         self._transport_revision, self._stopped, self._device_wait = 0, False, False
@@ -315,6 +318,8 @@ class Playback(QObject):
                 self.audio.ended.connect(self._ended)
                 self.audio.deviceFailed.connect(self._output_failed)
                 self.audio.outputChanged.connect(self._output_changed)
+                self.audio.optionsChanged.connect(self._audio_options_changed)
+                self.audio.setSpeakerFill(self._speaker_fill)
                 self.audio.volume(self.outputVolume)
             self._source_kind = source["kind"]
             self.audio.load(source, self._start_position, self._want_paused)
@@ -593,6 +598,25 @@ class Playback(QObject):
         self._nonlinear_volume = bool(enabled)
         if self.audio:
             self.audio.volume(self.outputVolume)
+
+    @Property("QVariantMap", notify=audioOptionsChanged)
+    def audioOptions(self):
+        return self._audio_options
+
+    @Slot(dict)
+    def _audio_options_changed(self, state):
+        if state != self._audio_options:
+            self._audio_options = state
+            self.audioOptionsChanged.emit()
+
+    def setSpeakerFill(self, enabled):
+        self._speaker_fill = bool(enabled)
+        if self.audio:
+            self.audio.setSpeakerFill(self._speaker_fill)
+
+    @Slot()
+    def retrySpeakerFill(self):
+        self.setSpeakerFill(self._speaker_fill)
 
     def setSkipDisliked(self, enabled):
         self._skip_disliked = bool(enabled)

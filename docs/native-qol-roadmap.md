@@ -227,3 +227,20 @@ Use sanitized fixtures, generated/local licensed audio and synthetic screenshots
 [B19]: https://github.com/Venipa/ytmdesktop2/blob/master/apps/ytmdesktop2/src/renderer/src/routes/_settings/index.tsx
 [B20]: https://youtube-music.app/docs/features/userscript/
 [B21]: https://youtube-music.app/docs/api/authentication/
+
+
+## Speaker-fill capability and acceptance (LUNE-387)
+
+The optional Playback setting defaults off. It is available while a stereo decoder feeds an already reported 5.1, 5.1(side), or 7.1 output; a saved enabled preference can always be turned off. The native audio object owns one labeled `lavfi` filter and adds/removes that label through `af` commands, preserving other filters. Loading/stopping a track resets the filter; output changes re-evaluate capability. Errors leave a retry action and do not become a track/device failure.
+
+The client leaves `audio-channels=auto-safe`, `audio-device`, exclusive mode and the selected audio backend untouched. mpv documents that auto-safe uses the system's preferred layout and otherwise falls back to stereo; it also warns that an audio API can accept layouts that a physical device does not support. Consequently this gate establishes the layout reported by libmpv, not proof of a user's wiring. Direct ALSA or other outputs that report only stereo remain unavailable. [mpv audio-channel options](https://mpv.io/manual/stable/#options-audio-channels), [mpv filter commands](https://mpv.io/manual/stable/#command-interface-af)
+
+The FFmpeg `pan` graph keeps left/right unchanged, copies them into the corresponding back/side speakers, averages them for the center, and writes silence to LFE. It neither creates bass management nor simulates spatial positioning. [FFmpeg pan specification](https://github.com/FFmpeg/FFmpeg/blob/master/doc/filters.texi#L5723)
+
+Verification separates three claims:
+
+- Synthetic FFmpeg PCM checks measure each channel's value for all three layouts.
+- Real libmpv with **null output** verifies filter acceptance, rejection/rollback, retained foreign filters, paused state, stereo/mono/multichannel transitions and stop/reload. Only the fixture explicitly selects surround output. This never opens a physical audio device.
+- Physical 5.1/7.1 routing, unplug/reconnect, HDMI receiver behavior and perceived level on Linux/Windows/macOS remain hardware acceptance gates. No speaker configuration is changed and no physical listening result is claimed by the automated checks.
+
+The setting uses the same playback instance and does not create an audio service while playback is idle.

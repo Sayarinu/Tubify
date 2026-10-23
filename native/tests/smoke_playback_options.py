@@ -43,6 +43,18 @@ def main():
                 point = toggle.mapToScene(QPointF(toggle.width()/2, toggle.height()/2)).toPoint()
                 QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point)
                 assert options.nonlinearVolume
+                fill = window.findChild(QObject, "speakerFillOption")
+                assert not fill.property("enabled") and not options.speakerFill
+                player._audio_options_changed({"available": True, "active": False, "message": "Synthetic 5.1 output"})
+                assert fill.property("enabled")
+                fill.forceActiveFocus()
+                QTest.qWait(80)
+                QTest.keyClick(window, Qt.Key.Key_Space)
+                assert options.speakerFill
+                player._audio_options_changed({"available": False, "active": False, "failed": True, "message": "Synthetic failure"})
+                assert fill.property("enabled")  # A saved preference can always be turned off.
+                QTest.keyClick(window, Qt.Key.Key_Space)
+                assert not options.speakerFill
                 QMetaObject.invokeMethod(dialog, "close")
                 QTest.qWait(80)
                 seek = window.findChild(QObject, "playbackSeek")

@@ -10,8 +10,8 @@ Dialog {
     title: "Playback"
     modal: true
     anchors.centerIn: Overlay.overlay
-    width: Math.min(480, Overlay.overlay.width - 32)
-    height: Math.min(implicitHeight, Overlay.overlay.height - 48)
+    width: Math.min(480, Overlay.overlay ? Overlay.overlay.width - 32 : 480)
+    height: Math.min(implicitHeight, Overlay.overlay ? Overlay.overlay.height - 48 : implicitHeight)
     standardButtons: Dialog.Close
     background: Rectangle { color: themeState.background; border.color: themeState.border; radius: 12 }
     contentItem: ScrollView {
@@ -56,6 +56,25 @@ Dialog {
             text: "Finer volume control at low levels"
             checked: playbackOptions.nonlinearVolume
             onToggled: playbackOptions.setNonlinearVolume(checked)
+        }
+        CheckBox {
+            objectName: "speakerFillOption"
+            text: "Fill surround speakers from stereo"
+            checked: playbackOptions.speakerFill
+            enabled: !!playerState.audioOptions.available || checked
+            onToggled: playbackOptions.setSpeakerFill(checked)
+        }
+        Text {
+            Layout.fillWidth: true
+            text: playerState.audioOptions.message || "Play a stereo song on a 5.1 or 7.1 output to use speaker fill."
+            color: themeState.secondary; font.pixelSize: 12; wrapMode: Text.Wrap
+            Accessible.role: Accessible.StaticText
+        }
+        ThemeActionButton {
+            objectName: "retrySpeakerFill"
+            visible: !!playerState.audioOptions.failed
+            text: "Retry speaker fill"
+            onClicked: playerState.retrySpeakerFill()
         }
         CheckBox {
             objectName: "skipDislikedOption"

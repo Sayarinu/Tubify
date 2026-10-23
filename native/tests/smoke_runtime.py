@@ -39,6 +39,7 @@ def main():
         # The visual matrix renders twelve themes and three window sizes on CI.
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_visual.py"))], check=True, timeout=90)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_priority_queue.py"))], check=True, timeout=40)
+        subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_speaker_fill.py"))], check=True, timeout=30)
         audio = root / "fixture.wav"
         with wave.open(str(audio), "wb") as handle:
             handle.setnchannels(1)

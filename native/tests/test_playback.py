@@ -35,6 +35,7 @@ class FakeAudio(QObject):
     ended = Signal(bool)
     deviceFailed = Signal()
     outputChanged = Signal()
+    optionsChanged = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -43,6 +44,9 @@ class FakeAudio(QObject):
 
     def load(self, source, position, paused):
         self.loads.append((source, position, paused))
+
+    def setSpeakerFill(self, value):
+        self.speaker_fill = value
 
     def volume(self, value):
         self.level = value
