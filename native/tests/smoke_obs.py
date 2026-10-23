@@ -37,14 +37,18 @@ def main():
                     sock.bind(('127.0.0.1', 0))
                     api.setPort(sock.getsockname()[1])
                 api.setEnabled(True)
-                for _ in range(100):
+                for _ in range(300):
                     if api.active:
                         break
                     QTest.qWait(10)
-                assert api.active, api.error
+                assert api.enabled and api.active, (api.enabled, api.active, api.error)
                 dialog = window.findChild(QObject, 'obsSettings')
                 QMetaObject.invokeMethod(dialog, 'open')
-                QTest.qWait(100)
+                for _ in range(300):
+                    if dialog.property('opened'):
+                        break
+                    QTest.qWait(10)
+                assert dialog.property('opened'), 'OBS dialog did not finish opening'
                 assert not window.property('playbackShortcuts')
                 assert dialog.property('width') * shell.uiScaleFactor < window.width()
                 assert dialog.property('height') * shell.uiScaleFactor < window.height()
