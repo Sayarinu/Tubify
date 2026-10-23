@@ -343,3 +343,44 @@ def test_reauth_other_user_discards_unacknowledged_listens(tmp_path):
     workers[0].succeeded.emit(identifier, {"connected": True, "username": "other-user", "pendingCount": 0})
     assert not view._unsaved and view._listen["elapsed"] == 0
     view.close()
+
+
+def test_threshold_then_immediate_close_persists_unacknowledged_listen(tmp_path):
+    view, player, workers, now = frontend(tmp_path)
+    enable(view)
+    progress(view, player, now, 90)
+    first = actions(workers, "listen")[0]
+    view.close()
+    spool = json.loads((tmp_path / "lastfm-pending.json").read_text())
+    assert spool["listens"][0]["id"] == first["id"]
+    assert "signedUrl" not in json.dumps(spool) and "videoId" not in json.dumps(spool)
+    restored, player, workers, now = frontend(tmp_path)
+    assert restored.enabled
+    workers[0].succeeded.emit(1, {"connected": True, "username": "fixture-user", "pendingCount": 0})
+    restored.retry()
+    retry = actions(workers, "listen")[0]
+    assert retry["id"] == first["id"] and retry["timestamp"] == first["timestamp"]
+    workers[0].succeeded.emit(len(workers[0].requests), {"pendingCount": 0})
+    restored.close()
+    assert not json.loads((tmp_path / "lastfm-pending.json").read_text())["listens"]
+
+
+def test_permanent_rejection_removes_spooled_retry(tmp_path):
+    view, player, workers, now = frontend(tmp_path)
+    enable(view)
+    progress(view, player, now, 90)
+    worker = workers[0]
+    identifier = next(index for index, (_, body) in enumerate(worker.requests, 1) if body["action"] == "listen")
+    worker.failed.emit(identifier, {"code": "lastfm_metadata", "message": "Incomplete metadata"})
+    assert not view._unsaved
+    view.close()
+    assert not json.loads((tmp_path / "lastfm-pending.json").read_text())["listens"]
+
+
+def test_missing_artist_never_enqueues_or_breaks_playback(tmp_path):
+    view, player, workers, now = frontend(tmp_path)
+    player.currentTrack = {"title": "Missing artist", "duration": 180}
+    enable(view)
+    progress(view, player, now, 180)
+    assert not actions(workers, "listen") and player.playing and not view._unsaved
+    view.close()

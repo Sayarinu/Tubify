@@ -23,7 +23,7 @@ Dialog {
             width: scroll.availableWidth
             spacing: 12
             Label { Layout.fillWidth: true; text: "Share Now Playing and qualifying listens with your Last.fm profile. Song, artist, album, duration and listen time are sent when enabled."; wrapMode: Text.Wrap; color: themeState.secondary }
-            CheckBox { objectName: "lastFmEnabled"; text: "Send listening updates to Last.fm"; enabled: !!root.service && root.service.connected && !root.service.busy; checked: !!root.service && root.service.enabled; onClicked: root.service.setEnabled(checked) }
+            CheckBox { objectName: "lastFmEnabled"; text: "Send listening updates to Last.fm"; enabled: !!root.service && (root.service.enabled || root.service.connected && !root.service.busy); checked: !!root.service && root.service.enabled; onClicked: root.service.setEnabled(checked) }
             Label { Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service && root.service.connected ? "Signed in as " + root.service.username : "Sign in to enable listening updates."; wrapMode: Text.Wrap; color: themeState.foreground }
             RowLayout {
                 Layout.fillWidth: true

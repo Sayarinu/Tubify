@@ -1,5 +1,9 @@
 """Opt-in listening accounting; networking and keyring access stay in a worker."""
 
+from concurrent.futures import ThreadPoolExecutor
+import json
+from pathlib import Path
+import re
 import time
 from uuid import uuid4
 
@@ -8,10 +12,12 @@ from PySide6.QtGui import QDesktopServices
 
 from .jobs import Worker
 from .lastfm_service import metadata
+from .playback import write_state
 
 
 class LastFm(QObject):
     changed = Signal()
+    spoolFailed = Signal()
 
     def __init__(self, player, settings_path, data_dir, parent=None, worker_factory=Worker, clock=time.monotonic, wall_clock=time.time, browser=QDesktopServices.openUrl, fixture=False):
         super().__init__(parent)
@@ -23,6 +29,9 @@ class LastFm(QObject):
         self._browser, self._fixture = browser, fixture
         self._requests, self._unsaved, self._status = {}, {}, {}
         self._message, self._closed, self._listen = "", False, None
+        self._spool_path = Path(data_dir) / "lastfm-pending.json"
+        self._saver, self._restored, self._spool_loaded = None, {}, False
+        self.spoolFailed.connect(self._spool_failed)
         self._last_time, self._last_position, self._was_playing = clock(), float(player.position), False
         self.timer = QTimer(self)
         self.timer.setInterval(1000)
@@ -35,6 +44,7 @@ class LastFm(QObject):
         player.changed.connect(self._state_changed)
         player.seeked.connect(self._seeked)
         if self._enabled:
+            self._load_spool()
             self._request("status")
 
     @Property(bool, notify=changed)
@@ -91,11 +101,13 @@ class LastFm(QObject):
             self.timer.stop()
             self.retry_timer.stop()
             self._requests.clear()
-            self._unsaved.clear()
+            self._save_spool()
             if self._worker:
                 self._worker.close()
                 self._worker = None
         else:
+            self._load_spool()
+            self._adopt_spool()
             self._started(self.player.currentTrack)
             self.retry()
         self._state_changed()
@@ -111,6 +123,7 @@ class LastFm(QObject):
         if self.busy:
             return
         self.setEnabled(False)
+        self._discard_spool()
         self._request("configure", {"api_key": api_key, "secret": secret})
 
     @Slot()
@@ -128,6 +141,7 @@ class LastFm(QObject):
         if self.busy:
             return
         self.setEnabled(False)
+        self._discard_spool()
         self._request("logout")
 
     @Slot()
@@ -161,12 +175,14 @@ class LastFm(QObject):
             return
         action, payload = request
         if action == "complete" and result.get("username", "").casefold() != self.username.casefold():
-            self._unsaved.clear()
+            self._discard_spool()
             self._listen = None
         self._status.update({key: result[key] for key in ("configured", "connected", "username", "awaitingApproval", "pendingCount") if key in result})
         self._message = result.get("message", "")
+        self._adopt_spool()
         if action == "listen":
             self._unsaved.pop(payload["id"], None)
+            self._save_spool()
         if result.get("reconnect"):
             self._status["connected"] = False
         if action == "authorize" and result.get("authUrl"):
@@ -187,10 +203,12 @@ class LastFm(QObject):
         self._message = error.get("message", "Last.fm could not complete this request. Retry when connected.")
         if error.get("code") in {"lastfm_auth", "lastfm_setup"}:
             self._status["connected"] = False
-        if action == "listen" and error.get("code") not in {"lastfm_metadata", "lastfm_rejected"}:
-            self._unsaved[payload["id"]] = payload
-            while len(self._unsaved) > 1000:
-                self._unsaved.pop(next(iter(self._unsaved)))
+        if action == "listen":
+            if error.get("code") in {"lastfm_metadata", "lastfm_rejected"}:
+                self._unsaved.pop(payload["id"], None)
+            else:
+                self._unsaved[payload["id"]] = payload
+            self._save_spool()
         if self._enabled and self.connected and (action in {"listen", "flush"} or self.pendingCount):
             self.retry_timer.start(60000)
         self._state_changed()
@@ -241,15 +259,81 @@ class LastFm(QObject):
                 listen["announced"] = True
                 self._request("now_playing", {"track": listen["track"]})
             duration = float(self.player.duration)
-            if duration > 30 and not listen["submitted"] and listen["elapsed"] >= min(duration * self._percent / 100, 240):
+            if duration > 30 and metadata(listen["track"]) and not listen["submitted"] and listen["elapsed"] >= min(duration * self._percent / 100, 240):
                 listen["submitted"] = True
-                self._request("listen", {"id": listen["id"], "timestamp": listen["timestamp"], "track": {**listen["track"], "duration": duration}})
+                payload = {"id": listen["id"], "timestamp": listen["timestamp"], "track": {**listen["track"], "duration": duration}}
+                self._unsaved[listen["id"]] = payload
+                self._save_spool()
+                self._request("listen", payload)
         self._last_time, self._last_position, self._was_playing = now, position, active
 
+    def _load_spool(self):
+        if self._spool_loaded or self._fixture:
+            return
+        self._spool_loaded = True
+        try:
+            with self._spool_path.open(encoding="utf-8") as handle:
+                raw = handle.read(1024 * 1024 + 1)
+            if len(raw) > 1024 * 1024:
+                raise ValueError()
+            value = json.loads(raw)
+            rows = value.get("listens")
+            if not isinstance(value.get("owner"), str) or not isinstance(rows, list) or len(rows) > 1000:
+                raise ValueError()
+            if any(not isinstance(row, dict) or not isinstance(row.get("id"), str) or not re.fullmatch(r"[a-f0-9]{32}", row["id"]) or not isinstance(row.get("timestamp"), int) or not metadata(row.get("track")) for row in rows):
+                raise ValueError()
+            self._restored = value
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, TypeError, AttributeError):
+            self._message = "Pending Last.fm listens could not be read. Check local storage."
+
+    def _adopt_spool(self):
+        if not self._restored or not self.username:
+            return
+        if self._restored["owner"].casefold() == self.username.casefold():
+            self._unsaved.update({row["id"]: row for row in self._restored["listens"]})
+        self._restored = {}
+        self._save_spool()
+
+    def _save_spool(self):
+        if self._fixture or self._restored:
+            return
+        while len(self._unsaved) > 1000:
+            self._unsaved.pop(next(iter(self._unsaved)))
+        if self._saver is None:
+            if not self._unsaved and not self._spool_path.exists():
+                return
+            self._saver = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lastfm-state")
+        # Persist only public scrobble metadata, never provider/session fields.
+        rows = []
+        for row in self._unsaved.values():
+            track = metadata(row["track"])
+            if track:
+                rows.append({"id": row["id"], "timestamp": row["timestamp"], "track": {"title": track["track"], "artist": track["artist"], "albumName": track.get("album", ""), "duration": track.get("duration", 0)}})
+        content = json.dumps({"owner": self.username, "listens": rows}, separators=(",", ":"))
+        future = self._saver.submit(write_state, self._spool_path, content)
+        future.add_done_callback(lambda completed: self.spoolFailed.emit() if completed.exception() else None)
+
+    def _discard_spool(self):
+        self._unsaved.clear()
+        self._restored = {}
+        self._spool_loaded = True
+        self._save_spool()
+
+    def _spool_failed(self):
+        if not self._closed:
+            self._message = "Pending Last.fm listens could not be saved. Check available disk space and folder permissions."
+            self.changed.emit()
+
     def close(self):
+        if self._closed:
+            return
         self._tick()
         self._closed = True
         self.timer.stop()
         self.retry_timer.stop()
         if self._worker:
             self._worker.close()
+        if self._saver:
+            self._saver.shutdown(wait=True)
