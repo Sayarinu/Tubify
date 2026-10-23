@@ -40,11 +40,11 @@ def safe_source(source, artwork_root):
         if parsed.scheme == 'https' and parsed.hostname in IMAGE_HOSTS and parsed.port in {None, 443}:
             return source
         if parsed.scheme == 'file' and not parsed.netloc:
-            path = Path(unquote(parsed.path))
-            # file:///C:/... is the portable URI spelling on Windows.
-            if re.match(r'^/[A-Za-z]:/', str(path)):
-                path = Path(str(path)[1:])
-            path = path.resolve()
+            raw_path = unquote(parsed.path)
+            # Strip the URI drive prefix before Path normalizes Windows separators.
+            if re.match(r'^/[A-Za-z]:/', raw_path):
+                raw_path = raw_path[1:]
+            path = Path(raw_path).resolve()
             if path.is_relative_to(Path(artwork_root).resolve()):
                 return path.as_uri()
     except (ValueError, OSError):

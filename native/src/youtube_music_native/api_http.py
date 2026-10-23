@@ -11,6 +11,7 @@ import socket
 from threading import BoundedSemaphore, Condition, Event, Lock
 from time import monotonic
 from urllib.parse import parse_qs, urlsplit
+from uuid import uuid4
 
 from .api_access import ApiError
 
@@ -255,6 +256,7 @@ class ApiBackend:
         self.stopped, self.closed, self.condition = Event(), Event(), Condition()
         self.event_slots = BoundedSemaphore(3)
         self.current, self.source, self.revision = {}, '', 0
+        self.instance_id = uuid4().hex
         self.rate_lock, self.requests = Lock(), {}
         self.art_lock, self.art_cache = Lock(), None
         self.server = None
@@ -299,7 +301,7 @@ class ApiBackend:
         with self.condition:
             if self.stopped.is_set():
                 raise ApiError(503, 'API is disabled.')
-            return {**self.current, 'revision': self.revision}
+            return {**self.current, 'revision': self.revision, 'instanceId': self.instance_id}
 
     def events(self, digest, after, timeout):
         if not self.event_slots.acquire(blocking=False):

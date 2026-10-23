@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import http.client
 import json
+import re
 import socket
 from threading import Event, Thread
 from time import monotonic, sleep
@@ -173,6 +174,29 @@ def test_http_auth_scopes_pairing_and_security_headers(server):
     assert request(server, token=paired['token'])[0] == 401
 
 
+def test_state_and_events_keep_epoch_with_monotonic_revisions_across_restart(server):
+    token = server.overlay['token']
+    first = request(server, token=token)[1]
+    assert re.fullmatch('[0-9a-f]{32}', first['instanceId'])
+    unchanged = request(server, '/v1/events?after=999&timeout=0', token=token)[1]
+    assert unchanged == first
+    server.backend.publish({'version': 1, 'track': None}, '')
+    changed = request(server, '/v1/events?after=0&timeout=0', token=token)[1]
+    assert changed['instanceId'] == first['instanceId']
+    assert changed['revision'] > first['revision'] and changed['track'] is None
+    assert request(server, token=token)[1] == changed
+    server.backend.stop()
+    restarted = ApiBackend(server.access, lambda _: None, lambda: None, server.backend.assets, lambda _: None)
+    digest = server.access.authenticate('Bearer ' + token)
+    restarted.publish({'version': 1, 'track': None}, '')
+    fresh = restarted.snapshot(digest)
+    assert re.fullmatch('[0-9a-f]{32}', fresh['instanceId'])
+    assert fresh['instanceId'] != changed['instanceId']
+    assert fresh['revision'] < changed['revision']
+    assert restarted.events(digest, changed['revision'], 0) == fresh
+    restarted.stop()
+
+
 @pytest.mark.parametrize('headers', [{'Host': 'attacker.example'}, {'Host': 'localhost:9864'}, {'Origin': 'null'}, {'Origin': 'https://attacker.example'}, {'Sec-Fetch-Site': 'cross-site'}, {'Sec-Fetch-Site': 'same-site'}, {'Transfer-Encoding': 'chunked'}])
 def test_http_rejects_cross_origin_rebinding_and_transfer_encoding(server, headers):
     assert request(server, token=server.control['token'], headers=headers)[0] in {400, 403}
@@ -246,6 +270,21 @@ def test_rate_limit_and_memory_bound(server):
     assert len(server.backend.requests) <= 64
 
 
+@pytest.mark.filterwarnings('ignore:pathlib.PurePath.as_uri.*:DeprecationWarning')
+def test_windows_artwork_uri_is_normalized_before_path_construction(monkeypatch):
+    from pathlib import PureWindowsPath
+    from youtube_music_native import api_public
+    class ResolvedWindowsPath(PureWindowsPath):
+        def resolve(self):
+            return self
+    monkeypatch.setattr(api_public, 'Path', ResolvedWindowsPath)
+    root = ResolvedWindowsPath('C:/Users/Example User/media/artwork')
+    uri = (root / 'cover image.png').as_uri()
+    assert safe_source(uri, root) == uri
+    assert not safe_source('file:///C:/Users/Example%20User/settings.ini', root)
+    assert not safe_source('file://server/share/cover.png', root)
+
+
 def test_artwork_sources_and_metadata_are_allowlisted(tmp_path):
     root = tmp_path / 'artwork'
     root.mkdir()
@@ -309,11 +348,15 @@ def test_disabled_idle_restarts_release_port_and_command_authority(tmp_path):
         port = listener.getsockname()[1]
     api.setPort(port)
     try:
+        instances = set()
         for _ in range(3):
             api.setEnabled(True)
             wait_for(lambda: api.active)
             client = api.createClient('local synthetic client', 'control')
             digest = api.access.authenticate('Bearer ' + client['token'])
+            snapshot = api.backend.snapshot(digest)
+            assert snapshot['instanceId'] not in instances
+            instances.add(snapshot['instanceId'])
             req = ApiRequest(api.backend, 'command', {'command': 'pause'}, digest)
             api._dispatch(req)
             assert req.done.is_set() and req.result['ok'] and not player.playing
