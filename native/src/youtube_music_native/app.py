@@ -97,6 +97,8 @@ def main(argv=None):
     parser.add_argument("--data-dir", type=Path, help="Override application data for isolated development/tests")
     parser.add_argument("links", nargs="*", help="YouTube Music URLs or ytmusic-native links")
     args = parser.parse_args(argv)
+    if len(args.links) > 1:
+        parser.error("Open one music link at a time.")
     QGuiApplication.setOrganizationName("YouTubeMusicNative")
     QGuiApplication.setOrganizationDomain("com.carter")
     QGuiApplication.setApplicationName("youtube-music-native")
@@ -215,12 +217,13 @@ def main(argv=None):
 
     def receive_links(links):
         show_for_link()
-        for link in links:
-            controller.linkState.receive(link)
+        if links:
+            controller.linkState.receive(links[0])
 
     controller.linkState.activateRequested.connect(show_for_link)
     if instance:
         instance.linksReceived.connect(receive_links)
+        instance.linkRejected.connect(controller.linkState.reportError)
         QTimer.singleShot(0, instance.ready)
     elif args.links:
         QTimer.singleShot(0, lambda: receive_links(args.links))

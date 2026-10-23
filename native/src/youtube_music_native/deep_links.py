@@ -66,7 +66,7 @@ class DeepLinks(QObject):
         self.worker, self.cache_path, self.clock, self.fixture = account.worker, str(cache_path), clock, fixture
         self._link, self._media, self._message, self._busy = {}, {}, "", False
         self._lookup, self._request, self._recent = None, None, {}
-        self._action = "open"
+        self._action, self._notice = "open", ""
         self._loaded = False
         if downloads:
             downloads.collectionFound.connect(self._local)
@@ -84,15 +84,25 @@ class DeepLinks(QObject):
 
     @Property(str, notify=changed)
     def message(self):
-        return self._message
+        return "\n".join(value for value in (self._message, self._notice) if value)
 
     @Property(bool, notify=changed)
     def busy(self):
         return self._busy
 
     @Property(bool, notify=changed)
+    def previewOnly(self):
+        return self._link.get("action") == "open"
+
+    @Property(bool, notify=changed)
     def canPlay(self):
         return self._loaded and bool(self._media) and self._media.get("kind") != "artist"
+
+    @Slot(str)
+    def reportError(self, message):
+        self._notice = message
+        self.changed.emit()
+        self.previewRequested.emit()
 
     @Slot(str)
     def receive(self, url):
@@ -114,6 +124,7 @@ class DeepLinks(QObject):
         if len(self._recent) > 32:
             self._recent.pop(next(iter(self._recent)))
         self._cancel()
+        self._notice = ""
         self._loaded = False
         self._link, self._action = link, link["action"]
         self._media = {"kind": link["kind"], "id": link["id"], "title": link["kind"].title() + " link"}

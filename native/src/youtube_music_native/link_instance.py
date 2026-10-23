@@ -7,7 +7,7 @@ from pathlib import Path
 import secrets
 import time
 
-from PySide6.QtCore import QEvent, QLockFile, QObject, QTimer, Signal
+from PySide6.QtCore import QEvent, QLockFile, QObject, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
 from .deep_links import parse_link, LinkError
@@ -18,6 +18,7 @@ MAX_MESSAGE = 48 * 1024
 
 class LinkInstance(QObject):
     linksReceived = Signal(list)
+    linkRejected = Signal(str)
 
     def __init__(self, data_dir, parent=None):
         super().__init__(parent)
@@ -30,13 +31,13 @@ class LinkInstance(QObject):
         self.server.setMaxPendingConnections(8)
         self.server.newConnection.connect(self._accept)
         self._clients, self._token, self._primary = {}, "", False
-        self._waiting, self._ready = [], False
+        self._waiting, self._ready, self._rejection = [], False, ""
         self.manifest = self.root / "instance.json"
 
     def claim_or_forward(self, links):
         """Called before constructing a player; waits only during a secondary launch."""
-        if len(links) > 10:
-            raise LinkError("Open at most ten music links at a time.")
+        if len(links) > 1:
+            raise LinkError("Open one music link at a time.")
         for link in links:
             parse_link(link)
         if self.lock.tryLock(0):
@@ -91,18 +92,36 @@ class LinkInstance(QObject):
             timer = QTimer(socket)
             timer.setSingleShot(True)
             timer.setInterval(2000)
-            timer.timeout.connect(socket.abort)
-            socket.disconnected.connect(lambda socket=socket: self._discard(socket))
-            socket.readyRead.connect(lambda socket=socket: self._read(socket))
+            timer.timeout.connect(self._expired)
+            socket.disconnected.connect(self._discard)
+            socket.readyRead.connect(self._read)
             self._clients[socket] = bytearray()
             timer.start()
-            self._read(socket)
+            self._consume(socket)
 
-    def _discard(self, socket):
-        self._clients.pop(socket, None)
+    @Slot()
+    def _expired(self):
+        timer = self.sender()
+        if timer is not None:
+            self._dispose(timer.parent())
+
+    @Slot()
+    def _discard(self):
+        self._dispose(self.sender())
+
+    def _dispose(self, socket):
+        if socket not in self._clients:
+            return
+        self._clients.pop(socket)
+        socket.blockSignals(True)
+        socket.abort()
         socket.deleteLater()
 
-    def _read(self, socket):
+    @Slot()
+    def _read(self):
+        self._consume(self.sender())
+
+    def _consume(self, socket):
         buffer = self._clients.get(socket)
         if buffer is None:
             return
@@ -115,12 +134,18 @@ class LinkInstance(QObject):
         try:
             value = json.loads(buffer)
             links, token = value.get("links"), value.get("token")
-            if not isinstance(token, str) or not hmac.compare_digest(token, self._token) or not isinstance(links, list) or len(links) > 10:
+            if not isinstance(token, str) or not hmac.compare_digest(token, self._token) or not isinstance(links, list) or len(links) > 1:
                 raise ValueError()
             for link in links:
                 parse_link(link)
         except (ValueError, TypeError, AttributeError, RecursionError):
             socket.abort()
+            return
+        # Do not acknowledge a second cold-start action that would replace the first.
+        if links and self._waiting and not self._ready:
+            socket.write(b"busy\n")
+            socket.flush()
+            socket.disconnectFromServer()
             return
         socket.write(b"ok\n")
         socket.flush()
@@ -136,18 +161,23 @@ class LinkInstance(QObject):
     def deliver(self, links):
         if self._ready:
             self.linksReceived.emit(links)
-        elif len(self._waiting) + len(links) <= 10:
+        elif not self._waiting:
             self._waiting.extend(links)
+        elif links != self._waiting:
+            self._rejection = "Open one music link at a time. Try the other link again when startup finishes."
 
     def ready(self):
         self._ready = True
         pending, self._waiting = self._waiting, []
         if pending:
             self.linksReceived.emit(pending)
+        if self._rejection:
+            self.linkRejected.emit(self._rejection)
+            self._rejection = ""
 
     def close(self):
         for socket in list(self._clients):
-            socket.abort()
+            self._dispose(socket)
         self.server.close()
         if self._primary:
             try:

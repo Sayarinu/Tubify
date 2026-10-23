@@ -24,3 +24,5 @@ Windows and macOS package association belongs to the existing LUNE-351/LUNE-352 
 - macOS: add a `CFBundleURLTypes` entry with `CFBundleURLSchemes = [ytmusic-native]` to the native app bundle's `Info.plist`. `QFileOpenEvent` forwards cold/warm URL events through the same app handler. The current repository has no native Windows installer or macOS app bundle to amend.
 
 References: [Qt file-open events](https://doc.qt.io/qt-6/qfileopenevent.html), [Qt local socket permissions](https://doc.qt.io/qt-6/qlocalserver.html), [Qt process locks](https://doc.qt.io/qt-6/qlockfile.html), [desktop Exec fields](https://specifications.freedesktop.org/desktop-entry/latest/exec-variables.html), [Windows application registration](https://learn.microsoft.com/en-us/windows/win32/shell/app-registration), [Apple URL type keys](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html).
+
+Open one URL per launch or handoff. Multiple URLs are rejected so an earlier Play or Queue action cannot be silently replaced by a later URL in the same launch.

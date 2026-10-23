@@ -1,3 +1,4 @@
+import gc
 import json
 from pathlib import Path
 import subprocess
@@ -8,9 +9,10 @@ from types import SimpleNamespace
 from urllib.parse import quote
 
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QTimer, QUrl, Signal
 from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtTest import QTest
+from shiboken6 import isValid
 
 from youtube_music_native.deep_links import DeepLinks, LinkError, parse_link
 from youtube_music_native.link_instance import LinkInstance, MAX_MESSAGE
@@ -93,7 +95,7 @@ TRACK = {"kind": "song", "videoId": "abcdefghijk", "title": "Synthetic track", "
 def test_open_is_preview_and_offline_download_uses_no_catalog(tmp_path):
     service, browse, worker, downloads, clock = controller(tmp_path)
     service.receive(SONG)
-    assert service.busy and not service.canPlay and not browse.calls
+    assert service.busy and not service.canPlay and service.previewOnly and not browse.calls
     downloads.collectionFound.emit(1, {"kind": "song", "items": [TRACK]})
     assert service.media == TRACK and not service.busy and service.canPlay
     assert not worker.requests and not browse.calls
@@ -105,7 +107,7 @@ def test_explicit_actions_wait_for_valid_details_and_duplicate_launch_is_suppres
     service, browse, worker, downloads, clock = controller(tmp_path)
     service.receive(link("play"))
     service.receive(link("play"))
-    assert len(downloads.requests) == 1
+    assert len(downloads.requests) == 1 and not service.previewOnly
     downloads.collectionFound.emit(1, {})
     assert worker.requests[0][1]["route"] == "radio" and worker.requests[0][1]["params"]["radio"] is False
     worker.succeeded.emit(1, {"items": [TRACK]})
@@ -190,7 +192,7 @@ def test_local_handoff_rejects_bad_tokens_oversize_and_unsupported_links(tmp_pat
     received = []
     primary.linksReceived.connect(received.append)
     primary.ready()
-    for data in (json.dumps({"token": "incorrect", "links": [SONG]}).encode() + b"\n", b"x" * (MAX_MESSAGE + 1), json.dumps({"token": primary._token, "links": ["file:///private"]}).encode() + b"\n"):
+    for data in (json.dumps({"token": "incorrect", "links": [SONG]}).encode() + b"\n", b"x" * (MAX_MESSAGE + 1), json.dumps({"token": primary._token, "links": ["file:///private"]}).encode() + b"\n", json.dumps({"token": primary._token, "links": [link("play"), link("queue")]}).encode() + b"\n"):
         peer = QLocalSocket()
         peer.connectToServer(primary.name)
         wait_for(lambda: peer.state() == QLocalSocket.LocalSocketState.ConnectedState)
@@ -252,3 +254,75 @@ assert.equal(setup('https://music.youtube.com/watch?v=abcdefghijk'),3);
 assert.equal(setup('https://www.youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa'),1);
 """
     subprocess.run([shutil.which("node"), "-e", code, str(script)], check=True, capture_output=True, text=True)
+
+
+def test_batch_launch_is_rejected_before_claiming_player(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    instance = LinkInstance(tmp_path)
+    with pytest.raises(LinkError, match="one music link"):
+        instance.claim_or_forward([link("play"), link("queue")])
+    assert not instance.lock.isLocked() and not instance.server.isListening()
+    instance.close()
+
+
+def test_cold_start_does_not_acknowledge_an_action_it_cannot_deliver(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    instance = LinkInstance(tmp_path)
+    instance.claim_or_forward([link("play")])
+    peer = QLocalSocket()
+    peer.connectToServer(instance.name)
+    wait_for(lambda: peer.state() == QLocalSocket.LocalSocketState.ConnectedState)
+    peer.write(json.dumps({"token": instance._token, "links": [link("queue")]}).encode() + b"\n")
+    peer.flush()
+    wait_for(lambda: peer.bytesAvailable() > 0)
+    assert bytes(peer.readAll()) == b"busy\n"
+    received = []
+    instance.linksReceived.connect(received.append)
+    instance.ready()
+    assert received == [[link("play")]]
+    instance.close()
+
+
+def test_partial_clients_are_destroyed_on_timeout_and_repeated_close(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    for _ in range(6):
+        instance = LinkInstance(tmp_path)
+        instance.claim_or_forward([])
+        peer = QLocalSocket()
+        peer.connectToServer(instance.name)
+        wait_for(lambda: bool(instance._clients))
+        accepted = next(iter(instance._clients))
+        peer.write(b'{"token":')
+        peer.flush()
+        QTest.qWait(5)
+        if _ % 2:
+            accepted.findChild(QTimer).start(1)
+            wait_for(lambda: not instance._clients)
+        instance.close()
+        instance.close()
+        assert not instance._clients
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        assert not isValid(accepted)
+        peer.abort()
+        peer.deleteLater()
+        instance.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        gc.collect()
+
+
+def test_second_file_open_during_startup_is_rejected_visibly(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    instance = LinkInstance(tmp_path)
+    instance.claim_or_forward([link("play")])
+    received, rejected = [], []
+    instance.linksReceived.connect(received.append)
+    instance.linkRejected.connect(rejected.append)
+    instance.eventFilter(None, SimpleNamespace(type=lambda: QEvent.Type.FileOpen, url=lambda: QUrl(link("queue"))))
+    instance.ready()
+    assert received == [[link("play")]] and "one music link" in rejected[0]
+    service, browse, worker, downloads, _ = controller(tmp_path)
+    service.receive(link("play"))
+    service.reportError(rejected[0])
+    downloads.collectionFound.emit(1, {"kind": "song", "items": [TRACK]})
+    assert browse.calls == [("play", TRACK)] and "one music link" in service.message
+    instance.close()

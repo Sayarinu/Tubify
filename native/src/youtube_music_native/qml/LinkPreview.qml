@@ -11,6 +11,7 @@ Dialog {
     focus: true
     title: "Shared music"
     standardButtons: Dialog.Close
+    property alias scrollView: scroll
     property var service: typeof linkState !== "undefined" ? linkState : null
     contentItem: ScrollView {
         id: scroll
@@ -25,7 +26,7 @@ Dialog {
         Label { objectName: "linkPreviewTitle"; Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service ? root.service.media.title || "Music link" : "Music link"; color: themeState.foreground; font.pixelSize: 20; font.bold: true; wrapMode: Text.Wrap }
         Label { Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service ? root.service.media.artist || (root.service.media.artists || []).map(a => a.name).join(" · ") : ""; color: themeState.secondary; wrapMode: Text.Wrap }
         Label { Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service ? root.service.url : ""; color: themeState.secondary; wrapMode: Text.WrapAnywhere; font.pixelSize: 12 }
-        Label { Layout.fillWidth: true; text: "Opening this preview leaves playback and your queue unchanged."; color: themeState.secondary; wrapMode: Text.Wrap; font.pixelSize: 12 }
+        Label { Layout.fillWidth: true; visible: !!root.service && root.service.previewOnly; text: "Choose Play or Add to queue to change playback."; color: themeState.secondary; wrapMode: Text.Wrap; font.pixelSize: 12 }
         Label { objectName: "linkPreviewMessage"; Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service ? root.service.message : ""; color: themeState.foreground; wrapMode: Text.Wrap }
         RowLayout {
             Layout.fillWidth: true
