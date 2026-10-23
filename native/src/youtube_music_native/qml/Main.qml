@@ -102,6 +102,8 @@ ApplicationWindow {
     onActiveFocusItemChanged: Qt.callLater(function() {
         revealScrolledFocus(colorPickerScroll)
         revealScrolledFocus(themeScroll)
+        revealScrolledFocus(playbackSettings.scrollView)
+        revealScrolledFocus(lyricsSettings.scrollView)
     })
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
     property bool modalOpen: navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
@@ -521,7 +523,7 @@ ApplicationWindow {
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: player.top; anchors.bottomMargin: 16
-        width: Math.min(600, window.width - 80); height: playbackMessage.implicitHeight + 24
+        width: Math.min(600, uiRoot.width - 80); height: playbackMessage.implicitHeight + 24
         radius: 6; color: themeState.hover; visible: playbackMessage.text.length > 0
         Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: browseState.queueMessage || actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.pixelSize: 14 }
     }

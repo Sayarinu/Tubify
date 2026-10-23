@@ -4,6 +4,7 @@ import QtQuick.Layouts
 
 Dialog {
     id: root
+    property alias scrollView: optionsScroll
     objectName: "lyricsSettingsDialog"
     anchors.centerIn: Overlay.overlay
     width: Overlay.overlay ? Math.min(560, Overlay.overlay.width - 48) : 560

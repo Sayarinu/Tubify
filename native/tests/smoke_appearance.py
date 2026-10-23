@@ -61,6 +61,18 @@ def main():
                                 assert queue.width() >= 280
                             if lyrics.isVisible():
                                 assert lyrics.width() >= 280
+                            shell.setExpanded(True)
+                            QTest.qWait(25)
+                            stage = find("expandedPlayer")
+                            cover = find("immersiveArtwork")
+                            assert stage.isVisible() and bar.isVisible()
+                            assert not find("navigationRail").isVisible()
+                            cover_bounds = cover.mapRectToScene(cover.boundingRect())
+                            assert cover_bounds.left() >= 0 and cover_bounds.right() <= size[0] + 1
+                            assert cover_bounds.top() >= 0 and cover_bounds.bottom() <= bounds.top() + 1, (scale, size, cover_bounds)
+                            assert shell.queueOpen == queue_open and shell.lyricsOpen == lyrics_open
+                            shell.setExpanded(False)
+                            QTest.qWait(25)
                             search, settings_button = find("searchField"), find("settingsButton")
                             assert search.x() + search.width() <= settings_button.x() + 0.1
                             for name in ("queueToggle", "lyricsToggle", "playerTransport"):
@@ -92,7 +104,7 @@ def main():
                         QMetaObject.invokeMethod(settings, "close")
                 shell.setUiScale(150)
                 window.resize(920, 620)
-                for name in ("colorPickerDialog", "shortcutHelpDialog", "accountDialog"):
+                for name in ("colorPickerDialog", "shortcutHelpDialog", "accountDialog", "lyricsSettingsDialog", "playbackSettings"):
                     popup = find(name)
                     QMetaObject.invokeMethod(popup, "open")
                     QTest.qWait(35)
@@ -111,6 +123,12 @@ def main():
                             assert ancestor == panel, "Focus escaped the color picker"
                             bounds = focused.mapRectToScene(focused.boundingRect())
                             assert rectangle.top() - 1 <= bounds.top() and bounds.bottom() <= rectangle.bottom() + 1, bounds
+                    if name in ("lyricsSettingsDialog", "playbackSettings"):
+                        option = find("lyricApiKey" if name == "lyricsSettingsDialog" else "skipDislikedOption")
+                        option.forceActiveFocus()
+                        QTest.qWait(30)
+                        focused_bounds = option.mapRectToScene(option.boundingRect())
+                        assert focused_bounds.top() >= rectangle.top() - 1 and focused_bounds.bottom() <= rectangle.bottom() + 1, (name, focused_bounds, rectangle)
                     shot(name + "-150-920")
                     QMetaObject.invokeMethod(popup, "close")
                 QTest.qWait(30)

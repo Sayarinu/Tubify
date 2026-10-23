@@ -5,14 +5,24 @@ import "Theme.js" as Theme
 
 Dialog {
     id: root
+    property alias scrollView: optionsScroll
     objectName: "playbackSettings"
     title: "Playback"
     modal: true
-    anchors.centerIn: parent
-    width: Math.min(480, parent.width - 32)
+    anchors.centerIn: Overlay.overlay
+    width: Math.min(480, Overlay.overlay.width - 32)
+    height: Math.min(implicitHeight, Overlay.overlay.height - 48)
     standardButtons: Dialog.Close
     background: Rectangle { color: themeState.background; border.color: themeState.border; radius: 12 }
-    contentItem: ColumnLayout {
+    contentItem: ScrollView {
+        id: optionsScroll
+        contentWidth: availableWidth
+        implicitHeight: options.implicitHeight
+        clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+        ColumnLayout {
+        id: options
+        width: optionsScroll.availableWidth
         spacing: 16
         Text { text: "Sleep timer"; color: themeState.foreground; font.bold: true; font.pixelSize: 16 }
         Text {
@@ -58,5 +68,6 @@ Dialog {
             text: "Changing skip behavior leaves the current song playing. Previous remains available."
             color: themeState.secondary; font.pixelSize: 12; wrapMode: Text.Wrap
         }
+    }
     }
 }
