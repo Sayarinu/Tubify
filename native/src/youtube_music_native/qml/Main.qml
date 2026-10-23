@@ -99,12 +99,19 @@ ApplicationWindow {
         else if (point.y + item.height > flick.contentY + flick.height)
             flick.contentY = Math.min(flick.contentHeight - flick.height, point.y + item.height - flick.height)
     }
-    onActiveFocusItemChanged: Qt.callLater(function() {
-        revealScrolledFocus(colorPickerScroll)
-        revealScrolledFocus(themeScroll)
-        revealScrolledFocus(playbackSettings.scrollView)
-        revealScrolledFocus(lyricsSettings.scrollView)
-    })
+    readonly property var focusedScrollView: {
+        var ancestor = window.activeFocusItem
+        while (ancestor && !(ancestor instanceof ScrollView)) ancestor = ancestor.parent
+        return ancestor
+    }
+    function revealActiveScrollFocus() { revealScrolledFocus(focusedScrollView) }
+    onActiveFocusItemChanged: Qt.callLater(revealActiveScrollFocus)
+    // Font metrics and wrapped content can settle after focus has already moved.
+    Connections {
+        target: window.focusedScrollView ? window.focusedScrollView.contentItem : null
+        function onContentHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
+        function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
+    }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
     property bool modalOpen: navigationDrawer.opened || playbackSettings.opened || accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || lyricsSettings.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened

@@ -129,6 +129,17 @@ def main():
                         QTest.qWait(30)
                         focused_bounds = option.mapRectToScene(option.boundingRect())
                         assert focused_bounds.top() >= rectangle.top() - 1 and focused_bounds.bottom() <= rectangle.bottom() + 1, (name, focused_bounds, rectangle)
+                    if name == "playbackSettings":
+                        # A late text/layout update must keep an already focused option visible.
+                        shell.playbackOptions._status = "Synthetic playback status that wraps across several lines. " * 5
+                        shell.playbackOptions.timerChanged.emit()
+                        QTest.qWait(100)
+                        assert window.activeFocusItem() == option
+                        focused_bounds = option.mapRectToScene(option.boundingRect())
+                        rectangle = panel.mapRectToScene(panel.boundingRect())
+                        assert focused_bounds.top() >= rectangle.top() - 1 and focused_bounds.bottom() <= rectangle.bottom() + 1, (name, focused_bounds, rectangle)
+                        shell.playbackOptions._status = ""
+                        shell.playbackOptions.timerChanged.emit()
                     shot(name + "-150-920")
                     QMetaObject.invokeMethod(popup, "close")
                 QTest.qWait(30)
