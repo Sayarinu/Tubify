@@ -111,6 +111,11 @@ class Lifecycle(QObject):
         self._status = ""
         self.changed.emit()
 
+    @Slot()
+    def dismissStatus(self):
+        self.status_timer.stop()
+        self._clear_status()
+
     @Slot(bool)
     def setAutostart(self, enabled):
         if self._closed:

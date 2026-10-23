@@ -140,8 +140,8 @@ def test_autostart_failure_retains_setting_and_can_retry(tmp_path):
     startup.fail = False
     life.retryAutostart()
     assert life.autostart and startup.enabled and not life.error and life.status
-    life._clear_status()
-    assert not life.status
+    life.dismissStatus()
+    assert not life.status and not life.status_timer.isActive()
     startup.fail = True
     life.setAutostart(False)
     assert life.autostart and life.startupError

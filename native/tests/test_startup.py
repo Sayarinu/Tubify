@@ -68,6 +68,8 @@ def test_linux_exec_quoting_preserves_arguments_without_a_shell():
     assert shlex.split(unescaped.replace("\\$", "$" ).replace("\\`", "`")) == [arg.replace("%", "%%") for arg in arguments]
     with pytest.raises(StartupError):
         desktop_exec(["/bad\npath"])
+    with pytest.raises(StartupError):
+        desktop_exec(["/unsupported=executable"])
     fallback = StartupRegistration(["/synthetic"], "linux", home=Path("/home/synthetic"), config="relative")
     assert fallback.path == Path("/home/synthetic/.config/autostart/youtube-music-native.desktop")
 

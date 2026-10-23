@@ -20,6 +20,8 @@ class StartupError(Exception):
 
 def desktop_exec(command):
     """Quote argv for Desktop Entry Exec, including its preceding string unescape."""
+    if not command or "=" in command[0]:
+        raise StartupError("The executable path cannot be registered with this desktop.")
     quoted = []
     for argument in command:
         if any(ord(char) < 32 for char in argument):

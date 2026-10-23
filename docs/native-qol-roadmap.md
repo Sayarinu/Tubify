@@ -131,6 +131,16 @@ The far-right player button and existing F shortcut toggle an immersive stage wi
 
 Desktop integration additions must have no background network or active service work while disabled. Use Qt standard paths/settings and isolated platform adapters; reuse OS credential storage. Do not add the reference apps' custom CSS injection, embedded-web CPU patches or adjacent key-file encryption to native rendering. Blur must remain optional and bounded, with a software-rendering fallback.
 
+## Desktop startup and notifications (LUNE-378)
+
+Settings → Desktop enables login startup, minimized startup, close-to-tray and track notifications separately; all default off. Minimized startup keeps a taskbar/Dock window, while close-to-tray hides it only with an active native tray. If the tray disappears or is disabled, the hidden main window is restored. Explicit Quit always exits. These presentation changes do not resume restored playback.
+
+Registration is per-user and never launches another process immediately: Linux writes an owned XDG autostart desktop entry, Windows uses the current-user Run value, and macOS writes an owned LaunchAgent. Files are replaced atomically, unrelated login files are preserved, and errors remain visible with a retry action. Successful changes have a dismissible four-second status. Source launches use an absolute launcher path so workers and login startup are independent of the current directory and PYTHONPATH; moved installations need registration retry. Visual fixtures cannot register login startup.
+
+Track notifications require an enabled, available tray and follow desktop notification permissions. Only playing track transitions notify; position updates and pause/resume do not duplicate them. Disabling notifications disconnects the listener. The tray-loss watch runs only while the main window is hidden.
+
+Adapter contracts follow the [XDG autostart specification](https://specifications.freedesktop.org/autostart/latest/), [desktop Exec quoting](https://specifications.freedesktop.org/desktop-entry/latest/exec-variables.html), [Windows Run registration](https://learn.microsoft.com/en-us/windows/win32/setupapi/run-and-runonce-registry-keys) and [Apple LaunchAgent guidance](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html). Tests use temporary files, a fake registry and synthetic notifications; actual login/logout behavior on each OS remains a hardware acceptance gate. [Qt's Wayland adapter](https://github.com/qt/qtbase/blob/dev/src/plugins/platforms/wayland/plugins/shellintegration/xdg-shell/qwaylandxdgshell.cpp) clears its minimized flag after requesting minimization because xdg-shell does not report that state; the visibility enum alone cannot verify compositor minimization.
+
 ## Interfaces and compatibility
 
 Extend the existing theme controller with a derived progressTrack property; preserve theme format version 1. Extend shell state with independent dock intent/widths, active compact-dock tab and immersive state. UI state changes must not replace catalog navigation or playback ownership.
