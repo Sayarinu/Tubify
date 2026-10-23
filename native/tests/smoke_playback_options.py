@@ -47,15 +47,25 @@ def main():
                 assert not fill.property("enabled") and not options.speakerFill
                 player._audio_options_changed({"available": True, "active": False, "message": "Synthetic 5.1 output"})
                 assert fill.property("enabled")
+                original_size = (window.width(), window.height())
+                window.setWidth(920)
+                window.setHeight(620)
+                shell.setUiScale(150)
+                QTest.qWait(80)
                 fill.forceActiveFocus()
                 QTest.qWait(80)
                 QTest.keyClick(window, Qt.Key.Key_Space)
                 assert options.speakerFill
+                center = fill.mapToScene(QPointF(fill.width()/2, fill.height()/2))
+                assert 0 < center.y() < window.height()
                 player._audio_options_changed({"available": False, "active": False, "failed": True, "message": "Synthetic failure"})
                 assert fill.property("enabled")  # A saved preference can always be turned off.
                 QTest.keyClick(window, Qt.Key.Key_Space)
                 assert not options.speakerFill
                 QMetaObject.invokeMethod(dialog, "close")
+                shell.setUiScale(100)
+                window.setWidth(original_size[0])
+                window.setHeight(original_size[1])
                 QTest.qWait(80)
                 seek = window.findChild(QObject, "playbackSeek")
                 point = seek.mapToScene(QPointF(seek.width()/2, seek.height()/2)).toPoint()
