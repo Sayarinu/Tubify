@@ -61,8 +61,10 @@ export class Plugin {
     const generation = this.client.generation;
     this.volumeTask = (async () => {
       while (this.volumeDelta) {
-        await this.client.commandDone;
-        if (generation !== this.client.generation || !this.client.snapshot) throw new Error('Disconnected.');
+        do {
+          await this.client.commandDone;
+          if (generation !== this.client.generation || !this.client.snapshot) throw new Error('Disconnected.');
+        } while (this.client.busy);
         const delta = this.volumeDelta; this.volumeDelta = 0;
         const value = Math.max(0, Math.min(100, this.client.snapshot.playback.volume + delta));
         await this.client.command({command: 'volume', value});

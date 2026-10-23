@@ -175,3 +175,18 @@ test('API restart changes epoch while late responses from the old server stay ig
   assert.equal(client.acceptSnapshot({...state, instanceId: second, revision: 0}, second), false);
   assert.equal(client.acceptSnapshot({...state, instanceId: second, revision: 2}, second), true);
 });
+
+
+test('volume input waits for a transport command that starts in the same event turn', async () => {
+  let release; const commands = [];
+  const plugin = new Plugin({readyState: 1, send() {}}, {event: 'registerPlugin', uuid: 'fixture'}, {send: async (port, path, options) => {
+    if (path === '/v1/command') {commands.push(options.body); if (options.body.command === 'pause') await new Promise(resolve => {release = resolve;});}
+    return structuredClone(state);
+  }});
+  plugin.client.credential = credential; plugin.client.snapshot = structuredClone(state);
+  const turning = plugin.adjustVolume(2, 'dial');
+  const pausing = plugin.client.command({command: 'pause'});
+  await settle(); assert.equal(commands.length, 1);
+  release(); await Promise.all([turning, pausing]);
+  assert.deepEqual(commands, [{command: 'pause'}, {command: 'volume', value: 42}]); plugin.close();
+});
