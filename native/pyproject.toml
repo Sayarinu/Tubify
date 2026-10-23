@@ -29,7 +29,7 @@ youtube-music-native-check = "youtube_music_native.launcher:compat_main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-youtube_music_native = ["qml/*.qml", "qml/*.js", "assets/*"]
+youtube_music_native = ["qml/*.qml", "qml/*.js", "assets/*", "assets/overlay/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
