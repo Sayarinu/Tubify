@@ -163,3 +163,15 @@ test('settings UI preserves unsaved fields, clears pairing codes, and renders me
   assert.equal(elements.code.value, ''); assert.equal(sent.at(-1).payload.options.executable, '/New App/native');
   assert.ok(sent.every(message => message.event !== 'setGlobalSettings'));
 });
+
+
+test('API restart changes epoch while late responses from the old server stay ignored', () => {
+  const {client} = harness(); const first = 'a'.repeat(32), second = 'b'.repeat(32);
+  client.acceptSnapshot({...state, instanceId: first, revision: 900});
+  assert.equal(client.acceptSnapshot({...state, instanceId: second, revision: 1}, first), true);
+  assert.equal(client.snapshot.instanceId, second);
+  assert.equal(client.acceptSnapshot({...state, instanceId: first, revision: 901}, first), false);
+  assert.equal(client.snapshot.instanceId, second); assert.equal(client.snapshot.revision, 1);
+  assert.equal(client.acceptSnapshot({...state, instanceId: second, revision: 0}, second), false);
+  assert.equal(client.acceptSnapshot({...state, instanceId: second, revision: 2}, second), true);
+});

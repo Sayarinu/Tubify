@@ -116,25 +116,30 @@ export class Client {
     } catch (error) { this.publish('Disconnected', error.message + ' Automatic connection is disabled. Revoke the client in the native app.'); }
     finally { this.busy = false; }
   }
-  acceptSnapshot(value) {
+  acceptSnapshot(value, expectedInstance = this.snapshot?.instanceId) {
     const p = value?.playback, c = value?.capabilities;
+    if (value?.instanceId !== undefined && (typeof value.instanceId !== 'string' || !/^[a-f0-9]{32}$/.test(value.instanceId))) throw new Error('Unsupported local API instance.');
     if (value?.version !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || !p || !c ||
         !['playing', 'paused', 'stopped'].includes(p.state) || !['off', 'one', 'all'].includes(p.repeat) || typeof p.shuffle !== 'boolean' ||
         ![p.position, p.duration, p.volume].every(number => Number.isFinite(number) && number >= 0) || p.volume > 100 ||
         !['play', 'seek', 'next', 'previous', 'rate'].every(key => typeof c[key] === 'boolean') ||
         value.track !== null && (!value.track || typeof value.track.title !== 'string' || !Array.isArray(value.track.artists) || !value.track.artists.every(name => typeof name === 'string'))) throw new Error('Unsupported local API state.');
-    if (this.snapshot && value.revision < this.snapshot.revision) return false;
+    if (this.snapshot) {
+      if (value.instanceId === this.snapshot.instanceId && value.revision < this.snapshot.revision) return false;
+      // A command may already have observed a restart while this poll was in flight.
+      if (value.instanceId !== this.snapshot.instanceId && this.snapshot.instanceId !== expectedInstance) return false;
+    }
     this.snapshot = value;
     return true;
   }
   async poll() {
     if (!this.active || !this.credential) return;
     const generation = this.generation;
-    const revision = this.snapshot?.revision;
+    const revision = this.snapshot?.revision, instance = this.snapshot?.instanceId;
     try {
       const result = await this.send(this.options.port, revision === undefined ? '/v1/state' : `/v1/events?after=${revision}&timeout=20`, {token: this.credential.token, signal: this.controller.signal, timeout: 25000});
       if (generation !== this.generation) return;
-      this.acceptSnapshot(result); this.attempts = 0; this.publish('Connected');
+      this.acceptSnapshot(result, instance); this.attempts = 0; this.publish('Connected');
       this.timer = this.schedule(() => this.poll(), 100);
     } catch (error) {
       if (generation !== this.generation) return;
@@ -158,8 +163,9 @@ export class Client {
     try {
       await this.send(this.options.port, '/v1/command', {token: this.credential.token, body: command, signal: this.controller.signal});
       // Refresh absolute volume/shuffle values before accepting another action.
+      const instance = this.snapshot?.instanceId;
       const state = await this.send(this.options.port, '/v1/state', {token: this.credential.token, signal: this.controller.signal});
-      if (generation === this.generation) { this.acceptSnapshot(state); this.onChange(); }
+      if (generation === this.generation) { this.acceptSnapshot(state, instance); this.onChange(); }
     } catch (error) {
       if (generation === this.generation) {
         if (error.status === 401 || error.status === 403) this.unauthorized();
