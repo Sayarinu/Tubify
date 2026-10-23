@@ -71,6 +71,7 @@ ApplicationWindow {
     }
     Connections {
         target: appState
+        function onAppearanceChanged() { Qt.callLater(window.revealActiveScrollFocus) }
         function onPlayerViewChanging(entering) {
             if (entering) {
                 window.browseFocus = window.activeFocusItem

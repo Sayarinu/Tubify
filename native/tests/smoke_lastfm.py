@@ -26,7 +26,8 @@ class Worker(QObject):
 def main():
     original, passed = app.load_window, []
     def load(*args, **kwargs):
-        state = args[0].lastFm
+        shell = args[0]
+        state = shell.lastFm
         state._fixture = False
         worker = Worker()
         state._worker_factory = lambda *args, **kwargs: worker
@@ -52,11 +53,21 @@ def main():
                 assert state.enabled
                 state.setEnabled(False)
                 assert not state.enabled
-                for width, height in ((1280, 820), (920, 620)):
-                    window.resize(width, height)
-                    QTest.qWait(80)
-                    assert dialog.property("width") < width and dialog.property("height") < height
-                    assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
+                for scale in (80, 100, 150):
+                    shell.setUiScale(scale)
+                    for width, height in ((1600, 900), (1280, 820), (920, 620)):
+                        window.resize(width, height)
+                        QTest.qWait(80)
+                        panel = dialog.property("contentItem")
+                        bounds = panel.mapRectToScene(panel.boundingRect())
+                        assert bounds.left() >= 0 and bounds.right() <= width + 1
+                        assert bounds.top() >= 0 and bounds.bottom() <= height + 1
+                        field = dialog.findChild(QObject, "lastFmSecret")
+                        field.forceActiveFocus()
+                        QTest.qWait(30)
+                        focus_bounds = field.mapRectToScene(field.boundingRect())
+                        assert focus_bounds.top() >= bounds.top() - 1 and focus_bounds.bottom() <= bounds.bottom() + 1, (scale, width, height, focus_bounds, bounds)
+                        assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                 key = dialog.findChild(QObject, "lastFmApiKey")
                 secret = dialog.findChild(QObject, "lastFmSecret")
                 key.setProperty("text", "synthetic-key")

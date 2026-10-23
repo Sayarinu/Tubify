@@ -10,6 +10,7 @@ Dialog {
     modal: true
     title: "Last.fm"
     standardButtons: Dialog.Close
+    property alias scrollView: scroll
     property var service: typeof lastFmState !== "undefined" ? lastFmState : null
     onOpened: { if (service) service.refresh() }
     onClosed: { apiKey.clear(); secret.clear() }
