@@ -28,6 +28,8 @@ from .listening import Listening
 from .lyric_view import LyricView
 from .desktop import Desktop
 from .tray import TrayPlayer
+from .lifecycle import Lifecycle
+from .startup import StartupRegistration
 from .theme import ThemeState
 from .color_picker import ColorSampler
 
@@ -44,6 +46,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
     engine.rootContext().setContextProperty("playerState", player)
     if hasattr(controller, "trayState"):
         engine.rootContext().setContextProperty("trayState", controller.trayState)
+    if hasattr(controller, "lifecycleState"):
+        engine.rootContext().setContextProperty("lifecycleState", controller.lifecycleState)
     if hasattr(controller, "playbackOptions"):
         engine.rootContext().setContextProperty("playbackOptions", controller.playbackOptions)
     if theme:
@@ -137,6 +141,8 @@ def main(argv=None):
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)
     controller.trayState = TrayPlayer(controller, player, data / "settings.ini", PACKAGE / "assets" / "music.svg", parent=controller)
+    controller.lifecycleState = Lifecycle(data / "settings.ini", player, controller.trayState, parent=controller,
+                                          startup=StartupRegistration(disabled_reason="Login startup is unavailable in visual fixtures." if args.fixture else ""))
     downloads = DownloadView(media_data, fixture=args.fixture, parent=controller)
     player.trackStarted.connect(lambda track: downloads.refresh())
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
@@ -156,6 +162,7 @@ def main(argv=None):
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
     app.aboutToQuit.connect(controller.playbackOptions.close)
+    app.aboutToQuit.connect(controller.lifecycleState.close)
     app.aboutToQuit.connect(controller.trayState.close)
     app.aboutToQuit.connect(downloads.close)
     app.aboutToQuit.connect(lyrics.close)
@@ -166,6 +173,7 @@ def main(argv=None):
     if not args.fixture:
         controller.restoreWindow(window, [screen.availableGeometry() for screen in app.screens()])
     controller.trayState.start(window)
+    controller.lifecycleState.start(window)
     desktop = None if args.fixture else Desktop(controller, player, window, downloads, parent=controller)
     if desktop:
         app.aboutToQuit.connect(desktop.close)

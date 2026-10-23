@@ -7,7 +7,7 @@ import "Theme.js" as Theme
 
 ApplicationWindow {
     id: window
-    visible: true
+    visible: false
     width: appState.initialWidth
     height: appState.initialHeight
     minimumWidth: 920
@@ -86,7 +86,10 @@ ApplicationWindow {
             })
         }
     }
-    onClosing: appState.saveWindowGeometry(x, y, width, height)
+    onClosing: function(event) {
+        appState.saveWindowGeometry(x, y, width, height)
+        if (lifecycleState.hideOnClose()) event.accepted = false
+    }
     function revealScrolledFocus(scroll) {
         var item = window.activeFocusItem
         if (!item || !scroll || !scroll.visible) return
