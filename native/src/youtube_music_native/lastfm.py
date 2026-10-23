@@ -272,9 +272,9 @@ class LastFm(QObject):
             return
         self._spool_loaded = True
         try:
-            with self._spool_path.open(encoding="utf-8") as handle:
-                raw = handle.read(1024 * 1024 + 1)
-            if len(raw) > 1024 * 1024:
+            with self._spool_path.open("rb") as handle:
+                raw = handle.read(8 * 1024 * 1024 + 1)
+            if len(raw) > 8 * 1024 * 1024:
                 raise ValueError()
             value = json.loads(raw)
             rows = value.get("listens")
@@ -311,7 +311,7 @@ class LastFm(QObject):
             track = metadata(row["track"])
             if track:
                 rows.append({"id": row["id"], "timestamp": row["timestamp"], "track": {"title": track["track"], "artist": track["artist"], "albumName": track.get("album", ""), "duration": track.get("duration", 0)}})
-        content = json.dumps({"owner": self.username, "listens": rows}, separators=(",", ":"))
+        content = json.dumps({"owner": self.username, "listens": rows}, ensure_ascii=False, separators=(",", ":"))
         future = self._saver.submit(write_state, self._spool_path, content)
         future.add_done_callback(lambda completed: self.spoolFailed.emit() if completed.exception() else None)
 
