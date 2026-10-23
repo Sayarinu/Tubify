@@ -5,7 +5,10 @@ from pathlib import Path
 
 
 if __name__ == "__main__" and not __package__:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    package_dir = Path(__file__).resolve().parent
+    # Direct script execution must not shadow stdlib modules such as queue.
+    sys.path[:] = [entry for entry in sys.path if Path(entry).resolve() != package_dir]
+    sys.path.insert(0, str(package_dir.parent))
     __package__ = "youtube_music_native"
 
 

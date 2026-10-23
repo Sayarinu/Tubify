@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+import json
 import os
 from pathlib import Path
 import plistlib
@@ -139,3 +140,19 @@ def test_application_command_is_absolute_and_runs_outside_source_cwd(tmp_path, m
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     assert launcher.application_command() == [sys.executable]
     assert launcher.process_command("player") == [sys.executable, "--player-worker"]
+
+
+def test_provider_command_keeps_standard_library_imports_from_foreign_cwd(tmp_path):
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    # Missing data_dir enters safe_error, which imports requests/urllib3/stdlib queue.
+    # AuthService creates no credential backend until an account operation needs it.
+    requests = [{"id": identifier, "operation": "lyrics", "payload": {}} for identifier in (1, 2)]
+    result = subprocess.run(launcher.process_command("provider"),
+        input="".join(json.dumps(request) + "\n" for request in requests),
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    responses = [json.loads(line) for line in result.stdout.splitlines()]
+    assert [response["id"] for response in responses] == [1, 2]
+    assert all(not response["ok"] and response["error"]["code"] == "provider_error" for response in responses)
+    assert not result.stderr
