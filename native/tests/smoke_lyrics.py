@@ -162,6 +162,12 @@ def main():
             player.seek(original[12]["start"])
             centered(12)
 
+        # Footer layout changes must recenter even when the pane itself is unchanged.
+        status = pane.findChild(QObject, "lyricStatus")
+        for padding in (24, 76, 12):
+            QQmlProperty(status, "anchors.bottomMargin").write(padding)
+            centered(12)
+
         # Keyboard scrolling pauses; explicit seek restores following even inside the same line.
         lines.forceActiveFocus()
         QTest.keyClick(window, Qt.Key.Key_PageDown)

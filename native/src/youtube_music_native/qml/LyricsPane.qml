@@ -107,6 +107,8 @@ Item {
         onDraggingChanged: if (dragging) root.pauseFollow()
         onMovementEnded: if (!root.following) root.pauseFollow()
         onCountChanged: Qt.callLater(root.centerCurrent)
+        // Follow/status controls change this viewport without resizing the pane.
+        onHeightChanged: Qt.callLater(root.centerCurrent)
         Keys.onPressed: event => root.scrollWithKey(event)
         WheelHandler {
             target: null
