@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 import re
 import socket
+from socketserver import TCPServer
 from threading import BoundedSemaphore, Condition, Event, Lock
 from time import monotonic
 from urllib.parse import parse_qs, urlsplit
@@ -227,7 +228,9 @@ class ApiServer(ThreadingHTTPServer):
     def server_bind(self):
         if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        super().server_bind()
+        # The endpoint is a fixed numeric loopback address; avoid reverse DNS.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
     def process_request(self, request, address):
         if not self.slots.acquire(blocking=False):

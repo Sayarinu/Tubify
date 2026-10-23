@@ -100,7 +100,10 @@ def test_failed_revocation_does_not_forget_valid_clients(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def server(tmp_path):
+def server(tmp_path, monkeypatch):
+    def forbid_hostname_lookup(*_):
+        raise AssertionError('Loopback startup must not perform reverse DNS')
+    monkeypatch.setattr(socket, 'getfqdn', forbid_hostname_lookup)
     access = ApiAccess(tmp_path / 'clients.json')
     overlay = access.create('OBS', 'overlay')
     control = access.create('Deck', 'control')
@@ -150,6 +153,12 @@ def request(server, path='/v1/state', method='GET', token=None, headers=None, bo
     if result_headers.get('Content-Type', '').startswith('application/json'):
         payload = json.loads(payload)
     return status, payload, result_headers
+
+
+def test_loopback_server_starts_without_reverse_dns(server):
+    assert server.backend.server.server_name == '127.0.0.1'
+    assert server.backend.server.server_port == server.port
+    assert request(server, token=server.overlay['token'])[0] == 200
 
 
 def test_http_auth_scopes_pairing_and_security_headers(server):
