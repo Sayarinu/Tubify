@@ -3,7 +3,7 @@
 import json
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import struct
 import sys
@@ -22,8 +22,8 @@ def ipc_paths(platform=sys.platform, environment=None):
         return ["discord-ipc-" + str(index) for index in range(10)]
     roots = list(dict.fromkeys(env.get(key) for key in ("XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP") if env.get(key))) + ["/tmp"]
     # Flatpak exposes the same IPC endpoint beneath its application runtime folder.
-    roots += [str(Path(root) / "app/com.discordapp.Discord") for root in roots[:]]
-    return [str(Path(root) / ("discord-ipc-" + str(index))) for root in dict.fromkeys(roots) for index in range(10)]
+    roots += [str(PurePosixPath(root) / "app/com.discordapp.Discord") for root in roots[:]]
+    return [str(PurePosixPath(root) / ("discord-ipc-" + str(index))) for root in dict.fromkeys(roots) for index in range(10)]
 
 
 def activity_for(player, buttons=False, now=None):
