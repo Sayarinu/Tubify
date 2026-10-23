@@ -70,6 +70,8 @@ jobs:
         run: youtube-music-native-check --help
       - name: Launch native Qt window and decode local audio
         run: python native/tests/smoke_runtime.py
+      - name: Verify authenticated local API through the native settings UI
+        run: python native/tests/smoke_local_api.py --ui-scale 150
       - name: Verify MPRIS on an isolated session bus
         if: runner.os == 'Linux'
         run: dbus-run-session -- python native/tests/smoke_desktop.py

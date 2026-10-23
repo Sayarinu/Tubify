@@ -35,6 +35,7 @@ from .tray import TrayPlayer
 from .lifecycle import Lifecycle
 from .startup import StartupRegistration
 from .shortcuts import GlobalShortcuts
+from .local_api import LocalApi
 from .theme import ThemeState
 from .color_picker import ColorSampler
 
@@ -49,6 +50,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
     engine.rootContext().setContextProperty("appState", controller)
     engine.rootContext().setContextProperty("accountState", account)
     engine.rootContext().setContextProperty("playerState", player)
+    if hasattr(controller, "apiState"):
+        engine.rootContext().setContextProperty("apiState", controller.apiState)
     if hasattr(controller, "discordState"):
         engine.rootContext().setContextProperty("discordState", controller.discordState)
     if hasattr(controller, "shortcutState"):
@@ -183,6 +186,7 @@ def main(argv=None):
     actions = Actions(account, cache / "metadata.sqlite3", fixture=args.fixture, parent=controller)
     actions.applied.connect(browse.applyAction)
     library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    controller.apiState = LocalApi(controller, player, browse, library, account, actions, downloads, data, parent=controller)
     controller.shortcutState = GlobalShortcuts(controller, player, library, account, actions, data / "settings.ini", parent=controller)
     controller.lastFm = LastFm(player, data / "settings.ini", media_data, parent=controller, fixture=args.fixture)
     listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
@@ -192,6 +196,7 @@ def main(argv=None):
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
+    app.aboutToQuit.connect(controller.apiState.close)
     app.aboutToQuit.connect(controller.shortcutState.close)
     app.aboutToQuit.connect(controller.lastFm.close)
     app.aboutToQuit.connect(account.close)
@@ -210,6 +215,7 @@ def main(argv=None):
     controller.trayState.start(window)
     controller.lifecycleState.start(window)
     controller.shortcutState.start(window)
+    controller.apiState.start(window)
     def show_for_link():
         window.showNormal() if window.visibility() == QWindow.Visibility.Minimized else window.show()
         window.raise_()
