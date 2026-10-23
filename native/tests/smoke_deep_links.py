@@ -27,11 +27,21 @@ def main():
                 dialog = window.findChild(QObject, "linkPreviewDialog")
                 assert dialog.property("opened") and state.canPlay and not state.busy
                 assert player.currentTrack == before, "Cold-link preview changed playback"
-                for width, height in ((1600, 900), (1280, 820), (920, 620)):
-                    window.resize(width, height)
-                    QTest.qWait(70)
-                    assert dialog.property("width") < width and dialog.property("height") < height
-                    assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
+                for scale in (80, 100, 150):
+                    shell.setUiScale(scale)
+                    for width, height in ((1600, 900), (1280, 820), (920, 620)):
+                        window.resize(width, height)
+                        QTest.qWait(70)
+                        panel = dialog.property("contentItem")
+                        bounds = panel.mapRectToScene(panel.boundingRect())
+                        assert bounds.left() >= 0 and bounds.right() <= width + 1
+                        assert bounds.top() >= 0 and bounds.bottom() <= height + 1
+                        button = dialog.findChild(QObject, "linkQueue")
+                        button.forceActiveFocus()
+                        QTest.qWait(30)
+                        focus_bounds = button.mapRectToScene(button.boundingRect())
+                        assert focus_bounds.top() >= bounds.top() - 1 and focus_bounds.bottom() <= bounds.bottom() + 1, (scale, width, bounds, focus_bounds)
+                        assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                 window.requestActivate()
                 initial = player.manualCount
                 click(dialog.findChild(QObject, "linkQueue"))
