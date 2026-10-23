@@ -43,7 +43,5 @@ package() {
   install -Dm644 native/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 native/src/youtube_music_native/assets/Roboto-OFL.txt \
     "$pkgdir/usr/share/licenses/$pkgname/Roboto-OFL.txt"
-  install -Dm644 native/README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
   install -Dm644 native/integrations/browser-handoff.user.js "$pkgdir/usr/share/doc/$pkgname/browser-handoff.user.js"
-  install -Dm644 native/integrations/README.md "$pkgdir/usr/share/doc/$pkgname/integrations.md"
 }
