@@ -25,7 +25,10 @@ def test_tubify_display_name_preserves_package_desktop_and_credential_ids():
     assert desktop["Name"] == "Tubify"
     assert desktop["Exec"] == "youtube-music-native -- %u"
     assert desktop["MimeType"] == "x-scheme-handler/ytmusic-native;"
-    assert desktop["Icon"] == desktop["StartupWMClass"] == "youtube-music-native"
+    assert desktop["StartupWMClass"] == "youtube-music-native"
+    assert desktop["Icon"] == "tubify"
+    packaging = (NATIVE.parent / "packaging/arch-native/PKGBUILD").read_text()
+    assert '$pkgdir/usr/share/icons/hicolor/scalable/apps/tubify.svg' in packaging
     assert APP_ID == "com.carter.youtube-music-native"
     assert (SERVICE, USERNAME) == ("com.carter.youtube-music.native", "session")
 

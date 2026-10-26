@@ -7,7 +7,7 @@ ApplicationWindow {
     id: root
     objectName: "trayPlayer"
     property bool playbackShortcuts: !mediaMenu.opened && !(activeFocusItem instanceof TextInput) && !(activeFocusItem instanceof TextEdit)
-    title: "Tubify · Tray player"
+    title: "Tubify · Tray Player"
     width: Math.min(screen.desktopAvailableWidth, Math.round(360 * appState.uiScaleFactor))
     height: Math.min(screen.desktopAvailableHeight, Math.round((trayState.queueOpen ? 700 : 292) * appState.uiScaleFactor))
     visible: false
@@ -64,18 +64,18 @@ ApplicationWindow {
         width: parent.width; height: 44
         Text { x: 16; anchors.verticalCenter: parent.verticalCenter; text: "Tubify"; color: themeState.foreground; font.bold: true; font.pixelSize: 14 }
         DragHandler { id: moving; target: null; onActiveChanged: if (active) root.startSystemMove() }
-        IconButton { x: parent.width - 88; width: 40; height: 40; iconName: "pin"; tip: trayState.pinned ? "Unpin player" : "Keep player on top"; iconColor: trayState.pinned ? themeState.accent : themeState.secondary; onClicked: trayState.setPinned(!trayState.pinned) }
-        IconButton { x: parent.width - 44; width: 40; height: 40; iconName: "close"; tip: "Close tray player"; onClicked: root.hide() }
+        IconButton { x: parent.width - 88; width: 40; height: 40; iconName: "pin"; tip: trayState.pinned ? "Unpin Player" : "Keep Player on Top"; iconColor: trayState.pinned ? themeState.accent : themeState.secondary; onClicked: trayState.setPinned(!trayState.pinned) }
+        IconButton { x: parent.width - 44; width: 40; height: 40; iconName: "close"; tip: "Close Tray Player"; onClicked: root.hide() }
     }
     Cover { id: artwork; x: 16; y: 52; width: 76; height: 76; media: playerState.currentTrack; mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""; source: playerState.currentTrack.thumbnail || "" }
     Column {
         x: 108; y: 56; width: parent.width - x - 16; spacing: 6
-        Text { width: parent.width; text: playerState.currentTrack.title || "Nothing playing"; textFormat: Text.PlainText; color: themeState.foreground; font.bold: true; font.pixelSize: 16; elide: Text.ElideRight }
+        Text { width: parent.width; text: playerState.currentTrack.title || "Nothing Playing"; textFormat: Text.PlainText; color: themeState.foreground; font.bold: true; font.pixelSize: 16; elide: Text.ElideRight }
         Text { width: parent.width; text: playerState.currentTrack.artist || (playerState.currentTrack.artists || []).map(item => item.name).join(" · "); textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 13; elide: Text.ElideRight }
         Row {
             IconButton { objectName: "trayLike"; width: 32; height: 32; iconName: "like"; tip: "Like"; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); iconColor: playerState.currentTrack.rating === "LIKE" ? themeState.accent : themeState.secondary; onClicked: libraryState.rate(playerState.currentTrack, "LIKE") }
             IconButton { width: 32; height: 32; iconName: "dislike"; tip: "Dislike"; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); iconColor: playerState.currentTrack.rating === "DISLIKE" ? themeState.accent : themeState.secondary; onClicked: libraryState.rate(playerState.currentTrack, "DISLIKE") }
-            IconButton { width: 32; height: 32; iconName: "more"; tip: "Open full app"; onClicked: trayState.showMain() }
+            IconButton { width: 32; height: 32; iconName: "more"; tip: "Open Full App"; onClicked: trayState.showMain() }
         }
     }
     Row {
@@ -92,7 +92,7 @@ ApplicationWindow {
         x: 16; y: 236; spacing: 8
         IconButton { width: 36; height: 36; iconName: appState.volume ? "volume" : "muted"; tip: appState.volume ? "Mute" : "Unmute"; onClicked: appState.toggleMute() }
         AccentSlider { objectName: "trayVolume"; width: 204; height: 36; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
-        IconButton { objectName: "trayQueueToggle"; width: 44; height: 36; iconName: "queue"; tip: trayState.queueOpen ? "Close queue" : "Open queue"; iconColor: trayState.queueOpen ? themeState.accent : themeState.secondary; onClicked: trayState.setQueueOpen(!trayState.queueOpen) }
+        IconButton { objectName: "trayQueueToggle"; width: 44; height: 36; iconName: "queue"; tip: trayState.queueOpen ? "Close Queue" : "Open Queue"; iconColor: trayState.queueOpen ? themeState.accent : themeState.secondary; onClicked: trayState.setQueueOpen(!trayState.queueOpen) }
     }
     Loader {
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: 284; anchors.bottom: parent.bottom
