@@ -1,0 +1,16 @@
+{
+  "name": "youtube-music-native-streamdeck",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "validate": "streamdeck validate com.carter.youtube-music.sdPlugin",
+    "pack": "streamdeck pack com.carter.youtube-music.sdPlugin --output dist --no-update-check"
+  },
+  "devDependencies": {
+    "@elgato/cli": "1.10.3"
+  }
+}

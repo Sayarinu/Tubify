@@ -78,7 +78,7 @@ class ObsOverlay(QObject):
                 return
             self._client, self._token = "", ""
             self.settings.remove("obs/clientId")
-            client = self.api.createClient("OBS now playing", "overlay")
+            client = self.api.createClient("OBS Now Playing", "overlay")
             if not client or client.get("scope") != "overlay" or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", str(client.get("token", ""))):
                 self._status = "The OBS source could not be paired. Review local API settings and retry."
             else:

@@ -96,7 +96,7 @@
         render(value);
         revision = Math.max(1, Math.floor(finite(value.revision)));
       } catch (_) {
-        clear(stopped ? "Overlay access was revoked. Generate a new source URL in the app." : "Waiting for YouTube Music…");
+        clear(stopped ? "Overlay access was revoked. Generate a new source URL in the app." : "Waiting for Tubify…");
         revision = 0;
         if (!stopped) await new Promise(resolve => setTimeout(resolve, 5000));
       }
@@ -108,7 +108,7 @@
     el("preview").hidden = false;
     render({revision:1,playback:{state:"playing",position:42,duration:204},track:{title:"After the rain",artists:["The Sunday Letters"],artwork:""}});
   } else if (!token) {
-    clear("Generate a read-only OBS source URL in YouTube Music settings.");
+    clear("Generate a read-only OBS source URL in Tubify settings.");
   } else {
     listen();
   }

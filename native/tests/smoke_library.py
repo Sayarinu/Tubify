@@ -54,7 +54,7 @@ def main():
                 shell.showMenu(track, {"playlistId": "PLfixture-created", "index": 0})
                 QTest.qWait(50)
                 menu = window.findChild(QObject, "mediaMenu")
-                item = next(node for node in menu.findChildren(QObject) if node.property("text") == "Add to queue")
+                item = next(node for node in menu.findChildren(QObject) if node.property("text") == "Add to Queue")
                 assert QMetaObject.invokeMethod(item, "triggered")
                 assert len(player.entries) == count + 1
                 QMetaObject.invokeMethod(menu, "close")

@@ -26,6 +26,10 @@ def main():
                 toggle = dialog.findChild(QObject, "discordEnabledOption")
                 assert not toggle.property("checked")
                 QMetaObject.invokeMethod(toggle, "click")
+                assert shell.discordState.clientId == "1563325756040286280"
+                advanced = next(item for item in dialog.findChildren(QObject) if item.property("text") == "Use a Custom Application ID")
+                QMetaObject.invokeMethod(advanced, "click")
+                QTest.qWait(30)
                 field = dialog.findChild(QObject, "discordClientId")
                 field.setProperty("text", "123456789012345678")
                 QMetaObject.invokeMethod(field, "accepted")
@@ -38,6 +42,9 @@ def main():
                 assert player.playing == playing
                 assert dialog.property("height") < window.height()
                 assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
+                QMetaObject.invokeMethod(advanced, "click")
+                assert shell.discordState.clientId == shell.discordState.defaultClientId
+                assert shell.discordState.enabled and shell.discordState.pipe is None
                 QMetaObject.invokeMethod(dialog, "close")
                 passed.append(True)
             except Exception:
