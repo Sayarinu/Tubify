@@ -16,6 +16,7 @@ class PlaybackOptions(QObject):
         self.settings = QSettings(str(path), QSettings.Format.IniFormat)
         self.player, self.clock = player, clock
         self._nonlinear = self.settings.value("nonlinearVolume", False, type=bool)
+        self._fill = self.settings.value("speakerFill", False, type=bool)
         self._skip = self.settings.value("skipDisliked", False, type=bool)
         self._deadline, self._remaining, self._status = None, 0, ""
         self.timer = QTimer(self)
@@ -23,10 +24,23 @@ class PlaybackOptions(QObject):
         self.timer.timeout.connect(self.tick)
         player.setNonlinearVolume(self._nonlinear)
         player.setSkipDisliked(self._skip)
+        player.setSpeakerFill(self._fill)
 
     @Property(bool, notify=changed)
     def nonlinearVolume(self):
         return self._nonlinear
+
+    @Property(bool, notify=changed)
+    def speakerFill(self):
+        return self._fill
+
+    @Slot(bool)
+    def setSpeakerFill(self, value):
+        self._fill = bool(value)
+        self.settings.setValue("speakerFill", self._fill)
+        self.settings.sync()
+        self.player.setSpeakerFill(self._fill)
+        self.changed.emit()
 
     @Property(bool, notify=changed)
     def skipDisliked(self):

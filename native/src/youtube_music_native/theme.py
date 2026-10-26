@@ -23,10 +23,10 @@ MIDNIGHT_VIOLET_COLORS = {
 }
 
 ROLE_LABELS = {
-    "background": "App background", "surface": "Raised surfaces", "hover": "Hover state",
-    "foreground": "Primary text", "secondary": "Secondary text", "border": "Borders",
-    "accent": "Accent", "accentHover": "Accent hover", "onAccent": "Text on accent",
-    "selected": "Selected state", "muted": "Disabled controls",
+    "background": "App Background", "surface": "Raised Surfaces", "hover": "Hover State",
+    "foreground": "Primary Text", "secondary": "Secondary Text", "border": "Borders",
+    "accent": "Accent", "accentHover": "Accent Hover", "onAccent": "Text on Accent",
+    "selected": "Selected State", "muted": "Disabled Controls",
 }
 
 

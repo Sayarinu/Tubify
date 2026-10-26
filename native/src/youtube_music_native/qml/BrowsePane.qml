@@ -70,7 +70,7 @@ Item {
             RowLayout {
                 width: parent.width; spacing: 24; visible: catalogState.route === "explore"
                 Repeater {
-                    model: [{title: "New releases", action: "releases", icon: "music"}, {title: "Charts", action: "charts", icon: "shuffle"}, {title: "Moods & genres", action: "moods", icon: "explore"}]
+                    model: [{title: "New Releases", action: "releases", icon: "music"}, {title: "Charts", action: "charts", icon: "shuffle"}, {title: "Moods & Genres", action: "moods", icon: "explore"}]
                     delegate: Button {
                         id: category
                         required property var modelData
@@ -98,7 +98,7 @@ Item {
         }
         footer: Item {
             width: sections.width; height: 64
-            Row { anchors.centerIn: parent; spacing: 16; Button { text: "More music"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() } Button { text: "Refresh"; enabled: !catalogState.busy; onClicked: catalogState.refresh() } }
+            Row { anchors.centerIn: parent; spacing: 16; Button { text: "More Music"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() } Button { text: "Refresh"; enabled: !catalogState.busy; onClicked: catalogState.refresh() } }
         }
     }
 
@@ -125,14 +125,14 @@ Item {
                 Column {
                     width: parent.width - (root.result.thumbnail ? 152 : 0); spacing: 16
                     Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true }
-                    Button { text: "Play all"; onClicked: browseState.playView() }
+                    Button { text: "Play All"; onClicked: browseState.playView() }
                 }
             }
         }
         delegate: SongRow { required property int index; required property var modelData; width: songList.width; media: modelData; number: index + 1; onActivated: browseState.playAt(index) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load more"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
     }
 
     GridView {
@@ -155,7 +155,7 @@ Item {
         delegate: MediaCard { required property var modelData; width: Theme.cardWidth; media: modelData; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load more"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
     }
 
     ScrollView {
@@ -169,7 +169,7 @@ Item {
     Column {
         anchors.centerIn: parent; width: Math.min(parent.width - 80, 480); spacing: 18
         visible: !catalogState.busy && !(root.result.items || []).length && !(root.result.shelves || []).length && !root.moodItems().length
-        Text { width: parent.width; text: catalogState.error ? "Couldn’t load this page" : accountState.connected ? "No music here yet" : "Your music, ready when you are"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.family: Theme.headingFont; font.pixelSize: 30; font.bold: true; color: themeState.foreground }
+        Text { width: parent.width; text: catalogState.error ? "Couldn’t Load This Page" : accountState.connected ? "No Music Here Yet" : "Your Music, Ready When You Are"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.family: Theme.headingFont; font.pixelSize: 30; font.bold: true; color: themeState.foreground }
         Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Refresh to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15; color: themeState.secondary }
         Button { anchors.horizontalCenter: parent.horizontalCenter; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
     }
