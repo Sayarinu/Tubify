@@ -22,7 +22,7 @@ class Audio(QObject):
         locale.setlocale(locale.LC_NUMERIC, "C")
         import mpv
 
-        options = dict(vid="no", vo="null", ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True, audio_client_name="YouTube Music Native")
+        options = dict(vid="no", vo="null", ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True, audio_client_name="Tubify")
         if output:
             options["ao"] = output
         self.player = mpv.MPV(**options)

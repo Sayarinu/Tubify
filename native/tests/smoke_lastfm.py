@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 import traceback
 
-from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt, Signal
+from PySide6.QtCore import QObject, QMetaObject, QTimer, Qt, Signal
 from PySide6.QtTest import QTest
 
 from youtube_music_native import app
@@ -36,8 +36,7 @@ def main():
         window = engine.rootObjects()[0]
         player = args[2]
         def click(item):
-            point = item.mapToScene(QPointF(item.width() / 2, item.height() / 2)).toPoint()
-            QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point)
+            assert QMetaObject.invokeMethod(item, "click")
         def verify():
             try:
                 dialog = window.findChild(QObject, "lastFmSettingsDialog")

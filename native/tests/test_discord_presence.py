@@ -3,11 +3,11 @@ import struct
 import time
 from uuid import uuid4
 
-from PySide6.QtCore import QCoreApplication, QObject, Signal
+from PySide6.QtCore import QCoreApplication, QObject, QSettings, Signal
 from PySide6.QtNetwork import QLocalServer
 from PySide6.QtTest import QTest
 
-from youtube_music_native.discord_presence import DiscordPipe, DiscordPresence, activity_for, ipc_paths
+from youtube_music_native.discord_presence import DEFAULT_APPLICATION_ID, DiscordPipe, DiscordPresence, activity_for, ipc_paths
 
 
 class Player(QObject):
@@ -46,13 +46,48 @@ def wait_for(predicate):
 def test_public_payload_has_only_allowlisted_metadata():
     player = Player()
     result = activity_for(player, True, now=1000)
-    assert result == {"type": 2, "details": "Fixture song", "state": "Fixture artist", "timestamps": {"start": 970, "end": 1150}, "buttons": [{"label": "Listen on YouTube Music", "url": "https://music.youtube.com/watch?v=abcdefghijk"}]}
+    assert result == {"type": 2, "name": "Fixture song", "status_display_type": 2, "details": "Fixture song", "state": "Fixture artist", "timestamps": {"start": 970, "end": 1150}, "buttons": [{"label": "Listen on YouTube Music", "url": "https://music.youtube.com/watch?v=abcdefghijk"}]}
     assert "private" not in json.dumps(result)
     player.currentTrack = {"title": "A" * 300, "artist": "Fallback", "videoId": "invalid&token=private"}
     assert len(activity_for(player)["details"]) == 128
+    assert activity_for(player)["name"] == activity_for(player)["details"]
+    assert activity_for(player)["status_display_type"] == 2
     assert "buttons" not in activity_for(player, True)
+    player.currentTrack = {}
+    assert activity_for(player)["name"] == "Unknown track"
     player.playing = False
     assert activity_for(player) is None
+
+
+def test_public_album_art_is_allowlisted_and_falls_back_safely():
+    player = Player()
+    player.currentTrack = {
+        "title": "Fixture song",
+        "thumbnail": "https://i.ytimg.com/vi/abcdefghijk/default.jpg",
+        "largeThumbnail": "https://yt3.ggpht.com/fixture/large.jpg",
+        "source": "https://googlevideo.com/signed?token=private",
+    }
+    assert activity_for(player)["assets"] == {
+        "large_image": "https://yt3.ggpht.com/fixture/large.jpg"
+    }
+
+    for rejected in (
+        "file:///home/private/cover.jpg",
+        "https://googlevideo.com/signed?token=private",
+        "https://i.ytimg.com@evil.example/cover.jpg",
+        "http://i.ytimg.com/cover.jpg",
+        "https://i.ytimg.com:444/cover.jpg",
+        "https://i.ytimg.com/cover.jpg#private",
+        "x" * 301,
+    ):
+        player.currentTrack["largeThumbnail"] = rejected
+        assert activity_for(player)["assets"] == {
+            "large_image": "https://i.ytimg.com/vi/abcdefghijk/default.jpg"
+        }
+
+    player.currentTrack["thumbnail"] = "file:///home/private/cover.jpg"
+    assert "assets" not in activity_for(player)
+    assert "private" not in json.dumps(activity_for(player))
 
 
 def test_paths_are_platform_local():
@@ -70,7 +105,7 @@ def test_disabled_idle_then_state_transitions_and_throttle(tmp_path):
     assert not service.enabled and service.pipe is None
     assert not service.retry_timer.isActive() and not service.update_timer.isActive()
     service.setEnabled(True)
-    assert service.pipe is None and "Application ID" in service.status
+    assert service.pipe.client == DEFAULT_APPLICATION_ID
     service.setClientId("123456789012345678")
     pipe = service.pipe
     pipe.connected = True
@@ -213,3 +248,27 @@ def test_stalled_endpoint_falls_through_and_nested_frame_closes(tmp_path):
     first.close(); second.close()
     for server in servers:
         server.close()
+
+
+def test_default_id_restores_empty_settings_and_reset_preserves_consent(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    path = tmp_path / "settings.ini"
+    settings = QSettings(str(path), QSettings.Format.IniFormat)
+    settings.setValue("discord/clientId", "")
+    settings.sync()
+    player = Player()
+    player.playing = False
+    service = DiscordPresence(player, path, pipe_factory=Pipe)
+    assert service.clientId == DEFAULT_APPLICATION_ID and not service.enabled
+    service.setEnabled(True)
+    assert "Ready" in service.status and service.pipe is None
+    service.setClientId("123456789012345678")
+    assert service.clientId == "123456789012345678"
+    service.setClientId("")
+    assert service.clientId == DEFAULT_APPLICATION_ID and service.enabled
+    service.setClientId("invalid")
+    assert service.clientId == DEFAULT_APPLICATION_ID
+    service.close()
+    restored = DiscordPresence(player, path, pipe_factory=Pipe)
+    assert restored.clientId == DEFAULT_APPLICATION_ID and restored.enabled
+    restored.close()

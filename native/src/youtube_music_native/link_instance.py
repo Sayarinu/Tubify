@@ -79,7 +79,7 @@ class LinkInstance(QObject):
                         return False
             socket.abort()
             time.sleep(0.025)
-        raise LinkError("YouTube Music is already opening or not responding. Try the link again shortly.")
+        raise LinkError("Tubify is already opening or not responding. Try the link again shortly.")
 
     def _accept(self):
         while self.server.hasPendingConnections():
