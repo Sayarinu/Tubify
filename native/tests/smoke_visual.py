@@ -8,7 +8,7 @@ import time
 import traceback
 import wave
 
-from PySide6.QtCore import QObject, QPointF, QTimer, Qt
+from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
 from PySide6.QtGui import QAccessible, QColor, QGuiApplication, QImage
 from PySide6.QtQml import QQmlProperty
 from PySide6.QtTest import QTest
@@ -94,7 +94,7 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     player.enqueue([tracks[0], tracks[0]])
     settle()
     assert not any(child.objectName() == "queueSidebarSong-" + history_key for child in visual_items(pane))
-    assert item("queueNextHeading").property("text") == "Next from Fixture source"
+    assert item("queueNextHeading").property("text") == "Next From Fixture source"
     save("queue-mixed")
     manual = [entry["key"] for entry in player.queue.manual]
     # Equal video IDs remain separate occurrences, with only the pinned row current.
@@ -275,8 +275,8 @@ def main():
                 ("album", lambda: browse.open({"kind": "album", "id": "MPREfixture", "title": "Fixture album"})),
                 ("playlist", lambda: browse.open({"kind": "playlist", "id": "PLfixture", "title": "Fixture playlist"})),
                 ("artist", lambda: (browse.open({"kind": "artist", "id": "UCfixture", "title": "Fixture artist"}), view.patch({"hero": uri}))),
-                ("queue", lambda: (shell.setPlayerTab("Up next"), shell.setExpanded(True))),
-                ("lyrics", lambda: (shell.setPlayerTab("Lyrics"), shell.setExpanded(True))),
+                ("queue", lambda: (shell.setLyricsOpen(False), shell.setQueueOpen(True), shell.setExpanded(True))),
+                ("lyrics", lambda: (shell.setQueueOpen(False), shell.setLyricsOpen(True), shell.setExpanded(True))),
                 ("downloads", lambda: shell.navigate("Downloads")),
             ]
             state = {"index": 0, "done": False, "started": time.monotonic(), "audio_position": 0., "rounded_artwork": 0, "queue_drag_checked": False}
@@ -325,7 +325,10 @@ def main():
                     assert button and background and marker
                     assert background.mapToScene(QPointF()) == button.mapToScene(QPointF())
                     assert (background.width(), background.height()) == (button.width(), button.height())
-                    assert marker.isVisible() == (shell.page == label)
+                    assert marker.isVisible() == (not shell.expanded and shell.page == label)
+                    if not button.isVisible():
+                        assert shell.expanded
+                        continue
                     assert marker.x() >= 0 and marker.x() + marker.width() <= background.width()
                     assert marker.y() + marker.height() / 2 == background.height() / 2
                     if button.property("selected"):
@@ -407,7 +410,7 @@ def main():
                     account.connectedChanged.emit()
                     theme_dialog = window.findChild(QObject, "appearanceSettingsDialog")
                     assert theme_dialog
-                    theme_dialog.setProperty("visible", True)
+                    QMetaObject.invokeMethod(theme_dialog, "open")
                     QTest.qWait(60)
                     assert theme_dialog.property("opened")
                     if args.output_dir:
@@ -468,7 +471,7 @@ def main():
                         assert theme_dialog.property("height") <= height - 48
                     theme_state.deleteCustomTheme(theme_state.activeThemeId)
                     theme_dialog.setProperty("editingColors", False)
-                    theme_dialog.setProperty("visible", False)
+                    QMetaObject.invokeMethod(theme_dialog, "close")
                     QTest.qWait(30)
                     for width in (1280, 920, 1280):
                         window.resize(width, 820)
@@ -523,6 +526,8 @@ def main():
                         assert library_button.property("hovered") and not library_button.property("selected"), (size, hover_point, library_button.property("hovered"), library_button.property("selected"), shell.page)
                         assert home.property("selected") and view.route == "home"
                         assert library_background.property("color").name().upper() == theme_state.hover
+                        # Immersive return may already have restored mouse focus to Library.
+                        home.forceActiveFocus()
                         library_button.forceActiveFocus(Qt.FocusReason.TabFocusReason)
                         assert library_button.property("visualFocus")
                         assert QQmlProperty(library_background, "border.width").read() == 2
