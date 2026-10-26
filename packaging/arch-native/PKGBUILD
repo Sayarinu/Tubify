@@ -1,7 +1,7 @@
 pkgname=youtube-music-native
 pkgver=0.1.1
 pkgrel=1
-pkgdesc='Native Qt audio client for YouTube Music'
+pkgdesc='Tubify native Qt audio client for YouTube Music'
 arch=('x86_64')
 url='https://github.com/Sayarinu/YouTube-Music-App'
 license=('MIT')
@@ -39,11 +39,9 @@ package() {
   install -Dm644 packaging/arch-native/youtube-music-native.desktop \
     "$pkgdir/usr/share/applications/youtube-music-native.desktop"
   install -Dm644 native/src/youtube_music_native/assets/music.svg \
-    "$pkgdir/usr/share/icons/hicolor/scalable/apps/youtube-music-native.svg"
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/tubify.svg"
   install -Dm644 native/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 native/src/youtube_music_native/assets/Roboto-OFL.txt \
     "$pkgdir/usr/share/licenses/$pkgname/Roboto-OFL.txt"
-  install -Dm644 native/README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
   install -Dm644 native/integrations/browser-handoff.user.js "$pkgdir/usr/share/doc/$pkgname/browser-handoff.user.js"
-  install -Dm644 native/integrations/README.md "$pkgdir/usr/share/doc/$pkgname/integrations.md"
 }
