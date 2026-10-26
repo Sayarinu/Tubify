@@ -1,193 +1,258 @@
-"""Exercise expanded views and shortcut isolation in an actual QML window."""
+"""Exercise the immersive stage without replacing playback, browsing or docks."""
 
+import argparse
+import math
 from pathlib import Path
 import tempfile
+import time
 import traceback
 
 from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QAccessible, QColor, QGuiApplication, QImage
 from PySide6.QtTest import QTest
+from PySide6.QtQml import QQmlProperty
 
 from youtube_music_native import app
+from youtube_music_native.theme import PRESETS, ThemeState
+from smoke_visual import check_queue, visual_items
 
 
-def visual_items(item):
-    yield item
-    for child in item.childItems():
-        yield from visual_items(child)
+def check_autoplay(window, player, theme, output_dir=None, label="queue"):
+    control = window.findChild(QObject, "queueAutoplay")
+    indicator = control.findChild(QObject, "queueAutoplayIndicator")
+    state = control.findChild(QObject, "queueAutoplayState")
+    track = control.findChild(QObject, "queueAutoplayTrack")
+    thumb = control.findChild(QObject, "queueAutoplayThumb")
+    assert control.isVisible() and control.height() == 40
+    assert abs(indicator.x() + indicator.width() - control.width()) < 0.1
+    assert abs(state.x() + state.width() + 8 - indicator.x()) < 0.1
+    assert track.width() == 44 and track.height() == 24 and track.property("radius") == 12
+    assert control.findChild(QObject, "queueAutoplayLabel").property("contentWidth") < state.x() - 8
+    bounds = control.mapRectToScene(control.boundingRect())
+    assert bounds.left() >= 0 and bounds.right() <= window.width() + 1
+    assert bounds.top() >= 0 and bounds.bottom() <= window.height() + 1
+    accessible = QAccessible.queryAccessibleInterface(control)
+    assert accessible and accessible.text(QAccessible.Text.Name) == "Autoplay similar music"
+    assert accessible.state().checkable
+    previous, playing = player.autoplay, player.playing
+    if player.autoplay:
+        player.toggleAutoplay()
+    QTest.qWait(20)
+
+    def verify(expected):
+        assert control.property("checked") == player.autoplay == expected
+        assert state.property("text") == ("On" if expected else "Off")
+        assert abs(thumb.x() - (23 if expected else 3)) < 0.1
+        assert track.property("color") == QColor(theme.accent if expected else theme.progressTrack)
+        assert accessible.state().checked == expected
+        if not expected:
+            assert QQmlProperty.read(thumb, "border.width") == 1
+            assert ThemeState._contrast(theme.background, theme.foreground) >= 3
+            assert ThemeState._contrast(theme.background, theme.progressTrack) >= 3
+        assert player.playing == playing
+        if output_dir:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            assert window.grabWindow().save(str(output_dir / f"{label}-{'on' if expected else 'off'}.png"))
+    verify(False)
+    point = track.mapToScene(QPointF(track.width() / 2, track.height() / 2)).toPoint()
+    QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point)
+    QTest.qWait(20)
+    verify(True)
+    window.requestActivate()
+    control.forceActiveFocus()
+    QTest.keyClick(window, Qt.Key.Key_Backtab)
+    for _ in range(40):
+        QTest.keyClick(window, Qt.Key.Key_Tab)
+        QTest.qWait(10)
+        if window.activeFocusItem() == control:
+            break
+    QTest.qWait(20)
+    assert control.hasActiveFocus() and control.property("visualFocus"), "Tab must focus Autoplay visibly"
+    assert QQmlProperty.read(track, "border.width") == 2
+    QTest.keyClick(window, Qt.Key.Key_Space)
+    QTest.qWait(20)
+    verify(False)
+    # The declarative binding must still follow controller changes after user input.
+    player.toggleAutoplay()
+    QTest.qWait(20)
+    verify(True)
+    if player.autoplay != previous:
+        player.toggleAutoplay()
 
 
 def main():
-    original = app.load_window
-    passed = []
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output-dir", type=Path)
+    options = parser.parse_args()
+    original, passed = app.load_window, []
 
     def load(*args, **kwargs):
         engine = original(*args, **kwargs)
         window = engine.rootObjects()[0]
-        shell, player, lyrics = args[0], args[2], args[10]
+        shell, player, view, browse, downloads, lyrics = args[0], args[2], args[3], args[5], args[6], args[10]
+
+        def settle():
+            QTest.qWait(80)
+
+        def find(name):
+            return window.findChild(QObject, name)
 
         def verify():
             try:
-                position, playing = player.position, player.playing
-                player.enqueue([dict(entry) for entry in player.entries[:3]])
-                player.queue.source_label = "Fixture album"
-                player.appendContext([
-                    {"videoId": "source00001", "title": "Source one", "duration": 60},
-                    {"videoId": "source00002", "title": "Source two", "duration": 60},
-                ])
-                assert [row["group"] for row in player.entries[:4]] == ["Now playing"] + ["Next in queue"] * 3
-                shell.requestAction("expandPlayer")
-                QTest.qWait(80)
-                window.resize(1280, 1400)
-                QTest.qWait(80)
-                assert window.findChild(QObject, "expandedPlayer")
-                queue_list = window.findChild(QObject, "queueList")
-                assert queue_list
-                assert player.position == position and player.playing == playing
-                shell.setPlayerTab("Lyrics")
-                QTest.qWait(80)
-                assert window.findChild(QObject, "lyricsPane") and lyrics.data["available"]
+                window.requestActivate()
+                # Different colors make a retained tiny thumbnail distinguishable from the original.
+                for size, color in ((60, "#dd3344"), (1200, "#3355dd")):
+                    image = QImage(size, size, QImage.Format.Format_RGB32)
+                    image.fill(QColor(color))
+                    assert image.save(str(Path(folder) / (str(size) + ".png")))
+                track = {**player.currentTrack, "title": "A sharp immersive cover", "videoId": "stage000001", "duration": 180, "artists": [{"name": "Fixture artist", "id": "UCfixture"}], "album": {"name": "Fixture album", "id": "MPREfixture"}}
+                player.playTracks([track] * 3, source_label="Fixture album")
+                key = track.get("videoId", track.get("id"))
+                downloads._artwork[key] = (Path(folder) / "60.png").as_uri()
+                downloads._large_artwork[key] = {"url": (Path(folder) / "1200.png").as_uri(), "width": 1200, "height": 1200}
+                downloads.changed.emit()
+                before = (player.currentTrack, player.position, player.playing)
+                browse_page = find("browsePane")
+                browsing = find("browseSections")
+                queue_pane, lyrics_pane, transport = find("queuePane"), find("lyricsPane"), find("playerBar")
+                toggle = find("immersiveToggle")
+                for size in ((1600, 900), (1280, 820), (920, 620)):
+                    window.resize(*size)
+                    for queue_open, lyrics_open in ((False, False), (True, False), (False, True), (True, True)):
+                        shell.setQueueOpen(queue_open)
+                        shell.setLyricsOpen(lyrics_open)
+                        settle()
+                        browsing.setProperty("contentY", 100)
+                        browsing.forceActiveFocus()
+                        old_scroll = browsing.property("contentY")
+                        old_focus = window.activeFocusItem()
+                        old_width = find("browseLoader").width()
+                        QTest.keyClick(window, Qt.Key.Key_F)
+                        settle()
+                        assert shell.expanded and window.visibility() != window.Visibility.FullScreen
+                        stage, cover = find("expandedPlayer"), find("immersiveArtwork")
+                        assert stage and stage.isVisible() and stage.width() >= 320
+                        assert not find("navigationRail").isVisible() and not find("mainHeader").isVisible()
+                        assert find("browsePane") == browse_page and not browse_page.isVisible()
+                        assert find("browseLoader").width() == old_width
+                        assert browsing.property("contentY") == old_scroll
+                        assert find("queuePane") == queue_pane and find("lyricsPane") == lyrics_pane
+                        assert find("playerBar") == transport and transport.isVisible()
+                        tabbed = queue_open and lyrics_open and size[0] < 1040
+                        assert bool(find("queueSidebar").isVisible()) == (queue_open and (not tabbed or shell.activeDock == "Queue"))
+                        lyric_visible = lyrics_open and (not tabbed or shell.activeDock == "Lyrics")
+                        assert bool(find("lyricsSidebar").isVisible()) == lyric_visible
+                        assert lyrics._active == lyric_visible
+                        assert 80 <= cover.width() <= stage.width() - 48
+                        point = cover.mapToItem(stage, QPointF())
+                        assert point.y() >= 0 and point.y() + cover.height() <= stage.height()
+                        art = cover.findChild(QObject, "coverArtwork")
+                        deadline = time.monotonic() + 2
+                        while not cover.property("ready") and time.monotonic() < deadline:
+                            QTest.qWait(10)
+                        assert cover.property("ready"), art.property("source").toString()
+                        assert art.property("source").toString().endswith("1200.png")
+                        assert art.property("sourceSize").width() == math.ceil(cover.width() * window.devicePixelRatio())
+                        assert (player.currentTrack, player.position, player.playing) == before
+                        QTest.keyClick(window, Qt.Key.Key_Escape)
+                        settle()
+                        assert not shell.expanded and browse_page.isVisible()
+                        assert window.activeFocusItem() == old_focus, (size, queue_open, lyrics_open)
+                        assert browsing.property("contentY") == old_scroll
+                    QMetaObject.invokeMethod(toggle, "clicked")
+                    settle()
+                    deadline = time.monotonic() + 2
+                    while not find("immersiveArtwork").property("ready") and time.monotonic() < deadline:
+                        QTest.qWait(10)
+                    assert find("immersiveArtwork").property("ready")
+                    QTest.qWait(50)
+                    cover = find("immersiveArtwork")
+                    pixel_point = cover.mapToScene(QPointF(cover.width()/2, cover.height()/2)) * window.devicePixelRatio()
+                    deadline = time.monotonic() + 2
+                    while True:
+                        pixel = window.grabWindow().pixelColor(pixel_point.toPoint())
+                        if pixel.blue() > 180 and pixel.red() < 80 or time.monotonic() >= deadline:
+                            break
+                        QTest.qWait(20)
+                    assert pixel.blue() > 180 and pixel.red() < 80, (size, pixel.name(), cover.property("ready"), cover.property("physicalSize"), pixel_point)
+                    if options.output_dir:
+                        options.output_dir.mkdir(parents=True, exist_ok=True)
+                        assert window.grabWindow().save(str(options.output_dir / ("immersive-" + str(size[0]) + ".png")))
+                    QMetaObject.invokeMethod(toggle, "clicked")
+                    settle()
+                shell.setQueueOpen(False)
+                shell.setLyricsOpen(False)
+                shell.setExpanded(True)
+                settle()
+                # Bottom controls toggle the same panels without leaving the stage.
+                QMetaObject.invokeMethod(find("queueToggle"), "clicked")
+                QMetaObject.invokeMethod(find("lyricsToggle"), "clicked")
+                settle()
+                assert shell.expanded and shell.queueOpen and shell.lyricsOpen
+                window.resize(1600, 900)
+                settle()
+                shell.setLyricsOpen(False)
+                shell.setQueueWidth(280)
+                theme = args[11]
+                for scale in (80, 100, 150):
+                    shell.setUiScale(scale)
+                    window.resize(920, 620)
+                    palettes = [preset["id"] for preset in PRESETS] if scale == 100 else ["classic-dark", "classic-light"]
+                    for palette in palettes:
+                        theme.selectTheme(palette)
+                        settle()
+                        assert abs(find("queuePane").width() - 280) < 0.1
+                        check_autoplay(window, player, theme, options.output_dir, f"autoplay-{scale}-{palette}")
+                theme.selectTheme("classic-dark")
+                shell.setUiScale(100)
+                window.resize(1600, 900)
+                shell.setLyricsOpen(True)
+                settle()
                 lyrics.seekLine(1)
                 assert player.position == 5 and lyrics.currentLine == 1
-                shell.setPlayerTab("Up next")
-                QTest.qWait(80)
-                entry = player.entries[-1]
-                shell.showMenu(entry, {"queueKey": entry["key"]})
-                QTest.qWait(50)
-                menu = window.findChild(QObject, "mediaMenu")
-                item = next(node for node in menu.findChildren(QObject) if node.property("text") == "Remove from queue")
-                QMetaObject.invokeMethod(item, "triggered")
-                QMetaObject.invokeMethod(menu, "close")
-                assert all(row["key"] != entry["key"] for row in player.entries)
-                QTest.qWait(200)
-                window.requestActivate()
-                key = player.entries[1]["key"]
-                def visual_item(item, name):
-                    if item.objectName() == name:
-                        return item
-                    for child in item.childItems():
-                        found = visual_item(child, name)
-                        if found:
-                            return found
-                row = visual_item(window.contentItem(), "queueSong-" + key)
-                assert row
-                row.forceActiveFocus()
-                QTest.qWait(30)
-                assert window.activeFocusItem() == row, window.activeFocusItem().objectName()
-                QTest.keyClick(window, Qt.Key.Key_Down, Qt.KeyboardModifier.AltModifier)
-                QTest.qWait(30)
-                assert player.entries[2]["key"] == key
-                assert window.activeFocusItem().objectName() == "queueSong-" + key
-                QTest.keyClick(window, Qt.Key.Key_Delete)
-                assert all(row["key"] != key for row in player.entries)
-                QTest.qWait(50)
-                dragging = player.entries[1]["key"]
-                handle = visual_item(window.contentItem(), "queueDrag-" + dragging)
-                start = handle.mapToScene(QPointF(handle.width() / 2, handle.height() / 2)).toPoint()
-                end = start + QPointF(0, 64).toPoint()
-                QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
-                QTest.mouseMove(window, start + QPointF(0, 20).toPoint(), delay=30)
-                QTest.mouseMove(window, end, delay=30)
-                QTest.qWait(50)
-                preview = window.findChild(QObject, "queueDragPreview")
-                indicators = [node for node in visual_items(window.contentItem()) if node.objectName().startswith("expandedQueueDrop")]
-                assert preview and preview.isVisible()
-                assert any(node.isVisible() for node in indicators)
-                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
-                QTest.qWait(50)
-                assert player.entries[2]["key"] == dragging
-                dragging = player.entries[1]["key"]
-                row = visual_item(window.contentItem(), "queueSong-" + dragging)
-                start = row.mapToScene(QPointF(min(60, row.width() - 120), row.height() / 2)).toPoint()
-                end = start + QPointF(0, 64).toPoint()
-                QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
-                QTest.mouseMove(window, start + QPointF(0, 20).toPoint(), delay=30)
-                QTest.mouseMove(window, end, delay=30)
-                QTest.qWait(50)
-                preview = window.findChild(QObject, "queueDragPreview")
-                indicators = [node for node in visual_items(window.contentItem()) if node.objectName().startswith("expandedQueueDrop")]
-                assert preview and preview.isVisible()
-                assert any(node.isVisible() for node in indicators)
-                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
-                QTest.qWait(50)
-                assert player.entries[2]["key"] == dragging
-                source = next(row for row in player.entries if row["group"].startswith("Next from "))
-                first_manual = next(row for row in player.entries if row["group"] == "Next in queue")
-                source_row = visual_item(window.contentItem(), "queueSong-" + source["key"])
-                target_row = visual_item(window.contentItem(), "queueSong-" + first_manual["key"])
-                start = source_row.mapToScene(QPointF(min(60, source_row.width() - 120), source_row.height() / 2)).toPoint()
-                end = target_row.mapToScene(QPointF(100, target_row.height() / 2)).toPoint()
-                QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
-                QTest.mouseMove(window, end, delay=40)
-                QTest.qWait(50)
-                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
-                QTest.qWait(50)
-                assert next(row for row in player.entries if row["key"] == source["key"])["group"] == "Next in queue"
-                source = next(row for row in player.entries if row["group"].startswith("Next from "))
-                source_row = visual_item(window.contentItem(), "queueSong-" + source["key"])
-                section = visual_item(window.contentItem(), "expandedQueueSectionHeader-Next in queue")
-                start = source_row.mapToScene(QPointF(min(60, source_row.width() - 120), source_row.height() / 2)).toPoint()
-                end = section.mapToScene(QPointF(section.width() / 2, section.height() / 2)).toPoint()
-                QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
-                QTest.mouseMove(window, end, delay=40)
-                QTest.qWait(50)
-                queue_list = window.findChild(QObject, "queueList")
-                assert queue_list.property("dropToManual")
-                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
-                QTest.qWait(50)
-                assert next(row for row in player.entries if row["key"] == source["key"])["group"] == "Next in queue"
-                player.clearManualQueue()
-                QTest.qWait(50)
-                source = next(row for row in player.entries if row["group"].startswith("Next from "))
-                source_row = visual_item(window.contentItem(), "queueSong-" + source["key"])
-                section = visual_item(window.contentItem(), "expandedQueueSectionHeader-" + source["group"])
-                start = source_row.mapToScene(QPointF(min(60, source_row.width() - 120), source_row.height() / 2)).toPoint()
-                end = section.mapToScene(QPointF(section.width() / 2, section.height() / 2)).toPoint()
-                QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
-                QTest.mouseMove(window, end, delay=40)
-                QTest.qWait(50)
-                assert queue_list.property("dropToManual")
-                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=end)
-                QTest.qWait(50)
-                assert player.manualCount == 1
-                assert next(row for row in player.entries if row["key"] == source["key"])["group"] == "Next in queue"
-                queued_track = player.entries[-1]
-                artwork = next(node for node in visual_items(window.contentItem()) if node.objectName() == "queueArtworkActivate-" + queued_track["key"])
-                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=artwork.mapToScene(QPointF(artwork.width() / 2, artwork.height() / 2)).toPoint())
-                QTest.qWait(50)
-                assert player.currentTrack.get("videoId", player.currentTrack.get("id")) == queued_track.get("videoId", queued_track.get("id"))
-                assert len(player.queue.history) >= 2
-                skipped = [row["track"].get("videoId", row["track"].get("id")) for row in player.queue.history]
-                player._position = 0
-                player.previous()
-                assert player.currentTrack.get("videoId", player.currentTrack.get("id")) == skipped[-1]
-                player._position = 0
-                player.previous()
-                assert player.currentTrack.get("videoId", player.currentTrack.get("id")) == skipped[-2]
+                shell.setLyricsOpen(False)
+                settle()
+                check_queue(window, shell, player, browse, downloads, None, True)
+                assert shell.expanded
+                # Old downloaded metadata retains readable artist/album fallback strings.
+                legacy = {**track, "videoId": "stage000002", "artists": [], "artist": "Legacy artist", "album": "Legacy album", "thumbnail": "", "largeThumbnail": ""}
+                player.playTracks([legacy])
+                settle()
+                artist = next(item for item in visual_items(window.contentItem()) if item.objectName() == "immersiveArtist-0")
+                assert artist.property("text") == "Legacy artist"
+                assert find("immersiveAlbum").property("text") == "Legacy album"
+                assert not find("immersiveAlbum").isEnabled()
+                canvas = find("immersiveArtwork").findChild(QObject, "coverCanvas")
+                assert canvas.property("canvasSource") == ""
+                player.playTracks([track])
+                settle()
+                # Song options do not replay the track; artist and album links exit into browsing.
+                before = (player.currentTrack, player.position, player.playing)
+                QMetaObject.invokeMethod(find("immersiveTrackTitle"), "clicked")
+                settle()
+                assert find("mediaMenu").property("opened")
+                QMetaObject.invokeMethod(find("mediaMenu"), "close")
+                assert (player.currentTrack, player.position, player.playing) == before
+                album = find("immersiveAlbum")
+                QMetaObject.invokeMethod(album, "clicked")
+                settle()
+                assert not shell.expanded and view.route == "album"
+                shell.setExpanded(True)
+                settle()
+                artist = next(item for item in visual_items(window.contentItem()) if item.objectName() == "immersiveArtist-0")
+                QMetaObject.invokeMethod(artist, "clicked")
+                settle()
+                assert not shell.expanded and view.route == "artist"
+                shell.setExpanded(True)
+                settle()
                 QTest.keyClick(window, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
-                QTest.qWait(30)
-                field = window.findChild(QObject, "searchField")
-                assert field.property("activeFocus")
+                settle()
+                field = find("searchField")
+                assert not shell.expanded and field.hasActiveFocus() and field.isVisible()
                 state = (player.playing, player.position, player.repeat, player.shuffled, shell.volume, shell.expanded)
                 for key in (Qt.Key.Key_Space, Qt.Key.Key_F, Qt.Key.Key_M, Qt.Key.Key_R, Qt.Key.Key_S, Qt.Key.Key_Minus):
                     QTest.keyClick(window, key)
-                QTest.keyClick(window, Qt.Key.Key_Right)
-                QTest.keyClick(window, Qt.Key.Key_N, Qt.KeyboardModifier.ShiftModifier)
                 assert (player.playing, player.position, player.repeat, player.shuffled, shell.volume, shell.expanded) == state
-                QTest.keyClick(window, Qt.Key.Key_Tab)
-                assert not field.property("activeFocus") and window.activeFocusItem()
-                for size in ((1280, 820), (920, 620)):
-                    window.resize(*size)
-                    QTest.qWait(80)
-                    pane = window.findChild(QObject, "expandedPlayer")
-                    assert pane.property("width") >= 680 and pane.property("height") == size[1] - 180
-                current = player.currentTrack
-                source = list(player.queue.source)
-                clear = window.findChild(QObject, "clearQueuedSongs")
-                QMetaObject.invokeMethod(clear, "clicked")
-                assert not player.queue.manual and player.queue.source == source and player.currentTrack == current
-                shell.setExpanded(False)
-                assert player.position == state[1] and player.playing == state[0]
                 assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                 passed.append(True)
             except Exception:
@@ -196,8 +261,8 @@ def main():
                 window.close()
                 QGuiApplication.instance().exit(0 if passed else 1)
 
-        QTimer.singleShot(200, verify)
-        QTimer.singleShot(15000, window.close)
+        QTimer.singleShot(250, verify)
+        QTimer.singleShot(25000, window.close)
         return engine
 
     app.load_window = load
@@ -205,7 +270,7 @@ def main():
         result = app.main(["--fixture", "--data-dir", folder])
     app.load_window = original
     assert result == 0 and passed
-    print("Expanded player, timed lyrics, queue editing and text-entry isolation passed.")
+    print("Immersive artwork, shared docks, browse/scroll/focus preservation and shortcut isolation passed.")
 
 
 if __name__ == "__main__":

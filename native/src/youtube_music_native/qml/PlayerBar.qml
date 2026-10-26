@@ -5,36 +5,50 @@ import "Theme.js" as Theme
 Rectangle {
     id: root
     objectName: "playerBar"
+    function focusDockToggle(name) { if (name === "Lyrics") lyricsToggle.forceActiveFocus(); else queueToggle.forceActiveFocus() }
+    function focusImmersiveToggle() { immersiveToggle.forceActiveFocus() }
     height: 92
     radius: 12
     color: themeState.surface
     border.color: themeState.border
     property bool compact: width < 1100
+    readonly property bool dense: width < 850
+    Connections {
+        target: appState
+        function onAppearanceChanged() { titleViewport.updateScroll(); artistViewport.updateScroll() }
+    }
     readonly property var primaryArtist: playerState.currentTrack.artists && playerState.currentTrack.artists.length ? playerState.currentTrack.artists[0] : ({})
 
     Item {
         id: track
-        x: 16; width: Math.min(380, root.width * 0.34); height: parent.height
-        Cover { id: cover; anchors.verticalCenter: parent.verticalCenter; width: 68; height: 68; radius: 8; source: playerState.currentTrack.thumbnail || ""; mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""; accent: themeState.selected }
+        x: 16; width: root.dense ? root.width * 0.28 : Math.min(380, root.width * 0.34); height: parent.height
+        Cover { id: cover; anchors.verticalCenter: parent.verticalCenter; width: root.dense ? 48 : 68; height: width; radius: 8; source: playerState.currentTrack.thumbnail || ""; mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""; accent: themeState.selected }
         Column {
-            x: 80; width: parent.width - x - like.width - dislike.width; anchors.verticalCenter: parent.verticalCenter; spacing: 5
+            x: root.dense ? 56 : 80; width: parent.width - x - (root.dense ? 0 : like.width + dislike.width); anchors.verticalCenter: parent.verticalCenter; spacing: 5
             Item {
                 id: titleViewport
                 width: parent.width
                 height: titleText.implicitHeight
                 implicitHeight: height
                 clip: true
-                onWidthChanged: if (titleText.implicitWidth <= width) { titleText.x = 0; titleScroll.stop() } else titleScroll.restart()
+                function updateScroll() {
+                    titleScroll.stop(); titleText.x = 0
+                    if (!appState.reducedMotion && titleText.implicitWidth > width) titleScroll.start()
+                }
+                onWidthChanged: updateScroll()
                 Text {
                     id: titleText
-                    width: implicitWidth; height: parent.height
-                    text: playerState.currentTrack.title || "Nothing playing"
+                    objectName: "playerTitleText"
+                    Accessible.role: Accessible.StaticText
+                    Accessible.name: text
+                    width: appState.reducedMotion ? parent.width : implicitWidth; elide: Text.ElideRight; height: parent.height
+                    text: playerState.currentTrack.title || "Nothing Playing"
                     textFormat: Text.PlainText; color: themeState.foreground; font.bold: true; font.pixelSize: 14
-                    onImplicitWidthChanged: if (implicitWidth <= titleViewport.width) { x = 0; titleScroll.stop() } else titleScroll.restart()
+                    onImplicitWidthChanged: titleViewport.updateScroll()
                 }
                 SequentialAnimation {
                     id: titleScroll
-                    running: titleText.implicitWidth > titleViewport.width
+                    running: !appState.reducedMotion && titleText.implicitWidth > titleViewport.width
                     loops: Animation.Infinite
                     PauseAnimation { duration: 900 }
                     NumberAnimation { target: titleText; property: "x"; to: titleViewport.width - titleText.implicitWidth; duration: Math.max(1200, (titleText.implicitWidth - titleViewport.width) * 35); easing: Easing.Linear }
@@ -44,11 +58,16 @@ Rectangle {
             }
             Item {
                 id: artistViewport
+                function updateScroll() {
+                    artistScroll.stop(); artistContent.x = 0
+                    if (!appState.reducedMotion && artistContent.width > width) artistScroll.start()
+                }
+                onWidthChanged: updateScroll()
                 width: parent.width; height: 18; clip: true
                 Row {
                     id: artistContent
                     x: 0; width: childrenRect.width; height: parent.height
-                    onWidthChanged: if (width <= artistViewport.width) { x = 0; artistScroll.stop() } else artistScroll.restart()
+                    onWidthChanged: artistViewport.updateScroll()
                     Repeater {
                         model: playerState.currentTrack.artists || []
                         delegate: Item {
@@ -86,13 +105,13 @@ Rectangle {
                     }
                     Text {
                         visible: !playerState.currentTrack.artists || !playerState.currentTrack.artists.length
-                        text: playerState.currentTrack.artist || "Choose a song"
+                        text: playerState.currentTrack.artist || "Choose a Song"
                         textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 11
                     }
                 }
                 SequentialAnimation {
                     id: artistScroll
-                    running: artistContent.width > artistViewport.width
+                    running: !appState.reducedMotion && artistContent.width > artistViewport.width
                     loops: Animation.Infinite
                     PauseAnimation { duration: 900 }
                     NumberAnimation { target: artistContent; property: "x"; to: artistViewport.width - artistContent.width; duration: Math.max(1200, (artistContent.width - artistViewport.width) * 35); easing: Easing.Linear }
@@ -131,8 +150,8 @@ Rectangle {
                 }
             }
         }
-        IconButton { id: dislike; objectName: "playerDislike"; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "dislike"; tip: playerState.currentTrack.rating === "DISLIKE" ? "Remove dislike" : "Dislike"; iconColor: playerState.currentTrack.rating === "DISLIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("dislike") }
-        IconButton { id: like; objectName: "playerLike"; anchors.right: dislike.left; anchors.verticalCenter: parent.verticalCenter; iconName: "like"; tip: playerState.currentTrack.rating === "LIKE" ? "Remove like" : "Like"; iconColor: playerState.currentTrack.rating === "LIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("like") }
+        IconButton { id: dislike; visible: !root.dense; objectName: "playerDislike"; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "dislike"; tip: playerState.currentTrack.rating === "DISLIKE" ? "Remove Dislike" : "Dislike"; iconColor: playerState.currentTrack.rating === "DISLIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("dislike") }
+        IconButton { id: like; visible: !root.dense; objectName: "playerLike"; anchors.right: dislike.left; anchors.verticalCenter: parent.verticalCenter; iconName: "like"; tip: playerState.currentTrack.rating === "LIKE" ? "Remove Like" : "Like"; iconColor: playerState.currentTrack.rating === "LIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("like") }
     }
     Item {
         anchors.left: track.right; anchors.leftMargin: 8
@@ -142,21 +161,29 @@ Rectangle {
             id: progress
             objectName: "playbackSeek"
             z: -1
-            x: 46; y: 54; width: parent.width - 92; height: 16
+            x: root.dense ? 0 : 46; y: 54; width: parent.width - 2 * x; height: 16
             from: 0; to: 1; value: playerState.progress
-            trackColor: "#574374"
             enabled: playerState.hasTrack; Accessible.name: "Playback position"
             onMoved: playerState.seekFraction(value)
+            HoverHandler { id: seekHover }
+            ToolTip {
+                objectName: "seekPreview"
+                visible: progress.enabled && (seekHover.hovered || progress.pressed)
+                delay: 150
+                text: Theme.timeLabel(playerState.duration * (progress.pressed ? progress.value : Math.max(0, Math.min(1, (seekHover.point.position.x - progress.leftPadding) / Math.max(1, progress.availableWidth)))))
+                x: Math.max(0, Math.min(progress.width - width, seekHover.point.position.x - width / 2))
+                y: -height - 8
+            }
         }
         Row {
             id: transport
             objectName: "playerTransport"
             anchors.horizontalCenter: parent.horizontalCenter; y: 8; spacing: 4
-            IconButton { iconName: "shuffle"; iconColor: playerState.shuffled ? themeState.accent : themeState.secondary; tip: "Shuffle"; enabled: playerState.hasTrack; onClicked: appState.requestAction("shuffle") }
-            IconButton { iconName: "previous"; tip: "Previous"; enabled: playerState.hasTrack; onClicked: playerState.previous() }
-            IconButton { iconName: playerState.playing ? "pause" : "play"; iconSize: 28; iconColor: themeState.onAccent; tip: playerState.playing ? "Pause" : "Play"; enabled: playerState.hasTrack; onClicked: playerState.togglePlayback(); background: Rectangle { radius: 22; color: parent.hovered ? themeState.accentHover : themeState.accent; border.width: parent.visualFocus ? 2 : 0; border.color: themeState.foreground } }
-            IconButton { iconName: "next"; tip: "Next"; enabled: playerState.hasTrack; onClicked: playerState.next() }
-            IconButton { iconName: playerState.repeat === "one" ? "repeatOne" : "repeat"; iconColor: playerState.repeat !== "off" ? themeState.accent : themeState.secondary; tip: "Repeat: " + playerState.repeat; enabled: playerState.hasTrack; onClicked: appState.requestAction("repeat") }
+            IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "shuffle"; iconColor: playerState.shuffled ? themeState.accent : themeState.secondary; tip: "Shuffle"; enabled: playerState.hasTrack; onClicked: appState.requestAction("shuffle") }
+            IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "previous"; tip: "Previous"; enabled: playerState.hasTrack; onClicked: playerState.previous() }
+            IconButton { implicitWidth: root.dense ? 36 : 44; iconName: playerState.playing ? "pause" : "play"; iconSize: 28; iconColor: themeState.onAccent; tip: playerState.playing ? "Pause" : "Play"; enabled: playerState.hasTrack; onClicked: playerState.togglePlayback(); background: Rectangle { radius: 22; color: parent.hovered ? themeState.accentHover : themeState.accent; border.width: parent.visualFocus ? 2 : 0; border.color: themeState.foreground } }
+            IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "next"; tip: "Next"; enabled: playerState.hasTrack; onClicked: playerState.next() }
+            IconButton { implicitWidth: root.dense ? 36 : 44; iconName: playerState.repeat === "one" ? "repeatOne" : "repeat"; iconColor: playerState.repeat !== "off" ? themeState.accent : themeState.secondary; tip: "Repeat: " + playerState.repeat; enabled: playerState.hasTrack; onClicked: appState.requestAction("repeat") }
         }
         Text { objectName: "playbackElapsed"; x: progress.x + progress.leftPadding; y: progress.y + progress.height + 2; text: Theme.timeLabel(playerState.position); color: themeState.secondary; font.pixelSize: 11 }
         Text { objectName: "playbackDuration"; x: progress.x + progress.width - progress.rightPadding - width; y: progress.y + progress.height + 2; text: Theme.timeLabel(playerState.duration); color: themeState.secondary; font.pixelSize: 11 }
@@ -166,12 +193,12 @@ Rectangle {
         id: tools
         anchors.right: parent.right; anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
-        IconButton { iconName: "more"; tip: "Current song options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
-        IconButton { objectName: "queueToggle"; iconName: "queue"; tip: appState.queueOpen ? "Close Queue" : "Queue"; iconColor: appState.queueOpen ? themeState.accent : themeState.secondary; onClicked: { if (appState.expanded) appState.setExpanded(false); appState.toggleQueue() } }
-        IconButton { iconName: "music"; tip: "Lyrics"; iconColor: appState.expanded && appState.playerTab === "Lyrics" ? themeState.accent : themeState.secondary; onClicked: { appState.setPlayerTab("Lyrics"); appState.setExpanded(true) } }
-        IconButton { id: volume; iconName: appState.volume > 0 ? "volume" : "muted"; tip: root.compact ? "Volume" : appState.volume > 0 ? "Mute" : "Unmute"; onClicked: root.compact ? volumePopup.open() : appState.toggleMute() }
+        IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "more"; tip: "Current Song Options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
+        IconButton { implicitWidth: root.dense ? 36 : 44; id: queueToggle; objectName: "queueToggle"; iconName: "queue"; tip: appState.queueOpen ? "Close Queue" : "Queue"; iconColor: appState.queueOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleQueue() }
+        IconButton { implicitWidth: root.dense ? 36 : 44; id: lyricsToggle; objectName: "lyricsToggle"; iconName: "music"; tip: appState.lyricsOpen ? "Close Lyrics" : "Lyrics"; iconColor: appState.lyricsOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleLyrics() }
+        IconButton { implicitWidth: root.dense ? 36 : 44; id: volume; iconName: appState.volume > 0 ? "volume" : "muted"; tip: root.compact ? "Volume" : appState.volume > 0 ? "Mute" : "Unmute"; onClicked: root.compact ? volumePopup.open() : appState.toggleMute() }
         AccentSlider { width: 84; height: 44; visible: !root.compact; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
-        IconButton { iconName: appState.expanded ? "down" : "up"; tip: appState.expanded ? "Close player page" : "Expand player"; onClicked: appState.requestAction("expandPlayer") }
+        IconButton { implicitWidth: root.dense ? 36 : 44; id: immersiveToggle; objectName: "immersiveToggle"; enabled: playerState.hasTrack; iconName: appState.expanded ? "down" : "up"; tip: appState.expanded ? "Return to Browsing" : "Open Immersive Player"; onClicked: appState.requestAction("expandPlayer") }
     }
     Popup {
         id: volumePopup

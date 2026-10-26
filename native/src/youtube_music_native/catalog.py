@@ -5,6 +5,7 @@ import json
 import sqlite3
 import time
 
+from .artwork_sources import variants, apply_artwork, media_variants
 from .playlist_ops import apply_change
 
 
@@ -86,6 +87,7 @@ def item(row, kind=None):
         },
         "thumbnail": thumbnail(row.get("thumbnails") or row.get("thumbnail")),
         "largeThumbnail": thumbnail(row.get("thumbnails") or row.get("thumbnail"), largest=True),
+        "artworkVariants": variants(row.get("thumbnails") or row.get("thumbnail")),
         "duration": duration(row.get("duration_seconds") or row.get("duration")),
         "views": text(row.get("views")).removesuffix(" plays"), "year": text(row.get("year")),
         "inLibrary": bool(row.get("inLibrary")),
@@ -209,6 +211,7 @@ class Catalog:
             if not isinstance(raw, dict) or not raw.get("title"):
                 raise CatalogError("This release is unavailable. Go back and choose another item.")
             data.update(title=text(raw.get("title")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")), largeThumbnail=thumbnail(raw.get("thumbnails"), largest=True), items=items(raw.get("tracks", []), "song"), editable=bool(raw.get("owned")))
+            apply_artwork(data, variants(raw.get("thumbnails")))
             data.update(id=identifier, kind=route, artists=raw.get("artists") or [], year=text(raw.get("year")), trackCount=duration(raw.get("trackCount")) or len(data["items"]), duration=duration(raw.get("duration_seconds")), audioPlaylistId=text(raw.get("audioPlaylistId")), saved=bool(raw.get("isSaved")) or bool(data["items"]) and all(track.get("inLibrary") for track in data["items"]))
             data.update(author=text((raw.get("author") or {}).get("name")) if isinstance(raw.get("author"), dict) else text(raw.get("author")), privacy=text(raw.get("privacy")))
             if route == "album":
@@ -216,7 +219,7 @@ class Catalog:
                 for track in data["items"]:
                     track["album"] = {"name": data["title"], "id": identifier}
                     track["thumbnail"] = track["thumbnail"] or data["thumbnail"]
-                    track["largeThumbnail"] = track["largeThumbnail"] or data["largeThumbnail"]
+                    apply_artwork(track, media_variants(track) + media_variants(data))
                     if not track["artists"]:
                         track["artists"] = artists
                         track["artist"] = " • ".join(text(a.get("name")) for a in artists)

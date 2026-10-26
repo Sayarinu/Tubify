@@ -4,7 +4,7 @@ import "Theme.js" as Theme
 
 Slider {
     id: root
-    property color trackColor: themeState.border
+    property color trackColor: themeState.progressTrack
     background: Rectangle {
         x: root.leftPadding; y: root.topPadding + root.availableHeight / 2 - 2
         width: root.availableWidth; height: 4; radius: 2; color: root.trackColor

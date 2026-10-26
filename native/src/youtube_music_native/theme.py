@@ -23,10 +23,10 @@ MIDNIGHT_VIOLET_COLORS = {
 }
 
 ROLE_LABELS = {
-    "background": "App background", "surface": "Raised surfaces", "hover": "Hover state",
-    "foreground": "Primary text", "secondary": "Secondary text", "border": "Borders",
-    "accent": "Accent", "accentHover": "Accent hover", "onAccent": "Text on accent",
-    "selected": "Selected state", "muted": "Disabled controls",
+    "background": "App Background", "surface": "Raised Surfaces", "hover": "Hover State",
+    "foreground": "Primary Text", "secondary": "Secondary Text", "border": "Borders",
+    "accent": "Accent", "accentHover": "Accent Hover", "onAccent": "Text on Accent",
+    "selected": "Selected State", "muted": "Disabled Controls",
 }
 
 
@@ -144,6 +144,18 @@ class ThemeState(QObject):
             )
         )).name(QColor.NameFormat.HexRgb).upper()
 
+    @staticmethod
+    def _contrast(first, second):
+        def luminance(value):
+            color = QColor(value)
+            channels = (color.redF(), color.greenF(), color.blueF())
+            linear = [channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+                      for channel in channels]
+            return sum(channel * weight for channel, weight in zip(linear, (0.2126, 0.7152, 0.0722)))
+
+        light, dark = sorted((luminance(first), luminance(second)), reverse=True)
+        return (light + 0.05) / (dark + 0.05)
+
     def _all_themes(self):
         return PRESETS + self._custom_themes
 
@@ -189,6 +201,15 @@ class ThemeState(QObject):
     @Property(str, notify=paletteChanged)
     def heroTint(self):
         return self._blend(self._colors["background"], self._colors["accent"])
+
+    @Property(str, notify=paletteChanged)
+    def progressTrack(self):
+        for percent in range(35, 101):
+            color = self._blend(self.surface, self.foreground, percent / 100)
+            if self._contrast(self.surface, color) >= 3:
+                return color
+        # Custom themes can give surface and foreground the same luminance.
+        return max(("#000000", "#FFFFFF"), key=lambda color: self._contrast(self.surface, color))
 
     @Property("QVariantList", notify=paletteChanged)
     def themes(self):
