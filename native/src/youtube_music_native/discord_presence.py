@@ -9,13 +9,31 @@ import struct
 import sys
 import time
 import uuid
+from urllib.parse import urlsplit
 
 from PySide6.QtCore import QObject, Property, QSettings, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
 
+from .api_public import IMAGE_HOSTS
+
 DEFAULT_APPLICATION_ID = "1563325756040286280"
 
 MAX_FRAME = 1024 * 1024
+
+
+def public_artwork_url(track):
+    for url in (track.get("largeThumbnail"), track.get("thumbnail")):
+        if not isinstance(url, str) or len(url) > 300:
+            continue
+        try:
+            parsed = urlsplit(url)
+            if (parsed.scheme == "https" and parsed.hostname in IMAGE_HOSTS and
+                    parsed.port in {None, 443} and not parsed.username and
+                    not parsed.password and not parsed.fragment):
+                return url
+        except ValueError:
+            pass
+    return ""
 
 
 def ipc_paths(platform=sys.platform, environment=None):
@@ -35,6 +53,9 @@ def activity_for(player, buttons=False, now=None):
     artist = " · ".join(str(row.get("name", "")) for row in track.get("artists", []) if isinstance(row, dict) and row.get("name")) or str(track.get("artist") or "")
     title = str(track.get("title") or "Unknown track")[:128]
     activity = {"type": 2, "name": title, "status_display_type": 2, "details": title, "state": (artist or "YouTube Music")[:128]}
+    artwork = public_artwork_url(track)
+    if artwork:
+        activity["assets"] = {"large_image": artwork}
     now = time.time() if now is None else now
     duration, position = player.duration, player.position
     if all(isinstance(value, (float, int)) and math.isfinite(value) for value in (duration, position)) and duration > 0:

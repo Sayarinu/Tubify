@@ -59,6 +59,37 @@ def test_public_payload_has_only_allowlisted_metadata():
     assert activity_for(player) is None
 
 
+def test_public_album_art_is_allowlisted_and_falls_back_safely():
+    player = Player()
+    player.currentTrack = {
+        "title": "Fixture song",
+        "thumbnail": "https://i.ytimg.com/vi/abcdefghijk/default.jpg",
+        "largeThumbnail": "https://yt3.ggpht.com/fixture/large.jpg",
+        "source": "https://googlevideo.com/signed?token=private",
+    }
+    assert activity_for(player)["assets"] == {
+        "large_image": "https://yt3.ggpht.com/fixture/large.jpg"
+    }
+
+    for rejected in (
+        "file:///home/private/cover.jpg",
+        "https://googlevideo.com/signed?token=private",
+        "https://i.ytimg.com@evil.example/cover.jpg",
+        "http://i.ytimg.com/cover.jpg",
+        "https://i.ytimg.com:444/cover.jpg",
+        "https://i.ytimg.com/cover.jpg#private",
+        "x" * 301,
+    ):
+        player.currentTrack["largeThumbnail"] = rejected
+        assert activity_for(player)["assets"] == {
+            "large_image": "https://i.ytimg.com/vi/abcdefghijk/default.jpg"
+        }
+
+    player.currentTrack["thumbnail"] = "file:///home/private/cover.jpg"
+    assert "assets" not in activity_for(player)
+    assert "private" not in json.dumps(activity_for(player))
+
+
 def test_paths_are_platform_local():
     assert ipc_paths("win32", {}) == ["discord-ipc-" + str(i) for i in range(10)]
     paths = ipc_paths("linux", {"XDG_RUNTIME_DIR": "/fixture/runtime"})
