@@ -43,6 +43,7 @@ def main():
                     if dialog.property('opened'):
                         break
                     QTest.qWait(10)
+                QTest.qWait(60)  # Let the shared page layout settle after resizing/scaling.
                 assert dialog.property('opened'), 'Local API dialog did not finish opening'
                 enabled = window.findChild(QObject, 'apiEnabled')
                 point = enabled.mapToScene(QPointF(enabled.width()/2, enabled.height()/2)).toPoint()

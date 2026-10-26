@@ -95,7 +95,7 @@ class Playback(QObject):
 
     @Property(str, notify=changed)
     def nextGroup(self):
-        return "Next from " + self.queue.source_label if self.queue.source_label else "Next up"
+        return "Next From " + self.queue.source_label if self.queue.source_label else "Next Up"
 
     @Property("QVariantList", notify=changed)
     def entries(self):

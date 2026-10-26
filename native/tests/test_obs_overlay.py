@@ -31,7 +31,7 @@ def test_explicit_readonly_pairing_fragment_only_and_restart_revocation(tmp_path
     service = ObsOverlay(api, tmp_path / "settings.ini")
     assert not service.hasSource and not api.clients
     service.generate()
-    assert api.clients == [("OBS now playing", "overlay")]
+    assert api.clients == [("OBS Now Playing", "overlay")]
     parts = urlsplit(service.source_url())
     assert "token" not in parse_qs(parts.query)
     assert parse_qs(parts.fragment)["token"] == ["a" * 43]

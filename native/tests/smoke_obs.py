@@ -48,6 +48,7 @@ def main():
                     if dialog.property('opened'):
                         break
                     QTest.qWait(10)
+                QTest.qWait(60)  # Let the shared page layout settle after resizing/scaling.
                 assert dialog.property('opened'), 'OBS dialog did not finish opening'
                 assert not window.property('playbackShortcuts')
                 assert dialog.property('width') * shell.uiScaleFactor < window.width()

@@ -3,17 +3,11 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "Theme.js" as Theme
 
-Dialog {
+SettingsPage {
     id: root
     property alias scrollView: optionsScroll
     objectName: "playbackSettings"
     title: "Playback"
-    modal: true
-    anchors.centerIn: Overlay.overlay
-    width: Math.min(480, Overlay.overlay ? Overlay.overlay.width - 32 : 480)
-    height: Math.min(implicitHeight, Overlay.overlay ? Overlay.overlay.height - 48 : implicitHeight)
-    standardButtons: Dialog.Close
-    background: Rectangle { color: themeState.background; border.color: themeState.border; radius: 12 }
     contentItem: ScrollView {
         id: optionsScroll
         contentWidth: availableWidth
@@ -24,7 +18,7 @@ Dialog {
         id: options
         width: optionsScroll.availableWidth
         spacing: 16
-        Text { text: "Sleep timer"; color: themeState.foreground; font.bold: true; font.pixelSize: 16 }
+        Text { text: "Sleep Timer"; color: themeState.foreground; font.bold: true; font.pixelSize: 16 }
         Text {
             Layout.fillWidth: true
             text: playbackOptions.sleepRemaining > 0 ? "Pause in " + Theme.timeLabel(playbackOptions.sleepRemaining) : playbackOptions.sleepStatus || "Pause playback after a set time."
@@ -47,19 +41,19 @@ Dialog {
         }
         ThemeActionButton {
             objectName: "cancelSleep"
-            text: "Cancel timer"
+            text: "Cancel Timer"
             visible: playbackOptions.sleepRemaining > 0
             onClicked: playbackOptions.cancelSleep()
         }
-        CheckBox {
+        SettingsCheckBox {
             objectName: "nonlinearVolumeOption"
-            text: "Finer volume control at low levels"
+            text: "Finer Volume at Low Levels"
             checked: playbackOptions.nonlinearVolume
             onToggled: playbackOptions.setNonlinearVolume(checked)
         }
-        CheckBox {
+        SettingsCheckBox {
             objectName: "speakerFillOption"
-            text: "Fill surround speakers from stereo"
+            text: "Fill Surround Speakers from Stereo"
             checked: playbackOptions.speakerFill
             enabled: !!playerState.audioOptions.available || checked
             onToggled: playbackOptions.setSpeakerFill(checked)
@@ -73,12 +67,12 @@ Dialog {
         ThemeActionButton {
             objectName: "retrySpeakerFill"
             visible: !!playerState.audioOptions.failed
-            text: "Retry speaker fill"
+            text: "Retry Speaker Fill"
             onClicked: playerState.retrySpeakerFill()
         }
-        CheckBox {
+        SettingsCheckBox {
             objectName: "skipDislikedOption"
-            text: "Skip disliked songs when advancing"
+            text: "Skip Disliked Songs"
             checked: playbackOptions.skipDisliked
             onToggled: playbackOptions.setSkipDisliked(checked)
         }
