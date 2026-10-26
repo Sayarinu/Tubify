@@ -201,3 +201,27 @@ def test_format_change_removes_obsolete_parts_and_downloads_survive_provider_rem
     service.store.retry(identifier)
     service.run(identifier)
     assert factory.calls == IDS[:1]
+
+
+def test_download_saves_largest_original_and_variants_for_offline_covers(service):
+    from PySide6.QtGui import QImage
+    service, factory = service
+    variants = [{"url": f"https://fixture.invalid/{size}.png", "width": size, "height": size} for size in (60, 300, 1200)]
+    fetched = []
+    def artwork(url, folder):
+        fetched.append(url)
+        folder.mkdir(exist_ok=True)
+        path = folder / "original.png"
+        image = QImage(1200, 1200, QImage.Format.Format_RGB32)
+        image.fill(0xFF223344)
+        assert image.save(str(path))
+        return path.as_uri()
+    service.artwork_fetch = artwork
+    identifier = service.schedule({"kind": "song", "id": IDS[0], "title": "Fixture", "thumbnail": variants[1]["url"], "artworkVariants": variants})
+    service.run(identifier)
+    snapshot = service.store.view(identifier)
+    assert snapshot["items"][0]["artworkVariants"] == variants
+    assert snapshot["items"][0]["largeThumbnail"] == variants[-1]["url"]
+    assert snapshot["items"][0]["thumbnail"].startswith("file:")
+    assert fetched and set(fetched) == {variants[-1]["url"]}
+    assert factory.calls == [IDS[0]]

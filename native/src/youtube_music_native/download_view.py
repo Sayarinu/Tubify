@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import json
+import time
 
 from PySide6.QtCore import QObject, Property, QProcess, QTimer, Signal, Slot
 
@@ -24,6 +25,9 @@ class DownloadView(QObject):
         self._collections, self._pending, self._stopped = [], {}, []
         self._track_states, self._track_progress, self._open_request = {}, {}, None
         self._artwork, self._initialized = {}, fixture
+        self._large_artwork, self._artwork_requests, self._artwork_attempts = {}, {}, {}
+        self._artwork_times = {}
+        self.artwork_worker = None
         self._fixture_bodies = {}
         self._active, self._transfer_request, self._next = None, None, None
         self._bytes, self._free, self._message = 0, 0, ""
@@ -67,6 +71,61 @@ class DownloadView(QObject):
     def artwork(self):
         return self._artwork
 
+    @Property("QVariantMap", notify=changed)
+    def largeArtwork(self):
+        return self._large_artwork
+
+    @Slot("QVariantMap", int, result=str)
+    def artworkSource(self, media, pixels):
+        from .artwork_sources import choose, media_variants
+        return choose(media_variants(media), pixels).get("url", "")
+
+    @Slot("QVariantMap", int)
+    @Slot("QVariantMap", int, bool)
+    def ensureArtwork(self, media, pixels, retry=False):
+        from .artwork_sources import media_variants
+        video_id = media.get("videoId") or media.get("id", "")
+        if self.fixture or self._closed or not video_id or not self._initialized:
+            return
+        pixels = max(1, min(4096, pixels))
+        signature = (pixels, self._allow_network, json.dumps(media_variants(media), sort_keys=True), self._artwork.get(video_id, ""))
+        if self._artwork_attempts.get(video_id) == signature:
+            if not retry or time.monotonic() - self._artwork_times.get(video_id, 0) < 30:
+                return
+        if not self.artwork_worker:
+            self.artwork_worker = Worker(self, idle_ms=1000)
+            self.artwork_worker.succeeded.connect(self._artwork_ready)
+            self.artwork_worker.failed.connect(self._artwork_failed)
+        for request, (key, _) in list(self._artwork_requests.items()):
+            if key == video_id:
+                self.artwork_worker.cancelQueued(request)
+                self._artwork_requests.pop(request)
+        self._artwork_attempts[video_id] = signature
+        self._artwork_times[video_id] = time.monotonic()
+        request = self.artwork_worker.request("artwork", {"data_dir": self.data_dir, "media": dict(media), "pixels": pixels, "online": self._allow_network})
+        self._artwork_requests[request] = (video_id, signature)
+        while len(self._artwork_attempts) > 128:
+            removed = next(iter(self._artwork_attempts))
+            self._artwork_attempts.pop(removed)
+            self._artwork_times.pop(removed, None)
+
+    def _artwork_ready(self, request, result):
+        pending = self._artwork_requests.pop(request, None)
+        if not pending or result.get("videoId") != pending[0] or self._artwork_attempts.get(pending[0]) != pending[1]:
+            return
+        before = self._large_artwork.get(pending[0], {})
+        if result.get("url") and min(result.get("width", 0), result.get("height", 0)) >= min(before.get("width", 0), before.get("height", 0)):
+            self._large_artwork[pending[0]] = result
+            while len(self._large_artwork) > 128:
+                self._large_artwork.pop(next(iter(self._large_artwork)))
+            self.changed.emit()
+        if result.get("upgraded"):
+            self.refresh()
+
+    def _artwork_failed(self, request, error):
+        self._artwork_requests.pop(request, None)
+        # Artwork failures leave the visible local cover and playback untouched.
+
     @Property(bool, notify=changed)
     def initialized(self):
         return self._initialized
@@ -90,6 +149,7 @@ class DownloadView(QObject):
     @Slot(bool)
     def setAccountAvailable(self, available):
         self._allow_network = available
+        self.changed.emit()
         self._pump()
 
     def _send(self, operation, payload=None, authoritative=False):
@@ -284,6 +344,12 @@ class DownloadView(QObject):
         if not self.control:
             return
         self._resetting = True
+        if self.artwork_worker:
+            self.artwork_worker.reset()
+        self._artwork_requests.clear()
+        self._artwork_attempts.clear()
+        self._artwork_times.clear()
+        self._large_artwork.clear()
         self._planning.clear()
         self.planner.reset()
         self._active, self._transfer_request, self._next = None, None, None
@@ -297,6 +363,8 @@ class DownloadView(QObject):
     def close(self):
         self._closed = True
         self.poll.stop()
+        if self.artwork_worker:
+            self.artwork_worker.close()
         if self.control:
             self.control.close()
             self.planner.close()

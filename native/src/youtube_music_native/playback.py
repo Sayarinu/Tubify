@@ -29,6 +29,7 @@ def write_state(path, content):
 
 class Playback(QObject):
     changed = Signal()
+    audioOptionsChanged = Signal()
     positionChanged = Signal()
     manualQueueCleared = Signal()
     trackStarted = Signal("QVariantMap")
@@ -53,6 +54,9 @@ class Playback(QObject):
         self._retry, self._failures = False, set()
         self._start_position, self._want_paused = 0., False
         self._autoplay = True
+        self._nonlinear_volume, self._skip_disliked = False, False
+        self._speaker_fill = False
+        self._audio_options = {}
         self._saver = ThreadPoolExecutor(max_workers=1, thread_name_prefix="playback-state")
         self._closed = False
         self._transport_revision, self._stopped, self._device_wait = 0, False, False
@@ -89,14 +93,16 @@ class Playback(QObject):
     def currentTrack(self):
         return self.queue.current["track"] if self.queue.current else {}
 
+    @Property(str, notify=changed)
+    def nextGroup(self):
+        return "Next From " + self.queue.source_label if self.queue.source_label else "Next Up"
+
     @Property("QVariantList", notify=changed)
     def entries(self):
-        source_group = ("Next" if self.queue.source_label.casefold() == "radio" else "Next from " + self.queue.source_label) if self.queue.source_label else "Next up"
         groups = (("Now playing", [self.queue.current] if self.queue.current else []),
-                  ("Previously played", reversed(self.queue.history)),
-                  ("Next in queue", self.queue.manual), (source_group, self.queue.remaining))
+                  ("Next in queue", self.queue.manual), (self.nextGroup, self.queue.remaining))
         return [{**entry["track"], "key": entry["key"], "current": group == "Now playing", "group": group,
-                 "movable": group not in ("Previously played", "Now playing")} for group, entries in groups for entry in entries]
+                 "movable": group != "Now playing"} for group, entries in groups for entry in entries]
 
     @Property(int, notify=changed)
     def manualCount(self):
@@ -198,8 +204,11 @@ class Playback(QObject):
             self._duration = float(self.currentTrack.get("duration") or 0)
             self._want_paused, self._playing, self._stopped = True, False, False
         if self._radio_request is not None and self.queue.manual:
-            self.queue.advance()
-            self._start(paused=paused)
+            entry, skipped = self._advance_entry()
+            if entry:
+                self._start(paused=paused)
+            elif skipped:
+                self._stop_disliked()
         else:
             self._queue_changed()
 
@@ -309,7 +318,9 @@ class Playback(QObject):
                 self.audio.ended.connect(self._ended)
                 self.audio.deviceFailed.connect(self._output_failed)
                 self.audio.outputChanged.connect(self._output_changed)
-                self.audio.volume(self._volume)
+                self.audio.optionsChanged.connect(self._audio_options_changed)
+                self.audio.setSpeakerFill(self._speaker_fill)
+                self.audio.volume(self.outputVolume)
             self._source_kind = source["kind"]
             self.audio.load(source, self._start_position, self._want_paused)
             self._loaded, self._playing = True, not self._want_paused
@@ -381,15 +392,19 @@ class Playback(QObject):
             self._advance(automatic=True)
 
     def _skip_failed(self):
+        if self._closed or self._want_paused:
+            return
         self._loaded = False
         if self.queue.current:
             self._failures.add(self.queue.current["key"])
-        upcoming = self.queue.peek()
+        upcoming, skipped = self._advance_entry()
+        if skipped and upcoming is None:
+            self._stop_disliked()
+            return
         if upcoming is None or upcoming["key"] in self._failures:
             self._playing, self._busy = False, False
             self.changed.emit()
             return
-        self.queue.advance()
         message = self._message
         self._start()
         self._message = message
@@ -490,9 +505,25 @@ class Playback(QObject):
         self._failures = set()
         self._advance()
 
-    def _advance(self, automatic=False):
-        if self.queue.advance(automatic):
-            self._start()
+    def _advance_entry(self, automatic=False):
+        return self._eligible_entry(self.queue.advance(automatic))
+
+    def _eligible_entry(self, entry):
+        visited = set()
+        while entry and self._skip_disliked and entry["track"].get("rating") == "DISLIKE":
+            if entry["key"] in visited:
+                return None, True
+            visited.add(entry["key"])
+            # A disliked repeat-one track must not trap the transition forever.
+            entry = self.queue.advance(False)
+        return entry, bool(visited)
+
+    def _advance(self, automatic=False, paused=False):
+        entry, skipped = self._advance_entry(automatic)
+        if entry:
+            self._start(paused=paused)
+        elif skipped:
+            self._stop_disliked()
         elif self._autoplay and self.repeat == "off" and self.radio_worker and self.hasTrack:
             self._busy, self._playing = True, False
             self._radio_request = self.radio_worker.request("catalog", {"cache_path": self.cache_path, "route": "radio", "params": {"id": self.currentTrack.get("videoId", "")}, "refresh": True})
@@ -504,18 +535,27 @@ class Playback(QObject):
             self.changed.emit()
             self.save()
 
+    def _stop_disliked(self):
+        self._halt()
+        self._stopped, self._want_paused = True, True
+        self._message = "No eligible songs remain. Skip disliked songs is enabled."
+        self._queue_changed()
+
     def _radio_result(self, identifier, result):
         if identifier != self._radio_request:
             return
+        paused = not self.wantsPlayback
         self._radio_request, self._busy = None, False
         video_id = self.currentTrack.get("videoId")
-        tracks = [track for track in result.get("items", []) if track.get("videoId") != video_id and track.get("available", True)]
+        tracks = [track for track in result.get("items", []) if track.get("videoId") != video_id and track.get("available", True) and not (self._skip_disliked and track.get("rating") == "DISLIKE")]
         if tracks:
             self.queue.append_context(tracks)
             self.queue.source_label = "Autoplay"
-            self.queue.advance()
-            self._start()
+            self._advance(paused=paused)
         else:
+            self._playing, self._stopped = False, True
+            if self._skip_disliked and result.get("items"):
+                self._message = "No eligible autoplay songs remain."
             self.changed.emit()
 
     def _radio_failed(self, identifier, error):
@@ -550,17 +590,52 @@ class Playback(QObject):
     def seekFraction(self, fraction):
         self.seek(float(fraction) * self._duration)
 
+    @property
+    def outputVolume(self):
+        return self._volume * self._volume / 100. if self._nonlinear_volume else self._volume
+
+    def setNonlinearVolume(self, enabled):
+        self._nonlinear_volume = bool(enabled)
+        if self.audio:
+            self.audio.volume(self.outputVolume)
+
+    @Property("QVariantMap", notify=audioOptionsChanged)
+    def audioOptions(self):
+        return self._audio_options
+
+    @Slot(dict)
+    def _audio_options_changed(self, state):
+        if state != self._audio_options:
+            self._audio_options = state
+            self.audioOptionsChanged.emit()
+
+    def setSpeakerFill(self, enabled):
+        self._speaker_fill = bool(enabled)
+        if self.audio:
+            self.audio.setSpeakerFill(self._speaker_fill)
+
+    @Slot()
+    def retrySpeakerFill(self):
+        self.setSpeakerFill(self._speaker_fill)
+
+    def setSkipDisliked(self, enabled):
+        self._skip_disliked = bool(enabled)
+
     @Slot(int)
     def setVolume(self, value):
         self._volume = max(0, min(100, value))
         if self.audio:
-            self.audio.volume(self._volume)
+            self.audio.volume(self.outputVolume)
 
     @Slot(int)
     def remove(self, index):
         paused = not self.wantsPlayback
         if self.queue.remove(index):
-            self._start(paused=paused)
+            entry, skipped = self._eligible_entry(self.queue.current)
+            if entry or not skipped:
+                self._start(paused=paused)
+            else:
+                self._stop_disliked()
         else:
             self._queue_changed()
 
@@ -608,7 +683,7 @@ class Playback(QObject):
     def _prepare_next(self):
         upcoming = self.queue.peek(automatic=True)
         track = upcoming["track"] if upcoming else {}
-        video_id = track.get("videoId", "") if track.get("available", True) else ""
+        video_id = track.get("videoId", "") if track.get("available", True) and not (self._skip_disliked and track.get("rating") == "DISLIKE") else ""
         if self._prepare_request is not None and video_id != self._preparing_video:
             self.worker.cancel(self._prepare_request)
             self._prepare_request, self._preparing_video = None, None

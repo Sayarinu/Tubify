@@ -301,6 +301,8 @@ class Browse(QObject):
                     values["thumbnail"] = track["thumbnail"]
                 if track.get("largeThumbnail"):
                     values["largeThumbnail"] = track["largeThumbnail"]
+                if track.get("artworkVariants"):
+                    values["artworkVariants"] = track["artworkVariants"]
                 if not values:
                     return
                 self.player.updateTrack(self._metadata_video_id, values)

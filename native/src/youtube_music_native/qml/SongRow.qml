@@ -13,7 +13,7 @@ FocusScope {
     property bool queueRow: false
     property var menuContext: ({})
     property string downloadStatus: downloadsState.trackStates[media.videoId || media.id] || media.downloadState || ""
-    readonly property bool currentSong: playerState.hasTrack && (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id)
+    readonly property bool currentSong: playerState.hasTrack && (queueRow && media.key ? !!media.current : (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id))
     readonly property var artistItems: {
         if (media.artists && media.artists.length) return media.artists
         return (media.artist || "").split(" • ").filter(Boolean).map(name => ({name: name}))
@@ -39,7 +39,7 @@ FocusScope {
         objectName: root.queueRow ? "queueRowArtwork-" + (root.media.key || root.media.videoId || root.media.id || "") : ""
         visible: root.showArtwork
         x: root.queueRow ? 0 : root.tableLayout ? 44 : 8; anchors.verticalCenter: parent.verticalCenter
-        width: root.tableLayout ? 40 : 48; height: width
+        width: root.tableLayout || root.queueRow ? 40 : 48; height: width
         radius: root.media.kind === "artist" ? width / 2 : 6
         placeholder: root.media.kind === "artist" ? "profile" : "music"
         source: root.media.thumbnail || ""; mediaKey: root.media.videoId || root.media.id || ""; accent: root.media.accent || themeState.selected
@@ -57,9 +57,10 @@ FocusScope {
     }
     Text { id: rank; x: root.tableLayout ? 12 : root.showArtwork ? 68 : 16; width: root.number > 0 ? 28 : 0; visible: root.number > 0; anchors.verticalCenter: parent.verticalCenter; text: root.number; color: themeState.secondary; font.pixelSize: 14 }
     Column {
-        x: root.tableLayout ? root.showArtwork ? 100 : 48 : root.showArtwork ? root.number > 0 ? 104 : 72 : 56
+        objectName: root.queueRow ? "queueRowMetadata-" + (root.media.key || "") : ""
+        x: root.queueRow ? 52 : root.tableLayout ? root.showArtwork ? 100 : 48 : root.showArtwork ? root.number > 0 ? 104 : 72 : 56
         anchors.verticalCenter: parent.verticalCenter
-        width: (root.showAlbum ? parent.width * 0.54 : parent.width - (root.showDuration ? 112 : 104)) - x; spacing: 3
+        width: Math.max(0, (root.showAlbum ? parent.width * 0.54 : parent.width - (root.queueRow ? 68 : root.showDuration ? 112 : 104)) - x); spacing: 3
         opacity: root.media.available === false ? 0.5 : 1
         Text { width: parent.width; text: root.media.title || "Unavailable song"; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.foreground; font.pixelSize: 14 }
         Row {
@@ -155,7 +156,7 @@ FocusScope {
     MouseArea { z: -1; anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { if (mouse.button === Qt.RightButton) root.menuRequested(root.media); else root.activateSong() } }
     Item {
         id: reorderRegion
-        width: Math.max(0, root.width - 104)
+        width: Math.max(0, root.width - (root.queueRow ? 68 : 104))
         height: root.height
         opacity: 0
         DragHandler {
@@ -172,7 +173,9 @@ FocusScope {
     }
     DownloadButton {
         id: downloadButton
-        anchors.right: parent.right; anchors.rightMargin: 56; anchors.verticalCenter: parent.verticalCenter
+        objectName: root.queueRow ? "queueRowDownload-" + (root.media.key || "") : ""
+        width: root.queueRow ? 32 : implicitWidth
+        anchors.right: parent.right; anchors.rightMargin: root.queueRow ? 32 : 56; anchors.verticalCenter: parent.verticalCenter
         visible: hover.hovered || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued"
         background: Rectangle {
             radius: width / 2
@@ -183,6 +186,7 @@ FocusScope {
         media: ({kind: "song", id: root.media.videoId || root.media.id || "", videoId: root.media.videoId || "", title: root.media.title || "", thumbnail: root.media.thumbnail || ""})
     }
     IconButton {
+        width: root.queueRow ? 32 : implicitWidth
         objectName: root.queueRow ? "queueRowMore-" + (root.media.videoId || root.media.id || "") : ""
         anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
         iconName: "more"; tip: "More options for " + (root.media.title || "song")

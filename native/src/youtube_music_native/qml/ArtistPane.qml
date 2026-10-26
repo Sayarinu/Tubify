@@ -5,12 +5,15 @@ import "Theme.js" as Theme
 Item {
     id: root
     clip: true
-    property var artist: catalogState.data
+    // Do not incubate delegates for another route while the page is being replaced.
+    property var artist: (catalogState.route === "artist") ? catalogState.data : ({})
     property real gutter: Theme.gutter(width)
     property bool descriptionExpanded: false
     Image { id: hero; objectName: "artistHero"; y: (sections.headerItem ? sections.headerItem.y : 0) - sections.contentY; width: root.width; height: 400; source: root.artist.hero || ""; visible: !!root.artist.hero; asynchronous: true; fillMode: Image.PreserveAspectCrop; opacity: 0.45 }
     Rectangle { y: hero.y; width: root.width; height: 400; visible: !!root.artist.hero; gradient: Gradient { GradientStop { position: 0; color: "#00000000" } GradientStop { position: 1; color: themeState.background } } }
     ListView {
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+        cacheBuffer: 0
         id: sections
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         clip: true; spacing: 36; bottomMargin: 48
@@ -49,13 +52,13 @@ Item {
             required property var modelData
             property var section: modelData
             width: sections.width
-            sourceComponent: modelData.title === "Top songs" ? songSection : cardSection
+            sourceComponent: modelData.title === "Top Songs" ? songSection : cardSection
             Component {
                 id: songSection
                 Column {
                     property var section: parent.section
                     width: parent.width
-                    Text { text: "Top songs"; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 24; font.bold: true; height: 45 }
+                    Text { text: "Top Songs"; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 24; font.bold: true; height: 45 }
                     Repeater { model: parent.section.items; delegate: ArtistSongRow { required property var modelData; width: sections.width; media: modelData; onActivated: item => browseState.play(item) } }
                     Button { text: "More"; flat: true; palette.windowText: themeState.foreground; onClicked: browseState.openSection(parent.section) }
                 }

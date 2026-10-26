@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from PySide6.QtCore import QCoreApplication
 
 from youtube_music_native.theme import DEFAULT_COLORS, DEFAULT_THEME_ID, ThemeState
@@ -124,3 +126,42 @@ def test_invalid_import_does_not_change_active_theme(tmp_path):
     assert not theme.inspectImport(str(invalid))["ok"]
     assert theme.message == "Invalid theme format."
     assert (theme.activeThemeId, theme.accent) == before
+
+
+@pytest.mark.parametrize("theme_id,expected", [
+    ("classic-dark", "#6F6F6F"), ("classic-light", "#909090"),
+    ("youtube-music-purple", "#6C6B74"), ("catppuccin-mocha", "#777C93"),
+    ("dracula", "#808289"), ("nord", "#898E99"),
+    ("gruvbox-dark", "#8B816E"), ("solarized-dark", "#647F7F"),
+    ("tokyo-night", "#6A718F"), ("rose-pine", "#706E84"),
+    ("solarized-light", "#718886"), ("catppuccin-latte", "#808397"),
+])
+def test_progress_track_has_contrast_without_changing_palette(theme_id, expected, tmp_path):
+    _app()
+    theme = ThemeState(tmp_path / "theme.ini")
+    theme.selectTheme(theme_id)
+    track = theme.progressTrack
+    assert ThemeState._contrast(track, theme.surface) >= 3
+    assert track == expected
+    assert {role["key"] for role in theme.palette} == set(DEFAULT_COLORS)
+
+
+@pytest.mark.parametrize("surface,expected", [("#FFFFFF", "#000000"), ("#000000", "#FFFFFF"), ("#777777", "#000000")])
+def test_progress_track_handles_low_contrast_custom_themes_and_import(surface, expected, tmp_path):
+    _app()
+    theme = ThemeState(tmp_path / "theme.ini")
+    assert theme.createCustomTheme("Low contrast")
+    updates = []
+    theme.paletteChanged.connect(lambda: updates.append(theme.progressTrack))
+    theme.setColor("surface", surface)
+    theme.setColor("foreground", surface)
+    assert updates[-1] == expected
+    assert ThemeState._contrast(theme.progressTrack, surface) >= 3
+    assert ThemeState._contrast("#FFFFFF", "#000000") == 21
+    exported = tmp_path / "custom.json"
+    assert theme.exportTheme(str(exported))
+    assert set(json.loads(exported.read_text())["colors"]) == set(DEFAULT_COLORS)
+    imported = ThemeState(tmp_path / "imported.ini")
+    assert imported.inspectImport(str(exported))["ok"]
+    assert imported.completeImport("Imported", False)
+    assert imported.progressTrack == expected
