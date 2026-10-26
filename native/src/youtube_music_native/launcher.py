@@ -26,6 +26,10 @@ def process_command(role):
 
 def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
+    if args == ["--streamdeck-credentials"]:
+        from .streamdeck_credentials import main as credential_main
+
+        return credential_main()
     if args == [FLAGS["provider"]]:
         from .worker import main as worker_main
 

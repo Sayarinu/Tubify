@@ -42,7 +42,7 @@ Rectangle {
                     Accessible.role: Accessible.StaticText
                     Accessible.name: text
                     width: appState.reducedMotion ? parent.width : implicitWidth; elide: Text.ElideRight; height: parent.height
-                    text: playerState.currentTrack.title || "Nothing playing"
+                    text: playerState.currentTrack.title || "Nothing Playing"
                     textFormat: Text.PlainText; color: themeState.foreground; font.bold: true; font.pixelSize: 14
                     onImplicitWidthChanged: titleViewport.updateScroll()
                 }
@@ -105,7 +105,7 @@ Rectangle {
                     }
                     Text {
                         visible: !playerState.currentTrack.artists || !playerState.currentTrack.artists.length
-                        text: playerState.currentTrack.artist || "Choose a song"
+                        text: playerState.currentTrack.artist || "Choose a Song"
                         textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 11
                     }
                 }
@@ -150,8 +150,8 @@ Rectangle {
                 }
             }
         }
-        IconButton { id: dislike; visible: !root.dense; objectName: "playerDislike"; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "dislike"; tip: playerState.currentTrack.rating === "DISLIKE" ? "Remove dislike" : "Dislike"; iconColor: playerState.currentTrack.rating === "DISLIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("dislike") }
-        IconButton { id: like; visible: !root.dense; objectName: "playerLike"; anchors.right: dislike.left; anchors.verticalCenter: parent.verticalCenter; iconName: "like"; tip: playerState.currentTrack.rating === "LIKE" ? "Remove like" : "Like"; iconColor: playerState.currentTrack.rating === "LIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("like") }
+        IconButton { id: dislike; visible: !root.dense; objectName: "playerDislike"; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "dislike"; tip: playerState.currentTrack.rating === "DISLIKE" ? "Remove Dislike" : "Dislike"; iconColor: playerState.currentTrack.rating === "DISLIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("dislike") }
+        IconButton { id: like; visible: !root.dense; objectName: "playerLike"; anchors.right: dislike.left; anchors.verticalCenter: parent.verticalCenter; iconName: "like"; tip: playerState.currentTrack.rating === "LIKE" ? "Remove Like" : "Like"; iconColor: playerState.currentTrack.rating === "LIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("like") }
     }
     Item {
         anchors.left: track.right; anchors.leftMargin: 8
@@ -193,12 +193,12 @@ Rectangle {
         id: tools
         anchors.right: parent.right; anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
-        IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "more"; tip: "Current song options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
+        IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "more"; tip: "Current Song Options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: queueToggle; objectName: "queueToggle"; iconName: "queue"; tip: appState.queueOpen ? "Close Queue" : "Queue"; iconColor: appState.queueOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleQueue() }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: lyricsToggle; objectName: "lyricsToggle"; iconName: "music"; tip: appState.lyricsOpen ? "Close Lyrics" : "Lyrics"; iconColor: appState.lyricsOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleLyrics() }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: volume; iconName: appState.volume > 0 ? "volume" : "muted"; tip: root.compact ? "Volume" : appState.volume > 0 ? "Mute" : "Unmute"; onClicked: root.compact ? volumePopup.open() : appState.toggleMute() }
         AccentSlider { width: 84; height: 44; visible: !root.compact; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
-        IconButton { implicitWidth: root.dense ? 36 : 44; id: immersiveToggle; objectName: "immersiveToggle"; enabled: playerState.hasTrack; iconName: appState.expanded ? "down" : "up"; tip: appState.expanded ? "Return to browsing" : "Open immersive player"; onClicked: appState.requestAction("expandPlayer") }
+        IconButton { implicitWidth: root.dense ? 36 : 44; id: immersiveToggle; objectName: "immersiveToggle"; enabled: playerState.hasTrack; iconName: appState.expanded ? "down" : "up"; tip: appState.expanded ? "Return to Browsing" : "Open Immersive Player"; onClicked: appState.requestAction("expandPlayer") }
     }
     Popup {
         id: volumePopup

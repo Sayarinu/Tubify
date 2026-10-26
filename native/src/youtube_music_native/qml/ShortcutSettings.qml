@@ -2,37 +2,31 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Dialog {
+SettingsPage {
     id: root
     objectName: "shortcutSettings"
     title: "Global Shortcuts"
     property alias scrollView: shortcutScroll
     property var bindingRows: shortcutState.bindings
-    modal: true
-    focus: true
-    anchors.centerIn: Overlay.overlay
-    width: Overlay.overlay ? Math.min(660, Overlay.overlay.width - 32) : 660
-    height: Overlay.overlay ? Math.min(720, Overlay.overlay.height - 32) : 720
-    standardButtons: Dialog.Close
-    background: Rectangle { color: themeState.background; border.color: themeState.border; radius: 12 }
-    contentItem: ColumnLayout {
-        spacing: 12
-        CheckBox { objectName: "globalShortcutsEnabled"; text: "Enable global shortcuts"; checked: shortcutState.enabled; onToggled: shortcutState.setEnabled(checked) }
-        Text { Layout.fillWidth: true; text: shortcutState.help; color: themeState.secondary; wrapMode: Text.Wrap; font.pixelSize: 12 }
-        Text { objectName: "globalShortcutsStatus"; Layout.fillWidth: true; text: shortcutState.status; color: themeState.foreground; wrapMode: Text.Wrap }
-        RowLayout {
-            spacing: 8
-            ThemeActionButton { text: "Retry registration"; enabled: shortcutState.enabled; onClicked: shortcutState.retry() }
-            ThemeActionButton { text: "Desktop shortcuts…"; visible: shortcutState.canConfigure; onClicked: shortcutState.configure() }
-            ThemeActionButton { objectName: "resetGlobalShortcuts"; text: "Reset defaults"; onClicked: shortcutState.reset() }
-        }
-        ScrollView {
-            id: shortcutScroll
-            Layout.fillWidth: true; Layout.fillHeight: true
-            contentWidth: availableWidth
-            clip: true
+    contentItem: ScrollView {
+        id: shortcutScroll
+        contentWidth: availableWidth
+        clip: true
+        ColumnLayout {
+            width: shortcutScroll.availableWidth
+            spacing: 12
+            SettingsCheckBox { objectName: "globalShortcutsEnabled"; text: "Enable Global Shortcuts"; checked: shortcutState.enabled; onToggled: shortcutState.setEnabled(checked) }
+            Text { Layout.fillWidth: true; text: shortcutState.help; color: themeState.secondary; wrapMode: Text.Wrap; font.pixelSize: 12 }
+            Text { objectName: "globalShortcutsStatus"; Layout.fillWidth: true; text: shortcutState.status; color: themeState.foreground; wrapMode: Text.Wrap }
+            Flow {
+                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height
+                spacing: 8
+                ThemeActionButton { text: "Retry Registration"; enabled: shortcutState.enabled; onClicked: shortcutState.retry() }
+                ThemeActionButton { text: "Desktop Shortcuts…"; visible: shortcutState.canConfigure; onClicked: shortcutState.configure() }
+                ThemeActionButton { objectName: "resetGlobalShortcuts"; text: "Reset Defaults"; onClicked: shortcutState.reset() }
+            }
             Column {
-                width: parent.width
+                Layout.fillWidth: true
                 spacing: 12
                 Repeater {
                     model: root.bindingRows.length
@@ -48,7 +42,7 @@ Dialog {
                                 id: binding
                                 objectName: "globalShortcut-" + modelData.id
                                 Layout.fillWidth: true
-                                text: modelData.binding; placeholderText: "Not assigned"; maximumLength: 80
+                                text: modelData.binding; placeholderText: "Not Assigned"; maximumLength: 80
                                 Accessible.name: modelData.title + " global shortcut"
                                 onAccepted: shortcutState.setBinding(modelData.id, text)
                             }
