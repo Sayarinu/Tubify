@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -36,8 +37,10 @@ from .lifecycle import Lifecycle
 from .startup import StartupRegistration
 from .shortcuts import GlobalShortcuts
 from .local_api import LocalApi
+from .obs_overlay import ObsOverlay
 from .theme import ThemeState
 from .color_picker import ColorSampler
+from .maintenance import Maintenance
 
 
 PACKAGE = Path(__file__).resolve().parent
@@ -50,6 +53,10 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
     engine.rootContext().setContextProperty("appState", controller)
     engine.rootContext().setContextProperty("accountState", account)
     engine.rootContext().setContextProperty("playerState", player)
+    if hasattr(controller, "maintenanceState"):
+        engine.rootContext().setContextProperty("maintenanceState", controller.maintenanceState)
+    if hasattr(controller, "obsState"):
+        engine.rootContext().setContextProperty("obsState", controller.obsState)
     if hasattr(controller, "apiState"):
         engine.rootContext().setContextProperty("apiState", controller.apiState)
     if hasattr(controller, "discordState"):
@@ -93,19 +100,22 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="YouTube Music native Qt client")
+    parser = argparse.ArgumentParser(description="Tubify native Qt client")
     parser.add_argument("--fixture", action="store_true", help="Render synthetic data for visual verification")
     parser.add_argument("--smoke-test", action="store_true", help="Verify window creation and exit")
     parser.add_argument("--screenshot", type=Path, help="Save a visual-verification screenshot and exit")
     parser.add_argument("--data-dir", type=Path, help="Override application data for isolated development/tests")
     parser.add_argument("links", nargs="*", help="YouTube Music URLs or ytmusic-native links")
+    parser.add_argument("--software-rendering", action="store_true", help="Use software drawing for this launch when troubleshooting graphics")
     args = parser.parse_args(argv)
+    if args.software_rendering:
+        os.environ["QT_QUICK_BACKEND"] = "software"
     if len(args.links) > 1:
         parser.error("Open one music link at a time.")
     QGuiApplication.setOrganizationName("YouTubeMusicNative")
     QGuiApplication.setOrganizationDomain("com.carter")
     QGuiApplication.setApplicationName("youtube-music-native")
-    QGuiApplication.setApplicationDisplayName("YouTube Music")
+    QGuiApplication.setApplicationDisplayName("Tubify")
     QQuickStyle.setStyle("Basic")
     app = QApplication([sys.argv[0]])
     app.setDesktopFileName("youtube-music-native")
@@ -140,6 +150,7 @@ def main(argv=None):
     cache.mkdir(parents=True, exist_ok=True, mode=0o700)
     fixture = json.loads((PACKAGE / "assets" / "visual-fixture.json").read_text()) if args.fixture else None
     controller = ShellController(data / "settings.ini", fixture)
+    controller.maintenanceState = Maintenance(cache / "native-release.json", controller, parent=controller, fixture=args.fixture, software=args.software_rendering)
     theme = ThemeState(data / "theme.ini")
     color_sampler = ColorSampler()
 
@@ -187,6 +198,7 @@ def main(argv=None):
     actions.applied.connect(browse.applyAction)
     library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     controller.apiState = LocalApi(controller, player, browse, library, account, actions, downloads, data, parent=controller)
+    controller.obsState = ObsOverlay(controller.apiState, data / "settings.ini", parent=controller)
     controller.shortcutState = GlobalShortcuts(controller, player, library, account, actions, data / "settings.ini", parent=controller)
     controller.lastFm = LastFm(player, data / "settings.ini", media_data, parent=controller, fixture=args.fixture)
     listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
@@ -201,6 +213,7 @@ def main(argv=None):
     app.aboutToQuit.connect(controller.lastFm.close)
     app.aboutToQuit.connect(account.close)
     app.aboutToQuit.connect(player.close)
+    app.aboutToQuit.connect(controller.maintenanceState.close)
     app.aboutToQuit.connect(controller.playbackOptions.close)
     app.aboutToQuit.connect(controller.lifecycleState.close)
     app.aboutToQuit.connect(controller.trayState.close)
@@ -210,6 +223,7 @@ def main(argv=None):
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]
+    controller.maintenanceState.window = window
     if not args.fixture:
         controller.restoreWindow(window, [screen.availableGeometry() for screen in app.screens()])
     controller.trayState.start(window)

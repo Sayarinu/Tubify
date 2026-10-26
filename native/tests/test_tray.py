@@ -24,7 +24,7 @@ class FakeTray(QObject):
         pass
 
     def setToolTip(self, text):
-        pass
+        self.tooltip = text
 
     def setContextMenu(self, menu):
         self.menu = menu
@@ -81,11 +81,12 @@ def test_disabled_tray_creates_no_resources_and_commands_share_player(tmp_path):
     assert not tray.enabled and not tray.active and FakeTray.created == 0
     tray.setEnabled(True)
     assert tray.active and FakeTray.created == 1
+    assert tray.tray.tooltip == "Tubify"
     tray.menu.actions["Play / Pause"]()
     assert not player.playing
     tray._activated(QSystemTrayIcon.ActivationReason.MiddleClick)
     assert player.playing
-    tray.menu.actions["Open YouTube Music"]()
+    tray.menu.actions["Open Tubify"]()
     assert window.shown == 1
     tray.setPinned(True)
     tray.setQueueOpen(True)

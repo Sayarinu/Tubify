@@ -37,6 +37,9 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: native/pyproject.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - name: Install shared Python package
         run: python -m pip install -e './native[test]'
       - name: Install native player on Linux
@@ -75,3 +78,29 @@ jobs:
       - name: Verify MPRIS on an isolated session bus
         if: runner.os == 'Linux'
         run: dbus-run-session -- python native/tests/smoke_desktop.py
+
+  streamdeck:
+    name: Stream Deck (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: native/integrations/streamdeck
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: native/integrations/streamdeck/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - run: npm run validate
+      - run: npm run pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: streamdeck-${{ matrix.os }}
+          path: native/integrations/streamdeck/dist/*.streamDeckPlugin

@@ -8,11 +8,76 @@ import time
 import traceback
 
 from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
-from PySide6.QtGui import QColor, QGuiApplication, QImage
+from PySide6.QtGui import QAccessible, QColor, QGuiApplication, QImage
 from PySide6.QtTest import QTest
+from PySide6.QtQml import QQmlProperty
 
 from youtube_music_native import app
+from youtube_music_native.theme import PRESETS, ThemeState
 from smoke_visual import check_queue, visual_items
+
+
+def check_autoplay(window, player, theme, output_dir=None, label="queue"):
+    control = window.findChild(QObject, "queueAutoplay")
+    indicator = control.findChild(QObject, "queueAutoplayIndicator")
+    state = control.findChild(QObject, "queueAutoplayState")
+    track = control.findChild(QObject, "queueAutoplayTrack")
+    thumb = control.findChild(QObject, "queueAutoplayThumb")
+    assert control.isVisible() and control.height() == 40
+    assert abs(indicator.x() + indicator.width() - control.width()) < 0.1
+    assert abs(state.x() + state.width() + 8 - indicator.x()) < 0.1
+    assert track.width() == 44 and track.height() == 24 and track.property("radius") == 12
+    assert control.findChild(QObject, "queueAutoplayLabel").property("contentWidth") < state.x() - 8
+    bounds = control.mapRectToScene(control.boundingRect())
+    assert bounds.left() >= 0 and bounds.right() <= window.width() + 1
+    assert bounds.top() >= 0 and bounds.bottom() <= window.height() + 1
+    accessible = QAccessible.queryAccessibleInterface(control)
+    assert accessible and accessible.text(QAccessible.Text.Name) == "Autoplay similar music"
+    assert accessible.state().checkable
+    previous, playing = player.autoplay, player.playing
+    if player.autoplay:
+        player.toggleAutoplay()
+    QTest.qWait(20)
+
+    def verify(expected):
+        assert control.property("checked") == player.autoplay == expected
+        assert state.property("text") == ("On" if expected else "Off")
+        assert abs(thumb.x() - (23 if expected else 3)) < 0.1
+        assert track.property("color") == QColor(theme.accent if expected else theme.progressTrack)
+        assert accessible.state().checked == expected
+        if not expected:
+            assert QQmlProperty.read(thumb, "border.width") == 1
+            assert ThemeState._contrast(theme.background, theme.foreground) >= 3
+            assert ThemeState._contrast(theme.background, theme.progressTrack) >= 3
+        assert player.playing == playing
+        if output_dir:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            assert window.grabWindow().save(str(output_dir / f"{label}-{'on' if expected else 'off'}.png"))
+    verify(False)
+    point = track.mapToScene(QPointF(track.width() / 2, track.height() / 2)).toPoint()
+    QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point)
+    QTest.qWait(20)
+    verify(True)
+    window.requestActivate()
+    control.forceActiveFocus()
+    QTest.keyClick(window, Qt.Key.Key_Backtab)
+    for _ in range(40):
+        QTest.keyClick(window, Qt.Key.Key_Tab)
+        QTest.qWait(10)
+        if window.activeFocusItem() == control:
+            break
+    QTest.qWait(20)
+    assert control.hasActiveFocus() and control.property("visualFocus"), "Tab must focus Autoplay visibly"
+    assert QQmlProperty.read(track, "border.width") == 2
+    QTest.keyClick(window, Qt.Key.Key_Space)
+    QTest.qWait(20)
+    verify(False)
+    # The declarative binding must still follow controller changes after user input.
+    player.toggleAutoplay()
+    QTest.qWait(20)
+    verify(True)
+    if player.autoplay != previous:
+        player.toggleAutoplay()
 
 
 def main():
@@ -126,12 +191,23 @@ def main():
                 assert shell.expanded and shell.queueOpen and shell.lyricsOpen
                 window.resize(1600, 900)
                 settle()
-                autoplay = find("queueAutoplay")
-                previous_autoplay = player.autoplay
-                QMetaObject.invokeMethod(autoplay, "clicked")
-                assert player.autoplay != previous_autoplay
-                QMetaObject.invokeMethod(autoplay, "clicked")
-                assert player.autoplay == previous_autoplay
+                shell.setLyricsOpen(False)
+                shell.setQueueWidth(280)
+                theme = args[11]
+                for scale in (80, 100, 150):
+                    shell.setUiScale(scale)
+                    window.resize(920, 620)
+                    palettes = [preset["id"] for preset in PRESETS] if scale == 100 else ["classic-dark", "classic-light"]
+                    for palette in palettes:
+                        theme.selectTheme(palette)
+                        settle()
+                        assert abs(find("queuePane").width() - 280) < 0.1
+                        check_autoplay(window, player, theme, options.output_dir, f"autoplay-{scale}-{palette}")
+                theme.selectTheme("classic-dark")
+                shell.setUiScale(100)
+                window.resize(1600, 900)
+                shell.setLyricsOpen(True)
+                settle()
                 lyrics.seekLine(1)
                 assert player.position == 5 and lyrics.currentLine == 1
                 shell.setLyricsOpen(False)

@@ -211,7 +211,7 @@ Item {
             objectName: "followLyrics"
             anchors.horizontalCenter: parent.horizontalCenter
             visible: root.timed && !root.following
-            text: "Follow lyrics"
+            text: "Follow Lyrics"
             onClicked: root.followCurrent()
         }
         Text {

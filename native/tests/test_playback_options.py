@@ -158,3 +158,25 @@ def test_remove_current_skips_disliked_and_preserves_pause_intent(tmp_path, paus
     assert player.currentTrack["videoId"] == "c"
     assert player.playing is not paused
     player.close()
+
+
+def test_speaker_fill_defaults_off_persists_and_reaches_existing_or_later_audio(tmp_path):
+    from test_playback import FakeWorker, TRACKS
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    options = PlaybackOptions(tmp_path / "settings.ini", player)
+    assert not options.speakerFill and player.audio is None
+    options.setSpeakerFill(True)
+    player.playTracks(TRACKS[:1])
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/track.wav"})
+    assert player.audio.speaker_fill
+    player.audio.optionsChanged.emit({"available": True, "active": True})
+    assert player.audioOptions["active"]
+    restored = PlaybackOptions(tmp_path / "settings.ini", player)
+    assert restored.speakerFill
+    restored.setSpeakerFill(False)
+    assert not player.audio.speaker_fill
+    options.close()
+    restored.close()
+    player.close()
