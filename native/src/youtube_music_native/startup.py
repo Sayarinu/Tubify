@@ -65,7 +65,7 @@ class StartupRegistration:
     def _content(self):
         if self.platform == "darwin":
             return plistlib.dumps({"Label": APP_ID, "ProgramArguments": self.command, "RunAtLoad": True})
-        return ("[Desktop Entry]\nType=Application\nName=YouTube Music\n"
+        return ("[Desktop Entry]\nType=Application\nName=Tubify\n"
                 f"X-YouTube-Music-Native={APP_ID}\nExec={desktop_exec(self.command)}\nTerminal=false\n").encode()
 
     def _owned(self, content):
@@ -88,7 +88,10 @@ class StartupRegistration:
             except FileNotFoundError:
                 return False
         try:
-            return self.path.read_bytes() == self._content()
+            content = self.path.read_bytes()
+            if self.platform == "linux":
+                content = content.replace(b"\nName=YouTube Music\n", b"\nName=Tubify\n")
+            return content == self._content()
         except FileNotFoundError:
             return False
 

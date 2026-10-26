@@ -8,14 +8,14 @@ from PySide6.QtGui import QGuiApplication
 
 
 ACTIONS = (
-    ("toggle", "Play / pause", "Ctrl+Alt+Space"), ("play", "Play", ""),
+    ("toggle", "Play / Pause", "Ctrl+Alt+Space"), ("play", "Play", ""),
     ("pause", "Pause", ""), ("stop", "Stop", "Ctrl+Alt+S"),
     ("previous", "Previous", "Ctrl+Alt+Left"), ("next", "Next", "Ctrl+Alt+Right"),
-    ("seekBack", "Seek back 5 seconds", "Ctrl+Alt+J"), ("seekForward", "Seek forward 5 seconds", "Ctrl+Alt+K"),
-    ("volumeDown", "Volume down", "Ctrl+Alt+Down"), ("volumeUp", "Volume up", "Ctrl+Alt+Up"),
-    ("mute", "Mute / unmute", "Ctrl+Alt+M"), ("like", "Like / remove like", "Ctrl+Alt+L"),
-    ("dislike", "Dislike / remove dislike", "Ctrl+Alt+D"),
-    ("shuffle", "Shuffle", "Ctrl+Alt+H"), ("repeat", "Repeat mode", "Ctrl+Alt+R"),
+    ("seekBack", "Seek Back 5 Seconds", "Ctrl+Alt+J"), ("seekForward", "Seek Forward 5 Seconds", "Ctrl+Alt+K"),
+    ("volumeDown", "Volume Down", "Ctrl+Alt+Down"), ("volumeUp", "Volume Up", "Ctrl+Alt+Up"),
+    ("mute", "Mute / Unmute", "Ctrl+Alt+M"), ("like", "Like / Remove Like", "Ctrl+Alt+L"),
+    ("dislike", "Dislike / Remove Dislike", "Ctrl+Alt+D"),
+    ("shuffle", "Shuffle", "Ctrl+Alt+H"), ("repeat", "Repeat Mode", "Ctrl+Alt+R"),
 )
 DEFAULTS = {key: binding for key, _, binding in ACTIONS}
 MODIFIERS = ("Ctrl", "Alt", "Shift", "Meta")

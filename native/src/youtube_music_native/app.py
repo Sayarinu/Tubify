@@ -100,7 +100,7 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="YouTube Music native Qt client")
+    parser = argparse.ArgumentParser(description="Tubify native Qt client")
     parser.add_argument("--fixture", action="store_true", help="Render synthetic data for visual verification")
     parser.add_argument("--smoke-test", action="store_true", help="Verify window creation and exit")
     parser.add_argument("--screenshot", type=Path, help="Save a visual-verification screenshot and exit")
@@ -115,7 +115,7 @@ def main(argv=None):
     QGuiApplication.setOrganizationName("YouTubeMusicNative")
     QGuiApplication.setOrganizationDomain("com.carter")
     QGuiApplication.setApplicationName("youtube-music-native")
-    QGuiApplication.setApplicationDisplayName("YouTube Music")
+    QGuiApplication.setApplicationDisplayName("Tubify")
     QQuickStyle.setStyle("Basic")
     app = QApplication([sys.argv[0]])
     app.setDesktopFileName("youtube-music-native")
