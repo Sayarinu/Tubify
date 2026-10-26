@@ -156,3 +156,15 @@ def test_provider_command_keeps_standard_library_imports_from_foreign_cwd(tmp_pa
     assert [response["id"] for response in responses] == [1, 2]
     assert all(not response["ok"] and response["error"]["code"] == "provider_error" for response in responses)
     assert not result.stderr
+
+
+def test_legacy_linux_display_name_keeps_login_state_without_rewriting(tmp_path):
+    registration = StartupRegistration(["/synthetic/player"], "linux", config=tmp_path)
+    registration.path.parent.mkdir(parents=True)
+    previous = registration._content().replace(b"\nName=Tubify\n", b"\nName=YouTube Music\n")
+    registration.path.write_bytes(previous)
+    assert registration.is_enabled()
+    assert registration.path.read_bytes() == previous
+    registration.command = ["/different/player"]
+    assert not registration.is_enabled()
+    assert registration.path.read_bytes() == previous

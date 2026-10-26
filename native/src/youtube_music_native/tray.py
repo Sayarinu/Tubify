@@ -76,9 +76,9 @@ class TrayPlayer(QObject):
         if value and not self.tray:
             self.tray = self.tray_factory(self)
             self.tray.setIcon(QIcon(self.icon_path))
-            self.tray.setToolTip("YouTube Music")
+            self.tray.setToolTip("Tubify")
             self.menu = self.menu_factory()
-            for title, callback in (("Open tray player", self.showPlayer), ("Open YouTube Music", self.showMain),
+            for title, callback in (("Open Tray Player", self.showPlayer), ("Open Tubify", self.showMain),
                                     ("Play / Pause", self.player.togglePlayback), ("Previous", self.player.previous), ("Next", self.player.next)):
                 self.menu.addAction(title, callback)
             self.menu.addSeparator()
