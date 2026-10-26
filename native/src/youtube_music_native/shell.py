@@ -1,6 +1,18 @@
 """Portable window/navigation state; provider work belongs outside the GUI thread."""
 
-from PySide6.QtCore import QObject, Property, QSettings, Signal, Slot
+from PySide6.QtCore import QObject, Property, QRect, QSettings, Signal, Slot
+
+
+def fit_window_geometry(saved, available):
+    """Keep the saved window on the nearest connected display, including negative origins."""
+    if not available:
+        return saved
+    target = max(available, key=lambda screen: screen.intersected(saved).width() * screen.intersected(saved).height())
+    if not target.intersects(saved):
+        target = min(available, key=lambda screen: (screen.center() - saved.center()).manhattanLength())
+    width, height = min(saved.width(), target.width()), min(saved.height(), target.height())
+    return QRect(max(target.x(), min(saved.x(), target.x() + target.width() - width)),
+                 max(target.y(), min(saved.y(), target.y() + target.height() - height)), width, height)
 
 
 class ShellController(QObject):
@@ -15,11 +27,20 @@ class ShellController(QObject):
     playlistsChanged = Signal()
     menuRequested = Signal(dict, dict)
     playerViewChanged = Signal()
+    playerViewChanging = Signal(bool)
     queueOpenChanged = Signal()
+    lyricsOpenChanged = Signal()
+    lyricsWidthChanged = Signal()
+    activeDockChanged = Signal()
+    appearanceChanged = Signal()
 
     def __init__(self, settings_path, fixture=None, parent=None):
         super().__init__(parent)
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+        self._ui_scale = round(max(80, min(150, self._integer_setting("uiScale", 100))) / 5) * 5
+        self._reduced_motion = self.settings.value("reducedMotion", False, type=bool)
+        self._artwork_background = self.settings.value("artworkBackground", True, type=bool)
+        self._artwork_blur = self.settings.value("artworkBlur", True, type=bool)
         self._page = "Home"
         self._query = ""
         self._sidebar = self.settings.value("sidebarExpanded", False, type=bool)
@@ -30,14 +51,89 @@ class ShellController(QObject):
         self._fixture = fixture or {}
         self._shelves = self._fixture.get("shelves", [])
         self._playlists = self._fixture.get("playlists", [])
-        self._expanded, self._player_tab = False, "Up next"
-        self._queue_open = False
+        self._expanded = False
+        self._queue_open = self.settings.value("queueOpen", False, type=bool)
+        self._lyrics_open = self.settings.value("lyricsOpen", False, type=bool)
+        self._lyrics_width = max(280, min(520, self._integer_setting("lyricsWidth", 360)))
+        self._active_dock = str(self.settings.value("activeDock", "Queue"))
+        if self._active_dock not in {"Queue", "Lyrics"}:
+            self._active_dock = "Queue"
+        if self._lyrics_open and not self._queue_open:
+            self._active_dock = "Lyrics"
+        elif self._queue_open and not self._lyrics_open:
+            self._active_dock = "Queue"
 
     def _integer_setting(self, key, default):
         try:
             return int(self.settings.value(key, default))
         except (TypeError, ValueError):
             return default
+
+    @Property(int, notify=appearanceChanged)
+    def uiScale(self):
+        return self._ui_scale
+
+    @Property(float, notify=appearanceChanged)
+    def uiScaleFactor(self):
+        return self._ui_scale / 100
+
+    @Property(bool, notify=appearanceChanged)
+    def reducedMotion(self):
+        return self._reduced_motion
+
+    @Property(bool, notify=appearanceChanged)
+    def artworkBackground(self):
+        return self._artwork_background
+
+    @Property(bool, notify=appearanceChanged)
+    def artworkBlur(self):
+        return self._artwork_blur
+
+    def _save_appearance(self):
+        for key, value in (("uiScale", self._ui_scale), ("reducedMotion", self._reduced_motion),
+                           ("artworkBackground", self._artwork_background), ("artworkBlur", self._artwork_blur)):
+            self.settings.setValue(key, value)
+        self.settings.sync()
+        self.appearanceChanged.emit()
+
+    @Slot(int)
+    def setUiScale(self, value):
+        value = max(80, min(150, round(value / 5) * 5))
+        if value != self._ui_scale:
+            self._ui_scale = value
+            self._save_appearance()
+
+    @Slot(bool)
+    def setReducedMotion(self, value):
+        if value != self._reduced_motion:
+            self._reduced_motion = value
+            self._save_appearance()
+
+    @Slot(bool)
+    def setArtworkBackground(self, value):
+        if value != self._artwork_background:
+            self._artwork_background = value
+            self._save_appearance()
+
+    @Slot(bool)
+    def setArtworkBlur(self, value):
+        if value != self._artwork_blur:
+            self._artwork_blur = value
+            self._save_appearance()
+
+    def restoreWindow(self, window, available):
+        saved = QRect(max(-1000000, min(1000000, self._integer_setting("windowX", window.x()))),
+                      max(-1000000, min(1000000, self._integer_setting("windowY", window.y()))),
+                      self.initialWidth, self.initialHeight)
+        geometry = fit_window_geometry(saved, available)
+        window.setMinimumSize(geometry.size().boundedTo(window.minimumSize()))
+        window.setGeometry(geometry)
+
+    @Slot(int, int, int, int)
+    def saveWindowGeometry(self, x, y, width, height):
+        self.settings.setValue("windowX", x)
+        self.settings.setValue("windowY", y)
+        self.saveWindow(width, height)
 
     @Property(str, notify=pageChanged)
     def page(self):
@@ -58,6 +154,17 @@ class ShellController(QObject):
     @Property(int, notify=queueWidthChanged)
     def queueWidth(self):
         return self._queue_width
+
+    @Property(int, notify=lyricsWidthChanged)
+    def lyricsWidth(self):
+        return self._lyrics_width
+
+    @Slot(float)
+    def setLyricsWidth(self, value):
+        width = max(280, min(520, round(value)))
+        if width != self._lyrics_width:
+            self._lyrics_width = width
+            self.lyricsWidthChanged.emit()
 
     @Property("QVariantList", constant=True)
     def shelves(self):
@@ -132,16 +239,63 @@ class ShellController(QObject):
     def saveSidebarWidths(self):
         self.settings.setValue("sidebarWidth", self._sidebar_width)
         self.settings.setValue("queueWidth", self._queue_width)
+        self.settings.setValue("lyricsWidth", self._lyrics_width)
         self.settings.sync()
 
     @Property(bool, notify=queueOpenChanged)
     def queueOpen(self):
         return self._queue_open
 
+    @Property(bool, notify=lyricsOpenChanged)
+    def lyricsOpen(self):
+        return self._lyrics_open
+
+    @Property(str, notify=activeDockChanged)
+    def activeDock(self):
+        return self._active_dock
+
+    def _save_docks(self):
+        self.settings.setValue("queueOpen", self._queue_open)
+        self.settings.setValue("lyricsOpen", self._lyrics_open)
+        self.settings.setValue("activeDock", self._active_dock)
+        self.settings.sync()
+
+    @Slot(str)
+    def setActiveDock(self, value):
+        if value not in {"Queue", "Lyrics"}:
+            return
+        if value == "Queue" and not self._queue_open or value == "Lyrics" and not self._lyrics_open:
+            return
+        if self._active_dock != value:
+            self._active_dock = value
+            self.activeDockChanged.emit()
+        self._save_docks()
+
+    @Slot(bool)
+    def setQueueOpen(self, value):
+        if self._queue_open == value:
+            return
+        self._queue_open = value
+        self.setActiveDock("Queue" if value else "Lyrics")
+        self.queueOpenChanged.emit()
+        self._save_docks()
+
+    @Slot(bool)
+    def setLyricsOpen(self, value):
+        if self._lyrics_open == value:
+            return
+        self._lyrics_open = value
+        self.setActiveDock("Lyrics" if value else "Queue")
+        self.lyricsOpenChanged.emit()
+        self._save_docks()
+
     @Slot()
     def toggleQueue(self):
-        self._queue_open = not self._queue_open
-        self.queueOpenChanged.emit()
+        self.setQueueOpen(not self._queue_open)
+
+    @Slot()
+    def toggleLyrics(self):
+        self.setLyricsOpen(not self._lyrics_open)
 
     @Slot(int)
     def setVolume(self, value):
@@ -164,19 +318,11 @@ class ShellController(QObject):
     def expanded(self):
         return self._expanded
 
-    @Property(str, notify=playerViewChanged)
-    def playerTab(self):
-        return self._player_tab
-
     @Slot(bool)
     def setExpanded(self, value):
-        self._expanded = value
-        self.playerViewChanged.emit()
-
-    @Slot(str)
-    def setPlayerTab(self, value):
-        if value in {"Up next", "Lyrics"}:
-            self._player_tab = value
+        if self._expanded != value:
+            self.playerViewChanging.emit(value)
+            self._expanded = value
             self.playerViewChanged.emit()
 
     @Slot("QVariantMap", "QVariantMap")
@@ -194,6 +340,7 @@ class ShellController(QObject):
         self.settings.setValue("sidebarExpanded", self._sidebar)
         self.settings.setValue("sidebarWidth", self._sidebar_width)
         self.settings.setValue("queueWidth", self._queue_width)
+        self.settings.setValue("lyricsWidth", self._lyrics_width)
         self.settings.setValue("volume", self._volume)
         self.settings.setValue("lastVolume", self._unmuted_volume)
         self.settings.sync()

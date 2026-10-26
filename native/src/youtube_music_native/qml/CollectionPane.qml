@@ -7,7 +7,8 @@ Item {
     id: root
     objectName: "collectionPane"
     property bool playlist: catalogState.route === "playlist"
-    property var album: catalogState.data
+    // Do not incubate delegates for another route while the page is being replaced.
+    property var album: (catalogState.route === "album" || catalogState.route === "playlist") ? catalogState.data : ({})
     property real margin: Theme.gutter(width)
     property bool compact: width < 1000
     property bool descriptionExpanded: false
@@ -17,6 +18,8 @@ Item {
         return (hours ? hours + " hr " : "") + (minutes % 60) + " min"
     }
     ListView {
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+        cacheBuffer: 0
         id: songs
         objectName: "collectionSongs"
         anchors.fill: parent; clip: true; bottomMargin: 24
@@ -53,10 +56,10 @@ Item {
                 x: root.margin; spacing: 12; height: 80
                 Button { id: play; anchors.verticalCenter: parent.verticalCenter; width: 56; height: 56; padding: 14; enabled: (root.album.items || []).length > 0; Accessible.name: root.playlist ? "Play playlist" : "Play album"; background: Rectangle { radius: 16; color: play.hovered ? themeState.accentHover : themeState.accent; border.width: play.visualFocus ? 2 : 0; border.color: themeState.foreground } contentItem: Symbol { name: "play"; color: themeState.onAccent } onClicked: browseState.playView() }
                 DownloadButton { anchors.verticalCenter: parent.verticalCenter; media: ({kind: root.playlist ? "playlist" : "album", id: catalogState.parameters.id || "", title: root.album.title || "", thumbnail: root.album.thumbnail || ""}) }
-                IconButton { anchors.verticalCenter: parent.verticalCenter; visible: !root.playlist || !root.album.editable; iconName: "library"; tip: root.album.saved ? "Remove from library" : "Add to library"; iconColor: root.album.saved ? themeState.accent : themeState.secondary; enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode) && (root.playlist || !!root.album.audioPlaylistId); onClicked: actionsState.set(root.playlist ? "playlist_library" : "album_library", root.playlist ? catalogState.parameters.id : root.album.audioPlaylistId, !root.album.saved, catalogState.parameters.id) }
-                IconButton { anchors.verticalCenter: parent.verticalCenter; visible: root.playlist && !!root.album.editable; iconName: "edit"; tip: "Rename playlist"; enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: libraryState.edit("playlist_rename", {id: catalogState.parameters.id, title: root.album.title}) }
-                IconButton { anchors.verticalCenter: parent.verticalCenter; iconName: "shuffle"; tip: root.playlist ? "Shuffle playlist" : "Shuffle album"; enabled: (root.album.items || []).length > 0; onClicked: browseState.shuffleView() }
-                IconButton { anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: root.playlist ? "Playlist options" : "Album options"; onClicked: appState.showMenu({kind: root.playlist ? "playlist" : "album", id: catalogState.parameters.id, title: root.album.title, owned: root.playlist && !!root.album.editable}, {}) }
+                IconButton { anchors.verticalCenter: parent.verticalCenter; visible: !root.playlist || !root.album.editable; iconName: "library"; tip: root.album.saved ? "Remove from Library" : "Add to Library"; iconColor: root.album.saved ? themeState.accent : themeState.secondary; enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode) && (root.playlist || !!root.album.audioPlaylistId); onClicked: actionsState.set(root.playlist ? "playlist_library" : "album_library", root.playlist ? catalogState.parameters.id : root.album.audioPlaylistId, !root.album.saved, catalogState.parameters.id) }
+                IconButton { anchors.verticalCenter: parent.verticalCenter; visible: root.playlist && !!root.album.editable; iconName: "edit"; tip: "Rename Playlist"; enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: libraryState.edit("playlist_rename", {id: catalogState.parameters.id, title: root.album.title}) }
+                IconButton { anchors.verticalCenter: parent.verticalCenter; iconName: "shuffle"; tip: root.playlist ? "Shuffle Playlist" : "Shuffle Album"; enabled: (root.album.items || []).length > 0; onClicked: browseState.shuffleView() }
+                IconButton { anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: root.playlist ? "Playlist Options" : "Album Options"; onClicked: appState.showMenu({kind: root.playlist ? "playlist" : "album", id: catalogState.parameters.id, title: root.album.title, owned: root.playlist && !!root.album.editable}, {}) }
             }
             Text { x: root.margin; width: parent.width - 2 * root.margin; text: actionsState.message || downloadsState.message || ""; visible: !!text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 14; bottomPadding: 12 }
             Item {
@@ -84,7 +87,7 @@ Item {
         footer: Column {
             width: songs.width
             Text { width: parent.width; padding: 24; text: "Add songs from a song’s menu."; visible: root.playlist && !catalogState.busy && !catalogState.error && !(root.album.items || []).length; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; color: themeState.secondary; font.pixelSize: 16 }
-            Button { text: "Load more"; visible: root.album.cursor !== undefined && root.album.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+            Button { text: "Load More"; visible: root.album.cursor !== undefined && root.album.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
         }
     }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running && !(root.album.items || []).length }

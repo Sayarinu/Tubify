@@ -5,8 +5,11 @@ import "Theme.js" as Theme
 Item {
     id: root
     property real gutter: Theme.gutter(width)
-    property var result: catalogState.data
+    // Do not incubate delegates for another route while the page is being replaced.
+    property var result: (catalogState.route === "search") ? catalogState.data : ({})
     ListView {
+        // Route views may be replaced immediately; avoid unfinished offscreen delegates.
+        cacheBuffer: 0
         id: results
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: 32; bottomMargin: 48; clip: true; model: root.result.items || []
@@ -36,7 +39,7 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load more"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
     }
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 20

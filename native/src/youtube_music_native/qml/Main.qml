@@ -7,12 +7,12 @@ import "Theme.js" as Theme
 
 ApplicationWindow {
     id: window
-    visible: true
+    visible: false
     width: appState.initialWidth
     height: appState.initialHeight
     minimumWidth: 920
     minimumHeight: 620
-    title: appState.fixtureMode ? "YouTube Music · Visual fixture" : "YouTube Music"
+    title: appState.fixtureMode ? "Tubify · Visual Fixture" : "Tubify"
     color: themeState.background
     font.family: Theme.bodyFont
     font.pixelSize: 14
@@ -21,6 +21,7 @@ ApplicationWindow {
     palette.alternateBase: themeState.surface
     palette.button: themeState.surface
     palette.text: themeState.foreground
+    palette.placeholderText: themeState.secondary
     palette.windowText: themeState.foreground
     palette.buttonText: themeState.foreground
     palette.accent: themeState.accent
@@ -32,15 +33,124 @@ ApplicationWindow {
     palette.dark: themeState.background
     palette.link: themeState.accent
     property bool wideNavigation: true
-    onClosing: appState.saveWindow(width, height)
+    readonly property bool compactNavigation: !appState.expanded && (appState.queueOpen || appState.lyricsOpen) && uiRoot.width < 780
+    onCompactNavigationChanged: navigationDrawer.close()
+    readonly property bool docksVisible: (appState.queueOpen || appState.lyricsOpen)
+    readonly property bool bothDocks: appState.queueOpen && appState.lyricsOpen
+    readonly property bool tabbedDocks: bothDocks && uiRoot.width - navigationEdge.width < 1040
+    readonly property real dockBudget: Math.max(280, uiRoot.width - navigationEdge.width - (bothDocks && !tabbedDocks ? 480 : 320))
+    readonly property real dockExtra: appState.queueWidth + appState.lyricsWidth - 560
+    readonly property real fittedExtra: Math.min(dockExtra, Math.max(0, dockBudget - 560))
+    readonly property real fittedQueueWidth: bothDocks && !tabbedDocks
+        ? 280 + (dockExtra > 0 ? fittedExtra * (appState.queueWidth - 280) / dockExtra : 0)
+        : Math.min(appState.queueWidth, dockBudget)
+    readonly property real fittedLyricsWidth: bothDocks && !tabbedDocks
+        ? 280 + (dockExtra > 0 ? fittedExtra * (appState.lyricsWidth - 280) / dockExtra : 0)
+        : Math.min(appState.lyricsWidth, dockBudget)
+    readonly property bool showQueueDock: docksVisible && appState.queueOpen && (!tabbedDocks || appState.activeDock === "Queue")
+    readonly property bool showLyricsDock: docksVisible && appState.lyricsOpen && (!tabbedDocks || appState.activeDock === "Lyrics")
+    readonly property bool lyricsActive: showLyricsDock
+    function restoreDockFocus() {
+        Qt.callLater(function() {
+            if (window.activeFocusItem && !window.activeFocusItem.visible) {
+                if (showLyricsDock) lyricsHeader.focusControl()
+                else if (showQueueDock) queueHeader.focusControl()
+                else player.focusDockToggle(appState.activeDock)
+            }
+        })
+    }
+    onShowLyricsDockChanged: restoreDockFocus()
+    onShowQueueDockChanged: restoreDockFocus()
+    onLyricsActiveChanged: lyricState.setActive(lyricsActive)
+    Component.onCompleted: lyricState.setActive(lyricsActive)
+    property var browseFocus: null
+    property real browseWidth: 0
+    property real browseHeight: 0
+    function focusSearch() {
+        appState.setExpanded(false)
+        Qt.callLater(function() { search.forceActiveFocus() })
+    }
+    Connections {
+        target: appState
+        function onAppearanceChanged() { Qt.callLater(window.revealActiveScrollFocus) }
+        function onPlayerViewChanging(entering) {
+            if (entering) {
+                window.browseFocus = window.activeFocusItem
+                window.browseWidth = pages.width
+                window.browseHeight = pages.height
+            }
+        }
+        function onPlayerViewChanged() {
+            Qt.callLater(function() {
+                if (appState.expanded && immersive.item) immersive.item.focusStage()
+                else if (window.browseFocus && window.browseFocus.visible && window.browseFocus.enabled) window.browseFocus.forceActiveFocus()
+                else player.focusImmersiveToggle()
+            })
+        }
+    }
+    onClosing: function(event) {
+        appState.saveWindowGeometry(x, y, width, height)
+        if (lifecycleState.hideOnClose()) event.accepted = false
+    }
+    function revealScrolledFocus(scroll) {
+        var item = window.activeFocusItem
+        if (!item || !scroll || !scroll.visible) return
+        var ancestor = item
+        while (ancestor && ancestor !== scroll) ancestor = ancestor.parent
+        if (!ancestor) return
+        var flick = scroll.contentItem
+        var point = item.mapToItem(flick.contentItem, 0, 0)
+        if (point.y < flick.contentY) flick.contentY = Math.max(0, point.y)
+        else if (point.y + item.height > flick.contentY + flick.height)
+            flick.contentY = Math.min(flick.contentHeight - flick.height, point.y + item.height - flick.height)
+    }
+    readonly property var focusedScrollView: {
+        var ancestor = window.activeFocusItem
+        while (ancestor && !(ancestor instanceof ScrollView)) ancestor = ancestor.parent
+        return ancestor
+    }
+    function revealActiveScrollFocus() { revealScrolledFocus(focusedScrollView) }
+    onActiveFocusItemChanged: Qt.callLater(revealActiveScrollFocus)
+    // Font metrics and wrapped content can settle after focus has already moved.
+    Connections {
+        target: window.focusedScrollView ? window.focusedScrollView.contentItem : null
+        function onContentHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
+        function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
+    }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: accountMenu.opened || appearanceMenu.opened || accountDialog.opened || settingsDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: settingsWindow.opened || linkPreview.opened || navigationDrawer.opened || accountMenu.opened || accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
+    // Content zoom is independent of the platform device-pixel ratio.
+    Overlay.overlay.transform: Scale { xScale: appState.uiScaleFactor; yScale: appState.uiScaleFactor }
+    Binding { target: window.Overlay.overlay; property: "width"; value: uiRoot.width }
+    Binding { target: window.Overlay.overlay; property: "height"; value: uiRoot.height }
+    Item {
+        id: uiRoot
+        objectName: "scaledContent"
+        width: window.width / appState.uiScaleFactor
+        height: window.height / appState.uiScaleFactor
+        scale: appState.uiScaleFactor
+        transformOrigin: Item.TopLeft
+
+    Item { id: navigationEdge; width: window.compactNavigation ? 0 : sidebar.width }
+    Drawer {
+        id: navigationDrawer
+        objectName: "navigationDrawer"
+        width: Math.min(appState.sidebarWidth, uiRoot.width - 48)
+        height: uiRoot.height - player.height - 24
+        padding: 0
+        modal: true; focus: true
+        onOpened: sidebar.forceActiveFocus()
+        onClosed: if (window.compactNavigation) navigationToggle.forceActiveFocus()
+        enter: Transition { enabled: !appState.reducedMotion }
+        exit: Transition { enabled: !appState.reducedMotion }
+        contentItem: Item { id: drawerContent }
+    }
     Rectangle {
         id: homeBackdrop
         objectName: "homeBackdrop"
-        anchors.left: sidebar.right
+        anchors.left: navigationEdge.right
         anchors.right: parent.right
         height: 370
         property bool heroVisible: !appState.expanded && appState.page === "Home" && catalogState.route === "home"
@@ -54,9 +164,12 @@ ApplicationWindow {
     Rectangle {
         id: sidebar
         objectName: "navigationRail"
-        width: Math.min(appState.sidebarWidth, Math.max(180, window.width - (appState.queueOpen ? appState.queueWidth : 0) - 320))
+        parent: window.compactNavigation ? drawerContent : uiRoot
+        focus: true
+        width: appState.expanded ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (appState.queueOpen || appState.lyricsOpen ? 280 : 0) - 320))
+        visible: !appState.expanded
         anchors.top: parent.top
-        anchors.bottom: player.top
+        anchors.bottom: window.compactNavigation ? parent.bottom : player.top
         color: themeState.background
         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: themeState.border }
         Item {
@@ -90,7 +203,7 @@ ApplicationWindow {
                 onPositionChanged: function(mouse) {
                     if (pressed) {
                         var sceneX = sidebarResizeMouse.mapToItem(null, mouse.x, mouse.y).x
-                        appState.setSidebarWidth(startWidth + sceneX - startX)
+                        appState.setSidebarWidth(startWidth + (sceneX - startX) / appState.uiScaleFactor)
                     }
                 }
                 onReleased: appState.saveSidebarWidths()
@@ -104,22 +217,28 @@ ApplicationWindow {
                 delegate: Button {
                     id: nav
                     required property var modelData
+                    objectName: "navigationButton-" + modelData.label
+                    readonly property bool selected: appState.page === text
+                    hoverEnabled: true
                     width: navigation.width
                     height: 48
                     padding: 0
+                    leftInset: 0; rightInset: 0; topInset: 0; bottomInset: 0
                     text: modelData.label
                     Accessible.name: text
-                    onClicked: appState.navigate(text)
+                    onClicked: { appState.navigate(text); navigationDrawer.close() }
                     background: Rectangle {
+                        objectName: "navigationBackground-" + nav.text
+                        anchors.fill: parent
                         radius: 8
-                        color: appState.page === nav.text ? themeState.selected : nav.hovered ? themeState.hover : "transparent"
+                        color: nav.selected ? themeState.selected : nav.hovered ? themeState.hover : "transparent"
                         border.width: nav.visualFocus ? 2 : 0
                         border.color: themeState.accent
-                        Rectangle { x: 0; y: 12; width: 3; height: 24; radius: 2; color: themeState.accent; visible: appState.page === nav.text }
+                        Rectangle { objectName: "navigationMarker-" + nav.text; x: 4; anchors.verticalCenter: parent.verticalCenter; width: 3; height: 24; radius: 2; color: themeState.accent; visible: nav.selected }
                     }
                     contentItem: Row {
                         leftPadding: 16; spacing: 20
-                        Symbol { anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon; color: appState.page === nav.text ? themeState.accent : themeState.secondary }
+                        Symbol { anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon; color: nav.selected ? themeState.accent : themeState.secondary }
                         Text { anchors.verticalCenter: parent.verticalCenter; visible: window.wideNavigation; text: nav.text; color: themeState.foreground; font.family: Theme.bodyFont; font.pixelSize: 16 }
                     }
                     ToolTip.text: text
@@ -132,9 +251,9 @@ ApplicationWindow {
             id: newPlaylist
             x: 12; y: navigation.y + navigation.height + 24
             width: sidebar.width - 24; height: 40
-            text: window.wideNavigation ? "+  New playlist" : "+"
-            Accessible.name: "New playlist"
-            ToolTip.text: "New playlist"
+            text: window.wideNavigation ? "+  New Playlist" : "+"
+            Accessible.name: "New Playlist"
+            ToolTip.text: "New Playlist"
             ToolTip.visible: hovered
             font.pixelSize: 14
             palette.buttonText: themeState.foreground
@@ -166,7 +285,7 @@ ApplicationWindow {
                     }
                 }
                 background: Rectangle { radius: 8; color: parent.hovered ? themeState.hover : "transparent"; border.color: parent.visualFocus ? themeState.accent : "transparent" }
-                onClicked: appState.requestAction("playlist:" + modelData.id)
+                onClicked: { appState.requestAction("playlist:" + modelData.id); navigationDrawer.close() }
             }
         }
     }
@@ -174,28 +293,30 @@ ApplicationWindow {
     Item {
         id: header
         objectName: "mainHeader"
-        anchors.left: sidebar.right
-        anchors.right: appState.queueOpen && !appState.expanded ? queueSidebar.left : parent.right
-        height: 64
-        IconButton { x: 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
+        anchors.left: navigationEdge.right
+        anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
+        height: appState.expanded ? 0 : 64
+        visible: !appState.expanded
+        IconButton { id: navigationToggle; objectName: "navigationToggle"; visible: window.compactNavigation; x: 8; y: 10; width: 36; height: 44; iconName: "menu"; tip: "Open Navigation"; Keys.onShortcutOverride: function(event) { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return) event.accepted = true }; Keys.onReturnPressed: navigationDrawer.open(); onClicked: navigationDrawer.open() }
+        IconButton { x: window.compactNavigation ? 44 : header.width < 480 ? 8 : 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
         TextField {
             id: search
             objectName: "searchField"
-            x: 96
+            x: window.compactNavigation ? 92 : header.width < 480 ? 56 : 96
             y: 11
-            width: Math.max(120, Math.min(480, header.width - 328))
+            width: Math.max(80, Math.min(480, (historyButton.visible ? historyButton.x : settingsButton.x) - x - 12))
             height: 42
-            leftPadding: 52
+            leftPadding: header.width < 400 ? 34 : 52
             rightPadding: text.length > 0 ? 48 : 16
             color: themeState.foreground
-            placeholderText: "Search songs, albums, artists"
+            placeholderText: header.width < 400 ? "Search" : "Search songs, albums, artists"
             placeholderTextColor: themeState.muted
             font.pixelSize: 16
             selectByMouse: true
             Accessible.name: "Search YouTube Music"
             background: Rectangle { radius: 12; color: search.activeFocus ? themeState.hover : themeState.surface; border.color: search.activeFocus ? themeState.accent : themeState.border; border.width: 1 }
-            Symbol { x: 16; anchors.verticalCenter: parent.verticalCenter; name: "search"; width: 20; height: 20; color: themeState.secondary }
-            IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; visible: search.text.length > 0; iconName: "close"; tip: "Clear search"; onClicked: { search.clear(); searchState.clearSuggestions(); search.forceActiveFocus() } }
+            Symbol { x: header.width < 400 ? 8 : 16; anchors.verticalCenter: parent.verticalCenter; name: "search"; width: 20; height: 20; color: themeState.secondary }
+            IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; visible: search.text.length > 0; iconName: "close"; tip: "Clear Search"; onClicked: { search.clear(); searchState.clearSuggestions(); search.forceActiveFocus() } }
             onAccepted: {
                 var chosen = suggestions.currentIndex >= 0 ? searchState.suggestions[suggestions.currentIndex] : search.text
                 search.text = chosen
@@ -231,7 +352,7 @@ ApplicationWindow {
             id: profileButton
             objectName: "profileButton"
             anchors.right: parent.right
-            anchors.rightMargin: 32
+            anchors.rightMargin: header.width < 480 ? 8 : 32
             y: 10
             width: 44; height: 44
             iconName: "profile"
@@ -248,8 +369,8 @@ ApplicationWindow {
                 }
             }
         }
-        IconButton { id: settingsButton; objectName: "settingsButton"; anchors.right: profileButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "settings"; tip: "Settings"; onClicked: appearanceMenu.popup(settingsButton, settingsButton.width - appearanceMenu.implicitWidth, settingsButton.height, null) }
-        IconButton { id: historyButton; objectName: "historyButton"; anchors.right: settingsButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening history"; onClicked: libraryState.history() }
+        IconButton { id: settingsButton; objectName: "settingsButton"; anchors.right: profileButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "settings"; tip: "Settings"; onClicked: settingsWindow.open() }
+        IconButton { id: historyButton; objectName: "historyButton"; visible: header.width >= 640; anchors.right: settingsButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening History"; onClicked: libraryState.history() }
     }
 
     Menu {
@@ -266,7 +387,7 @@ ApplicationWindow {
                 Text {
                     anchors.fill: parent
                     verticalAlignment: Text.AlignVCenter
-                    text: accountState.profile.name || "YouTube Music account"
+                    text: accountState.profile.name || "YouTube Music Account"
                     color: themeState.foreground
                     font.pixelSize: 14
                     font.bold: true
@@ -281,19 +402,38 @@ ApplicationWindow {
         ContextMenuItem { text: "Sign Out"; visible: accountState.connected; height: visible ? implicitHeight : 0; onTriggered: accountState.signOut() }
     }
 
-    Menu {
-        id: appearanceMenu
-        objectName: "appearanceMenu"
-        implicitWidth: 220
-        padding: 8
-        spacing: 2
-        background: Rectangle { radius: 12; color: themeState.surface; border.color: themeState.border; border.width: 1 }
-        ContextMenuItem { text: "Appearance Settings"; onTriggered: settingsDialog.open() }
+    PlaybackSettings { id: playbackSettings; host: settingsWindow }
+    MaintenanceSettings { id: maintenanceSettings; host: settingsWindow }
+    DesktopSettings { id: desktopSettings; host: settingsWindow }
+    ShortcutSettings { id: shortcutSettings; host: settingsWindow }
+    ApiSettings { id: apiSettings; host: settingsWindow }
+    ObsSettings { id: obsSettings; host: settingsWindow }
+    DiscordSettings { id: discordSettings; host: settingsWindow }
+    Loader { active: trayState.enabled; sourceComponent: TrayPlayer { palette: window.palette } }
+
+    SettingsDialog {
+        id: settingsWindow
+        currentPage: settingsDialog
+        sections: [
+            { title: "General", pages: [settingsDialog, playbackSettings, lyricsSettings] },
+            { title: "Application", pages: [desktopSettings, shortcutSettings] },
+            { title: "Connections", pages: [discordSettings, lastFmSettings] },
+            { title: "Creator Tools", pages: [apiSettings, obsSettings] },
+            { title: "Support", pages: [maintenanceSettings] }
+        ]
+        onClosed: settingsButton.forceActiveFocus()
+    }
+    LyricsSettings { id: lyricsSettings; host: settingsWindow }
+    LastFmSettings { id: lastFmSettings; host: settingsWindow }
+    LinkPreview { id: linkPreview }
+    Connections {
+        target: typeof linkState !== "undefined" ? linkState : null
+        function onPreviewRequested() { linkPreview.open() }
     }
 
     Rectangle {
         id: reconnectBanner
-        anchors.left: sidebar.right
+        anchors.left: navigationEdge.right
         anchors.right: parent.right
         anchors.top: header.bottom
         visible: accountState.reconnect
@@ -313,8 +453,8 @@ ApplicationWindow {
     Item {
         id: content
         objectName: "pageContent"
-        anchors.left: sidebar.right
-        anchors.right: appState.queueOpen && !appState.expanded ? queueSidebar.left : parent.right
+        anchors.left: navigationEdge.right
+        anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
         anchors.top: reconnectBanner.bottom
         anchors.bottom: player.top
         anchors.bottomMargin: 12
@@ -322,8 +462,12 @@ ApplicationWindow {
 
         Loader {
             id: pages
-            anchors.fill: parent
-            active: !appState.expanded
+            objectName: "browseLoader"
+            // Keep the page and its viewport alive while the stage uses the available space.
+            width: appState.expanded ? window.browseWidth : parent.width
+            height: appState.expanded ? window.browseHeight : parent.height
+            visible: !appState.expanded
+            enabled: visible
             function syncPage() {
                 var route = catalogState.route
                 var target = route === "downloads" ? downloadsPage
@@ -334,9 +478,10 @@ ApplicationWindow {
                     : browsePage
                 if (sourceComponent !== target) sourceComponent = target
             }
-            Component.onCompleted: syncPage()
-            Connections { target: catalogState; function onChanged() { pages.syncPage() } }
-            Connections { target: appState; function onPageChanged() { pages.syncPage() } }
+            // Coalesce route and shell updates before replacing an incubating page.
+            Component.onCompleted: Qt.callLater(syncPage)
+            Connections { target: catalogState; function onChanged() { Qt.callLater(pages.syncPage) } }
+            Connections { target: appState; function onPageChanged() { Qt.callLater(pages.syncPage) } }
             Component { id: downloadsPage; DownloadsPane {} }
             Component { id: collectionPage; CollectionPane {} }
             Component { id: artistPage; ArtistPane {} }
@@ -345,8 +490,34 @@ ApplicationWindow {
             Component { id: browsePage; BrowsePane {} }
         }
 
-        Loader { anchors.fill: parent; active: appState.expanded; sourceComponent: Component { ExpandedPane {} } }
+        Loader {
+            id: immersive
+            anchors.fill: parent
+            active: appState.expanded
+            sourceComponent: Component { ExpandedPane {} }
+            onLoaded: item.focusStage()
+        }
 
+    }
+
+    Rectangle {
+        id: lyricsSidebar
+        objectName: "lyricsSidebar"
+        anchors.top: parent.top
+        anchors.right: showQueueDock ? queueSidebar.left : parent.right
+        anchors.bottom: player.top
+        width: fittedLyricsWidth
+        visible: showLyricsDock
+        color: themeState.background
+        Rectangle { width: 1; height: parent.height; color: themeState.border }
+        DockHeader { id: lyricsHeader; title: "Lyrics"; tabbed: window.tabbedDocks; onCloseRequested: appState.setLyricsOpen(false) }
+        LyricsPane { anchors.fill: parent; anchors.topMargin: 48; anchors.leftMargin: 16; anchors.rightMargin: 16 }
+        PanelResizeHandle {
+            objectName: "lyricsResizeHandle"
+            panelWidth: lyricsSidebar.width
+            onResized: function(value) { appState.setLyricsWidth(value) }
+            onFinished: appState.saveSidebarWidths()
+        }
     }
 
     Rectangle {
@@ -355,46 +526,17 @@ ApplicationWindow {
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.bottom: player.top
-        width: Math.min(appState.queueWidth, Math.max(280, window.width - sidebar.width - 320))
-        visible: appState.queueOpen && !appState.expanded
+        width: fittedQueueWidth
+        visible: showQueueDock
         color: themeState.background
-        Rectangle { anchors.left: parent.left; width: 1; height: parent.height; color: themeState.border }
-        QueuePane { anchors.fill: parent }
-        Item {
-            id: queueResizeHandle
+        Rectangle { width: 1; height: parent.height; color: themeState.border }
+        DockHeader { id: queueHeader; title: "Queue"; tabbed: window.tabbedDocks; onCloseRequested: appState.setQueueOpen(false) }
+        QueuePane { anchors.fill: parent; anchors.topMargin: 48; showCloseButton: false }
+        PanelResizeHandle {
             objectName: "queueResizeHandle"
-            z: 10
-            x: -width / 2
-            width: 12
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            HoverHandler { id: queueResizeHover; cursorShape: Qt.SizeHorCursor }
-            Rectangle {
-                anchors.centerIn: parent
-                width: 2
-                height: parent.height
-                color: themeState.accent
-                opacity: queueResizeHover.hovered || queueResizeMouse.pressed ? 0.9 : 0
-            }
-            MouseArea {
-                id: queueResizeMouse
-                anchors.fill: parent
-                cursorShape: Qt.SizeHorCursor
-                preventStealing: true
-                property real startWidth: 360
-                property real startX: 0
-                onPressed: function(mouse) {
-                    startWidth = queueSidebar.width
-                    startX = queueResizeMouse.mapToItem(null, mouse.x, mouse.y).x
-                }
-                onPositionChanged: function(mouse) {
-                    if (pressed) {
-                        var sceneX = queueResizeMouse.mapToItem(null, mouse.x, mouse.y).x
-                        appState.setQueueWidth(startWidth - sceneX + startX)
-                    }
-                }
-                onReleased: appState.saveSidebarWidths()
-            }
+            panelWidth: queueSidebar.width
+            onResized: function(value) { appState.setQueueWidth(value) }
+            onFinished: appState.saveSidebarWidths()
         }
     }
 
@@ -407,7 +549,7 @@ ApplicationWindow {
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: player.top; anchors.bottomMargin: 16
-        width: Math.min(600, window.width - 80); height: playbackMessage.implicitHeight + 24
+        width: Math.min(600, uiRoot.width - 80); height: playbackMessage.implicitHeight + 24
         radius: 6; color: themeState.hover; visible: playbackMessage.text.length > 0
         Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: browseState.queueMessage || actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.pixelSize: 14 }
     }
@@ -416,8 +558,8 @@ ApplicationWindow {
         id: accountDialog
         objectName: "accountDialog"
         anchors.centerIn: Overlay.overlay
-        width: Math.min(window.width - 64, 440)
-        modal: true
+        width: Math.min(uiRoot.width - 64, 440)
+        modal: true; focus: true
         padding: 20
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         background: Rectangle { radius: 16; color: themeState.surface; border.color: themeState.border; border.width: 1 }
@@ -429,7 +571,7 @@ ApplicationWindow {
                 IconButton { iconName: "close"; tip: "Close"; iconSize: 18; implicitWidth: 34; implicitHeight: 34; onClicked: accountDialog.close() }
             }
             Label { Layout.fillWidth: true; text: "Current User:"; horizontalAlignment: Text.AlignHCenter; color: themeState.secondary; font.pixelSize: 13 }
-            Label { Layout.fillWidth: true; text: accountState.profile.name || "Not signed in"; horizontalAlignment: Text.AlignHCenter; color: themeState.foreground; font.pixelSize: 21; font.bold: true; elide: Text.ElideRight }
+            Label { Layout.fillWidth: true; text: accountState.profile.name || "Not Signed In"; horizontalAlignment: Text.AlignHCenter; color: themeState.foreground; font.pixelSize: 21; font.bold: true; elide: Text.ElideRight }
             Button {
                 Layout.fillWidth: true; Layout.preferredHeight: 44
                 text: "Use Existing Desktop App Session"
@@ -464,26 +606,22 @@ ApplicationWindow {
             }
         }
     }
-    Popup {
+    SettingsPage {
         id: settingsDialog
+        host: settingsWindow
+        title: "Appearance"
+        ownHeading: true
         objectName: "appearanceSettingsDialog"
-        anchors.centerIn: Overlay.overlay
-        width: Math.min(window.width - 48, 720)
-        height: Math.min(window.height - 48, 590)
-        modal: true
-        padding: 20
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         property string activeColorRole: ""
         property color pickerColor: "white"
         property bool editingColors: false
-        background: Rectangle { radius: 16; color: themeState.surface; border.color: themeState.border; border.width: 1 }
         contentItem: ColumnLayout {
             spacing: 12
             RowLayout {
                 Layout.fillWidth: true
                 Label {
                     Layout.fillWidth: true
-                    text: settingsDialog.editingColors ? "Customize " + themeState.activeThemeName : "Appearance Settings"
+                    text: settingsDialog.editingColors ? "Customize " + themeState.activeThemeName : "Appearance"
                     color: themeState.foreground; font.pixelSize: 16; font.bold: true
                 }
                 ThemeActionButton {
@@ -496,10 +634,9 @@ ApplicationWindow {
                 }
                 ThemeActionButton {
                     visible: settingsDialog.editingColors
-                    text: "Back to themes"
+                    text: "Back to Themes"
                     onClicked: settingsDialog.editingColors = false
                 }
-                IconButton { iconName: "close"; tip: "Close"; iconSize: 18; implicitWidth: 34; implicitHeight: 34; onClicked: settingsDialog.close() }
             }
             StackLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true
@@ -516,26 +653,54 @@ ApplicationWindow {
                             ColumnLayout {
                                 width: themeScroll.availableWidth
                                 spacing: 6
-                                Label { text: "Dark themes"; color: themeState.secondary; font.pixelSize: 12; font.bold: true }
+                                Label { text: "Dark Themes"; color: themeState.secondary; font.pixelSize: 12; font.bold: true }
                                 GridView {
                                     id: darkThemeGrid
                                     objectName: "darkThemeGrid"
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: Math.ceil(themeState.darkThemes.length / 2) * 50
-                                    clip: true; interactive: false; cellWidth: width / 2; cellHeight: 50
+                                    Layout.preferredHeight: Math.ceil(themeState.darkThemes.length / columns) * 50
+                                    property int columns: width < 480 ? 1 : 2
+                                    clip: true; interactive: false; cellWidth: width / columns; cellHeight: 50
                                     model: themeState.darkThemes
                                     delegate: themeCardDelegate
                                 }
-                                Label { text: "Light themes"; color: themeState.secondary; font.pixelSize: 12; font.bold: true }
+                                Label { text: "Light Themes"; color: themeState.secondary; font.pixelSize: 12; font.bold: true }
                                 GridView {
                                     id: lightThemeGrid
                                     objectName: "lightThemeGrid"
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: Math.max(50, Math.ceil(themeState.lightThemes.length / 2) * 50)
-                                    clip: true; interactive: false; cellWidth: width / 2; cellHeight: 50
+                                    Layout.preferredHeight: Math.max(50, Math.ceil(themeState.lightThemes.length / columns) * 50)
+                                    property int columns: width < 480 ? 1 : 2
+                                    clip: true; interactive: false; cellWidth: width / columns; cellHeight: 50
                                     model: themeState.lightThemes
                                     delegate: themeCardDelegate
                                 }
+                                Flow {
+                                    Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8
+                                    ThemeActionButton { objectName: "themeEditColorsButton"; text: "Edit Colors"; enabled: themeState.activeThemeIsCustom; disabledReason: "Create a custom theme before editing colors."; onClicked: settingsDialog.editingColors = true }
+                                    ThemeActionButton { objectName: "themeRenameButton"; text: "Rename"; enabled: themeState.activeThemeIsCustom; disabledReason: "Built-in themes cannot be renamed. Create a custom theme first."; onClicked: { themeNameDialog.renameMode = true; themeNameField.text = themeState.activeThemeName; themeNameDialog.open() } }
+                                    ThemeActionButton { objectName: "themeDeleteButton"; text: "Delete"; enabled: themeState.activeThemeIsCustom; disabledReason: "Built-in themes cannot be deleted. Create a custom theme first."; onClicked: deleteThemeDialog.open() }
+                                    ThemeActionButton { objectName: "themeExportButton"; text: "Export Current Theme"; enabled: themeState.activeThemeIsCustom; disabledReason: "Only custom themes can be exported. Create a custom theme first."; onClicked: themeExportDialog.open() }
+                                }
+                                Label { text: "Display & Accessibility"; color: themeState.secondary; font.pixelSize: 12; font.bold: true; Layout.topMargin: 16 }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Label { text: "Content Size"; color: themeState.foreground }
+                                    Item { Layout.fillWidth: true }
+                                    SpinBox {
+                                        objectName: "contentScaleControl"
+                                        from: 80; to: 150; stepSize: 5; value: appState.uiScale
+                                        editable: false
+                                        Accessible.name: "Content size in percent"
+                                        textFromValue: function(value) { return value + "%" }
+                                        onValueModified: appState.setUiScale(value)
+                                    }
+                                    Button { text: "Reset"; enabled: appState.uiScale !== 100; onClicked: appState.setUiScale(100) }
+                                }
+                                SettingsCheckBox { objectName: "reducedMotionControl"; text: "Reduce Motion"; checked: appState.reducedMotion; onToggled: appState.setReducedMotion(checked) }
+                                SettingsCheckBox { objectName: "artworkBackgroundControl"; text: "Artwork Backgrounds"; checked: appState.artworkBackground; onToggled: appState.setArtworkBackground(checked) }
+                                SettingsCheckBox { objectName: "artworkBlurControl"; text: "Blur Artwork Backgrounds"; checked: appState.artworkBlur; enabled: appState.artworkBackground; onToggled: appState.setArtworkBlur(checked) }
+
                             }
                         }
                         Label {
@@ -546,14 +711,7 @@ ApplicationWindow {
                             font.pixelSize: 12
                             elide: Text.ElideRight
                         }
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 8
-                            ThemeActionButton { objectName: "themeEditColorsButton"; text: "Edit colors"; enabled: themeState.activeThemeIsCustom; disabledReason: "Create a custom theme before editing colors."; onClicked: settingsDialog.editingColors = true }
-                            ThemeActionButton { objectName: "themeRenameButton"; text: "Rename"; enabled: themeState.activeThemeIsCustom; disabledReason: "Built-in themes cannot be renamed. Create a custom theme first."; onClicked: { themeNameDialog.renameMode = true; themeNameField.text = themeState.activeThemeName; themeNameDialog.open() } }
-                            ThemeActionButton { objectName: "themeDeleteButton"; text: "Delete"; enabled: themeState.activeThemeIsCustom; disabledReason: "Built-in themes cannot be deleted. Create a custom theme first."; onClicked: deleteThemeDialog.open() }
-                            Item { Layout.fillWidth: true }
-                            ThemeActionButton { objectName: "themeExportButton"; text: "Export current theme"; enabled: themeState.activeThemeIsCustom; disabledReason: "Only custom themes can be exported. Create a custom theme first."; onClicked: themeExportDialog.open() }
-                        }
+
                     }
                 }
                 Item {
@@ -564,14 +722,15 @@ ApplicationWindow {
                             id: colorRoles
                             objectName: "colorRoles"
                             Layout.fillWidth: true; Layout.fillHeight: true
-                            clip: true; cellWidth: width / 2; cellHeight: 52
+                            property int columns: width < 480 ? 1 : 2
+                            clip: true; cellWidth: width / columns; cellHeight: 52
                             model: themeState.palette
                             delegate: RowLayout {
                                 required property var modelData
                                 width: colorRoles.cellWidth - 8; height: colorRoles.cellHeight - 4; spacing: 7
                                 Button {
                                     Layout.preferredWidth: 28; Layout.preferredHeight: 28; padding: 0
-                                    ToolTip.text: "Choose color"; ToolTip.visible: hovered
+                                    ToolTip.text: "Choose Color"; ToolTip.visible: hovered
                                     background: Rectangle { radius: 8; color: modelData.value; border.color: themeState.border; border.width: 1 }
                                     onClicked: {
                                         settingsDialog.activeColorRole = modelData.key
@@ -594,7 +753,7 @@ ApplicationWindow {
                         RowLayout {
                             Layout.fillWidth: true
                             Label { Layout.fillWidth: true; text: themeState.message; textFormat: Text.PlainText; visible: text.length > 0; color: themeState.secondary; font.pixelSize: 11; wrapMode: Text.Wrap; maximumLineCount: 2 }
-                            ThemeActionButton { text: "View config"; onClicked: themeState.openConfigFile() }
+                            ThemeActionButton { text: "View Config"; onClicked: themeState.openConfigFile() }
                         }
                     }
                 }
@@ -603,13 +762,24 @@ ApplicationWindow {
     }
     Component {
         id: themeCardDelegate
-        Rectangle {
+        Button {
+            id: themeCard
             required property var modelData
-            width: darkThemeGrid.cellWidth - 8; height: darkThemeGrid.cellHeight - 6; radius: 9
-            color: modelData.active ? themeState.selected : themeState.background
-            border.color: modelData.active ? themeState.accent : themeState.border
-            border.width: modelData.active ? 2 : 1
-            RowLayout {
+            objectName: "themeCard-" + modelData.id
+            width: GridView.view.cellWidth - 8; height: GridView.view.cellHeight - 6
+            padding: 0
+            checkable: true
+            autoExclusive: true
+            checked: modelData.active
+            Accessible.name: modelData.name
+            onClicked: themeState.selectTheme(modelData.id)
+            background: Rectangle {
+                radius: 9
+                color: themeCard.modelData.active ? themeState.selected : themeCard.hovered ? themeState.hover : themeState.background
+                border.color: themeCard.visualFocus || themeCard.modelData.active ? themeState.accent : themeState.border
+                border.width: themeCard.visualFocus || themeCard.modelData.active ? 2 : 1
+            }
+            contentItem: RowLayout {
                 anchors.fill: parent; anchors.margins: 9; spacing: 9
                 Row {
                     spacing: -5
@@ -627,9 +797,12 @@ ApplicationWindow {
                     Text { Layout.fillWidth: true; text: modelData.name; color: themeState.foreground; font.pixelSize: 12; font.bold: true; elide: Text.ElideRight }
                     Text { text: modelData.builtin ? "Built-in" : "Custom"; color: themeState.secondary; font.pixelSize: 10 }
                 }
-                Symbol { visible: modelData.active; name: "check"; width: 16; height: 16; color: themeState.accent }
+                Rectangle {
+                    visible: modelData.active
+                    width: 22; height: 22; radius: 11; color: themeState.accent
+                    Symbol { anchors.centerIn: parent; name: "check"; width: 16; height: 16; color: themeState.onAccent }
+                }
             }
-            MouseArea { anchors.fill: parent; onClicked: themeState.selectTheme(modelData.id) }
         }
     }
     Menu {
@@ -639,14 +812,14 @@ ApplicationWindow {
         padding: 8
         spacing: 2
         background: Rectangle { radius: 12; color: themeState.surface; border.color: themeState.border; border.width: 1 }
-        ContextMenuItem { text: "Create from current"; onTriggered: { themeNameDialog.renameMode = false; themeNameField.text = ""; themeNameDialog.open() } }
-        ContextMenuItem { text: "Import theme…"; onTriggered: themeImportDialog.open() }
+        ContextMenuItem { text: "Create from Current"; onTriggered: { themeNameDialog.renameMode = false; themeNameField.text = ""; themeNameDialog.open() } }
+        ContextMenuItem { text: "Import Theme…"; onTriggered: themeImportDialog.open() }
     }
     Dialog {
         id: themeNameDialog
         anchors.centerIn: Overlay.overlay
         width: 390
-        modal: true; title: renameMode ? "Rename Theme" : "Create Custom Theme"
+        modal: true; focus: true; title: renameMode ? "Rename Theme" : "Create Custom Theme"
         standardButtons: Dialog.NoButton
         property bool renameMode: false
         contentItem: ColumnLayout {
@@ -673,7 +846,7 @@ ApplicationWindow {
         id: deleteThemeDialog
         anchors.centerIn: Overlay.overlay
         width: 390
-        modal: true; title: "Delete Custom Theme?"; standardButtons: Dialog.NoButton
+        modal: true; focus: true; title: "Delete Custom Theme?"; standardButtons: Dialog.NoButton
         contentItem: ColumnLayout {
             spacing: 10
             Label { Layout.fillWidth: true; text: "Delete “" + themeState.activeThemeName + "”? Classic will become active if this is the selected theme."; wrapMode: Text.Wrap }
@@ -689,7 +862,7 @@ ApplicationWindow {
         id: importThemeDialog
         anchors.centerIn: Overlay.overlay
         width: 420
-        modal: true; title: "Import Theme"; standardButtons: Dialog.NoButton
+        modal: true; focus: true; title: "Import Theme"; standardButtons: Dialog.NoButton
         property bool replaceCustom: false
         contentItem: ColumnLayout {
             spacing: 10
@@ -734,9 +907,10 @@ ApplicationWindow {
         id: palettePicker
         objectName: "colorPickerDialog"
         anchors.centerIn: Overlay.overlay
-        width: Math.min(window.width - 48, 430)
+        width: Math.min(uiRoot.width - 48, 430)
+        height: Math.min(implicitHeight, uiRoot.height - 48)
         padding: 20
-        modal: true
+        modal: true; focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         property string draftHex: "#A78BFA"
         property color previewColor: "#A78BFA"
@@ -773,13 +947,19 @@ ApplicationWindow {
             }
         }
         background: Rectangle { radius: 16; color: themeState.surface; border.color: themeState.border; border.width: 1 }
-        contentItem: ColumnLayout {
+        contentItem: ScrollView {
+            id: colorPickerScroll
+            clip: true
+            implicitHeight: colorPickerContent.implicitHeight
+            ColumnLayout {
+                id: colorPickerContent
+                width: colorPickerScroll.availableWidth
             spacing: 14
             RowLayout {
                 Layout.fillWidth: true
                 Label { Layout.fillWidth: true; text: "Choose a Color"; color: themeState.foreground; font.pixelSize: 15; font.bold: true }
                 IconButton {
-                    iconName: "pipette"; tip: "Pick a color from the screen"; iconSize: 19; implicitWidth: 34; implicitHeight: 34
+                    iconName: "pipette"; tip: "Pick a Color from the Screen"; iconSize: 19; implicitWidth: 34; implicitHeight: 34
                     onClicked: { palettePicker.close(); settingsDialog.close(); screenPickerOverlay.show() }
                 }
                 IconButton { iconName: "close"; tip: "Close"; iconSize: 18; implicitWidth: 34; implicitHeight: 34; onClicked: palettePicker.close() }
@@ -900,6 +1080,7 @@ ApplicationWindow {
                 }
             }
         }
+        }
     }
     Window {
         id: screenPickerOverlay
@@ -956,20 +1137,30 @@ ApplicationWindow {
     Connections { target: appState; function onPageChanged() { if (appState.page === "Search") search.text = appState.query } }
     MediaMenu { id: mediaMenu }
     PlaylistDialogs { id: playlistDialogs; anchors.fill: parent }
-    Connections { target: appState; function onMenuRequested(media, context) { mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
+    Connections { target: appState; function onMenuRequested(media, context) { if (trayState.popupActive) return; mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
     Dialog {
         id: shortcutHelp
-        width: Math.min(580, window.width - 80)
-        anchors.centerIn: parent; modal: true; title: "Keyboard Shortcuts"; standardButtons: Dialog.Close
+        objectName: "shortcutHelpDialog"
+        height: Math.min(implicitHeight, uiRoot.height - 48)
+        width: Math.min(580, uiRoot.width - 80)
+        anchors.centerIn: parent; modal: true; focus: true; title: "Keyboard Shortcuts"; standardButtons: Dialog.Close
         palette.window: themeState.surface; palette.windowText: themeState.foreground
-        contentItem: Label {
+        contentItem: ScrollView {
+            id: shortcutScroll
+            clip: true
+            implicitHeight: shortcutText.implicitHeight
+            Label {
+            id: shortcutText
+            width: shortcutScroll.availableWidth
+            wrapMode: Text.Wrap
             color: themeState.foreground; lineHeight: 1.7
-            text: "Space — Play / pause\nShift+N / Shift+P — Next / previous\nLeft / Right — Seek 5 seconds\nShift+Left / Shift+Right — Seek 10 seconds\n+ / − — Volume\nM — Mute\nS / R — Shuffle / repeat\nF / Escape — Open / close player\n/ or Ctrl+F — Search\nAlt+Left — Back\nAlt+Up / Alt+Down — Move focused queue entry\nDelete — Remove focused queue entry"
+            text: "Space — Play / pause\nShift+N / Shift+P — Next / previous\nLeft / Right — Seek 5 seconds\nShift+Left / Shift+Right — Seek 10 seconds\n+ / − — Volume\nM — Mute\nS / R — Shuffle / repeat\nF / Escape — Open / close immersive player\n/ or Ctrl+F — Search\nAlt+Left — Back\nAlt+Up / Alt+Down — Move focused queue entry\nDelete — Remove focused queue entry"
+        }
         }
     }
     Shortcut { sequence: "Alt+Left"; enabled: window.playbackShortcuts; onActivated: { appState.setExpanded(false); browseState.back() } }
-    Shortcut { sequence: "/"; enabled: window.playbackShortcuts; onActivated: search.forceActiveFocus() }
-    Shortcut { sequence: "Ctrl+F"; enabled: !window.modalOpen; onActivated: search.forceActiveFocus() }
+    Shortcut { sequence: "/"; enabled: window.playbackShortcuts; onActivated: window.focusSearch() }
+    Shortcut { sequence: "Ctrl+F"; enabled: !window.modalOpen; onActivated: window.focusSearch() }
     Shortcut { sequence: "Space"; enabled: window.playbackShortcuts; onActivated: playerState.togglePlayback() }
     Shortcut { sequence: "Shift+N"; enabled: window.playbackShortcuts; onActivated: playerState.next() }
     Shortcut { sequence: "Shift+P"; enabled: window.playbackShortcuts; onActivated: playerState.previous() }
@@ -985,4 +1176,5 @@ ApplicationWindow {
     Shortcut { sequence: "F"; enabled: window.playbackShortcuts && playerState.hasTrack; onActivated: appState.requestAction("expandPlayer") }
     Shortcut { sequence: "Escape"; enabled: window.playbackShortcuts && appState.expanded; onActivated: appState.setExpanded(false) }
     Shortcut { sequence: "?"; enabled: window.playbackShortcuts; onActivated: shortcutHelp.open() }
+    }
 }
