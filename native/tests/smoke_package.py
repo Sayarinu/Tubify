@@ -25,6 +25,10 @@ def main():
     parser.add_argument("root", type=Path)
     args = parser.parse_args()
     assert Path(youtube_music_native.__file__).resolve().is_relative_to("/usr/lib"), "Test the installed package, not the source checkout"
+    desktop = Path("/usr/share/applications/youtube-music-native.desktop").read_text()
+    assert "Icon=tubify\n" in desktop
+    icon = Path("/usr/share/icons/hicolor/scalable/apps/tubify.svg")
+    assert icon.read_bytes() == (Path(youtube_music_native.__file__).parent / "assets/music.svg").read_bytes()
     args.root.mkdir(parents=True, exist_ok=True)
     store = DownloadStore(args.root)
     settings = QSettings(str(args.root / "settings.ini"), QSettings.Format.IniFormat)

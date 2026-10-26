@@ -12,7 +12,7 @@ Item {
         id: editor
         objectName: "playlistEditor"
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
-        title: root.operation === "playlist_create" ? "New playlist" : "Rename playlist"
+        title: root.operation === "playlist_create" ? "New Playlist" : "Rename Playlist"
         palette.window: themeState.surface; palette.windowText: themeState.foreground; palette.text: themeState.foreground
         contentItem: ColumnLayout {
             spacing: 16
@@ -30,7 +30,7 @@ Item {
     Dialog {
         id: removal
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
-        title: "Delete playlist"
+        title: "Delete Playlist"
         palette.window: themeState.surface; palette.windowText: themeState.foreground; palette.text: themeState.foreground
         contentItem: ColumnLayout {
             spacing: 16
@@ -46,7 +46,7 @@ Item {
     Dialog {
         id: chooser
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
-        title: "Add to playlist"; standardButtons: Dialog.Cancel
+        title: "Add to Playlist"; standardButtons: Dialog.Cancel
         palette.window: themeState.surface; palette.windowText: themeState.foreground; palette.text: themeState.foreground
         contentItem: ColumnLayout {
             spacing: 16

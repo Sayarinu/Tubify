@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=YouTube Music Native
-Comment=Play and download music with a native Qt client
+Name=Tubify
+Comment=Play and download YouTube Music with Tubify
 Exec=youtube-music-native -- %u
 MimeType=x-scheme-handler/ytmusic-native;
-Icon=youtube-music-native
+Icon=tubify
 Terminal=false
 Categories=AudioVideo;Audio;Player;
 StartupNotify=true

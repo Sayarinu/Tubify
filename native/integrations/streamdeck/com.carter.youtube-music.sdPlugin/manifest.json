@@ -17,7 +17,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Play / Pause in YouTube Music Native"
+      "Tooltip": "Play / Pause in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.play",
@@ -35,7 +35,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Play in YouTube Music Native"
+      "Tooltip": "Play in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.pause",
@@ -53,7 +53,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Pause in YouTube Music Native"
+      "Tooltip": "Pause in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.previous",
@@ -71,7 +71,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Previous in YouTube Music Native"
+      "Tooltip": "Previous in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.next",
@@ -89,7 +89,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Next in YouTube Music Native"
+      "Tooltip": "Next in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.stop",
@@ -107,7 +107,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Stop in YouTube Music Native"
+      "Tooltip": "Stop in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.like",
@@ -125,7 +125,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Like in YouTube Music Native"
+      "Tooltip": "Like in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.dislike",
@@ -143,7 +143,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Dislike in YouTube Music Native"
+      "Tooltip": "Dislike in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.shuffle",
@@ -161,7 +161,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Shuffle in YouTube Music Native"
+      "Tooltip": "Shuffle in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.repeat",
@@ -179,7 +179,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Repeat in YouTube Music Native"
+      "Tooltip": "Repeat in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.volume-up",
@@ -197,7 +197,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Volume + in YouTube Music Native"
+      "Tooltip": "Volume + in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.volume-down",
@@ -215,7 +215,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Volume − in YouTube Music Native"
+      "Tooltip": "Volume − in Tubify"
     },
     {
       "UUID": "com.carter.youtube-music.volume",
@@ -234,7 +234,7 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Volume / Mute in YouTube Music Native",
+      "Tooltip": "Volume / Mute in Tubify",
       "Encoder": {
         "layout": "$B1",
         "TriggerDescription": {
@@ -260,14 +260,14 @@
       ],
       "UserTitleEnabled": false,
       "SupportedInMultiActions": false,
-      "Tooltip": "Now Playing in YouTube Music Native"
+      "Tooltip": "Now Playing in Tubify"
     }
   ],
   "Author": "Sayarinu",
   "CodePath": "bin/plugin.mjs",
-  "Description": "Control the separate YouTube Music Native client through its optional paired local API.",
+  "Description": "Control the separate Tubify client through its optional paired local API.",
   "Icon": "imgs/plugin",
-  "Name": "YouTube Music Native",
+  "Name": "Tubify",
   "Nodejs": {
     "Version": "24"
   },
@@ -289,6 +289,6 @@
   },
   "PropertyInspectorPath": "ui/settings.html",
   "URL": "https://github.com/Sayarinu/YouTube-Music-App",
-  "Category": "YouTube Music Native",
+  "Category": "Tubify",
   "CategoryIcon": "imgs/action"
 }

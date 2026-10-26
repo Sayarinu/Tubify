@@ -26,6 +26,9 @@ def handle(service, request, resources=None, progress=None):
     operation = request.get("operation")
     payload = request.get("payload") or {}
     resources = resources if resources is not None else {}
+    if operation == "maintenance":
+        from .maintenance import perform as maintenance_action
+        return maintenance_action(payload)
     if operation == "lastfm":
         root = str(Path(payload["data_dir"]).resolve())
         key = ("lastfm", root)

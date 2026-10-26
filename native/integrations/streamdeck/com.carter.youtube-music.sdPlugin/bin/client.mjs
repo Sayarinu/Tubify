@@ -5,7 +5,7 @@ export const DEFAULTS = Object.freeze({port: 9864, executable: 'youtube-music-na
 export function settings(value = {}) {
   const port = Number(value.port);
   const executable = typeof value.executable === 'string' ? value.executable.trim() : DEFAULTS.executable;
-  if (!Number.isInteger(port) || port < 1024 || port > 65535 || !executable || executable.length > 4096 || /[\x00-\x1f]/.test(executable)) throw new Error('Use an API port from 1024 to 65535 and the native application executable.');
+  if (!Number.isInteger(port) || port < 1024 || port > 65535 || !executable || executable.length > 4096 || /[\x00-\x1f]/.test(executable)) throw new Error('Use an API port from 1024 to 65535 and the Tubify executable.');
   return {port, executable, autoConnect: value.autoConnect === true};
 }
 export function validCredential(value, port) {
@@ -39,14 +39,14 @@ export function request(port, path, {token, body, signal, timeout = 8000} = {}) 
       response.on('error', reject);
       response.on('end', () => {
         if (response.statusCode < 200 || response.statusCode >= 300) {
-          const error = new Error(response.statusCode === 401 || response.statusCode === 403 ? 'Pair a new playback-control client in the native app.' : 'Native app unavailable. Check the app before retrying.');
+          const error = new Error(response.statusCode === 401 || response.statusCode === 403 ? 'Pair a new playback-control client in Tubify.' : 'Tubify unavailable. Check the app before retrying.');
           error.status = response.statusCode; reject(error); return;
         }
         try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
-        catch { reject(new Error('Native app returned an invalid response.')); }
+        catch { reject(new Error('Tubify returned an invalid response.')); }
       });
     });
-    const deadline = setTimeout(() => req.destroy(new Error('Native app request timed out.')), timeout);
+    const deadline = setTimeout(() => req.destroy(new Error('Tubify request timed out.')), timeout);
     req.on('close', () => clearTimeout(deadline));
     req.on('error', reject);
     req.end(data);
@@ -57,7 +57,7 @@ export class Client {
   constructor({onChange = () => {}, onSettings = () => {}, storage = vault, send = request, schedule = setTimeout, cancel = clearTimeout} = {}) {
     Object.assign(this, {onChange, onSettings, storage, send, schedule, cancel});
     this.options = {...DEFAULTS}; this.credential = null; this.snapshot = null;
-    this.status = 'Pair in settings'; this.detail = 'Enable Local API in the native app and create a playback-control pairing code.';
+    this.status = 'Pair in settings'; this.detail = 'Enable Local API in Tubify and create a playback-control pairing code.';
     this.generation = 0; this.active = false; this.busy = false; this.attempts = 0; this.timer = null;
     this.controller = new AbortController(); this.commandDone = Promise.resolve();
   }
@@ -90,7 +90,7 @@ export class Client {
     try {
       this.options = settings({...DEFAULTS, ...value, autoConnect: false});
       this.onSettings(this.options);
-      if (typeof code !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(code)) throw new Error('Enter the current pairing code from the native app.');
+      if (typeof code !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(code)) throw new Error('Enter the current pairing code from Tubify.');
       this.publish('Pairing');
       const result = await this.send(this.options.port, '/v1/pair', {body: {code}, signal: this.controller.signal});
       if (generation !== this.generation) return;
@@ -103,7 +103,7 @@ export class Client {
       this.onSettings(this.options); this.publish('Connecting');
       if (this.active) this.poll();
     } catch (error) {
-      if (generation === this.generation) this.publish('Pairing failed', error.message + (created ? ' Revoke the newly created client in the native app before trying again.' : ''));
+      if (generation === this.generation) this.publish('Pairing failed', error.message + (created ? ' Revoke the newly created client in Tubify before trying again.' : ''));
     } finally { this.busy = false; }
   }
   async forget() {
@@ -112,8 +112,8 @@ export class Client {
     this.options.autoConnect = false; this.onSettings(this.options);
     try {
       await this.storage(this.options.executable, {action: 'delete'});
-      this.publish('Pair in settings', 'Saved connection removed. Revoke this client in the native app to invalidate its token.');
-    } catch (error) { this.publish('Disconnected', error.message + ' Automatic connection is disabled. Revoke the client in the native app.'); }
+      this.publish('Pair in settings', 'Saved connection removed. Revoke this client in Tubify to invalidate its token.');
+    } catch (error) { this.publish('Disconnected', error.message + ' Automatic connection is disabled. Revoke the client in Tubify.'); }
     finally { this.busy = false; }
   }
   acceptSnapshot(value, expectedInstance = this.snapshot?.instanceId) {
@@ -147,14 +147,14 @@ export class Client {
       if (error.status === 401 || error.status === 403) {
         this.unauthorized();
       } else {
-        this.publish('Offline', 'Open the native app and enable Local API. Reconnecting automatically.');
+        this.publish('Offline', 'Open Tubify and enable Local API. Reconnecting automatically.');
         this.timer = this.schedule(() => this.poll(), Math.min(30000, 1000 * 2 ** Math.min(5, this.attempts++)));
       }
     }
   }
   unauthorized() {
     this.stop(); this.credential = null; this.options.autoConnect = false; this.onSettings(this.options);
-    this.publish('Pair again', 'Access was revoked or lacks playback-control permission. Create a new code in the native app.');
+    this.publish('Pair again', 'Access was revoked or lacks playback-control permission. Create a new code in Tubify.');
   }
   async command(command) {
     if (!this.credential || !this.snapshot || this.busy) throw new Error('Wait for a connected native player before using controls.');
@@ -169,7 +169,7 @@ export class Client {
     } catch (error) {
       if (generation === this.generation) {
         if (error.status === 401 || error.status === 403) this.unauthorized();
-        else { this.snapshot = null; this.publish('Check native app', 'The command was not confirmed. Check playback before retrying; commands are never replayed automatically.'); }
+        else { this.snapshot = null; this.publish('Check Tubify', 'The command was not confirmed. Check playback before retrying; commands are never replayed automatically.'); }
       }
       throw new Error('Command not confirmed.');
     } finally { this.busy = false; release(); }
