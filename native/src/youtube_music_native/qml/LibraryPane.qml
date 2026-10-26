@@ -15,8 +15,8 @@ Item {
         Item {
             Row {
                 width: parent.width; height: 52; spacing: 24; visible: !root.history
-                Button { id: libraryTab; text: "LIBRARY"; flat: true; height: 52; palette.windowText: themeState.foreground; onClicked: libraryState.select("Playlists"); Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: themeState.accent } }
-                Button { text: "DOWNLOADS"; flat: true; height: 52; palette.windowText: themeState.secondary; onClicked: appState.navigate("Downloads") }
+                Button { id: libraryTab; text: "Library"; flat: true; height: 52; palette.windowText: themeState.foreground; onClicked: libraryState.select("Playlists"); Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: themeState.accent } }
+                Button { text: "Downloads"; flat: true; height: 52; palette.windowText: themeState.secondary; onClicked: appState.navigate("Downloads") }
             }
             Rectangle { y: 52; height: 1; width: parent.width; color: themeState.border; visible: !root.history }
             Row { spacing: 16; visible: root.history; height: 72; Text { text: "History"; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 } }
@@ -65,7 +65,7 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load more"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
     }
     ListView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
@@ -83,7 +83,7 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load more"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
     }
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 20

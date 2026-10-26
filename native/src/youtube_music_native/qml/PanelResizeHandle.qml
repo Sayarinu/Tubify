@@ -15,7 +15,7 @@ Item {
         property real startWidth: 0
         property real startX: 0
         onPressed: function(event) { startWidth = root.panelWidth; startX = mapToItem(null, event.x, event.y).x }
-        onPositionChanged: function(event) { if (pressed) root.resized(startWidth - mapToItem(null, event.x, event.y).x + startX) }
+        onPositionChanged: function(event) { if (pressed) root.resized(startWidth - (mapToItem(null, event.x, event.y).x - startX) / appState.uiScaleFactor) }
         onReleased: root.finished()
     }
 }
