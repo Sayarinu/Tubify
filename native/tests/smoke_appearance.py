@@ -80,12 +80,12 @@ def main():
                                 rectangle = item.mapRectToScene(item.boundingRect())
                                 assert rectangle.left() >= bounds.left() and rectangle.right() <= bounds.right(), name
                         shot(f"scale-{scale}-{size[0]}")
-                        # Menus are positioned from transformed controls, not just centered dialogs.
+                        # The gear opens the shared dialog directly at every content scale.
                         settings_button = find("settingsButton")
                         point = settings_button.mapToScene(settings_button.boundingRect().center()).toPoint()
                         QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point)
                         QTest.qWait(30)
-                        menu = find("appearanceMenu")
+                        menu = find("settingsDialog")
                         assert menu.property("opened")
                         menu_content = menu.property("contentItem")
                         menu_bounds = menu_content.mapRectToScene(menu_content.boundingRect())
@@ -94,7 +94,7 @@ def main():
                         QMetaObject.invokeMethod(menu, "close")
                         QMetaObject.invokeMethod(settings, "open")
                         QTest.qWait(35)
-                        panel = settings.property("contentItem")
+                        panel = menu.property("contentItem")
                         bounds = panel.mapRectToScene(panel.boundingRect())
                         assert bounds.left() >= 0 and bounds.right() <= size[0] + 1, (scale, size, bounds)
                         assert bounds.top() >= 0 and bounds.bottom() <= size[1] + 1, (scale, size, bounds)

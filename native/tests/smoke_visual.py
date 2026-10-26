@@ -8,7 +8,7 @@ import time
 import traceback
 import wave
 
-from PySide6.QtCore import QObject, QPointF, QTimer, Qt
+from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
 from PySide6.QtGui import QAccessible, QColor, QGuiApplication, QImage
 from PySide6.QtQml import QQmlProperty
 from PySide6.QtTest import QTest
@@ -94,7 +94,7 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     player.enqueue([tracks[0], tracks[0]])
     settle()
     assert not any(child.objectName() == "queueSidebarSong-" + history_key for child in visual_items(pane))
-    assert item("queueNextHeading").property("text") == "Next from Fixture source"
+    assert item("queueNextHeading").property("text") == "Next From Fixture source"
     save("queue-mixed")
     manual = [entry["key"] for entry in player.queue.manual]
     # Equal video IDs remain separate occurrences, with only the pinned row current.
@@ -410,7 +410,7 @@ def main():
                     account.connectedChanged.emit()
                     theme_dialog = window.findChild(QObject, "appearanceSettingsDialog")
                     assert theme_dialog
-                    theme_dialog.setProperty("visible", True)
+                    QMetaObject.invokeMethod(theme_dialog, "open")
                     QTest.qWait(60)
                     assert theme_dialog.property("opened")
                     if args.output_dir:
@@ -471,7 +471,7 @@ def main():
                         assert theme_dialog.property("height") <= height - 48
                     theme_state.deleteCustomTheme(theme_state.activeThemeId)
                     theme_dialog.setProperty("editingColors", False)
-                    theme_dialog.setProperty("visible", False)
+                    QMetaObject.invokeMethod(theme_dialog, "close")
                     QTest.qWait(30)
                     for width in (1280, 920, 1280):
                         window.resize(width, 820)
