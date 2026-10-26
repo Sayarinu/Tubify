@@ -7,9 +7,41 @@ Rectangle {
     id: root
     property string source: ""
     property string mediaKey: ""
+    property var media: ({})
+    property bool largeArtwork: false
+    readonly property int physicalSize: Math.ceil(Math.max(width, height) * Screen.devicePixelRatio * appState.uiScaleFactor)
+    onPhysicalSizeChanged: requestUpgrade(true)
+    onMediaChanged: { failedSource = ""; requestUpgrade(true) }
+    onMediaKeyChanged: {
+        if (artwork) artwork.hasImage = false
+        if (softwareMask) softwareMask.resetForMedia()
+    }
+    onVisibleChanged: if (visible) requestUpgrade(true)
+    onLargeArtworkChanged: requestUpgrade(true)
+    Component.onCompleted: requestUpgrade(true)
+    function requestUpgrade(retry) {
+        if (!largeArtwork) return
+        upgrade.allowRetry = upgrade.allowRetry || retry
+        upgrade.restart()
+    }
+    Timer {
+        id: upgrade
+        interval: 150
+        property bool allowRetry: false
+        onTriggered: {
+            var retry = allowRetry
+            allowRetry = false
+            if (root.largeArtwork && root.visible) downloadsState.ensureArtwork(root.media, root.physicalSize, retry)
+        }
+    }
+    Connections {
+        target: downloadsState
+        function onChanged() { root.requestUpgrade(false) }
+    }
     property string placeholder: "music"
     property color accent: themeState.selected
-    readonly property bool ready: artwork.status === Image.Ready
+    property string failedSource: ""
+    readonly property bool ready: artwork.status === Image.Ready || artwork.status === Image.Loading && artwork.hasImage
     radius: 8
     clip: true
     gradient: Gradient {
@@ -18,51 +50,96 @@ Rectangle {
     }
     Image {
         id: artwork
+        objectName: "coverArtwork"
+        property bool hasImage: false
         anchors.fill: parent
         visible: !softwareMask.active
         source: {
             if (!root.mediaKey) return root.source
             if (!downloadsState.initialized) return ""
             var cached = downloadsState.artwork[root.mediaKey]
-            return cached || root.source
+            var large = root.largeArtwork ? downloadsState.largeArtwork[root.mediaKey] : null
+            if (large && large.url && large.url !== root.failedSource) return large.url
+            if (cached) return cached
+            var preferred = root.largeArtwork ? downloadsState.artworkSource(root.media, root.physicalSize) : ""
+            return preferred && preferred !== root.failedSource ? preferred : root.source
         }
-        onStatusChanged: if (softwareMask.active) softwareMask.requestPaint()
+        retainWhileLoading: true
+        onStatusChanged: {
+            if (status === Image.Ready) hasImage = true
+            if (status === Image.Error) root.failedSource = source.toString()
+            if (softwareMask.active) paintAfterLoad.restart()
+        }
         onPaintedWidthChanged: if (softwareMask.active) softwareMask.requestPaint()
         onPaintedHeightChanged: if (softwareMask.active) softwareMask.requestPaint()
         asynchronous: true
         fillMode: Image.PreserveAspectCrop
-        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio)
-        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio)
+        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio * appState.uiScaleFactor)
+        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio * appState.uiScaleFactor)
         layer.enabled: root.ready && root.radius > 0 && GraphicsInfo.api !== GraphicsInfo.Software
         layer.effect: MultiEffect { maskEnabled: true; maskSource: roundedMask; autoPaddingEnabled: false }
     }
+    // Canvas needs the image to finish its first render frame before copying it.
+    Timer { id: paintAfterLoad; interval: 16; onTriggered: softwareMask.requestPaint() }
     Canvas {
         id: softwareMask
+        objectName: "coverCanvas"
+        property string canvasSource: ""
+        property bool clearForMedia: true
+        function resetForMedia() {
+            if (canvasSource) unloadImage(canvasSource)
+            canvasSource = ""
+            clearForMedia = true
+            requestPaint()
+        }
+        onImageLoaded: if (visible) requestPaint()
         anchors.fill: parent
         readonly property bool active: root.radius > 0 && GraphicsInfo.api === GraphicsInfo.Software
         visible: active && root.ready
         antialiasing: true
         renderTarget: Canvas.Image
+        readonly property real pixelRatio: Screen.devicePixelRatio * appState.uiScaleFactor
+        canvasSize: Qt.size(Math.ceil(width * pixelRatio), Math.ceil(height * pixelRatio))
+        onPixelRatioChanged: if (active) requestPaint()
         onVisibleChanged: if (visible) requestPaint()
         onAvailableChanged: if (available && visible) requestPaint()
         onWidthChanged: if (active) requestPaint()
         onHeightChanged: if (active) requestPaint()
         Connections { target: root; function onRadiusChanged() { if (softwareMask.active) softwareMask.requestPaint() } }
         onPaint: {
-            if (!visible || !root.ready) return
+            if (!visible) return
             var ctx = getContext("2d")
+            if (clearForMedia) {
+                ctx.reset()
+                ctx.clearRect(0, 0, canvasSize.width, canvasSize.height)
+                clearForMedia = false
+            }
+            if (artwork.status !== Image.Ready) return
+            var image = artwork
+            if (root.largeArtwork) {
+                // A large Image item's cached render can be blank after Loader recreation.
+                var imageSource = artwork.source.toString()
+                if (canvasSource !== imageSource) {
+                    if (canvasSource) unloadImage(canvasSource)
+                    canvasSource = imageSource
+                    loadImage(imageSource)
+                }
+                if (!isImageLoaded(imageSource)) return
+                image = imageSource
+            }
             ctx.reset()
+            ctx.scale(pixelRatio, pixelRatio)
             ctx.beginPath()
             ctx.roundedRect(0, 0, width, height, root.radius, root.radius)
             ctx.clip()
-            ctx.drawImage(artwork, (width - artwork.paintedWidth) / 2, (height - artwork.paintedHeight) / 2, artwork.paintedWidth, artwork.paintedHeight)
+            ctx.drawImage(image, (width - artwork.paintedWidth) / 2, (height - artwork.paintedHeight) / 2, artwork.paintedWidth, artwork.paintedHeight)
         }
     }
     Image {
         id: roundedMask
         visible: false
-        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio)
-        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio)
+        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio * appState.uiScaleFactor)
+        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio * appState.uiScaleFactor)
         source: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="' + root.width + '" height="' + root.height + '"><rect width="' + root.width + '" height="' + root.height + '" rx="' + root.radius + '" fill="white"/></svg>')
     }
     Symbol {

@@ -14,6 +14,7 @@ import tempfile
 import time
 
 from .catalog import items, text, thumbnail
+from .artwork_sources import apply_artwork, media_variants
 from .compat import ProbeError, extractor_options
 from .media import MediaFiles
 
@@ -41,6 +42,8 @@ def clean_track(value):
         "artists": [{"id": text(a.get("id")), "name": text(a.get("name"))} for a in artists if isinstance(a, dict)],
         "album": {"id": text(album.get("id")), "name": text(album.get("name"))} if isinstance(album, dict) else {},
         "thumbnail": text(value.get("thumbnail")) if text(value.get("thumbnail")).startswith("https://") else "",
+        "largeThumbnail": apply_artwork({}, media_variants(value)).get("largeThumbnail", ""),
+        "artworkVariants": media_variants(value),
         "duration": value.get("duration") if isinstance(value.get("duration"), (int, float)) else 0,
         "explicit": bool(value.get("explicit")), "available": bool(VIDEO_ID.fullmatch(video_id)) and value.get("available", True) is not False,
         "setVideoId": text(value.get("setVideoId")),
@@ -118,12 +121,12 @@ class DownloadStore:
         previous = self.db.execute("SELECT body FROM collections WHERE id=?", (identifier,)).fetchone()
         if previous:
             old = json.loads(previous[0])
-            for key in ("thumbnail", "localThumbnail"):
+            for key in ("thumbnail", "localThumbnail", "largeThumbnail", "artworkVariants"):
                 body[key] = body.get(key) or old.get(key, "")
             old_tracks = {track["videoId"]: track for track in old["items"]}
             for track in body["items"]:
                 before = old_tracks.get(track["videoId"], {})
-                for key in ("thumbnail", "localThumbnail"):
+                for key in ("thumbnail", "localThumbnail", "largeThumbnail", "artworkVariants"):
                     track[key] = track.get(key) or before.get(key, "")
         with self.db:
             self.db.execute("INSERT INTO collections VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET body=excluded.body", (identifier, json.dumps(body)))
@@ -139,7 +142,22 @@ class DownloadStore:
         return json.loads(row[0])
 
     def update_body(self, identifier, body):
+        from .large_artwork import local_image
+        from .artwork_sources import quality
+
         with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            current = self.db.execute("SELECT body FROM collections WHERE id=?", (identifier,)).fetchone()
+            if not current:
+                return
+            previous = {track["videoId"]: track for track in json.loads(current[0])["items"]}
+            for track in body["items"]:
+                old = previous.get(track["videoId"], {})
+                before = local_image(self._artwork_uri(old.get("localThumbnail", "")))
+                after = local_image(self._artwork_uri(track.get("localThumbnail", "")))
+                if quality(before) > quality(after):
+                    track["localThumbnail"] = before["url"]
+                apply_artwork(track, media_variants(track) + media_variants(old))
             self.db.execute("UPDATE collections SET body=? WHERE id=?", (json.dumps(body), identifier))
 
     def state(self, identifier):
@@ -293,17 +311,20 @@ class Downloads:
             raise DownloadError("Choose a song, album or playlist to download.")
         if kind == "song":
             tracks, title, art = [clean_track(media)], text(media.get("title")), text(media.get("thumbnail"))
+            artwork = media_variants(media)
             if not tracks[0]["available"] and not self.store.media.ready(tracks[0]["videoId"]):
                 raise DownloadError("This song is unavailable for download.")
         else:
             client = self.auth.catalog()
             raw = client.get_album(identifier) if kind == "album" else client.get_playlist(identifier, limit=None)
             title, art = text(raw.get("title")), thumbnail(raw.get("thumbnails"))
+            artwork = media_variants({"artworkVariants": raw.get("thumbnails", [])})
             tracks = items(raw.get("tracks", []), "song")
             for track in tracks:
                 track["thumbnail"] = track["thumbnail"] or art
                 if kind == "album":
                     track["album"] = {"id": identifier, "name": title}
+                    apply_artwork(track, media_variants(track) + artwork)
                     if not track["artist"]:
                         track["artists"] = raw.get("artists") or []
                         track["artist"] = " • ".join(text(a.get("name")) for a in track["artists"])
@@ -311,6 +332,7 @@ class Downloads:
         if not tracks or not title:
             raise DownloadError("This collection has no music available to download.")
         body = {"kind": kind, "id": identifier, "title": title, "thumbnail": art if art.startswith("https://") else "", "items": tracks}
+        apply_artwork(body, artwork)
         return self.store.schedule(body)
 
     def run(self, identifier):
@@ -384,13 +406,13 @@ class Downloads:
                         with self.store.db:
                             for partial in staging.glob(video_id + ".*"):
                                 self.store._unlink(partial)
-                    art = self.artwork_fetch(track.get("thumbnail", ""), self.store.root / "artwork")
+                    art = self.artwork_fetch(track.get("largeThumbnail") or track.get("thumbnail", ""), self.store.root / "artwork")
                     if art:
                         track["localThumbnail"] = art
                     completed += 1
                     self.store.update_body(identifier, body)
                     report()
-                art = self.artwork_fetch(body.get("thumbnail", ""), self.store.root / "artwork")
+                art = self.artwork_fetch(body.get("largeThumbnail") or body.get("thumbnail", ""), self.store.root / "artwork")
                 if art:
                     body["localThumbnail"] = art
                     self.store.update_body(identifier, body)

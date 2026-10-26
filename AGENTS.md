@@ -1,6 +1,6 @@
 # Repository workflow
 
-- Read docs/native-client-spec.md for native-client scope, interfaces, acceptance gates and Linear ticket links.
+- Read [the native-client specification and QoL roadmap in Linear](https://linear.app/nouvelle-lune-atelier/issue/LUNE-367/publish-native-qol-roadmap-and-revised-player-specification) for native-client scope, interfaces, acceptance gates and ticket links.
 - Every implementation task needs its actual assigned LUNE issue before code work starts.
 - Fetch origin/main and create each ticket branch directly from origin/main. Branch names are exactly the issue identifier (for example LUNE-335). Do not work on or branch from agent/*, add descriptive suffixes or stack unmerged ticket branches.
 - Commit subjects are LUNE-XXX - Change-specific message, substituting the current issue identifier. The message describes the individual change; it need not repeat the issue title.
