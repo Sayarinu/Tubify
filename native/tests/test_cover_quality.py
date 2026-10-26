@@ -9,7 +9,8 @@ import pytest
 
 
 @pytest.mark.parametrize("scale", [1, 1.5, 2])
-def test_large_cover_uses_upgraded_source_at_display_pixel_ratio(tmp_path, scale):
+@pytest.mark.parametrize("ui_scale", [80, 100, 150])
+def test_large_cover_uses_upgraded_source_at_display_pixel_ratio(tmp_path, scale, ui_scale):
     script = r'''
 import math
 from pathlib import Path
@@ -21,6 +22,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
 from youtube_music_native.download_view import DownloadView
 from youtube_music_native.theme import ThemeState
+from youtube_music_native.shell import ShellController
 from youtube_music_native.app import PACKAGE
 app = QGuiApplication([])
 root = Path(sys.argv[1])
@@ -38,11 +40,15 @@ downloads = RecordingDownloads(root, fixture=True)
 downloads._artwork['abcdefghijk'] = small
 downloads._large_artwork['abcdefghijk'] = {'url': large, 'width': 1200, 'height': 1200}
 theme = ThemeState(root / 'theme.ini')
+shell = ShellController(root / 'shell.ini')
+shell.setUiScale(int(sys.argv[3]))
+physical_scale = float(sys.argv[2]) * shell.uiScaleFactor
 engine = QQmlApplicationEngine()
+engine.rootContext().setContextProperty('appState', shell)
 engine.rootContext().setContextProperty('downloadsState', downloads)
 engine.rootContext().setContextProperty('themeState', theme)
 engine.rootContext().setContextProperty('smallCover', small)
-engine.loadData(b'import QtQuick\nimport QtQuick.Controls\nimport "."\nApplicationWindow { visible: true; width: 700; height: 700; Cover { objectName: "largeCover"; width: 300; height: 300; largeArtwork: true; mediaKey: "abcdefghijk"; source: smallCover; media: ({videoId: "abcdefghijk"}) } }', QUrl.fromLocalFile(str(PACKAGE / 'qml' / 'test.qml')))
+engine.loadData(b'import QtQuick\nimport QtQuick.Controls\nimport "."\nApplicationWindow { visible: true; width: 1000; height: 1000; Cover { scale: appState.uiScaleFactor; transformOrigin: Item.TopLeft; objectName: "largeCover"; width: 300; height: 300; largeArtwork: true; mediaKey: "abcdefghijk"; source: smallCover; media: ({videoId: "abcdefghijk"}) } }', QUrl.fromLocalFile(str(PACKAGE / 'qml' / 'test.qml')))
 window = engine.rootObjects()[0]
 cover = window.findChild(QObject, 'largeCover')
 art = cover.findChild(QObject, 'coverArtwork')
@@ -56,13 +62,13 @@ for size in (300, 600):
     cover.setProperty('height', size)
     wait_until(lambda: cover.property('ready'), 'Cover image did not become ready')
     assert art.property('source').toString() == large
-    assert art.property('sourceSize').width() == math.ceil(size * float(sys.argv[2]))
+    assert art.property('sourceSize').width() == math.ceil(size * float(sys.argv[2]) * shell.uiScaleFactor)
     assert cover.property('ready')
     def painted():
         frame = window.grabWindow()
         if frame.isNull():
             return False
-        center = frame.pixelColor(round(size * float(sys.argv[2]) / 2), round(size * float(sys.argv[2]) / 2))
+        center = frame.pixelColor(round(size * physical_scale / 2), round(size * physical_scale / 2))
         return center.red() > 180 and center.green() < 80
     wait_until(painted, 'Ready cover did not paint its decoded pixels')
 cover.setProperty('mediaKey', 'lmnopqrstuv')
@@ -82,11 +88,11 @@ cover.setProperty('visible', True)
 # QML timers advance with render frames; a 30ms margin above the debounce is
 # unreliable on macOS CI. Wait for the request, then check its exact resolution.
 wait_until(lambda: bool(downloads.calls), 'Visible Cover did not request an artwork upgrade')
-assert downloads.calls[-1][1] == math.ceil(600 * float(sys.argv[2])), downloads.calls
+assert downloads.calls[-1][1] == math.ceil(600 * float(sys.argv[2]) * shell.uiScaleFactor), downloads.calls
 window.close()
 engine.deleteLater()
 downloads.close()
 '''
     env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software", "QT_SCALE_FACTOR": str(scale), "PYTHONPATH": str(Path(__file__).parents[1] / "src")}
-    result = subprocess.run([sys.executable, "-c", script, str(tmp_path), str(scale)], env=env, capture_output=True, text=True, timeout=20)
+    result = subprocess.run([sys.executable, "-c", script, str(tmp_path), str(scale), str(ui_scale)], env=env, capture_output=True, text=True, timeout=20)
     assert result.returncode == 0, result.stderr
