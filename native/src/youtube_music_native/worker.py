@@ -19,12 +19,27 @@ from .mutations import ActionError, perform
 from .playlist_ops import PlaylistError, perform as playlist_action
 from .lyric_data import Lyrics, LyricsError
 from .lyric_providers import ProviderUnavailable, provider_key
+from .lastfm_service import LastFmService, LastFmError
 
 
 def handle(service, request, resources=None, progress=None):
     operation = request.get("operation")
     payload = request.get("payload") or {}
     resources = resources if resources is not None else {}
+    if operation == "maintenance":
+        from .maintenance import perform as maintenance_action
+        return maintenance_action(payload)
+    if operation == "lastfm":
+        root = str(Path(payload["data_dir"]).resolve())
+        key = ("lastfm", root)
+        if key not in resources:
+            resources[key] = LastFmService(root)
+        try:
+            return resources[key].perform(payload.get("action"), payload)
+        except LastFmError:
+            raise
+        except Exception:
+            raise LastFmError("storage", "Last.fm could not save or read its local state. Check storage and retry.") from None
     if operation == "artwork":
         from .large_artwork import resolve
         return resolve(service, payload["data_dir"], payload["media"], payload["pixels"], bool(payload.get("online")))
@@ -123,6 +138,8 @@ def handle(service, request, resources=None, progress=None):
 
 
 def safe_error(error):
+    if isinstance(error, LastFmError):
+        return {"code": "lastfm_" + error.code, "message": str(error)}
     if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError, ActionError, PlaylistError, LyricsError, ProviderUnavailable)):
         return {"code": type(error).__name__, "message": str(error)}
     import requests

@@ -12,7 +12,7 @@ Item {
         id: editor
         objectName: "playlistEditor"
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
-        title: root.operation === "playlist_create" ? "New playlist" : "Rename playlist"
+        title: root.operation === "playlist_create" ? "New Playlist" : "Rename Playlist"
         palette.window: themeState.surface; palette.windowText: themeState.foreground; palette.text: themeState.foreground
         contentItem: ColumnLayout {
             spacing: 16
@@ -30,7 +30,7 @@ Item {
     Dialog {
         id: removal
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
-        title: "Delete playlist"
+        title: "Delete Playlist"
         palette.window: themeState.surface; palette.windowText: themeState.foreground; palette.text: themeState.foreground
         contentItem: ColumnLayout {
             spacing: 16
@@ -46,13 +46,13 @@ Item {
     Dialog {
         id: chooser
         anchors.centerIn: parent; width: Math.min(root.width - 80, 440); modal: true
-        title: "Add to playlist"; standardButtons: Dialog.Cancel
+        title: "Add to Playlist"; standardButtons: Dialog.Cancel
         palette.window: themeState.surface; palette.windowText: themeState.foreground; palette.text: themeState.foreground
         contentItem: ColumnLayout {
             spacing: 16
             TextField { id: find; Layout.fillWidth: true; placeholderText: "Find a playlist"; color: themeState.foreground; placeholderTextColor: themeState.secondary; Accessible.name: "Find a playlist"; background: Rectangle { color: themeState.hover; radius: 4 } }
             ListView {
-                Layout.fillWidth: true; Layout.preferredHeight: 280; clip: true; model: libraryState.playlists
+                Layout.fillWidth: true; Layout.preferredHeight: Math.max(80, Math.min(280, root.height - 240)); clip: true; model: libraryState.playlists
                 ScrollBar.vertical: ScrollBar {}
                 delegate: ItemDelegate {
                     required property var modelData
