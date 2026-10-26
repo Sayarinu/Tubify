@@ -1,19 +1,35 @@
 """Keep background helpers free of Qt imports, including in packaged executables."""
 
 import sys
+from pathlib import Path
+
+
+if __name__ == "__main__" and not __package__:
+    package_dir = Path(__file__).resolve().parent
+    # Direct script execution must not shadow stdlib modules such as queue.
+    sys.path[:] = [entry for entry in sys.path if Path(entry).resolve() != package_dir]
+    sys.path.insert(0, str(package_dir.parent))
+    __package__ = "youtube_music_native"
 
 
 FLAGS = {"provider": "--provider-worker", "player": "--player-worker"}
 
 
-def process_command(role):
+def application_command():
     frozen = getattr(sys, "frozen", False) or hasattr(sys.modules.get("__main__"), "__compiled__")
-    prefix = [sys.executable] if frozen else [sys.executable, "-m", "youtube_music_native"]
-    return [*prefix, FLAGS[role]]
+    return [sys.executable] if frozen else [sys.executable, str(Path(__file__).resolve())]
+
+
+def process_command(role):
+    return [*application_command(), FLAGS[role]]
 
 
 def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
+    if args == ["--streamdeck-credentials"]:
+        from .streamdeck_credentials import main as credential_main
+
+        return credential_main()
     if args == [FLAGS["provider"]]:
         from .worker import main as worker_main
 
@@ -34,3 +50,7 @@ def compat_main():
     from .compat import main as check_main
 
     return check_main(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

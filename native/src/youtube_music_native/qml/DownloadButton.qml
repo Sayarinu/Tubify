@@ -14,7 +14,7 @@ IconButton {
     readonly property string status: song ? (downloadsState.trackStates[mediaId] || "") : entry.state || ""
     readonly property real progress: song ? (downloadsState.trackProgress[mediaId] || 0) : (entry.progress || 0)
     iconName: status === "complete" || status === "ready" ? "circleCheck" : "download"
-    tip: status === "complete" || status === "ready" ? entry.state === "complete" ? "Remove download" : "Downloaded" : status === "downloading" || status === "queued" ? "Cancel download" : status === "damaged" ? "Repair download" : "Download"
+    tip: status === "complete" || status === "ready" ? entry.state === "complete" ? "Remove Download" : "Downloaded" : status === "downloading" || status === "queued" ? "Cancel Download" : status === "damaged" ? "Repair Download" : "Download"
     iconColor: status === "complete" || status === "ready" ? themeState.accent : status === "damaged" ? "#ffb4a6" : themeState.foreground
     enabled: !!mediaId && !(song && (status === "complete" || status === "ready") && entry.state !== "complete")
     onClicked: {

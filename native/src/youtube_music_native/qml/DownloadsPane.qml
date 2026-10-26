@@ -33,8 +33,8 @@ Item {
             width: list.width; height: 204
             Row {
                 width: parent.width; height: 52; spacing: 24
-                Button { text: "LIBRARY"; flat: true; height: 52; palette.windowText: themeState.secondary; onClicked: libraryState.select("Playlists") }
-                Button { text: "DOWNLOADS"; flat: true; height: 52; palette.windowText: themeState.foreground; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: themeState.accent } }
+                Button { text: "Library"; flat: true; height: 52; palette.windowText: themeState.secondary; onClicked: libraryState.select("Playlists") }
+                Button { text: "Downloads"; flat: true; height: 52; palette.windowText: themeState.foreground; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: themeState.accent } }
             }
             Rectangle { y: 52; height: 1; width: parent.width; color: themeState.border }
             Row {
@@ -55,7 +55,7 @@ Item {
                 y: 148; width: parent.width - 48; spacing: 5
                 Text { width: parent.width; text: root.bytesLabel(downloadsState.usedBytes) + " downloaded · " + root.bytesLabel(downloadsState.freeBytes) + " free"; color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: 14 }
             }
-            IconButton { anchors.right: parent.right; y: 138; iconName: "refresh"; tip: "Refresh download status"; onClicked: downloadsState.refresh() }
+            IconButton { anchors.right: parent.right; y: 138; iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
         }
         delegate: ItemDelegate {
             id: entry
@@ -78,9 +78,9 @@ Item {
                     id: controls
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 4
                     IconButton { iconName: "play"; tip: "Play " + entry.modelData.title; enabled: entry.modelData.ready > 0; onClicked: downloadsState.play(entry.modelData.key, false) }
-                    IconButton { iconName: "close"; tip: "Cancel download"; visible: entry.modelData.state === "queued" || entry.modelData.state === "downloading"; onClicked: downloadsState.cancel(entry.modelData.key) }
-                    IconButton { iconName: "download"; tip: entry.modelData.state === "damaged" ? "Repair download" : "Retry download"; visible: entry.modelData.state === "failed" || entry.modelData.state === "cancelled" || entry.modelData.state === "damaged"; onClicked: downloadsState.retry(entry.modelData.key) }
-                    IconButton { iconName: "more"; tip: "Download options for " + entry.modelData.title; onClicked: { root.selectedEntry = entry.modelData; options.popup() } }
+                    IconButton { iconName: "close"; tip: "Cancel Download"; visible: entry.modelData.state === "queued" || entry.modelData.state === "downloading"; onClicked: downloadsState.cancel(entry.modelData.key) }
+                    IconButton { iconName: "download"; tip: entry.modelData.state === "damaged" ? "Repair Download" : "Retry Download"; visible: entry.modelData.state === "failed" || entry.modelData.state === "cancelled" || entry.modelData.state === "damaged"; onClicked: downloadsState.retry(entry.modelData.key) }
+                    IconButton { iconName: "more"; tip: "Download Options for " + entry.modelData.title; onClicked: { root.selectedEntry = entry.modelData; options.popup() } }
                 }
             }
         }
@@ -88,21 +88,21 @@ Item {
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 16
         visible: !root.entries.length
-        Text { width: parent.width; text: "Music wherever you go"; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 28; horizontalAlignment: Text.AlignHCenter }
+        Text { width: parent.width; text: "Music Wherever You Go"; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 28; horizontalAlignment: Text.AlignHCenter }
         Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + root.selectedKind.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
     }
     Menu {
         id: options
-        MenuItem { text: "Shuffle play"; enabled: root.selectedEntry.ready > 0; onTriggered: downloadsState.play(root.selectedEntry.key, true) }
-        MenuItem { text: "Refresh download"; enabled: (accountState.connected || appState.fixtureMode) && root.selectedEntry.state !== "queued" && root.selectedEntry.state !== "downloading"; onTriggered: downloadsState.download(root.selectedEntry) }
-        MenuItem { text: "Remove download"; onTriggered: removal.open() }
+        MenuItem { text: "Shuffle Play"; enabled: root.selectedEntry.ready > 0; onTriggered: downloadsState.play(root.selectedEntry.key, true) }
+        MenuItem { text: "Refresh Download"; enabled: (accountState.connected || appState.fixtureMode) && root.selectedEntry.state !== "queued" && root.selectedEntry.state !== "downloading"; onTriggered: downloadsState.download(root.selectedEntry) }
+        MenuItem { text: "Remove Download"; onTriggered: removal.open() }
     }
     Dialog {
         id: removal
         objectName: "downloadRemovalDialog"
         parent: Overlay.overlay; anchors.centerIn: parent
         width: Math.min(460, root.width - 48); modal: true
-        title: "Remove download?"; standardButtons: Dialog.Ok | Dialog.Cancel
+        title: "Remove Download?"; standardButtons: Dialog.Ok | Dialog.Cancel
         palette.window: themeState.surface; palette.windowText: themeState.foreground
         contentItem: Label { text: "Remove “" + (root.selectedEntry.title || "this music") + "” from this device? Songs used by another download will stay."; textFormat: Text.PlainText; color: themeState.foreground; wrapMode: Text.Wrap }
         onAccepted: downloadsState.remove(root.selectedEntry.key)
