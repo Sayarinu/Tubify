@@ -1,0 +1,4 @@
+:root { color-scheme: dark; font: 13px/1.5 system-ui, sans-serif; color: #f0f0f0; background: #262626; }
+body { margin: 0; } main { padding: 16px; } h1 { font-size: 18px; margin: 0 0 12px; } p { margin: 8px 0 16px; overflow-wrap: anywhere; }
+label { display: block; margin: 12px 0 4px; font-weight: 600; } input, button { font: inherit; border: 1px solid #6f6f6f; border-radius: 5px; padding: 8px; color: inherit; background: #343434; } input { width: 100%; box-sizing: border-box; }
+button { cursor: pointer; } button:disabled { opacity: .6; cursor: wait; } button:focus-visible, input:focus-visible { outline: 2px solid #ff5274; outline-offset: 2px; } #pair { width: 100%; margin-top: 12px; background: #a50027; border-color: #e44b6b; } .buttons { display: flex; gap: 8px; margin-top: 12px; } .hint { color: #c4c4c4; font-size: 12px; } #status { font-weight: 700; margin-bottom: 4px; }
