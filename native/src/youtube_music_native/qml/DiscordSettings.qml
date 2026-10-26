@@ -17,7 +17,7 @@ SettingsPage {
             width: scroll.availableWidth
             spacing: 12
             SettingsCheckBox { objectName: "discordEnabledOption"; text: "Share Listening Activity"; checked: discordState.enabled; onClicked: discordState.setEnabled(checked) }
-            Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Tubify automatically finds the running Discord desktop app and shares the current song. Pausing or disabling clears your activity."; color: themeState.secondary }
+            Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Tubify automatically finds the running Discord desktop app and shares the current song and its public album-art link. Discord may fetch that image while music plays. Pausing or disabling clears your activity."; color: themeState.secondary }
             SettingsCheckBox { id: advanced; text: "Use a Custom Application ID"; checked: discordState.clientId !== discordState.defaultClientId; onToggled: if (!checked) discordState.setClientId("") }
             ColumnLayout {
                 visible: advanced.checked
