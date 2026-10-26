@@ -12,8 +12,8 @@ Item {
     Image {
         anchors.fill: parent
         opacity: root.color.a
-        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio)
-        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio)
+        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio * appState.uiScaleFactor)
+        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio * appState.uiScaleFactor)
         source: {
             var color = "rgb(" + Math.round(root.color.r * 255) + "," + Math.round(root.color.g * 255) + "," + Math.round(root.color.b * 255) + ")"
             var svg = (Icons.svg[root.name] || Icons.svg.music).replace(/currentColor/g, color)

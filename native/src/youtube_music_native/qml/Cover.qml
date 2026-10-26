@@ -9,7 +9,7 @@ Rectangle {
     property string mediaKey: ""
     property var media: ({})
     property bool largeArtwork: false
-    readonly property int physicalSize: Math.ceil(Math.max(width, height) * Screen.devicePixelRatio)
+    readonly property int physicalSize: Math.ceil(Math.max(width, height) * Screen.devicePixelRatio * appState.uiScaleFactor)
     onPhysicalSizeChanged: requestUpgrade(true)
     onMediaChanged: { failedSource = ""; requestUpgrade(true) }
     onMediaKeyChanged: {
@@ -74,8 +74,8 @@ Rectangle {
         onPaintedHeightChanged: if (softwareMask.active) softwareMask.requestPaint()
         asynchronous: true
         fillMode: Image.PreserveAspectCrop
-        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio)
-        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio)
+        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio * appState.uiScaleFactor)
+        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio * appState.uiScaleFactor)
         layer.enabled: root.ready && root.radius > 0 && GraphicsInfo.api !== GraphicsInfo.Software
         layer.effect: MultiEffect { maskEnabled: true; maskSource: roundedMask; autoPaddingEnabled: false }
     }
@@ -98,7 +98,7 @@ Rectangle {
         visible: active && root.ready
         antialiasing: true
         renderTarget: Canvas.Image
-        readonly property real pixelRatio: Screen.devicePixelRatio
+        readonly property real pixelRatio: Screen.devicePixelRatio * appState.uiScaleFactor
         canvasSize: Qt.size(Math.ceil(width * pixelRatio), Math.ceil(height * pixelRatio))
         onPixelRatioChanged: if (active) requestPaint()
         onVisibleChanged: if (visible) requestPaint()
@@ -138,8 +138,8 @@ Rectangle {
     Image {
         id: roundedMask
         visible: false
-        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio)
-        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio)
+        sourceSize.width: Math.ceil(root.width * Screen.devicePixelRatio * appState.uiScaleFactor)
+        sourceSize.height: Math.ceil(root.height * Screen.devicePixelRatio * appState.uiScaleFactor)
         source: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="' + root.width + '" height="' + root.height + '"><rect width="' + root.width + '" height="' + root.height + '" rx="' + root.radius + '" fill="white"/></svg>')
     }
     Symbol {

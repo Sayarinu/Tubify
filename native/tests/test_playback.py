@@ -35,6 +35,7 @@ class FakeAudio(QObject):
     ended = Signal(bool)
     deviceFailed = Signal()
     outputChanged = Signal()
+    optionsChanged = Signal(dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -43,6 +44,9 @@ class FakeAudio(QObject):
 
     def load(self, source, position, paused):
         self.loads.append((source, position, paused))
+
+    def setSpeakerFill(self, value):
+        self.speaker_fill = value
 
     def volume(self, value):
         self.level = value
@@ -385,18 +389,18 @@ def test_source_label_survives_pagination_manual_queue_and_restart(tmp_path):
     player.playTracks(TRACKS, source_label="Evening mix")
     player.enqueue(TRACKS[:1])
     player.appendContext(TRACKS[1:])
-    assert [entry["group"] for entry in player.entries] == ["Now playing", "Next in queue", "Next from Evening mix", "Next from Evening mix"]
+    assert [entry["group"] for entry in player.entries] == ["Now playing", "Next in queue", "Next From Evening mix", "Next From Evening mix"]
     player.close()
     restored = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
-    assert restored.entries[-1]["group"] == "Next from Evening mix"
+    assert restored.entries[-1]["group"] == "Next From Evening mix"
     restored.playTracks(TRACKS)
-    assert restored.entries[-1]["group"] == "Next up"
+    assert restored.entries[-1]["group"] == "Next Up"
     restored.playTracks(TRACKS, source_label="Radio")
-    assert restored.entries[-1]["group"] == "Next"
+    assert restored.entries[-1]["group"] == "Next From Radio"
     restored.close()
 
 
-def test_entries_show_current_history_and_upcoming_tracks_in_order(tmp_path):
+def test_entries_hide_history_without_changing_previous_or_snapshot(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
     player.playTracks([*TRACKS, {"videoId": "uvwxyz12345", "title": "Third"}], source_label="Time & Space")
@@ -404,9 +408,13 @@ def test_entries_show_current_history_and_upcoming_tracks_in_order(tmp_path):
 
     assert [(entry["title"], entry["group"], entry["movable"]) for entry in player.entries] == [
         ("Next", "Now playing", False),
-        ("First", "Previously played", False),
-        ("Third", "Next from Time & Space", True),
+        ("Third", "Next From Time & Space", True),
     ]
+    assert [entry["track"]["title"] for entry in player.queue.history] == ["First"]
+    assert player.queue.snapshot()["history"] == [player.queue.history[0]["key"]]
+    player.previous()
+    assert player.currentTrack["title"] == "First"
+    assert [entry["title"] for entry in player.entries] == ["First", "Next", "Third"]
     player.close()
 
 
@@ -436,3 +444,40 @@ def test_dragging_source_song_into_manual_queue_updates_playback_model(tmp_path)
     assert player.entries[1]["group"] == "Next in queue"
     assert all(entry["key"] != source_key for entry in player.queue.remaining)
     player.close()
+
+
+def test_long_manual_projection_preserves_duplicate_occurrences_and_source(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.playTracks(TRACKS, source_label="Album")
+    player.enqueue([TRACKS[0]] * 10000)
+    entries = player.entries
+    assert len(entries) == 10002
+    assert len({entry["key"] for entry in entries}) == len(entries)
+    assert sum(entry["current"] for entry in entries) == 1
+    assert all(entry["group"] == "Next in queue" for entry in entries[1:-1])
+    assert entries[-1]["group"] == "Next From Album"
+    first, last = entries[1]["key"], entries[-2]["key"]
+    player.moveToManual(first, last, True)
+    assert player.entries[-2]["key"] == first
+    player.removeKey(last)
+    assert player.manualCount == 9999
+    player.clearManualQueue()
+    assert [entry["title"] for entry in player.entries] == ["First", "Next"]
+    player.close()
+
+
+def test_empty_and_exhausted_queue_keeps_source_heading_without_history_rows(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    assert player.entries == [] and player.nextGroup == "Next Up"
+    player.playTracks(TRACKS, source_label="Album")
+    player.next()
+    assert len(player.entries) == 1 and player.nextGroup == "Next From Album"
+    assert player.queue.history
+    player.close()
+    restored = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    assert len(restored.entries) == 1 and restored.queue.history
+    restored.previous()
+    assert restored.currentTrack == TRACKS[0]
+    restored.close()

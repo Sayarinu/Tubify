@@ -128,7 +128,10 @@ def test_duplicate_sleep_and_wake_signals_restart_audio_only_once(tmp_path):
     assert worker.resets == 1 and not player.playing
     desktop.prepareForSleep(False)
     desktop.prepareForSleep(False)
-    QTest.qWait(350)
+    import time
+    deadline = time.monotonic() + 2
+    while len(worker.requests) < 2 and time.monotonic() < deadline:
+        QTest.qWait(10)
     assert len(worker.requests) == 2
     worker.succeeded.emit(2, {"kind": "local", "source": "/fixture/track.wav"})
     assert player.audio.loads[-1][1] == 22 and player.playing
