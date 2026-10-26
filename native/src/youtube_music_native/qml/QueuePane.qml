@@ -1,12 +1,11 @@
 import QtQuick
 import QtQuick.Controls
-import "Theme.js" as Theme
 
 Item {
     id: root
     objectName: "queuePane"
     property bool showCloseButton: true
-    property real gutter: Theme.gutter(width)
+    property real gutter: 16
     property var draggedTrack: ({})
     property string draggingKey: ""
     property string dropKey: ""
@@ -14,343 +13,320 @@ Item {
     property int dropIndex: -1
     property bool dropAfter: false
     property bool dropToManual: false
-    property string dropSection: ""
     property point dragPosition: Qt.point(0, 0)
     property point lastHandlePosition: Qt.point(0, 0)
-    property var currentEntry: playerState.entries.find(entry => entry.group === "Now playing") || ({})
+    property var currentEntry: playerState.entries.find(entry => entry.current) || ({})
     property var queueEntries: playerState.entries.filter(entry => entry.group === "Next in queue")
-    property var nextEntries: playerState.entries.filter(entry => entry.group !== "Now playing" && entry.group !== "Previously played" && entry.group !== "Next in queue")
-    property var historyEntries: playerState.entries.filter(entry => entry.group === "Previously played")
+    property var nextEntries: playerState.entries.filter(entry => !entry.current && entry.group !== "Next in queue")
+    property var rows: [{rowType: "manualHeading"}].concat(queueEntries, [{rowType: "drop"}, {rowType: "sourceHeading"}], nextEntries.length ? nextEntries : [{rowType: "empty"}])
 
-    HoverHandler {
-        enabled: root.draggingKey.length > 0
-        onPointChanged: root.updateDrag(point.scenePosition.x, point.scenePosition.y)
+    function clearDrop() {
+        dropKey = ""
+        dropTargetList = ""
+        dropIndex = -1
+        dropAfter = false
+        dropToManual = false
     }
     function updateDrag(sceneX, sceneY) {
         dragPosition = root.mapFromItem(null, sceneX, sceneY)
-        var addPoint = addToQueueDrop.mapFromItem(null, sceneX, sceneY)
-        var inAddZone = addToQueueDrop.visible && addPoint.x >= 0 && addPoint.x <= addToQueueDrop.width && addPoint.y >= 0 && addPoint.y <= addToQueueDrop.height
-        if (inAddZone) {
-            dropToManual = true
-            dropTargetList = ""
-            dropTargetList = ""
-            dropSection = "Queue"
-            dropKey = ""
-            dropIndex = -1
-            dropAfter = false
-            return
-        }
-        dropToManual = false
-        dropSection = ""
-        var targetList = null
-        var rows = []
+        clearDrop()
         var point = queueList.mapFromItem(null, sceneX, sceneY)
-        if (point.x >= 0 && point.x <= queueList.width && point.y >= 0 && point.y <= queueList.height) {
-            targetList = queueList
-            rows = queueEntries
-            dropTargetList = "queue"
-        } else {
-            point = nextList.mapFromItem(null, sceneX, sceneY)
-            if (point.x >= 0 && point.x <= nextList.width && point.y >= 0 && point.y <= nextList.height) {
-                targetList = nextList
-                rows = nextEntries
-                dropTargetList = "next"
-            }
-        }
-        if (!targetList) {
-            dropTargetList = ""
-            dropKey = ""
-            dropIndex = -1
-            dropAfter = false
+        if (point.x < 0 || point.x > queueList.width || point.y < 0 || point.y > queueList.height) return
+        var contentY = point.y + queueList.contentY
+        var index = queueList.indexAt(point.x + queueList.contentX, contentY)
+        var row = index >= 0 ? rows[index] : null
+        if (!row) return
+        if (row.rowType === "drop" || row.rowType === "manualHeading") {
+            dropToManual = true
             return
         }
-        var contentY = point.y + targetList.contentY
-        var destination = targetList.indexAt(point.x + targetList.contentX, contentY)
-        if (destination >= 0 && destination < rows.length) {
-            dropKey = rows[destination].key
-            dropIndex = destination
-            var targetItem = targetList.itemAtIndex(destination)
-            dropAfter = !!targetItem && contentY >= targetItem.y + targetItem.height / 2
-        } else {
-            dropKey = ""
-            dropIndex = -1
-            dropAfter = false
-        }
+        if (row.rowType || (draggedTrack.group === "Next in queue" && row.group !== "Next in queue")) return
+        dropIndex = index
+        dropKey = row.key
+        dropTargetList = row.group === "Next in queue" ? "queue" : "next"
+        var item = queueList.itemAtIndex(index)
+        dropAfter = !!item && contentY >= item.y + item.height / 2
     }
-
     function beginDrag(track, sceneX, sceneY) {
         draggingKey = track.key
         draggedTrack = track
         updateDrag(sceneX, sceneY)
     }
-
+    function appendToManual(key) {
+        var last = queueEntries.length ? queueEntries[queueEntries.length - 1].key : ""
+        playerState.moveToManual(key, last, true)
+    }
     function finishDrag(sourceKey, sceneX, sceneY) {
         if (!sourceKey || !draggingKey) return
         updateDrag(sceneX, sceneY)
-        var rows = dropTargetList === "queue" ? queueEntries : nextEntries
-        var destination = dropIndex >= 0 && dropIndex < rows.length ? rows[dropIndex] : null
         var targetKey = dropKey
-        var addToManual = dropToManual || dropTargetList === "queue"
-        var manualHeaderTarget = dropToManual
-        var insertAfter = dropAfter
+        var manual = dropToManual || dropTargetList === "queue"
+        var append = dropToManual
+        var after = dropAfter
         draggingKey = ""
-        dropKey = ""
-        dropTargetList = ""
-        dropIndex = -1
-        dropToManual = false
-        dropSection = ""
         draggedTrack = ({})
-        if (addToManual) playerState.moveToManual(sourceKey, manualHeaderTarget ? "" : targetKey, insertAfter)
-        else if (targetKey) playerState.moveToKey(sourceKey, targetKey)
+        clearDrop()
+        if (append) appendToManual(sourceKey)
+        else if (manual) playerState.moveToManual(sourceKey, targetKey, after)
+        else if (targetKey && targetKey !== sourceKey) {
+            var from = nextEntries.findIndex(entry => entry.key === sourceKey)
+            var to = nextEntries.findIndex(entry => entry.key === targetKey)
+            var destination = to + (after ? 1 : 0) - (from < to ? 1 : 0)
+            if (from >= 0 && destination >= 0 && destination < nextEntries.length) playerState.moveToKey(sourceKey, nextEntries[destination].key)
+        }
+    }
+    HoverHandler {
+        enabled: root.draggingKey.length > 0
+        onPointChanged: root.updateDrag(point.scenePosition.x, point.scenePosition.y)
+    }
+    Timer {
+        interval: 16
+        repeat: true
+        running: root.draggingKey.length > 0
+        onTriggered: {
+            var point = queueList.mapFromItem(root, root.dragPosition.x, root.dragPosition.y)
+            if (point.x < 0 || point.x > queueList.width || point.y < 0 || point.y > queueList.height) return
+            var delta = point.y < 32 ? -8 : point.y > queueList.height - 32 ? 8 : 0
+            if (!delta) return
+            queueList.contentY = Math.max(queueList.originY, Math.min(queueList.originY + Math.max(0, queueList.contentHeight - queueList.height), queueList.contentY + delta))
+            var scene = root.mapToItem(null, root.dragPosition.x, root.dragPosition.y)
+            root.updateDrag(scene.x, scene.y)
+        }
     }
 
-    Column {
-        id: panels
-        property real sectionSpace: Math.max(0, height - nowPanel.height - 3)
+    Item {
+        id: nowPanel
+        objectName: "queueNowPlayingPanel"
         anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: root.gutter
+        anchors.rightMargin: root.gutter
+        height: 152
+        Text {
+            text: "Now Playing"
+            color: themeState.foreground
+            font.pixelSize: 14
+            font.bold: true
+            y: 12
+        }
+        IconButton {
+            objectName: "queueCollapseButton"
+            visible: root.showCloseButton
+            anchors.right: parent.right
+            y: 2
+            width: 36
+            height: 36
+            iconSize: 20
+            iconName: "right"
+            tip: "Close Queue"
+            onClicked: appState.toggleQueue()
+        }
+        SongRow {
+            objectName: "queueSidebarSong-" + (root.currentEntry.key || "current")
+            anchors.left: parent.left
+            anchors.right: parent.right
+            y: 36
+            height: 64
+            visible: playerState.hasTrack
+            queueRow: true
+            media: root.currentEntry
+            menuContext: root.currentEntry.key ? ({queueKey: root.currentEntry.key}) : ({})
+            onActivated: if (root.currentEntry.key) playerState.selectKey(root.currentEntry.key)
+        }
+        Text {
+            x: 0; y: 54
+            visible: !playerState.hasTrack
+            text: "Choose a song to start listening"
+            width: parent.width
+            elide: Text.ElideRight
+            color: themeState.secondary
+            font.pixelSize: 13
+        }
+        Switch {
+            id: autoplaySwitch
+            objectName: "queueAutoplay"
+            y: 104; width: parent.width; height: 40
+            padding: 0
+            spacing: 8
+            text: "Autoplay"
+            checked: playerState.autoplay
+            Accessible.name: "Autoplay similar music"
+            Accessible.checkable: true
+            Keys.onShortcutOverride: event => { if (event.key === Qt.Key_Space) event.accepted = true }
+            Accessible.description: checked ? "On. Play similar music after the queue." : "Off. Stop when the queue ends."
+            contentItem: Text {
+                objectName: "queueAutoplayLabel"
+                text: autoplaySwitch.text
+                color: themeState.foreground
+                font.pixelSize: 14
+                verticalAlignment: Text.AlignVCenter
+                rightPadding: autoplaySwitch.indicator.width + autoplayState.width + autoplaySwitch.spacing * 2
+                elide: Text.ElideRight
+            }
+            Text {
+                id: autoplayState
+                objectName: "queueAutoplayState"
+                x: autoplaySwitch.indicator.x - width - autoplaySwitch.spacing
+                width: 32
+                height: parent.height
+                text: autoplaySwitch.checked ? "On" : "Off"
+                color: autoplaySwitch.checked ? themeState.foreground : themeState.secondary
+                font.pixelSize: 13
+                horizontalAlignment: Text.AlignRight
+                verticalAlignment: Text.AlignVCenter
+                Accessible.ignored: true
+            }
+            indicator: Item {
+                objectName: "queueAutoplayIndicator"
+                implicitWidth: 44
+                implicitHeight: 40
+                x: autoplaySwitch.width - width
+                y: (autoplaySwitch.height - height) / 2
+                Rectangle {
+                    objectName: "queueAutoplayTrack"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 44; height: 24; radius: 12
+                    color: autoplaySwitch.checked ? themeState.accent : themeState.progressTrack
+                    border.width: autoplaySwitch.visualFocus ? 2 : 0
+                    border.color: themeState.foreground
+                    Rectangle {
+                        objectName: "queueAutoplayThumb"
+                        x: 3 + autoplaySwitch.visualPosition * (parent.width - width - 6)
+                        y: 3
+                        width: 18; height: 18; radius: 9
+                        color: autoplaySwitch.checked ? themeState.onAccent : themeState.foreground
+                        border.width: autoplaySwitch.checked ? 0 : 1
+                        border.color: themeState.background
+                    }
+                }
+            }
+            onClicked: playerState.toggleAutoplay()
+        }
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: themeState.border }
+    }
+
+    ListView {
+        id: queueList
+        objectName: "queueUpcomingList"
+        anchors.top: nowPanel.bottom
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.leftMargin: root.gutter
         anchors.rightMargin: root.gutter
-        spacing: 0
-
-        Item {
-            id: nowPanel
-            objectName: "queueNowPlayingPanel"
-            width: panels.width
-            height: 100
-            Text {
-                text: "Now Playing"
-                color: themeState.accent
-                font.pixelSize: 14
-                font.bold: true
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.top
-                anchors.verticalCenterOffset: 18
-            }
-            IconButton {
-                objectName: "queueCollapseButton"
-                visible: root.showCloseButton
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.top
-                anchors.verticalCenterOffset: 18
-                width: 36
-                height: 36
-                iconSize: 20
-                iconName: "right"
-                tip: "Collapse Queue Sidebar"
-                onClicked: appState.toggleQueue()
-            }
-            SongRow {
-                objectName: "queueSidebarSong-" + (root.currentEntry.key || "current")
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.topMargin: 36
-                height: 64
-                queueRow: true
-                media: root.currentEntry
-                menuContext: root.currentEntry.key ? ({queueKey: root.currentEntry.key}) : ({})
-                onActivated: if (root.currentEntry.key) playerState.selectKey(root.currentEntry.key)
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        model: root.rows
+        // Avoid pending offscreen delegates when a dock or tray queue is destroyed.
+        cacheBuffer: 0
+        property string focusKey: ""
+        property string restoreKey: ""
+        function focusSong(index, direction) {
+            while (index >= 0 && index < count && root.rows[index].rowType) index += direction
+            if (index < 0 || index >= count) return
+            currentIndex = index
+            positionViewAtIndex(index, ListView.Contain)
+            if (currentItem) currentItem.focusEntry()
+        }
+        function restoreFocus() {
+            var key = restoreKey || focusKey
+            restoreKey = ""
+            var index = root.rows.findIndex(entry => entry.key === key)
+            if (index >= 0) focusSong(index, 1)
+        }
+        Connections {
+            target: playerState
+            function onChanged() {
+                if (queueList.restoreKey || (queueList.activeFocus && queueList.focusKey)) Qt.callLater(queueList.restoreFocus)
             }
         }
-
-        Rectangle { width: panels.width; height: 1; color: themeState.border }
-
-        Item {
-            id: queuePanel
-            objectName: "queuePanel"
-            width: panels.width
-            height: Math.min(panels.sectionSpace / 3, 44 + (playerState.manualCount === 0 ? 56 : playerState.manualCount * 64))
-            Rectangle {
-                id: queueHeading
-                width: parent.width
-                height: 44
-                color: "transparent"
-                objectName: "queueSectionHeading"
-                Text {
-                    text: "Queue"
-                    color: themeState.accent
-                    font.pixelSize: 14
-                    font.bold: true
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                Button {
-                    objectName: "queueClearButton"
-                    text: "Clear Queue"
-                    visible: playerState.manualCount > 0
-                    enabled: !browseState.queueBusy
-                    height: 36
-                    leftPadding: 16
-                    rightPadding: 16
-                    anchors.right: parent.right
-                    anchors.rightMargin: 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    font.pixelSize: 14
-                    palette.buttonText: themeState.foreground
-                    background: Rectangle {
-                        radius: 18
-                        color: parent.down ? themeState.border : parent.hovered ? themeState.hover : themeState.surface
-                        border.color: parent.visualFocus ? themeState.accent : themeState.border
-                    }
-                    onClicked: playerState.clearManualQueue()
-                }
-            }
-            Item {
-                id: addToQueueDrop
-                objectName: "queueSidebarAddToQueueDrop"
-                anchors.top: queueHeading.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                height: 56
-                visible: playerState.manualCount === 0
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.margins: 2
-                    radius: 8
-                    color: root.dropToManual ? themeState.selected : themeState.surface
-                    border.color: root.dropToManual ? themeState.accent : themeState.border
-                    border.width: root.dropToManual ? 2 : 1
-                    Text {
-                        anchors.centerIn: parent
-                        text: root.dropToManual ? "Drop Here To Add This Song" : "+  Add To Queue · Drop Songs Here"
-                        color: root.dropToManual ? themeState.accent : themeState.foreground
-                        font.pixelSize: 13
-                        font.bold: true
-                    }
-                }
-                HoverHandler {
-                    onPointChanged: if (root.draggingKey) root.updateDrag(point.scenePosition.x, point.scenePosition.y)
-                }
-            }
-            ListView {
-                id: queueList
-                objectName: "pinnedQueueList"
-                anchors.top: playerState.manualCount === 0 ? addToQueueDrop.bottom : queueHeading.bottom
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                model: root.queueEntries
-                delegate: queueSongDelegate
-                ScrollBar.vertical: ScrollBar { objectName: "queueSidebarScrollbar"; parent: queuePanel; anchors.left: queueList.right; anchors.top: queueList.top; anchors.bottom: queueList.bottom }
-                Text {
-                    anchors.centerIn: parent
-                    text: "Queue Is Empty"
-                    color: themeState.secondary
-                    visible: queueList.count === 0
-                    font.pixelSize: 13
-                }
-            }
+        ScrollBar.vertical: ScrollBar {
+            objectName: "queueSidebarScrollbar"
+            parent: root
+            anchors.left: queueList.right
+            anchors.top: queueList.top
+            anchors.bottom: queueList.bottom
         }
-
-        Rectangle { width: panels.width; height: 1; color: themeState.border }
-
-        Item {
-            id: nextPanel
-            objectName: "queueNextPanel"
-            width: panels.width
-            height: Math.max(0, (panels.sectionSpace - queuePanel.height) / 2)
-            Rectangle {
-                id: nextRowsHeading
-                objectName: "queueNextHeading"
-                width: parent.width
-                height: 44
-                color: "transparent"
-                Text {
-                    text: "Next"
-                    color: themeState.accent
-                    font.pixelSize: 14
-                    font.bold: true
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-            }
-            ListView {
-                id: nextList
-                objectName: "pinnedQueueNextList"
-                anchors.top: nextRowsHeading.bottom
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                model: root.nextEntries
-                delegate: queueSongDelegate
-                ScrollBar.vertical: ScrollBar { objectName: "queueNextScrollbar"; parent: nextPanel; anchors.left: nextList.right; anchors.top: nextList.top; anchors.bottom: nextList.bottom }
-                Text {
-                    anchors.centerIn: parent
-                    text: "No Upcoming Songs"
-                    color: themeState.secondary
-                    visible: nextList.count === 0
-                    font.pixelSize: 13
-                }
-            }
-        }
-
-        Rectangle { width: panels.width; height: 1; color: themeState.border }
-
-        Item {
-            id: historyPanel
-            objectName: "queuePreviousPanel"
-            width: panels.width
-            height: Math.max(0, (panels.sectionSpace - queuePanel.height) / 2)
-            Rectangle {
-                id: previousHeading
-                width: parent.width
-                height: 44
-                color: "transparent"
-                Text {
-                    text: "Previously Played"
-                    color: themeState.accent
-                    font.pixelSize: 14
-                    font.bold: true
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-            }
-            ListView {
-                id: historyList
-                objectName: "queueHistoryList"
-                anchors.top: previousHeading.bottom
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                model: root.historyEntries
-                delegate: queueSongDelegate
-                ScrollBar.vertical: ScrollBar { objectName: "queueHistoryScrollbar"; parent: historyPanel; anchors.left: historyList.right; anchors.top: historyList.top; anchors.bottom: historyList.bottom }
-                Text {
-                    anchors.centerIn: parent
-                    text: "No Recently Played Songs"
-                    color: themeState.secondary
-                    visible: historyList.count === 0
-                    font.pixelSize: 13
-                }
-            }
-        }
-    }
-
-    Component {
-        id: queueSongDelegate
-        FocusScope {
+        delegate: FocusScope {
             id: queueEntry
             required property var modelData
             required property int index
-            property var listView: ListView.view
-            width: listView.width
-            height: 64
-            opacity: root.draggingKey === queueEntry.modelData.key ? 0.38 : 1
-            property bool dropTarget: (queueEntry.listView === queueList && root.dropTargetList === "queue" || queueEntry.listView === nextList && root.dropTargetList === "next") && root.dropIndex === queueEntry.index && root.draggingKey !== queueEntry.modelData.key
-            function focusEntry() { song.forceActiveFocus() }
-            HoverHandler { id: rowHover }
+            property bool songRow: !modelData.rowType
+            property bool dropTarget: root.dropIndex === index && root.draggingKey !== modelData.key
             property bool rowHovered: rowHover.hovered
+            width: queueList.width
+            height: songRow ? 64 : modelData.rowType === "drop" ? 56 : modelData.rowType === "empty" ? 72 : 44
+            opacity: songRow && root.draggingKey === modelData.key ? 0.38 : 1
+            function focusEntry() { if (songRow) song.forceActiveFocus() }
+            HoverHandler { id: rowHover }
+            Text {
+                objectName: modelData.rowType === "manualHeading" ? "queueSectionHeading" : modelData.rowType === "sourceHeading" ? "queueNextHeading" : ""
+                visible: modelData.rowType === "manualHeading" || modelData.rowType === "sourceHeading"
+                text: modelData.rowType === "manualHeading" ? "Queued Songs" : playerState.nextGroup
+                textFormat: Text.PlainText
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - (clearQueue.visible ? clearQueue.width + 8 : 0)
+                elide: Text.ElideRight
+                color: themeState.foreground
+                font.pixelSize: 14
+                font.bold: true
+            }
+            Button {
+                id: clearQueue
+                objectName: modelData.rowType === "manualHeading" ? "queueClearButton" : ""
+                visible: modelData.rowType === "manualHeading" && (playerState.manualCount > 0 || browseState.queueBusy)
+                text: browseState.queueBusy ? "Cancel" : "Clear"
+                Accessible.name: "Clear queued songs and cancel pending additions"
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                height: 32
+                leftPadding: 12
+                rightPadding: 12
+                font.pixelSize: 13
+                palette.buttonText: themeState.foreground
+                background: Rectangle {
+                    radius: 16
+                    color: parent.down ? themeState.border : parent.hovered ? themeState.hover : themeState.surface
+                    border.color: parent.visualFocus ? themeState.accent : themeState.border
+                }
+                onClicked: playerState.clearManualQueue()
+            }
             Rectangle {
-                objectName: "queueSidebarRowHighlight-" + queueEntry.modelData.key
+                objectName: modelData.rowType === "drop" ? "queueSidebarAddToQueueDrop" : ""
+                visible: modelData.rowType === "drop"
+                x: 0; y: 4
+                width: parent.width; height: 48
+                radius: 8
+                color: root.dropToManual ? themeState.selected : themeState.surface
+                border.color: root.dropToManual ? themeState.accent : themeState.border
+                border.width: root.dropToManual ? 2 : 1
+                Text {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    text: root.dropToManual ? "Drop to Queue" : "+  Drop Songs Here"
+                    color: themeState.foreground
+                    font.pixelSize: 13
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+                Accessible.role: Accessible.StaticText
+                Accessible.name: "Drop songs here to add them to the end of queued songs"
+            }
+            Text {
+                visible: modelData.rowType === "empty"
+                anchors.centerIn: parent
+                text: "No Upcoming Songs"
+                color: themeState.secondary
+                font.pixelSize: 13
+            }
+            Rectangle {
+                objectName: songRow ? "queueSidebarRowHighlight-" + modelData.key : ""
+                visible: queueEntry.songRow
                 anchors.fill: parent
                 radius: 4
                 color: queueEntry.dropTarget ? themeState.selected : rowHover.hovered || queueEntry.activeFocus ? themeState.hover : "transparent"
@@ -358,73 +334,65 @@ Item {
                 border.width: queueEntry.dropTarget || rowHover.hovered || queueEntry.activeFocus ? 1 : 0
             }
             Rectangle {
-                objectName: "queueSidebarDropBefore-" + queueEntry.modelData.key
+                objectName: songRow ? "queueSidebarDropBefore-" + modelData.key : ""
                 z: 2
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                height: 3
+                width: parent.width; height: 3
                 color: themeState.accent
-                visible: (queueEntry.listView === queueList && root.dropTargetList === "queue" || queueEntry.listView === nextList && root.dropTargetList === "next") && root.dropIndex === queueEntry.index && !root.dropAfter && root.draggingKey !== queueEntry.modelData.key
+                visible: queueEntry.songRow && queueEntry.dropTarget && !root.dropAfter
             }
             Rectangle {
-                objectName: "queueSidebarDropAfter-" + queueEntry.modelData.key
+                objectName: songRow ? "queueSidebarDropAfter-" + modelData.key : ""
                 z: 2
-                anchors.left: parent.left
-                anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                height: 3
+                width: parent.width; height: 3
                 color: themeState.accent
-                visible: (queueEntry.listView === queueList && root.dropTargetList === "queue" || queueEntry.listView === nextList && root.dropTargetList === "next") && root.dropIndex === queueEntry.index && root.dropAfter && root.draggingKey !== queueEntry.modelData.key
-            }
-            Rectangle {
-                z: 1
-                anchors.fill: parent
-                radius: 4
-                color: "transparent"
-                border.color: themeState.accent
-                border.width: 1
-                visible: queueEntry.dropTarget
+                visible: queueEntry.songRow && queueEntry.dropTarget && root.dropAfter
             }
             SongRow {
                 id: song
-                objectName: "queueSidebarSong-" + queueEntry.modelData.key
-                focus: true
+                objectName: queueEntry.songRow ? "queueSidebarSong-" + queueEntry.modelData.key : ""
+                visible: queueEntry.songRow
+                focus: queueEntry.songRow
                 anchors.fill: parent
                 anchors.rightMargin: 28
-                reorderable: !!queueEntry.modelData.movable
+                reorderable: queueEntry.songRow
                 queueRow: true
                 media: queueEntry.modelData
                 menuContext: ({queueKey: queueEntry.modelData.key})
-                onActivated: {
-                    if (queueEntry.modelData.group === "Previously played") playerState.selectHistoryKey(queueEntry.modelData.key)
-                    else playerState.selectKey(queueEntry.modelData.key)
-                }
+                onActivated: playerState.selectKey(queueEntry.modelData.key)
                 onReorderDragStarted: (sceneX, sceneY) => root.beginDrag(queueEntry.modelData, sceneX, sceneY)
                 onReorderDragMoved: (sceneX, sceneY) => root.updateDrag(sceneX, sceneY)
                 onReorderDragFinished: (sceneX, sceneY) => root.finishDrag(queueEntry.modelData.key, sceneX, sceneY)
-                Keys.onDeletePressed: if (queueEntry.modelData.movable) playerState.removeKey(queueEntry.modelData.key)
+                Keys.onDeletePressed: {
+                    var following = root.rows.slice(queueEntry.index + 1).find(entry => !!entry.key)
+                    var preceding = root.rows.slice(0, queueEntry.index).reverse().find(entry => !!entry.key)
+                    queueList.restoreKey = following ? following.key : preceding ? preceding.key : ""
+                    playerState.removeKey(queueEntry.modelData.key)
+                }
                 Keys.onUpPressed: event => {
-                    if (queueEntry.modelData.movable && event.modifiers & Qt.AltModifier) playerState.moveKey(queueEntry.modelData.key, -1)
-                    else { queueEntry.listView.decrementCurrentIndex(); if (queueEntry.listView.currentItem) queueEntry.listView.currentItem.focusEntry() }
+                    if (event.modifiers & Qt.AltModifier) { queueList.restoreKey = queueEntry.modelData.key; playerState.moveKey(queueEntry.modelData.key, -1) }
+                    else queueList.focusSong(queueEntry.index - 1, -1)
                 }
                 Keys.onDownPressed: event => {
-                    if (queueEntry.modelData.movable && event.modifiers & Qt.AltModifier) playerState.moveKey(queueEntry.modelData.key, 1)
-                    else { queueEntry.listView.incrementCurrentIndex(); if (queueEntry.listView.currentItem) queueEntry.listView.currentItem.focusEntry() }
+                    if (event.modifiers & Qt.AltModifier) { queueList.restoreKey = queueEntry.modelData.key; playerState.moveKey(queueEntry.modelData.key, 1) }
+                    else queueList.focusSong(queueEntry.index + 1, 1)
                 }
-                onActiveFocusChanged: if (activeFocus) { queueEntry.listView.currentIndex = queueEntry.index }
+                Keys.onRightPressed: event => {
+                    if (event.modifiers & Qt.AltModifier) { queueList.restoreKey = queueEntry.modelData.key; root.appendToManual(queueEntry.modelData.key) }
+                    else event.accepted = false
+                }
+                onActiveFocusChanged: if (activeFocus) { queueList.currentIndex = queueEntry.index; queueList.focusKey = queueEntry.modelData.key }
             }
             IconButton {
-                id: handle
-                objectName: "queueSidebarDrag-" + queueEntry.modelData.key
+                objectName: queueEntry.songRow ? "queueSidebarDrag-" + queueEntry.modelData.key : ""
+                visible: queueEntry.songRow
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 width: 28
-                background: Rectangle { radius: width / 2; color: "transparent" }
-                visible: !!queueEntry.modelData.movable
+                background: Rectangle { color: "transparent" }
                 iconName: "drag"
                 iconSize: 20
-                tip: "Reorder song; Alt+Up or Alt+Down also moves it"
+                tip: "Reorder song: Alt+Up/Down; Alt+Right moves to queued songs"
                 onClicked: appState.showMenu(queueEntry.modelData, {queueKey: queueEntry.modelData.key})
                 DragHandler {
                     target: null
@@ -437,7 +405,6 @@ Item {
             }
         }
     }
-
     QueueDragPreview {
         objectName: "queueDragPreview"
         dragging: root.draggingKey.length > 0
