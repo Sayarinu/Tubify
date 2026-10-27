@@ -55,26 +55,34 @@ Item {
                 }
                 background: Rectangle { radius: 8; color: title.hovered ? themeState.hover : "transparent"; border.width: title.visualFocus ? 2 : 0; border.color: themeState.accent }
             }
-            Flow {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: Math.min(implicitWidth, parent.width)
-                layoutDirection: Qt.LeftToRight
-                spacing: 4
-                Repeater {
-                    model: root.artists
-                    Button {
-                        id: artist
-                        required property var modelData
-                        required property int index
-                        objectName: "immersiveArtist-" + index
-                        width: Math.min(implicitWidth, metadata.width)
-                        height: 36
-                        text: modelData.name || ""
-                        flat: true
-                        Accessible.role: Accessible.Link
-                        onClicked: browseState.openArtist(modelData)
-                        contentItem: Text { text: artist.text; textFormat: Text.PlainText; elide: Text.ElideRight; font.pixelSize: 16; color: themeState.foreground; font.underline: artist.hovered; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
-                        background: Rectangle { radius: 8; color: artist.hovered ? themeState.hover : "transparent"; border.width: artist.visualFocus ? 2 : 0; border.color: themeState.accent }
+            Item {
+                id: artistLine
+                width: parent.width
+                height: 36
+                clip: true
+                Row {
+                    id: artistRow
+                    x: Math.max(0, (artistLine.width - width) / 2)
+                    height: parent.height
+                    Repeater {
+                        model: root.artists
+                        Row {
+                            required property var modelData
+                            required property int index
+                            height: artistRow.height
+                            Button {
+                                id: artist
+                                objectName: "immersiveArtist-" + index
+                                height: parent.height
+                                text: modelData.name || ""
+                                flat: true
+                                Accessible.role: Accessible.Link
+                                onClicked: browseState.openArtist(modelData)
+                                contentItem: Text { text: artist.text; textFormat: Text.PlainText; font.pixelSize: 16; color: themeState.foreground; font.underline: artist.hovered; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
+                                background: Rectangle { radius: 8; color: artist.hovered ? themeState.hover : "transparent"; border.width: artist.visualFocus ? 2 : 0; border.color: themeState.accent }
+                            }
+                            Text { visible: index < root.artists.length - 1; height: parent.height; text: "•"; color: themeState.secondary; font.pixelSize: 16; verticalAlignment: Text.AlignVCenter }
+                        }
                     }
                 }
             }

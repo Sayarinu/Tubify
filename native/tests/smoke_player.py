@@ -224,6 +224,16 @@ def main():
                 assert not find("immersiveAlbum").isEnabled()
                 canvas = find("immersiveArtwork").findChild(QObject, "coverCanvas")
                 assert canvas.property("canvasSource") == ""
+                # Collaborators share one centered line instead of stacking.
+                duet = {**track, "videoId": "stage000003", "artists": [{"name": "Gotts Street Park", "id": "UCfirst"}, {"name": "Olive Jones", "id": "UCsecond"}]}
+                player.playTracks([duet])
+                settle()
+                names = {item.objectName(): item for item in visual_items(window.contentItem()) if item.objectName().startswith("immersiveArtist-")}
+                first, second = names["immersiveArtist-0"], names["immersiveArtist-1"]
+                first_rect, second_rect = (item.mapRectToScene(item.boundingRect()) for item in (first, second))
+                assert abs(first_rect.top() - second_rect.top()) < 0.5 and second_rect.left() > first_rect.right()
+                if options.output_dir:
+                    assert window.grabWindow().save(str(options.output_dir / "immersive-artists.png"))
                 player.playTracks([track])
                 settle()
                 # Song options do not replay the track; artist and album links exit into browsing.

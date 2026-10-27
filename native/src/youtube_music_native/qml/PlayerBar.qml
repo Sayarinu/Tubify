@@ -73,7 +73,7 @@ Rectangle {
                         delegate: Item {
                             required property var modelData
                             required property int index
-                            width: artistName.implicitWidth + separator.implicitWidth
+                            width: artistName.implicitWidth + (separator.visible ? separator.implicitWidth : 0)
                             height: artistViewport.height
                             Text {
                                 id: artistName
@@ -100,7 +100,7 @@ Rectangle {
                                     onClicked: artistName.openArtist()
                                 }
                             }
-                            Text { id: separator; x: artistName.implicitWidth; width: index < playerState.currentTrack.artists.length - 1 ? implicitWidth : 0; height: parent.height; text: " • "; color: themeState.secondary; font.pixelSize: 11 }
+                            Text { id: separator; x: artistName.implicitWidth; visible: index < playerState.currentTrack.artists.length - 1; height: parent.height; text: " • "; color: themeState.secondary; font.pixelSize: 11 }
                         }
                     }
                     Text {
