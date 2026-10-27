@@ -86,6 +86,9 @@ try {
     $python = Join-Path $venv "Scripts\python.exe"
     uv pip install --quiet --python $python "./native[windows-build]"
     if ($LASTEXITCODE -ne 0) { throw "uv could not install the native Windows build dependencies." }
+    $env:TUBIFY_ICON = Join-Path $buildRoot "Tubify.ico"
+    & $python scripts/build-native-windows-icon.py $env:TUBIFY_ICON
+    if ($LASTEXITCODE -ne 0) { throw "Could not render the Tubify Windows icon." }
     & $python -m PyInstaller --noconfirm --clean --distpath (Join-Path $buildRoot "dist") --workpath (Join-Path $buildRoot "work") packaging/windows-native/Tubify.spec
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $appOutput "Tubify.exe"))) {
         throw "PyInstaller did not produce Tubify.exe."
@@ -97,11 +100,12 @@ try {
         if (Test-Path $knownIscc) { $iscc = $knownIscc }
     }
     if (-not $iscc) { throw "Inno Setup 6 is required. Install it or add ISCC.exe to PATH." }
-    & $iscc "/DAppVersion=$version" "/DSourceDir=$appOutput" "/O$output" packaging/windows-native/Tubify.iss
+    & $iscc "/DAppVersion=$version" "/DSourceDir=$appOutput" "/DIconFile=$env:TUBIFY_ICON" "/O$output" packaging/windows-native/Tubify.iss
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed to build the Tubify installer." }
     Write-Output "Built $(Join-Path $output "Tubify-$version-windows-x64-setup.exe")"
 }
 finally {
     Remove-Item -Recurse -Force $buildRoot -ErrorAction SilentlyContinue
     Remove-Item Env:\TUBIFY_BINARY_MANIFEST -ErrorAction SilentlyContinue
+    Remove-Item Env:\TUBIFY_ICON -ErrorAction SilentlyContinue
 }

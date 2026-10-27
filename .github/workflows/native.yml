@@ -8,18 +8,11 @@ on:
       - 'packaging/windows-native/**'
       - 'scripts/build-native-macos.sh'
       - 'scripts/build-native-windows.ps1'
+      - 'scripts/build-native-windows-icon.py'
       - 'scripts/check-native-windows.ps1'
       - '.github/workflows/native.yml'
   push:
     branches: [main]
-    paths:
-      - 'native/**'
-      - 'packaging/macos-native/**'
-      - 'packaging/windows-native/**'
-      - 'scripts/build-native-macos.sh'
-      - 'scripts/build-native-windows.ps1'
-      - 'scripts/check-native-windows.ps1'
-      - '.github/workflows/native.yml'
   workflow_dispatch:
 
 permissions:
@@ -115,6 +108,7 @@ jobs:
         with:
           name: tubify-macos-arm64
           path: dist/native/Tubify-*-macos-arm64.dmg
+          if-no-files-found: error
 
   windows-app:
     name: Windows app installer (x64)
@@ -148,6 +142,48 @@ jobs:
           name: tubify-windows-x64-installer
           path: dist/native/Tubify-*-windows-x64-setup.exe
           if-no-files-found: error
+
+  release:
+    name: Publish downloadable main release
+    needs: [shared-code, windows-app, macos-app, streamdeck]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tubify-windows-x64-installer
+          path: release
+      - uses: actions/download-artifact@v4
+        with:
+          name: tubify-macos-arm64
+          path: release
+      - name: Publish verified installers and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="main-build-${GITHUB_RUN_ID}"
+          cd release
+          sha256sum *.exe *.dmg > SHA256SUMS
+          printf 'Verified build of main commit `%s`.\n\nWindows: download the setup.exe asset. macOS: download the arm64.dmg asset.\n\n[Build and verification](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > notes.md
+          if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
+            if [ "$(cat existing-draft)" = false ]; then
+              echo "This build is already published."
+              exit 0
+            fi
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Tubify main build ${GITHUB_RUN_NUMBER}" --notes-file notes.md
+          fi
+          gh release upload "$tag" *.exe *.dmg SHA256SUMS --clobber
+          latest=false
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA" ]; then
+            latest=true
+          fi
+          gh release edit "$tag" --draft=false --latest="$latest"
 
   streamdeck:
     name: Stream Deck (${{ matrix.os }})

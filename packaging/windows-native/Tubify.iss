@@ -6,6 +6,8 @@
 #endif
 
 [Setup]
+SetupIconFile={#IconFile}
+UninstallDisplayIcon={app}\Tubify.exe
 AppId={{2A5D9328-CE8E-40E4-87D3-223FDEB1C821}
 AppName=Tubify
 AppVersion={#AppVersion}

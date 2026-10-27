@@ -5,10 +5,25 @@ from pathlib import Path
 import tomllib
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.win32.versioninfo import FixedFileInfo, StringFileInfo, StringTable, StringStruct, VarFileInfo, VarStruct, VSVersionInfo
 
 ROOT = Path(SPECPATH).resolve().parents[1]
 NATIVE = ROOT / "native"
 VERSION = tomllib.loads((NATIVE / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+version_tuple = tuple(int(part) for part in VERSION.split("."))
+version_tuple = (version_tuple + (0, 0, 0, 0))[:4]
+version_info = VSVersionInfo(
+    ffi=FixedFileInfo(filevers=version_tuple, prodvers=version_tuple, OS=0x40004, fileType=1),
+    kids=[StringFileInfo([StringTable("040904B0", [
+        StringStruct("CompanyName", "Nouvelle Lune Atelier"),
+        StringStruct("FileDescription", "Tubify"),
+        StringStruct("ProductName", "Tubify"),
+        StringStruct("FileVersion", VERSION),
+        StringStruct("ProductVersion", VERSION),
+        StringStruct("InternalName", "Tubify"),
+        StringStruct("OriginalFilename", "Tubify.exe"),
+    ])]), VarFileInfo([VarStruct("Translation", [1033, 1200])])],
+)
 manifest = Path(os.environ["TUBIFY_BINARY_MANIFEST"])
 BINARY_ITEMS = json.loads(manifest.read_text(encoding="utf-8"))
 binaries = [(row["source"], row["destination"]) for row in BINARY_ITEMS]
@@ -33,6 +48,6 @@ pyz = PYZ(analysis.pure)
 exe = EXE(
     pyz, analysis.scripts, [],
     exclude_binaries=True, name="Tubify", console=False,
-    version=None, icon=None,
+    version=version_info, icon=os.environ["TUBIFY_ICON"],
 )
 collected = COLLECT(exe, analysis.binaries, analysis.datas, name="Tubify")
