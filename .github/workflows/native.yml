@@ -6,6 +6,11 @@ on:
       - 'native/**'
       - 'packaging/macos-native/**'
       - 'packaging/windows-native/**'
+      - 'packaging/arch-native/**'
+      - 'scripts/build-native-arch-package.sh'
+      - 'scripts/check-native-arch-package.sh'
+      - '.github/workflows/native-arch-build.yml'
+      - '.github/workflows/native-release-linux.yml'
       - 'scripts/build-native-macos.sh'
       - 'scripts/build-native-windows.ps1'
       - 'scripts/build-native-windows-icon.py'
@@ -19,6 +24,10 @@ permissions:
   contents: read
 
 jobs:
+  arch-app:
+    name: Arch Linux packages
+    uses: ./.github/workflows/native-arch-build.yml
+
   shared-code:
     name: Shared code (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
@@ -143,13 +152,10 @@ jobs:
           path: dist/native/Tubify-*-windows-x64-setup.exe
           if-no-files-found: error
 
-  release:
-    name: Publish downloadable main release
-    needs: [shared-code, windows-app, macos-app, streamdeck]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  release-assets:
+    name: Assemble and verify all release downloads
+    needs: [shared-code, windows-app, macos-app, arch-app, streamdeck]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -158,6 +164,42 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: tubify-macos-arm64
+          path: release
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-arch-package
+          path: release
+      # The plugin is platform-independent; all three matrix builds are tested.
+      - uses: actions/download-artifact@v4
+        with:
+          name: streamdeck-windows-latest
+          path: release
+      - name: Require every download type and generate checksums
+        working-directory: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s failglob
+          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz *.streamDeckPlugin )
+          sha256sum "${assets[@]}" > SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-downloads
+          path: release/*
+          if-no-files-found: error
+
+  release:
+    name: Publish downloadable main release
+    needs: release-assets
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-release-downloads
           path: release
       - name: Publish verified installers and checksums
         env:
@@ -168,8 +210,10 @@ jobs:
           set -euo pipefail
           tag="main-build-${GITHUB_RUN_ID}"
           cd release
-          sha256sum *.exe *.dmg > SHA256SUMS
-          printf 'Verified build of main commit `%s`.\n\nWindows: download the setup.exe asset. macOS: download the arm64.dmg asset.\n\n[Build and verification](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > notes.md
+          sha256sum --check SHA256SUMS
+          shopt -s failglob
+          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz *.streamDeckPlugin SHA256SUMS )
+          printf 'Verified build of main commit `%s`.\n\nDownloads:\n- Windows: setup.exe\n- macOS Apple Silicon: arm64.dmg\n- Arch Linux: pkg.tar.zst (install with pacman -U)\n- Arch build sources: src.tar.gz\n- Stream Deck for Windows/macOS: streamDeckPlugin\n- Integrity checks: SHA256SUMS\n\n[Build and verification](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > notes.md
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
               echo "This build is already published."
@@ -178,7 +222,7 @@ jobs:
           else
             gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Tubify main build ${GITHUB_RUN_NUMBER}" --notes-file notes.md
           fi
-          gh release upload "$tag" *.exe *.dmg SHA256SUMS --clobber
+          gh release upload "$tag" "${assets[@]}" --clobber
           latest=false
           if [ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA" ]; then
             latest=true
