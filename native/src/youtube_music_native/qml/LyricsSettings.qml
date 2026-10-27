@@ -43,7 +43,7 @@ SettingsPage {
             SettingsCheckBox { objectName: "lyricTimestampsOption"; text: "Show Timestamps"; checked: lyricState.options.timestamps; onClicked: lyricState.setOption("timestamps", checked) }
             RowLayout {
                 Label { text: "Timing Style"; color: themeState.foreground }
-                ComboBox {
+                ThemedComboBox {
                     objectName: "lyricStyleOption"
                     Layout.fillWidth: true
                     model: ["Line", "Word", "Syllable"]

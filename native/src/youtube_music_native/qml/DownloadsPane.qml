@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import "Theme.js" as Theme
 
 Item {
@@ -91,20 +92,29 @@ Item {
         Text { width: parent.width; text: "Music Wherever You Go"; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 28; horizontalAlignment: Text.AlignHCenter }
         Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + root.selectedKind.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
     }
-    Menu {
+    ThemedMenu {
         id: options
-        MenuItem { text: "Shuffle Play"; enabled: root.selectedEntry.ready > 0; onTriggered: downloadsState.play(root.selectedEntry.key, true) }
-        MenuItem { text: "Refresh Download"; enabled: (accountState.connected || appState.fixtureMode) && root.selectedEntry.state !== "queued" && root.selectedEntry.state !== "downloading"; onTriggered: downloadsState.download(root.selectedEntry) }
-        MenuItem { text: "Remove Download"; onTriggered: removal.open() }
+        objectName: "downloadOptionsMenu"
+        ContextMenuItem { text: "Shuffle Play"; enabled: root.selectedEntry.ready > 0; onTriggered: downloadsState.play(root.selectedEntry.key, true) }
+        ContextMenuItem { text: "Refresh Download"; enabled: (accountState.connected || appState.fixtureMode) && root.selectedEntry.state !== "queued" && root.selectedEntry.state !== "downloading"; onTriggered: downloadsState.download(root.selectedEntry) }
+        ContextMenuItem { text: "Remove Download"; onTriggered: removal.open() }
     }
-    Dialog {
+    ThemedDialog {
         id: removal
         objectName: "downloadRemovalDialog"
-        parent: Overlay.overlay; anchors.centerIn: parent
-        width: Math.min(460, root.width - 48); modal: true
-        title: "Remove Download?"; standardButtons: Dialog.Ok | Dialog.Cancel
-        palette.window: themeState.surface; palette.windowText: themeState.foreground
-        contentItem: Label { text: "Remove “" + (root.selectedEntry.title || "this music") + "” from this device? Songs used by another download will stay."; textFormat: Text.PlainText; color: themeState.foreground; wrapMode: Text.Wrap }
+        parent: Overlay.overlay
+        width: Math.min(460, root.width - 48)
+        title: "Remove Download?"
+        contentItem: ColumnLayout {
+            spacing: 16
+            Label { Layout.fillWidth: true; text: "Remove “" + (root.selectedEntry.title || "this music") + "” from this device? Songs used by another download will stay."; textFormat: Text.PlainText; color: themeState.foreground; wrapMode: Text.Wrap }
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                ThemeActionButton { text: "Cancel"; onClicked: removal.reject() }
+                ThemeActionButton { text: "Remove"; primary: true; onClicked: removal.accept() }
+            }
+        }
         onAccepted: downloadsState.remove(root.selectedEntry.key)
     }
 }

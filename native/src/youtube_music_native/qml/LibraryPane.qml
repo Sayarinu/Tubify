@@ -36,12 +36,11 @@ Item {
                     onClicked: libraryState.select(text)
                 }
             }
-            ComboBox {
+            ThemedComboBox {
                 id: sortOrder
                 x: parent.width - width; y: 84; width: 164; height: 36
                 visible: !root.history && libraryState.selectedSection !== "Playlists" && libraryState.selectedSection !== "Liked songs"
                 model: libraryState.orders; currentIndex: libraryState.orders.indexOf(libraryState.selectedOrder)
-                palette.text: themeState.foreground; palette.buttonText: themeState.foreground; palette.windowText: themeState.foreground; palette.base: themeState.surface; palette.button: themeState.surface
                 Accessible.name: "Library sort order"
                 onActivated: libraryState.sort(currentText)
             }
