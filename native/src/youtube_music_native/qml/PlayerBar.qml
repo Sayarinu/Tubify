@@ -18,6 +18,14 @@ Rectangle {
         function onAppearanceChanged() { titleViewport.updateScroll(); artistViewport.updateScroll() }
     }
     readonly property var primaryArtist: playerState.currentTrack.artists && playerState.currentTrack.artists.length ? playerState.currentTrack.artists[0] : ({})
+    // Empty bar space acts like the immersive toggle; it sits below the seek slider (z: -1) and every control.
+    MouseArea {
+        objectName: "playerBarBackground"
+        anchors.fill: parent; z: -2
+        enabled: playerState.hasTrack
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: appState.requestAction("expandPlayer")
+    }
 
     Item {
         id: track

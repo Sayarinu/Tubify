@@ -234,6 +234,21 @@ def main():
                 assert abs(first_rect.top() - second_rect.top()) < 0.5 and second_rect.left() > first_rect.right()
                 if options.output_dir:
                     assert window.grabWindow().save(str(options.output_dir / "immersive-artists.png"))
+                # Empty transport space toggles the stage like the chevron, but controls keep their own clicks.
+                assert shell.expanded
+                gap = transport.mapToScene(QPointF(6, transport.height() / 2)).toPoint()
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=gap)
+                settle()
+                assert not shell.expanded
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=gap)
+                settle()
+                assert shell.expanded
+                seek = find("playbackSeek")
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=seek.mapToScene(QPointF(seek.width() / 2, seek.height() / 2)).toPoint())
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=toggle.mapToScene(QPointF(toggle.width() / 2, toggle.height() / 2)).toPoint())
+                settle()
+                assert not shell.expanded
+                shell.setExpanded(True)
                 player.playTracks([track])
                 settle()
                 # Song options do not replay the track; artist and album links exit into browsing.
