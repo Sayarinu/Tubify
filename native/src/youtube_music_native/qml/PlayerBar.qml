@@ -18,6 +18,14 @@ Rectangle {
         function onAppearanceChanged() { titleViewport.updateScroll(); artistViewport.updateScroll() }
     }
     readonly property var primaryArtist: playerState.currentTrack.artists && playerState.currentTrack.artists.length ? playerState.currentTrack.artists[0] : ({})
+    // Empty bar space acts like the immersive toggle; it sits below the seek slider (z: -1) and every control.
+    MouseArea {
+        objectName: "playerBarBackground"
+        anchors.fill: parent; z: -2
+        enabled: playerState.hasTrack
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: appState.requestAction("expandPlayer")
+    }
 
     Item {
         id: track
@@ -73,7 +81,7 @@ Rectangle {
                         delegate: Item {
                             required property var modelData
                             required property int index
-                            width: artistName.implicitWidth + separator.implicitWidth
+                            width: artistName.implicitWidth + (separator.visible ? separator.implicitWidth : 0)
                             height: artistViewport.height
                             Text {
                                 id: artistName
@@ -100,7 +108,7 @@ Rectangle {
                                     onClicked: artistName.openArtist()
                                 }
                             }
-                            Text { id: separator; x: artistName.implicitWidth; width: index < playerState.currentTrack.artists.length - 1 ? implicitWidth : 0; height: parent.height; text: " • "; color: themeState.secondary; font.pixelSize: 11 }
+                            Text { id: separator; x: artistName.implicitWidth; visible: index < playerState.currentTrack.artists.length - 1; height: parent.height; text: " • "; color: themeState.secondary; font.pixelSize: 11 }
                         }
                     }
                     Text {
@@ -125,7 +133,7 @@ Rectangle {
                 width: parent.width; height: 14; clip: true
                 Text {
                     id: albumName
-                    width: parent.width; height: parent.height
+                    width: Math.min(implicitWidth, parent.width); height: parent.height
                     text: typeof playerState.currentTrack.album === "string" ? playerState.currentTrack.album : playerState.currentTrack.album && playerState.currentTrack.album.name || playerState.currentTrack.albumName || playerState.currentTrack.albumTitle || ""
                     textFormat: Text.PlainText; elide: Text.ElideRight; color: albumLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 11
                     font.underline: albumLink.containsMouse || activeFocus

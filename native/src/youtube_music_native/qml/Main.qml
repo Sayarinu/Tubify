@@ -373,13 +373,10 @@ ApplicationWindow {
         IconButton { id: historyButton; objectName: "historyButton"; visible: header.width >= 640; anchors.right: settingsButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening History"; onClicked: libraryState.history() }
     }
 
-    Menu {
+    ThemedMenu {
         id: accountMenu
         objectName: "accountMenu"
         implicitWidth: 252
-        padding: 8
-        spacing: 2
-        background: Rectangle { radius: 12; color: themeState.surface; border.color: themeState.border; border.width: 1 }
         MenuItem {
             enabled: false
             implicitHeight: 42
@@ -396,9 +393,9 @@ ApplicationWindow {
             }
             background: Rectangle { color: "transparent" }
         }
-        MenuSeparator {}
+        ThemedMenuSeparator {}
         ContextMenuItem { text: "Connection Settings"; onTriggered: accountDialog.open() }
-        MenuSeparator { visible: accountState.connected; height: visible ? implicitHeight : 0 }
+        ThemedMenuSeparator { visible: accountState.connected; height: visible ? implicitHeight : 0 }
         ContextMenuItem { text: "Sign Out"; visible: accountState.connected; height: visible ? implicitHeight : 0; onTriggered: accountState.signOut() }
     }
 
@@ -813,33 +810,28 @@ ApplicationWindow {
             }
         }
     }
-    Menu {
+    ThemedMenu {
         id: addThemeMenu
         objectName: "addThemeMenu"
         implicitWidth: 230
-        padding: 8
-        spacing: 2
-        background: Rectangle { radius: 12; color: themeState.surface; border.color: themeState.border; border.width: 1 }
         ContextMenuItem { text: "Create from Current"; onTriggered: { themeNameDialog.renameMode = false; themeNameField.text = ""; themeNameDialog.open() } }
         ContextMenuItem { text: "Import Theme…"; onTriggered: themeImportDialog.open() }
     }
-    Dialog {
+    ThemedDialog {
         id: themeNameDialog
-        anchors.centerIn: Overlay.overlay
         width: 390
-        modal: true; focus: true; title: renameMode ? "Rename Theme" : "Create Custom Theme"
-        standardButtons: Dialog.NoButton
+        title: renameMode ? "Rename Theme" : "Create Custom Theme"
         property bool renameMode: false
         contentItem: ColumnLayout {
             spacing: 10
-            Label { Layout.fillWidth: true; text: themeNameDialog.renameMode ? "Choose a new name for this custom theme." : "Your new theme starts with the current colors."; wrapMode: Text.Wrap }
-            TextField { id: themeNameField; objectName: "themeNameField"; Layout.fillWidth: true; placeholderText: "Theme name"; maximumLength: 60; onAccepted: themeNameSave.clicked() }
+            Label { Layout.fillWidth: true; text: themeNameDialog.renameMode ? "Choose a new name for this custom theme." : "Your new theme starts with the current colors."; color: themeState.foreground; wrapMode: Text.Wrap }
+            ThemedTextField { id: themeNameField; objectName: "themeNameField"; Layout.fillWidth: true; placeholderText: "Theme name"; maximumLength: 60; onAccepted: themeNameSave.clicked() }
             RowLayout {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
                 ThemeActionButton { text: "Cancel"; onClicked: themeNameDialog.close() }
                 ThemeActionButton {
-                    id: themeNameSave; text: themeNameDialog.renameMode ? "Save" : "Create"; highlighted: true
+                    id: themeNameSave; text: themeNameDialog.renameMode ? "Save" : "Create"; primary: true
                     onClicked: {
                         var ok = themeNameDialog.renameMode
                             ? themeState.renameCustomTheme(themeState.activeThemeId, themeNameField.text)
@@ -850,14 +842,13 @@ ApplicationWindow {
             }
         }
     }
-    Dialog {
+    ThemedDialog {
         id: deleteThemeDialog
-        anchors.centerIn: Overlay.overlay
         width: 390
-        modal: true; focus: true; title: "Delete Custom Theme?"; standardButtons: Dialog.NoButton
+        title: "Delete Custom Theme?"
         contentItem: ColumnLayout {
             spacing: 10
-            Label { Layout.fillWidth: true; text: "Delete “" + themeState.activeThemeName + "”? Classic will become active if this is the selected theme."; wrapMode: Text.Wrap }
+            Label { Layout.fillWidth: true; text: "Delete “" + themeState.activeThemeName + "”? Classic will become active if this is the selected theme."; color: themeState.foreground; wrapMode: Text.Wrap }
             RowLayout {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
@@ -866,16 +857,15 @@ ApplicationWindow {
             }
         }
     }
-    Dialog {
+    ThemedDialog {
         id: importThemeDialog
-        anchors.centerIn: Overlay.overlay
         width: 420
-        modal: true; focus: true; title: "Import Theme"; standardButtons: Dialog.NoButton
+        title: "Import Theme"
         property bool replaceCustom: false
         contentItem: ColumnLayout {
             spacing: 10
-            Label { Layout.fillWidth: true; text: importThemeDialog.replaceCustom ? "A custom theme already uses this name. Save to replace it, or choose another name." : "Name this imported custom theme. Built-in themes are protected and cannot be replaced."; wrapMode: Text.Wrap }
-            TextField { id: importThemeName; Layout.fillWidth: true; placeholderText: "Theme name"; maximumLength: 60 }
+            Label { Layout.fillWidth: true; text: importThemeDialog.replaceCustom ? "A custom theme already uses this name. Save to replace it, or choose another name." : "Name this imported custom theme. Built-in themes are protected and cannot be replaced."; color: themeState.foreground; wrapMode: Text.Wrap }
+            ThemedTextField { id: importThemeName; Layout.fillWidth: true; placeholderText: "Theme name"; maximumLength: 60 }
             Label { Layout.fillWidth: true; text: themeState.message; visible: text.length > 0; color: "#ffb4a6"; wrapMode: Text.Wrap }
             RowLayout {
                 Layout.fillWidth: true; Item { Layout.fillWidth: true }
@@ -1146,13 +1136,13 @@ ApplicationWindow {
     MediaMenu { id: mediaMenu }
     PlaylistDialogs { id: playlistDialogs; anchors.fill: parent }
     Connections { target: appState; function onMenuRequested(media, context) { if (trayState.popupActive) return; mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
-    Dialog {
+    ThemedDialog {
         id: shortcutHelp
         objectName: "shortcutHelpDialog"
         height: Math.min(implicitHeight, uiRoot.height - 48)
         width: Math.min(580, uiRoot.width - 80)
-        anchors.centerIn: parent; modal: true; focus: true; title: "Keyboard Shortcuts"; standardButtons: Dialog.Close
-        palette.window: themeState.surface; palette.windowText: themeState.foreground
+        anchors.centerIn: parent
+        title: "Keyboard Shortcuts"
         contentItem: ScrollView {
             id: shortcutScroll
             clip: true

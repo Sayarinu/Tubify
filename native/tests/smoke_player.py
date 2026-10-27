@@ -224,6 +224,36 @@ def main():
                 assert not find("immersiveAlbum").isEnabled()
                 canvas = find("immersiveArtwork").findChild(QObject, "coverCanvas")
                 assert canvas.property("canvasSource") == ""
+                # Collaborators share one centered line instead of stacking.
+                duet = {**track, "videoId": "stage000003", "artists": [{"name": "Gotts Street Park", "id": "UCfirst"}, {"name": "Olive Jones", "id": "UCsecond"}]}
+                player.playTracks([duet])
+                settle()
+                names = {item.objectName(): item for item in visual_items(window.contentItem()) if item.objectName().startswith("immersiveArtist-")}
+                first, second = names["immersiveArtist-0"], names["immersiveArtist-1"]
+                first_rect, second_rect = (item.mapRectToScene(item.boundingRect()) for item in (first, second))
+                assert abs(first_rect.top() - second_rect.top()) < 0.5 and second_rect.left() > first_rect.right()
+                if options.output_dir:
+                    assert window.grabWindow().save(str(options.output_dir / "immersive-artists.png"))
+                # Links only react over their own text, not the rest of the metadata column.
+                album_text = find("playerAlbum").childItems()[0]
+                assert album_text.width() <= album_text.property("implicitWidth") + 0.5 < find("playerAlbum").width()
+                title_button = find("immersiveTrackTitle")
+                assert title_button.width() < title_button.parentItem().width()
+                # Empty transport space toggles the stage like the chevron, but controls keep their own clicks.
+                assert shell.expanded
+                gap = transport.mapToScene(QPointF(6, transport.height() / 2)).toPoint()
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=gap)
+                settle()
+                assert not shell.expanded
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=gap)
+                settle()
+                assert shell.expanded
+                seek = find("playbackSeek")
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=seek.mapToScene(QPointF(seek.width() / 2, seek.height() / 2)).toPoint())
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=toggle.mapToScene(QPointF(toggle.width() / 2, toggle.height() / 2)).toPoint())
+                settle()
+                assert not shell.expanded
+                shell.setExpanded(True)
                 player.playTracks([track])
                 settle()
                 # Song options do not replay the track; artist and album links exit into browsing.

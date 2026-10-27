@@ -58,6 +58,13 @@ def main():
                 assert QMetaObject.invokeMethod(item, "triggered")
                 assert len(player.entries) == count + 1
                 QMetaObject.invokeMethod(menu, "close")
+                # The playlist picker uses the same themed shell as other dialogs and focuses its search.
+                library.choosePlaylist(track)
+                QTest.qWait(50)
+                chooser = window.findChild(QObject, "playlistChooser")
+                assert chooser.property("opened") and chooser.property("background").property("radius") == 16
+                assert window.findChild(QObject, "playlistChooserFind").property("activeFocus")
+                QMetaObject.invokeMethod(chooser, "close")
                 assert not engine.property("qmlWarnings")
                 passed.append(True)
             except Exception:

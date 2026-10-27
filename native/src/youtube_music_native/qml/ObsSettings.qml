@@ -16,7 +16,7 @@ SettingsPage {
             width: scroll.availableWidth; spacing: 16
             Label { Layout.fillWidth: true; text: "Add a Browser Source in OBS using a paired, read-only local URL. Enable Local API first. Music playback stays in the native app."; color: themeState.secondary; wrapMode: Text.Wrap }
             Label { text: "Layout"; color: themeState.foreground }
-            ComboBox {
+            ThemedComboBox {
                 objectName: "obsLayout"
                 Layout.fillWidth: true
                 model: [{name: "Full Card", key: "full"}, {name: "Compact", key: "compact"}, {name: "Text Only", key: "text"}, {name: "Badge", key: "badge"}, {name: "Poster", key: "poster"}, {name: "Ticker", key: "ticker"}, {name: "Scene Display", key: "display"}]

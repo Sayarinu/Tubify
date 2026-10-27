@@ -2,15 +2,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Dialog {
+ThemedDialog {
     id: root
     objectName: "linkPreviewDialog"
-    anchors.centerIn: Overlay.overlay
     width: Overlay.overlay ? Math.min(480, Overlay.overlay.width - 48) : 480
-    modal: true
-    focus: true
     title: "Shared Music"
-    standardButtons: Dialog.Close
     property alias scrollView: scroll
     property var service: typeof linkState !== "undefined" ? linkState : null
     contentItem: ScrollView {
