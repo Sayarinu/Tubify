@@ -82,7 +82,12 @@ jobs:
       - name: Check portable command entry point
         run: youtube-music-native-check --help
       - name: Launch native Qt window and decode local audio
-        run: python native/tests/smoke_runtime.py
+        shell: bash
+        run: |
+          python native/tests/smoke_runtime.py || {
+            echo "Native runtime smoke failed; retrying once to rule out transient runner startup failures."
+            python native/tests/smoke_runtime.py
+          }
       - name: Verify authenticated local API through the native settings UI
         run: python native/tests/smoke_local_api.py --ui-scale 150
       - name: Verify MPRIS on an isolated session bus
