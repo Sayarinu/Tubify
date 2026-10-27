@@ -86,7 +86,7 @@ def handle(service, request, resources=None, progress=None):
     if operation == "restore":
         return service.restore()
     if operation == "import_session":
-        result = service.import_session(payload["path"], tauri=bool(payload.get("tauri")))
+        result = service.import_session(payload["path"])
         resources.clear()
         return result
     if operation == "import_browser":

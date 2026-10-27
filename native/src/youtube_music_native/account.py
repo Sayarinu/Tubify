@@ -1,11 +1,9 @@
 """Non-blocking account state exposed to QML; credentials remain in the worker."""
 
 import json
-from pathlib import Path
-import sys
 import time
 
-from PySide6.QtCore import QCoreApplication, QObject, Property, QSettings, QStandardPaths, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QCoreApplication, QObject, Property, QSettings, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
 from . import browsers
@@ -94,13 +92,6 @@ class Account(QObject):
     def signingIn(self):
         return self._mode in {"interactive", "waiting"}
 
-    @Property(bool, constant=True)
-    def tauriAvailable(self):
-        return sys.platform == "linux" and self._tauri_path().is_file()
-
-    def _tauri_path(self):
-        return Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.GenericDataLocation)) / "com.carter.youtube-music" / "cookies"
-
     def _send(self, operation, payload=None, keep_message=False):
         if self.worker is None or self._busy:
             return False
@@ -115,10 +106,6 @@ class Account(QObject):
     @Slot()
     def restore(self):
         self._send("restore")
-
-    @Slot()
-    def importTauri(self):
-        self._send("import_session", {"path": str(self._tauri_path()), "tauri": True})
 
     @Slot(QUrl)
     def importFile(self, url):

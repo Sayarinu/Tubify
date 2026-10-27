@@ -1,4 +1,4 @@
-from PySide6.QtCore import QCoreApplication, QEventLoop, QObject, QTimer, Signal
+from PySide6.QtCore import QCoreApplication, QEventLoop, QObject, QTimer, QUrl, Signal
 import sys
 
 from youtube_music_native.account import Account
@@ -29,12 +29,12 @@ def test_restore_and_failed_reconnect_keep_cached_identity(tmp_path):
     worker.succeeded.emit(1, {"connected": True, "profile": {"name": "Listener"}})
     account.requireReconnect("Session expired")
     assert not account.connected and account.reconnect
-    account.importTauri()
+    account.importFile(QUrl.fromLocalFile(str(tmp_path / "browser.json")))
     worker.failed.emit(2, {"code": "offline", "message": "Offline"})
     assert account.profile["name"] == "Listener"
     assert account.reconnect and not account.busy
     assert changes == []
-    account.importTauri()
+    account.importFile(QUrl.fromLocalFile(str(tmp_path / "browser.json")))
     worker.succeeded.emit(3, {"connected": True, "profile": {"name": "Listener"}})
     assert account.connected and not account.reconnect
     assert changes == [True]

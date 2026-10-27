@@ -11,7 +11,8 @@ import subprocess
 import sys
 import tempfile
 
-from .session import SessionError, read_browser_session, read_tauri_session
+from . import browsers
+from .session import SessionError, read_browser_session
 from .launcher import process_command
 
 
@@ -178,7 +179,7 @@ def main(argv=None):
     subparsers = parser.add_subparsers(dest="command", required=True)
     check = subparsers.add_parser("check", help="Run the real-account compatibility gate on Linux")
     source = check.add_mutually_exclusive_group(required=True)
-    source.add_argument("--tauri-cookies", type=Path, help="Explicitly selected Linux Tauri cookie file")
+    source.add_argument("--browser", choices=sorted(browsers.NAMES), help="Reuse this browser's YouTube Music sign-in")
     source.add_argument("--session", type=Path, help="Explicitly selected browser.json export")
     check.add_argument("--output", type=Path, default=Path(tempfile.gettempdir()))
     subparsers.add_parser("play", help="Internal native playback worker")
@@ -191,7 +192,7 @@ def main(argv=None):
         if args.command == "play":
             play_child(json.load(sys.stdin))
             return 0
-        session = read_tauri_session(args.tauri_cookies) if args.tauri_cookies else read_browser_session(args.session)
+        session = browsers.read_session([args.browser])[1] if args.browser else read_browser_session(args.session)
         args.output.mkdir(parents=True, exist_ok=True)
         directory = Path(tempfile.mkdtemp(prefix="youtube-music-proof-", dir=args.output))
         report = run_probe(session, directory)

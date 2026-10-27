@@ -1,11 +1,9 @@
 import json
-import sys
 import time
-from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from youtube_music_native.session import Session, SessionError, from_cookies, from_headers, read_browser_session, read_tauri_session
+from youtube_music_native.session import Session, SessionError, from_cookies, from_headers, read_browser_session
 
 
 def test_import_keeps_credentials_out_of_representation_and_restricts_origin(tmp_path):
@@ -51,41 +49,6 @@ def test_saved_payload_preserves_cookie_domain_and_expiry():
     assert restored.cookies[0].expires == 2000000000
     assert restored.cookies[0].domain == ".youtube.com"
     assert restored.headers["cookie"] == original.headers["cookie"]
-
-
-def test_tauri_migration_is_read_only_and_excludes_other_domains_and_expired_cookies(monkeypatch, tmp_path):
-    profile = tmp_path / "cookies"
-    profile.write_text("unchanged profile")
-    calls = []
-
-    def cookie(name, domain, expires=None):
-        return SimpleNamespace(
-            get_name=lambda: name, get_value=lambda: "private",
-            get_domain=lambda: domain, get_path=lambda: "/",
-            get_secure=lambda: True,
-            get_expires=lambda: SimpleNamespace(to_unix=lambda: expires) if expires else None,
-        )
-
-    def new(path, read_only):
-        calls.append((path, read_only))
-        return SimpleNamespace(all_cookies=lambda: [
-            cookie("__Secure-3PAPISID", ".youtube.com"),
-            cookie("music", "music.youtube.com"),
-            cookie("expired", ".youtube.com", 1),
-            cookie("unrelated", ".google.com"),
-        ])
-
-    gi = ModuleType("gi")
-    gi.require_version = lambda *args: None
-    repository = ModuleType("gi.repository")
-    repository.Soup = SimpleNamespace(CookieJarText=SimpleNamespace(new=new))
-    monkeypatch.setitem(sys.modules, "gi", gi)
-    monkeypatch.setitem(sys.modules, "gi.repository", repository)
-    session = read_tauri_session(profile)
-    assert calls == [(str(profile), True)]
-    assert {c.name for c in session.cookie_jar()} == {"__Secure-3PAPISID", "music"}
-    assert {c.domain for c in session.cookie_jar()} == {".youtube.com", "music.youtube.com"}
-    assert profile.read_text() == "unchanged profile"
 
 
 def test_sign_in_cookies_keep_live_youtube_cookies_and_round_trip_with_capture_time():

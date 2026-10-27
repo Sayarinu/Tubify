@@ -1,18 +1,15 @@
-# Windows Release
+# Windows
 
-Builds the Windows NSIS and MSI installers.
+## Native Tubify client (x64)
 
-```sh
-npm run build:windows
+From a Windows x64 checkout with uv, MSYS2 UCRT64 (`mpv` and `ffmpeg`), Deno and Inno Setup 6:
+
+```powershell
+./scripts/build-native-windows.ps1
 ```
 
-Outputs:
+The per-user installer is written to `dist/native/Tubify-<version>-windows-x64-setup.exe`. It installs to `%LOCALAPPDATA%\Programs\Tubify` and bundles Qt, libmpv, FFmpeg and Deno, so nothing else needs to be installed.
 
-- `src-tauri/target/release/bundle/nsis/*.exe`
-- `src-tauri/target/release/bundle/msi/*.msi`
+Tubify shows track details in the Windows media flyout, and the media keys, play/pause, next/previous and seeking all work. Sign-in reuses the YouTube Music sign-in from your browser. Chrome and Edge lock and encrypt their cookies while they are open, so close the browser before signing in, or sign in to YouTube Music in Firefox.
 
-Notes:
-
-- Build this on Windows.
-- Tauri uses WebView2 on Windows.
-- A private GitHub release workflow is included in `.github/workflows/release-windows.yml`.
+Pull request CI builds, installs, upgrades, launches and uninstalls the package. It then publishes the installer as the `tubify-windows-x64-installer` workflow artifact.

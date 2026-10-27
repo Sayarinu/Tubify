@@ -1,60 +1,32 @@
-# YouTube Music App
+# Tubify
 
-A lightweight Tauri wrapper that opens YouTube Music in a native desktop window.
+A native Python/Qt (PySide6 + QML) desktop client for YouTube Music with offline downloads. Linux, macOS and Windows share one codebase in `native/`.
 
-The native Python/Qt client has its [launch and Arch package guide](https://linear.app/nouvelle-lune-atelier/issue/LUNE-389/move-native-client-implementation-documentation-into-linear) and [specification and QoL roadmap](https://linear.app/nouvelle-lune-atelier/issue/LUNE-367/publish-native-qol-roadmap-and-revised-player-specification) in Linear. It installs alongside the existing Tauri application.
+The [specification and QoL roadmap](https://linear.app/nouvelle-lune-atelier/issue/LUNE-367/publish-native-qol-roadmap-and-revised-player-specification) and the [launch and packaging guide](https://linear.app/nouvelle-lune-atelier/issue/LUNE-389/move-native-client-implementation-documentation-into-linear) live in Linear.
 
-## Requirements
+## Signing in
 
-- Node.js and npm
-- Rust and Cargo
-- Tauri's prerequisites for your platform
+Tubify reuses the YouTube Music sign-in from your own browser and opens it for you if you aren't signed in yet. Sign in to YouTube Music in Firefox, Chrome, Edge, Safari or another supported browser, then choose **Sign in via Browser**.
 
-## Commands
+## Development
 
 ```sh
-npm install
-npm run dev
-npm run build:macos
-npm run build:windows
-npm run build:linux
+cd native
+python -m pip install -e '.[test]'
+python -m pytest tests -q
+youtube-music-native --fixture   # synthetic data, no account needed
 ```
 
-`npm run build:linux` builds the native executable used by the Arch package. To create and install that package from a clean checkout, use:
+Playback needs libmpv, FFmpeg and Deno on `PATH`.
 
-```sh
-./scripts/build-arch-package.sh --syncdeps --install
-```
+## Packages
 
-## Platforms
+Build each package on its own OS:
 
-The source app is cross-platform, but desktop installers are platform-specific:
+| Platform | Command | Output |
+|---|---|---|
+| Arch Linux x86_64 | `./scripts/build-native-arch-package.sh` | `dist/native/youtube-music-native-*.pkg.tar.zst` |
+| macOS (Apple Silicon) | `./scripts/build-native-macos.sh` | `dist/native/Tubify-<version>-macos-arm64.dmg` |
+| Windows x64 | `./scripts/build-native-windows.ps1` | `dist/native/Tubify-<version>-windows-x64-setup.exe` |
 
-- macOS: `platforms/macos`
-- Windows: `platforms/windows`
-- Linux: `platforms/linux`
-
-Build each target on its native OS. GitHub Actions release workflows are included under `.github/workflows/`.
-
-Your YouTube Music login is stored in the app's WebKit data directory, separate from Safari and other browsers.
-
-## Arch Linux
-
-Linux releases target **Arch Linux x86_64**. They install a native Tauri/WebKitGTK executable and use Arch's current GStreamer packages; the former AppImage, deb, and rpm builds are not supported on Arch.
-
-Install the latest release as a normal user:
-
-```sh
-release_tag="$(gh release view --repo Sayarinu/YouTube-Music-App --json tagName --jq .tagName)"
-mkdir -p youtube-music-app-release
-cd youtube-music-app-release
-gh release download "$release_tag" --repo Sayarinu/YouTube-Music-App \
-  --pattern 'youtube-music-app-*.pkg.tar.zst' \
-  --pattern SHA256SUMS
-sha256sum -c SHA256SUMS
-sudo pacman -U ./youtube-music-app-*.pkg.tar.zst
-```
-
-The package pulls in `webkit2gtk-4.1`, `gst-plugins-base`, `gst-plugins-good`, `gst-plugins-bad`, and `gst-libav`, including the MP4, Matroska, H.264, AAC, and Opus support YouTube Music needs. It keeps the existing `com.carter.youtube-music` profile, so signing in again is normally unnecessary.
-
-On Wayland desktops with XWayland available, the packaged launcher selects GTK's X11 backend automatically. This avoids compositor-specific GTK/WebKit protocol errors while retaining the same application profile and functionality.
+See `platforms/macos` and `platforms/windows` for platform notes. CI is in `.github/workflows/native.yml` and `.github/workflows/native-release-linux.yml`. Tagging `native-v<version>` publishes the Arch package.

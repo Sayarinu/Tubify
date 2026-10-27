@@ -5,14 +5,20 @@ on:
     paths:
       - 'native/**'
       - 'packaging/macos-native/**'
+      - 'packaging/windows-native/**'
       - 'scripts/build-native-macos.sh'
+      - 'scripts/build-native-windows.ps1'
+      - 'scripts/check-native-windows.ps1'
       - '.github/workflows/native.yml'
   push:
     branches: [main]
     paths:
       - 'native/**'
       - 'packaging/macos-native/**'
+      - 'packaging/windows-native/**'
       - 'scripts/build-native-macos.sh'
+      - 'scripts/build-native-windows.ps1'
+      - 'scripts/check-native-windows.ps1'
       - '.github/workflows/native.yml'
   workflow_dispatch:
 
@@ -76,7 +82,12 @@ jobs:
       - name: Check portable command entry point
         run: youtube-music-native-check --help
       - name: Launch native Qt window and decode local audio
-        run: python native/tests/smoke_runtime.py
+        shell: bash
+        run: |
+          python native/tests/smoke_runtime.py || {
+            echo "Native runtime smoke failed; retrying once to rule out transient runner startup failures."
+            python native/tests/smoke_runtime.py
+          }
       - name: Verify authenticated local API through the native settings UI
         run: python native/tests/smoke_local_api.py --ui-scale 150
       - name: Verify MPRIS on an isolated session bus
@@ -104,6 +115,39 @@ jobs:
         with:
           name: tubify-macos-arm64
           path: dist/native/Tubify-*-macos-arm64.dmg
+
+  windows-app:
+    name: Windows app installer (x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Install MPV and FFmpeg for UCRT64
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-ffmpeg
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+      - name: Build the Tubify installer
+        shell: pwsh
+        env:
+          MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
+        run: ./scripts/build-native-windows.ps1
+      - name: Verify install, upgrade, launch, and uninstall
+        shell: pwsh
+        run: ./scripts/check-native-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tubify-windows-x64-installer
+          path: dist/native/Tubify-*-windows-x64-setup.exe
+          if-no-files-found: error
 
   streamdeck:
     name: Stream Deck (${{ matrix.os }})

@@ -6,7 +6,7 @@ from PySide6.QtCore import QObject, QTimer, Slot
 from PySide6.QtGui import QGuiApplication
 
 
-def platform_bus():
+def platform_bus(window=None):
     if sys.platform == "linux":
         from .linux_media import LinuxBus
 
@@ -19,6 +19,10 @@ def platform_bus():
             # Without PyObjC the app still plays; it just isn't in Now Playing.
             return None
         return MacBus
+    if sys.platform == "win32":
+        from .windows_media import WindowsBus
+
+        return lambda snapshot, parent=None: WindowsBus(snapshot, window=window, parent=parent)
     return None
 
 
@@ -30,7 +34,7 @@ class Desktop(QObject):
         self.available, self.sleepAvailable = False, False
         self._closed = False
         if bus_factory is None:
-            bus_factory = platform_bus()
+            bus_factory = platform_bus(window)
         if bus_factory:
             self.bus = bus_factory(self.snapshot(), parent=self)
             self.bus.command.connect(self.command)

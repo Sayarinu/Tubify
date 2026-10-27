@@ -112,30 +112,6 @@ def read_browser_session(path):
         raise SessionError("Could not read the selected browser.json export.") from None
 
 
-def read_tauri_session(path):
-    """Linux WebKit migration is optional; the ordinary JSON import is portable."""
-    path = Path(path)
-    if not path.is_file():
-        raise SessionError("The selected Tauri cookie file does not exist.")
-    try:
-        import gi
-
-        gi.require_version("Soup", "3.0")
-        from gi.repository import Soup
-    except (ImportError, ValueError):
-        raise SessionError("Tauri migration requires Linux PyGObject and libsoup 3.") from None
-    jar = Soup.CookieJarText.new(str(path), True)
-    rows = []
-    for cookie in jar.all_cookies():
-        expiry = cookie.get_expires()
-        rows.append({
-            "name": cookie.get_name(), "value": cookie.get_value(), "domain": cookie.get_domain(),
-            "path": cookie.get_path() or "/", "secure": cookie.get_secure(),
-            "expires": expiry.to_unix() if expiry else None,
-        })
-    return from_cookies(rows)
-
-
 def from_cookies(rows, user_agent=None):
     """Build a session from captured browser cookies, keeping only live YouTube cookies."""
     if not isinstance(rows, list) or len(rows) > 1000:

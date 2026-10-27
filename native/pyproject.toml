@@ -18,11 +18,15 @@ dependencies = [
   "jeepney>=0.9,<1; sys_platform == 'linux'",
   "pyobjc-framework-Cocoa>=11; sys_platform == 'darwin'",
   "pyobjc-framework-MediaPlayer>=11; sys_platform == 'darwin'",
+  "winrt-runtime>=3.2.1,<4; sys_platform == 'win32'",
+  "winrt-Windows.Media>=3.2.1,<4; sys_platform == 'win32'",
+  "winrt-Windows.Media.Interop>=3.2.1,<4; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
 macos-build = ["pyinstaller>=6.10"]
+windows-build = ["pyinstaller>=6.10"]
 
 [project.scripts]
 youtube-music-native = "youtube_music_native.launcher:main"

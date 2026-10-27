@@ -1,18 +1,14 @@
 # Release Layout
 
-This project keeps one shared Tauri app and separates platform packaging into `platforms/*`.
+Tubify is released from the shared native client in `native/`. Platform packaging lives in `packaging/*-native` and `scripts/build-native-*`.
 
-Use tags to create releases:
+Tag a release whose version matches `native/pyproject.toml`:
 
 ```sh
-git tag v0.1.2
-git push origin v0.1.2
+git tag native-v0.1.1
+git push origin native-v0.1.1
 ```
 
-GitHub Actions will build separate release artifacts:
+`.github/workflows/native-release-linux.yml` builds, installs and upgrades the Arch package in a clean Arch container. It then publishes the package and `SHA256SUMS` to a GitHub Release.
 
-- macOS: `.app` and `.dmg`
-- Windows: `.exe` and `.msi`
-- Linux (Arch x86_64): `youtube-music-app-*.pkg.tar.zst` and `SHA256SUMS`
-
-The Linux workflow builds in an Arch Linux container so the package links against the same WebKitGTK and GStreamer stack used by the target system. AppImage, deb, and rpm artifacts are retired for Linux.
+`.github/workflows/native.yml` builds the macOS DMG and the Windows installer on every pull request and uploads them as workflow artifacts (`tubify-macos-arm64`, `tubify-windows-x64-installer`).

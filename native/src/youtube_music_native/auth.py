@@ -4,7 +4,7 @@ from functools import partial
 
 from .credentials import Credentials
 from .browsers import read_session
-from .session import read_browser_session, read_tauri_session
+from .session import read_browser_session
 
 
 class AuthError(RuntimeError):
@@ -62,8 +62,8 @@ class AuthService:
         self.client = None
         return {"connected": self.session is not None, "profile": self.profile, "captured": self.session.captured if self.session else 0.}
 
-    def import_session(self, path, tauri=False):
-        return self._adopt(read_tauri_session(path) if tauri else read_browser_session(path))
+    def import_session(self, path):
+        return self._adopt(read_browser_session(path))
 
     def import_browser(self, names):
         browser, session = read_session(names)
