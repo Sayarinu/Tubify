@@ -40,7 +40,8 @@ Item {
             Button {
                 id: title
                 objectName: "immersiveTrackTitle"
-                width: parent.width
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(implicitWidth, parent.width)
                 padding: 4
                 Accessible.name: (root.track.title || "Current song") + " options"
                 enabled: playerState.hasTrack

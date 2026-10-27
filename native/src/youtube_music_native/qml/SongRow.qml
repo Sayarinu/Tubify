@@ -112,7 +112,7 @@ FocusScope {
             clip: true
             Text {
                 id: albumName
-                width: parent.width
+                width: Math.min(implicitWidth, parent.width)
                 height: parent.height
                 text: root.media.album ? root.media.album.name || "" : ""
                 textFormat: Text.PlainText; elide: Text.ElideRight
@@ -141,7 +141,7 @@ FocusScope {
     }
     Text {
         id: albumColumn
-        x: parent.width * 0.56; width: parent.width * 0.44 - 120; anchors.verticalCenter: parent.verticalCenter; visible: root.showAlbum; text: root.media.album ? root.media.album.name || "" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: albumColumnLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 13
+        x: parent.width * 0.56; width: Math.min(implicitWidth, parent.width * 0.44 - 120); anchors.verticalCenter: parent.verticalCenter; visible: root.showAlbum; text: root.media.album ? root.media.album.name || "" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: albumColumnLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 13
         font.underline: albumColumnLink.containsMouse || activeFocus
         activeFocusOnTab: !!(root.media.album && (root.media.album.id || root.media.album.browseId))
         Accessible.role: activeFocusOnTab ? Accessible.Link : Accessible.StaticText

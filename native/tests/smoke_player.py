@@ -234,6 +234,11 @@ def main():
                 assert abs(first_rect.top() - second_rect.top()) < 0.5 and second_rect.left() > first_rect.right()
                 if options.output_dir:
                     assert window.grabWindow().save(str(options.output_dir / "immersive-artists.png"))
+                # Links only react over their own text, not the rest of the metadata column.
+                album_text = find("playerAlbum").childItems()[0]
+                assert album_text.width() <= album_text.property("implicitWidth") + 0.5 < find("playerAlbum").width()
+                title_button = find("immersiveTrackTitle")
+                assert title_button.width() < title_button.parentItem().width()
                 # Empty transport space toggles the stage like the chevron, but controls keep their own clicks.
                 assert shell.expanded
                 gap = transport.mapToScene(QPointF(6, transport.height() / 2)).toPoint()

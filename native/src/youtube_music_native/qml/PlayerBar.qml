@@ -133,7 +133,7 @@ Rectangle {
                 width: parent.width; height: 14; clip: true
                 Text {
                     id: albumName
-                    width: parent.width; height: parent.height
+                    width: Math.min(implicitWidth, parent.width); height: parent.height
                     text: typeof playerState.currentTrack.album === "string" ? playerState.currentTrack.album : playerState.currentTrack.album && playerState.currentTrack.album.name || playerState.currentTrack.albumName || playerState.currentTrack.albumTitle || ""
                     textFormat: Text.PlainText; elide: Text.ElideRight; color: albumLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 11
                     font.underline: albumLink.containsMouse || activeFocus

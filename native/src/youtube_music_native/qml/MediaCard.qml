@@ -79,7 +79,7 @@ FocusScope {
         id: title
         anchors.top: cover.bottom
         anchors.topMargin: 12
-        x: 16; width: parent.width - 32
+        x: 16; width: Math.min(implicitWidth, parent.width - 32)
         text: root.media.title || ""
         textFormat: Text.PlainText
         color: themeState.foreground
@@ -111,7 +111,7 @@ FocusScope {
         Text {
             id: artist
             objectName: "cardArtist"
-            text: root.media.artist || root.primaryArtist.name || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: artistLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.family: Theme.bodyFont; font.pixelSize: 14; visible: text.length > 0; width: Math.max(0, subtitle.width - x - 4)
+            text: root.media.artist || root.primaryArtist.name || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: artistLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.family: Theme.bodyFont; font.pixelSize: 14; visible: text.length > 0; width: Math.min(implicitWidth, Math.max(0, subtitle.width - x - 4))
             font.underline: artistLink.containsMouse || activeFocus
             activeFocusOnTab: !!root.primaryArtist.id
             function openArtist() { if (root.primaryArtist.id) browseState.open({kind: "artist", id: root.primaryArtist.id, title: root.primaryArtist.name}) }

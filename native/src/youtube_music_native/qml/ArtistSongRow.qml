@@ -20,7 +20,7 @@ FocusScope {
     Text { x: parent.width * 0.54; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.13; text: root.media.views ? root.media.views + " plays" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: 14; visible: root.width > 650 }
     Text {
         id: albumName
-        x: parent.width * 0.69; anchors.verticalCenter: parent.verticalCenter; width: parent.width * 0.23 - 112
+        x: parent.width * 0.69; anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, parent.width * 0.23 - 112)
         text: root.media.album ? root.media.album.name || "" : ""
         textFormat: Text.PlainText; elide: Text.ElideRight; color: albumLink.containsMouse ? themeState.foreground : themeState.secondary; font.pixelSize: 14
         MouseArea {
