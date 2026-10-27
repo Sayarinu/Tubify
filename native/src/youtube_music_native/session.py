@@ -24,6 +24,7 @@ def make_cookie(name, value, domain=".youtube.com", path="/", secure=True, expir
 class Session:
     headers: dict = field(repr=False)
     cookies: list[Cookie] = field(repr=False)
+    captured: float = 0.
 
     def __repr__(self):
         return "Session(<redacted>)"
@@ -41,6 +42,7 @@ class Session:
                 "name": c.name, "value": c.value, "domain": c.domain,
                 "path": c.path, "secure": c.secure, "expires": c.expires,
             } for c in self.cookies],
+            "captured": self.captured,
         }
 
     @classmethod
@@ -62,6 +64,8 @@ class Session:
             headers["cookie"] = "; ".join(f"{c.name}={c.value}" for c in cookies)
             session = from_headers(headers)
             session.cookies = cookies
+            captured = payload.get("captured", 0.)
+            session.captured = float(captured) if isinstance(captured, (int, float)) else 0.
             return session
         except (KeyError, TypeError, ValueError):
             raise SessionError("The saved session is invalid. Reconnect YouTube Music.") from None
@@ -121,19 +125,43 @@ def read_tauri_session(path):
     except (ImportError, ValueError):
         raise SessionError("Tauri migration requires Linux PyGObject and libsoup 3.") from None
     jar = Soup.CookieJarText.new(str(path), True)
-    cookies = []
+    rows = []
     for cookie in jar.all_cookies():
-        domain = cookie.get_domain()
-        if domain.lstrip(".") not in {"youtube.com", "music.youtube.com"}:
-            continue
         expiry = cookie.get_expires()
-        expires = expiry.to_unix() if expiry else None
-        if expires is not None and expires <= time.time():
-            continue
-        cookies.append(make_cookie(
-            cookie.get_name(), cookie.get_value(), domain,
-            cookie.get_path() or "/", cookie.get_secure(), expires,
-        ))
-    session = from_headers({"cookie": "; ".join(f"{c.name}={c.value}" for c in cookies)})
+        rows.append({
+            "name": cookie.get_name(), "value": cookie.get_value(), "domain": cookie.get_domain(),
+            "path": cookie.get_path() or "/", "secure": cookie.get_secure(),
+            "expires": expiry.to_unix() if expiry else None,
+        })
+    return from_cookies(rows)
+
+
+def from_cookies(rows, user_agent=None):
+    """Build a session from captured browser cookies, keeping only live YouTube cookies."""
+    if not isinstance(rows, list) or len(rows) > 1000:
+        raise SessionError("The sign-in did not return a usable session. Try again.")
+    cookies = []
+    try:
+        for row in rows:
+            domain = row["domain"]
+            if not isinstance(domain, str) or domain.lstrip(".") not in {"youtube.com", "music.youtube.com"}:
+                continue
+            expires = row.get("expires")
+            expires = int(expires) if isinstance(expires, (int, float)) else None
+            if expires is not None and expires <= time.time():
+                continue
+            if not all(isinstance(row.get(key), str) for key in ("name", "value")):
+                raise TypeError()
+            cookies.append(make_cookie(row["name"], row["value"], domain, row.get("path") or "/", bool(row.get("secure", True)), expires))
+    except (KeyError, TypeError, AttributeError):
+        raise SessionError("The sign-in did not return a usable session. Try again.") from None
+    if len(cookies) > 200:
+        # Saved sessions are restored with the same bound.
+        raise SessionError("The sign-in returned too many cookies. Try again.")
+    headers = {"cookie": "; ".join(f"{c.name}={c.value}" for c in cookies)}
+    if isinstance(user_agent, str) and user_agent:
+        headers["user-agent"] = user_agent
+    session = from_headers(headers)
     session.cookies = cookies
+    session.captured = time.time()
     return session

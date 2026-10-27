@@ -447,7 +447,7 @@ ApplicationWindow {
             textFormat: Text.PlainText
             color: themeState.foreground; font.pixelSize: 14; elide: Text.ElideRight
         }
-        Button { id: reconnectButton; anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: "Reconnect"; onClicked: appState.openAccount() }
+        Button { id: reconnectButton; anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: accountState.signInAvailable ? "Sign In Again" : "Reconnect"; enabled: !accountState.busy && !accountState.signingIn; onClicked: accountState.signInAvailable ? accountState.signIn() : appState.openAccount() }
     }
 
     Item {
@@ -573,6 +573,22 @@ ApplicationWindow {
             Label { Layout.fillWidth: true; text: "Current User:"; horizontalAlignment: Text.AlignHCenter; color: themeState.secondary; font.pixelSize: 13 }
             Label { Layout.fillWidth: true; text: accountState.profile.name || "Not Signed In"; horizontalAlignment: Text.AlignHCenter; color: themeState.foreground; font.pixelSize: 21; font.bold: true; elide: Text.ElideRight }
             Button {
+                objectName: "browserSignIn"
+                Layout.fillWidth: true; Layout.preferredHeight: 44
+                text: accountState.signingIn ? "Waiting for Browser Sign-In…" : "Sign in via Browser"
+                visible: accountState.signInAvailable && !accountState.connected; enabled: !accountState.busy && !accountState.signingIn
+                contentItem: Text { text: parent.text; color: themeState.onAccent; font.pixelSize: 14; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { radius: 20; color: parent.down ? themeState.accent : parent.hovered ? themeState.accentHover : themeState.accent; border.width: parent.visualFocus ? 2 : 0; border.color: themeState.foreground }
+                onClicked: accountState.signIn()
+            }
+            Button {
+                Layout.alignment: Qt.AlignHCenter
+                text: "Cancel"; visible: accountState.signingIn && !accountState.connected
+                contentItem: Text { text: parent.text; color: themeState.secondary; font.pixelSize: 13; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { radius: 15; color: parent.hovered ? themeState.hover : "transparent" }
+                onClicked: accountState.cancelSignIn()
+            }
+            Button {
                 Layout.fillWidth: true; Layout.preferredHeight: 44
                 text: "Use Existing Desktop App Session"
                 visible: accountState.tauriAvailable && !accountState.fixtureMode && !accountState.connected; enabled: !accountState.busy
@@ -588,7 +604,7 @@ ApplicationWindow {
                 background: Rectangle { radius: 20; color: parent.down ? themeState.border : parent.hovered ? themeState.surface : "transparent"; border.width: parent.visualFocus ? 2 : 1; border.color: parent.visualFocus ? themeState.accent : themeState.border }
                 onClicked: sessionPicker.open()
             }
-            BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: accountState.busy; visible: running }
+            BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: accountState.busy || accountState.signingIn; visible: running }
             Label { Layout.fillWidth: true; text: accountState.message; textFormat: Text.PlainText; visible: text.length > 0 && !accountState.connected; wrapMode: Text.Wrap; color: themeState.secondary }
             Button {
                 Layout.fillWidth: true; Layout.preferredHeight: 38

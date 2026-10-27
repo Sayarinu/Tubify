@@ -16,10 +16,13 @@ dependencies = [
   "yt-dlp[default]>=2026.8.19",
   "python-mpv>=1.0.8,<2",
   "jeepney>=0.9,<1; sys_platform == 'linux'",
+  "pyobjc-framework-Cocoa>=11; sys_platform == 'darwin'",
+  "pyobjc-framework-MediaPlayer>=11; sys_platform == 'darwin'",
 ]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+macos-build = ["pyinstaller>=6.10"]
 
 [project.scripts]
 youtube-music-native = "youtube_music_native.launcher:main"

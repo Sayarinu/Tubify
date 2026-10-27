@@ -4,11 +4,15 @@ on:
   pull_request:
     paths:
       - 'native/**'
+      - 'packaging/macos-native/**'
+      - 'scripts/build-native-macos.sh'
       - '.github/workflows/native.yml'
   push:
     branches: [main]
     paths:
       - 'native/**'
+      - 'packaging/macos-native/**'
+      - 'scripts/build-native-macos.sh'
       - '.github/workflows/native.yml'
   workflow_dispatch:
 
@@ -78,6 +82,28 @@ jobs:
       - name: Verify MPRIS on an isolated session bus
         if: runner.os == 'Linux'
         run: dbus-run-session -- python native/tests/smoke_desktop.py
+
+  macos-app:
+    name: macOS app bundle (arm64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Build Tubify.app and disk image
+        run: scripts/build-native-macos.sh
+      - name: Check the bundle runs without Homebrew on PATH
+        run: |
+          app="dist/native/Tubify-macos-arm64.app/Contents/MacOS/Tubify"
+          test "$(lipo -archs "$app")" = arm64
+          codesign --verify --deep --strict dist/native/Tubify-macos-arm64.app
+          "$(brew --prefix)/bin/ffmpeg" -loglevel error -f lavfi -i sine=d=3 "$RUNNER_TEMP/tone.wav"
+          finder_env=(env -i HOME="$HOME" TMPDIR="$RUNNER_TEMP/" PATH=/usr/bin:/bin)
+          printf '{"source": "%s"}' "$RUNNER_TEMP/tone.wav" | "${finder_env[@]}" "$app" --player-worker
+          "${finder_env[@]}" QT_QPA_PLATFORM=offscreen "$app" --smoke-test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tubify-macos-arm64
+          path: dist/native/Tubify-*-macos-arm64.dmg
 
   streamdeck:
     name: Stream Deck (${{ matrix.os }})

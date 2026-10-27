@@ -1,10 +1,11 @@
 import json
 import sys
+import time
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from youtube_music_native.session import SessionError, from_headers, read_browser_session, read_tauri_session
+from youtube_music_native.session import Session, SessionError, from_cookies, from_headers, read_browser_session, read_tauri_session
 
 
 def test_import_keeps_credentials_out_of_representation_and_restricts_origin(tmp_path):
@@ -85,3 +86,34 @@ def test_tauri_migration_is_read_only_and_excludes_other_domains_and_expired_coo
     assert {c.name for c in session.cookie_jar()} == {"__Secure-3PAPISID", "music"}
     assert {c.domain for c in session.cookie_jar()} == {".youtube.com", "music.youtube.com"}
     assert profile.read_text() == "unchanged profile"
+
+
+def test_sign_in_cookies_keep_live_youtube_cookies_and_round_trip_with_capture_time():
+    rows = [
+        {"name": "__Secure-3PAPISID", "value": "private-sign-in", "domain": ".youtube.com", "path": "/", "secure": True, "expires": int(time.time()) + 3600},
+        {"name": "SAPISID", "value": "private-sapisid", "domain": ".youtube.com", "path": "/", "secure": True, "expires": None},
+        {"name": "SID", "value": "google-only", "domain": ".google.com", "path": "/", "secure": True, "expires": None},
+        {"name": "OLD", "value": "expired", "domain": ".youtube.com", "path": "/", "secure": True, "expires": 1},
+    ]
+    session = from_cookies(rows, "Mozilla/5.0 Chrome/140.0.0.0 Safari/537.36")
+    assert "private-sign-in" not in repr(session)
+    assert {cookie.name for cookie in session.cookies} == {"__Secure-3PAPISID", "SAPISID"}
+    assert session.headers["user-agent"].startswith("Mozilla/5.0 Chrome")
+    assert session.captured > time.time() - 60
+    restored = Session.from_payload(json.loads(json.dumps(session.to_payload())))
+    assert restored.captured == session.captured
+    assert restored.headers["user-agent"] == session.headers["user-agent"]
+
+
+@pytest.mark.parametrize("rows", [None, [{"name": "SID", "value": "private", "domain": ".youtube.com"}], [{"value": "private", "domain": ".youtube.com"}]])
+def test_unusable_sign_in_cookies_are_rejected_without_their_contents(rows):
+    with pytest.raises(SessionError) as error:
+        from_cookies(rows)
+    assert "private" not in str(error.value)
+
+
+def test_sessions_saved_before_capture_times_still_restore():
+    session = from_headers({"cookie": "__Secure-3PAPISID=private"})
+    payload = session.to_payload()
+    del payload["captured"]
+    assert Session.from_payload(payload).captured == 0.

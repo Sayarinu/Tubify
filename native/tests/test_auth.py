@@ -62,3 +62,33 @@ def test_expired_replacement_cannot_overwrite_existing_session(tmp_path):
         service.import_session(path)
     assert "private-cookie" not in json.dumps(safe_error(error.value))
     assert credentials.load().session.headers["cookie"] == previous
+
+
+
+def test_browser_sign_in_is_validated_before_replacing_the_saved_session(monkeypatch):
+    from functools import partial
+
+    from youtube_music_native import auth, browsers
+
+    credentials = Credentials(MemoryVault())
+    service = AuthService(credentials, lambda session: Catalog())
+    value = ["private-first"]
+
+    def reader(name):
+        if name == "chrome":
+            return []
+        return [{"name": cookie, "value": value[0], "domain": ".youtube.com", "path": "/"} for cookie in ("__Secure-3PAPISID", "SAPISID")]
+
+    monkeypatch.setattr(auth, "read_session", partial(browsers.read_session, reader=reader))
+    result = service.import_browser(["chrome", "firefox"])
+    assert result["connected"] and result["browser"] == "firefox" and result["captured"] > 0
+    assert "private-first" not in json.dumps(result)
+
+    def rejected(session):
+        raise RuntimeError("HTTP 401 private-second")
+
+    service.catalog_factory = rejected
+    value[0] = "private-second"
+    with pytest.raises(RuntimeError):
+        service.import_browser(["firefox"])
+    assert "private-first" in credentials.load().session.headers["cookie"]

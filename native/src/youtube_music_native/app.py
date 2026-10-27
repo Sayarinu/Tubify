@@ -174,10 +174,10 @@ def main(argv=None):
 
     apply_theme_palette()
     theme.paletteChanged.connect(apply_theme_palette)
-    account = Account(data / "settings.ini", fixture=args.fixture, parent=controller)
-    catalog = CatalogView(account.worker, cache / "metadata.sqlite3", account, parent=controller)
     media_data = data if args.data_dir or args.smoke_test or args.screenshot else Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
     media_data.mkdir(parents=True, exist_ok=True, mode=0o700)
+    account = Account(data / "settings.ini", fixture=args.fixture, parent=controller)
+    catalog = CatalogView(account.worker, cache / "metadata.sqlite3", account, parent=controller)
     source_worker = None if args.fixture else Worker(controller, idle_ms=15000)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     controller.discordState = DiscordPresence(player, data / "settings.ini", parent=controller, fixture=args.fixture)

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from youtube_music_native.credentials import Credentials, CredentialError, SERVICE, USERNAME, secure_backend
+from youtube_music_native.credentials import CHUNK_SIZE, Credentials, CredentialError, SERVICE, USERNAME, default_chunk_size, secure_backend
 from youtube_music_native.session import from_headers
 
 
@@ -32,7 +32,7 @@ def session(marker="private", size=100):
 
 def test_large_unicode_account_round_trips_with_windows_sized_secret_records():
     backend = Vault()
-    credentials = Credentials(backend)
+    credentials = Credentials(backend, chunk_size=CHUNK_SIZE)
     original = session(size=12000)
     profile = {"name": "音楽", "handle": "@listener", "avatar": ""}
     credentials.save(original, profile)
@@ -72,7 +72,7 @@ def test_corrupt_manifest_can_be_reconnected_or_signed_out():
 
 def test_missing_chunk_requires_reconnection_and_sign_out_leaves_other_apps_alone():
     backend = Vault()
-    credentials = Credentials(backend)
+    credentials = Credentials(backend, chunk_size=CHUNK_SIZE)
     credentials.save(session(size=2000), {"name": "Listener"})
     manifest = json.loads(backend.values[SERVICE, USERNAME])
     backend.values.pop((credentials._chunk_service(manifest, 0), USERNAME))
@@ -94,3 +94,33 @@ def test_plaintext_keyring_backend_is_rejected(monkeypatch):
     monkeypatch.setattr(keyring, "get_keyring", lambda: Plaintext())
     with pytest.raises(CredentialError):
         secure_backend()
+
+
+def test_entry_another_app_build_cannot_read_is_replaced_by_a_new_sign_in():
+    backend = Vault()
+    credentials = Credentials(backend)
+    credentials.save(session("old"), {"name": "Listener"})
+    read = backend.get_password
+
+    def denied(service, username):
+        # macOS refuses reads from a differently signed build but still allows replacement.
+        if service == SERVICE:
+            raise RuntimeError("private keychain denial")
+        return read(service, username)
+
+    backend.get_password = denied
+    with pytest.raises(CredentialError):
+        credentials.load()
+    credentials.save(session("new"), {"name": "Listener"})
+    backend.get_password = read
+    assert "new" in credentials.load().session.headers["cookie"]
+
+
+def test_session_is_one_record_outside_windows():
+    assert default_chunk_size("win32") == CHUNK_SIZE
+    backend = Vault()
+    backend.set_password = lambda service, username, value: backend.values.__setitem__((service, username), value)
+    credentials = Credentials(backend, chunk_size=default_chunk_size("darwin"))
+    credentials.save(session(size=12000), {"name": "Listener"})
+    assert len(backend.values) == 2
+    assert "x" * 100 in credentials.load().session.headers["cookie"]

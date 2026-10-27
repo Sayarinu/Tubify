@@ -4,6 +4,7 @@ import base64
 from dataclasses import dataclass, field
 import json
 import re
+import sys
 from uuid import uuid4
 
 from .session import Session
@@ -14,6 +15,13 @@ USERNAME = "session"
 # Windows credentials allow 2560 bytes. ASCII chunks also fit UTF-16 encoding.
 CHUNK_SIZE = 800
 MAX_CHUNKS = 128
+# Other vaults take the whole session as one record. On macOS every record can need its own
+# access approval, so one record means at most one prompt.
+LARGE_CHUNK = CHUNK_SIZE * MAX_CHUNKS
+
+
+def default_chunk_size(platform=None):
+    return CHUNK_SIZE if (platform or sys.platform) == "win32" else LARGE_CHUNK
 
 
 class CredentialError(RuntimeError):
@@ -53,7 +61,8 @@ class StoredAccount:
 
 
 class Credentials:
-    def __init__(self, backend=None):
+    def __init__(self, backend=None, chunk_size=None):
+        self.chunk_size = chunk_size or default_chunk_size()
         self.backend = backend if backend is not None else secure_backend()
 
     def _manifest(self):
@@ -93,7 +102,7 @@ class Credentials:
             if manifest is None:
                 return None
             pieces = [self.backend.get_password(self._chunk_service(manifest, index), USERNAME) for index in range(manifest["count"])]
-            if not all(isinstance(piece, str) and len(piece) <= CHUNK_SIZE for piece in pieces):
+            if not all(isinstance(piece, str) and len(piece) <= LARGE_CHUNK for piece in pieces):
                 raise ValueError()
             value = json.loads(base64.b64decode("".join(pieces), validate=True))
             profile = value["profile"]
@@ -107,10 +116,12 @@ class Credentials:
         try:
             try:
                 previous = self._manifest()
-            except CorruptManifest:
+            except Exception:
+                # A corrupt entry, or one another app build may no longer read (macOS ties entries to
+                # the code signature), is replaced rather than blocking a fresh sign-in.
                 previous = None
             encoded = base64.b64encode(json.dumps({"session": session.to_payload(), "profile": profile}, separators=(",", ":")).encode()).decode("ascii")
-            parts = [encoded[index:index + CHUNK_SIZE] for index in range(0, len(encoded), CHUNK_SIZE)]
+            parts = [encoded[index:index + self.chunk_size] for index in range(0, len(encoded), self.chunk_size)]
             if not 1 <= len(parts) <= MAX_CHUNKS:
                 raise CredentialError("The session is too large for portable keyring storage.")
             manifest = {"version": 1, "id": uuid4().hex, "count": len(parts)}
