@@ -39,7 +39,7 @@ function Get-UcrtDependencies([string]$RootFile) {
         $unixPath = (& $cygpath -u $file).Trim()
         $lines = & $bash -lc "ldd '$unixPath'" 2>&1
         if ($LASTEXITCODE -ne 0 -and ($lines -join " ") -notmatch "not a dynamic executable") {
-            throw "Could not inspect native dependencies for $file: $($lines -join ' ')"
+            throw "Could not inspect native dependencies for ${file}: $($lines -join ' ')"
         }
         foreach ($line in $lines) {
             if ($line -match "(?:=>\s+)?(/ucrt64/bin/[^\s]+)\s+\(") {

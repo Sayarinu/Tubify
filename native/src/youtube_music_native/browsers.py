@@ -105,7 +105,11 @@ def _rows(name):
     } for cookie in jar if cookie.domain.lstrip(".") in {"youtube.com", "music.youtube.com"}]
 
 
-def read_session(names, reader=_rows):
+WINDOWS_HINT = (" Chrome and Edge on Windows lock and encrypt their cookies while open;"
+                " close the browser and try again, or sign in to YouTube Music in Firefox.")
+
+
+def read_session(names, reader=_rows, platform=None):
     """Return (browser, session) for the first browser signed in to YouTube Music."""
     if reader is _rows and sys.platform == "darwin":
         _remember_keychain_answers()
@@ -125,4 +129,5 @@ def read_session(names, reader=_rows):
             return name, from_cookies(rows)
     if blocked == "safari":
         raise BrowserBlocked("Allow Tubify Full Disk Access in System Settings › Privacy & Security to use your Safari sign-in, or sign in with another browser.")
-    raise NoBrowserSession("Sign in to YouTube Music in your browser to connect.")
+    hint = WINDOWS_HINT if (platform or sys.platform) == "win32" else ""
+    raise NoBrowserSession("Sign in to YouTube Music in your browser to connect." + hint)

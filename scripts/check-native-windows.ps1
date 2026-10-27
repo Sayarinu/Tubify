@@ -9,11 +9,14 @@ function Install-Tubify {
     if ($process.ExitCode -ne 0) { throw "The Tubify installer failed with exit code $($process.ExitCode)." }
     if (-not (Test-Path $executable)) { throw "The installer did not place Tubify.exe in the expected per-user directory." }
     $env:QT_QPA_PLATFORM = "offscreen"
-    & $executable --smoke-test
-    if ($LASTEXITCODE -ne 0) { throw "The installed Tubify app failed its Qt smoke launch." }
+    # Tubify.exe is a GUI-subsystem program, so PowerShell would not wait for it or report its exit code.
+    $smoke = Start-Process -FilePath $executable -ArgumentList @("--smoke-test") -PassThru -Wait -NoNewWindow
+    if ($smoke.ExitCode -ne 0) { throw "The installed Tubify app failed its Qt smoke launch (exit code $($smoke.ExitCode))." }
 
     $tone = Join-Path $env:TEMP "tubify-windows-audio-smoke.wav"
-    & (Join-Path $installDir "helpers\ffmpeg.exe") -hide_banner -loglevel error -f lavfi -i "sine=frequency=440:duration=3" -y $tone
+    $bundledFfmpeg = Get-ChildItem -Path $installDir -Recurse -Filter ffmpeg.exe | Where-Object { $_.Directory.Name -eq "helpers" } | Select-Object -First 1
+    if (-not $bundledFfmpeg) { throw "The installer did not include the bundled FFmpeg helper." }
+    & $bundledFfmpeg.FullName -hide_banner -loglevel error -f lavfi -i "sine=frequency=440:duration=3" -y $tone
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $tone)) { throw "The installed FFmpeg helper could not create the local audio fixture." }
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $executable
@@ -32,7 +35,7 @@ function Install-Tubify {
         $player.Kill()
         throw "The installed Tubify player worker timed out decoding local audio."
     }
-    if ($player.ExitCode -ne 0) { throw "The installed Tubify player worker could not decode local audio." }
+    if ($player.ExitCode -ne 0) { throw "The installed Tubify player worker could not decode local audio: $($player.StandardError.ReadToEnd())" }
     Remove-Item $tone -Force -ErrorAction SilentlyContinue
 }
 

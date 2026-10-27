@@ -10,9 +10,9 @@ _DLL_PATHS = set()
 
 
 def bundle_root():
-    executable = getattr(sys, "executable", "")
-    frozen = getattr(sys, "frozen", False) or hasattr(sys.modules.get("__main__"), "__compiled__")
-    return Path(executable).resolve().parent if frozen and executable else None
+    # PyInstaller one-folder builds keep bundled binaries in the contents directory (sys._MEIPASS), not beside Tubify.exe.
+    root = getattr(sys, "_MEIPASS", None)
+    return Path(root) if root else None
 
 
 def _prepend(environ, key, entries, separator):

@@ -18,8 +18,9 @@ dependencies = [
   "jeepney>=0.9,<1; sys_platform == 'linux'",
   "pyobjc-framework-Cocoa>=11; sys_platform == 'darwin'",
   "pyobjc-framework-MediaPlayer>=11; sys_platform == 'darwin'",
-  "winrt-Windows.Media>=4,<5; sys_platform == 'win32'",
-  "winrt-Windows.Media.Interop>=4,<5; sys_platform == 'win32'",
+  "winrt-runtime>=3.2.1,<4; sys_platform == 'win32'",
+  "winrt-Windows.Media>=3.2.1,<4; sys_platform == 'win32'",
+  "winrt-Windows.Media.Interop>=3.2.1,<4; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

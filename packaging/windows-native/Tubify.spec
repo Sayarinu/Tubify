@@ -23,8 +23,12 @@ analysis = Analysis(
         + collect_submodules("winrt")
         + ["PySide6.QtNetwork", "keyring.backends.Windows"]
     ),
+    # Sign-in happens in the user's own browser, so Chromium (QtWebEngine) is never needed.
     excludes=["tkinter", "jeepney", "gi", "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineQuick"],
 )
+# Qt's QML plugin collection drags WebEngine back in; drop it from the bundle entirely.
+analysis.binaries = [entry for entry in analysis.binaries if "QtWebEngine" not in entry[0]]
+analysis.datas = [entry for entry in analysis.datas if "QtWebEngine" not in entry[0]]
 pyz = PYZ(analysis.pure)
 exe = EXE(
     pyz, analysis.scripts, [],

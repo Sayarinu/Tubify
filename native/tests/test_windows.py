@@ -2,7 +2,9 @@ from datetime import timedelta
 from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication
+import pytest
 
+from youtube_music_native.browsers import NoBrowserSession, read_session
 from youtube_music_native.windows import prepare_runtime
 from youtube_music_native.windows_media import WindowsBus, metadata
 
@@ -49,6 +51,10 @@ class Controls:
         self.playback_position_change_requested = Event()
         self.display_updater = DisplayUpdater()
         self.timeline_updates = []
+        # pywinrt exposes WinRT events as add_<event>(handler) -> token and remove_<event>(token).
+        self.add_button_pressed, self.remove_button_pressed = self.button_pressed.add, self.button_pressed.remove
+        self.add_playback_position_change_requested = self.playback_position_change_requested.add
+        self.remove_playback_position_change_requested = self.playback_position_change_requested.remove
 
     def update_timeline_properties(self, value):
         self.timeline_updates.append(value)
@@ -130,3 +136,11 @@ def test_windows_metadata_handles_empty_track_and_runtime_paths_are_platform_sco
     paths = environment["PATH"].split(";")
     assert paths[:2] == [str(bundle / "helpers"), str(bundle / "mpv")]
     assert opened == [str(bundle / "mpv"), str(bundle / "helpers")]
+
+
+def test_windows_sign_in_failure_explains_locked_chromium_cookies():
+    with pytest.raises(NoBrowserSession, match="Firefox"):
+        read_session(["chrome"], reader=lambda name: [], platform="win32")
+    with pytest.raises(NoBrowserSession) as error:
+        read_session(["chrome"], reader=lambda name: [], platform="linux")
+    assert "Firefox" not in str(error.value)
