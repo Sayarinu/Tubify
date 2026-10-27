@@ -27,8 +27,10 @@ def process_command(role):
 def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
     from .macos import prepare_runtime
+    from .windows import prepare_runtime as prepare_windows_runtime
 
     prepare_runtime()
+    prepare_windows_runtime()
     if args == ["--streamdeck-credentials"]:
         from .streamdeck_credentials import main as credential_main
 
