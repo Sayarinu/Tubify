@@ -10,7 +10,6 @@ depends=(
   'python-keyring>=25.7' 'python-ytmusicapi>=1.12.3' 'python-mpv>=1.0.8'
   'python-jeepney>=0.9' 'yt-dlp>=2026.08.19' 'yt-dlp-ejs' 'deno' 'ffmpeg'
   'python-brotli' 'python-mutagen' 'python-pycryptodomex' 'python-websockets'
-  'python-gobject' 'libsoup3'
 )
 makedepends=('python-build' 'python-installer' 'python-setuptools')
 checkdepends=('python-pytest' 'desktop-file-utils' 'dbus')

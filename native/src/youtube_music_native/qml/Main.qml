@@ -590,14 +590,6 @@ ApplicationWindow {
             }
             Button {
                 Layout.fillWidth: true; Layout.preferredHeight: 44
-                text: "Use Existing Desktop App Session"
-                visible: accountState.tauriAvailable && !accountState.fixtureMode && !accountState.connected; enabled: !accountState.busy
-                contentItem: Text { text: parent.text; color: themeState.onAccent; font.pixelSize: 14; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: 20; color: parent.down ? themeState.accent : parent.hovered ? themeState.accentHover : themeState.accent; border.width: parent.visualFocus ? 2 : 0; border.color: themeState.foreground }
-                onClicked: accountState.importTauri()
-            }
-            Button {
-                Layout.fillWidth: true; Layout.preferredHeight: 44
                 text: "Choose Browser Session File"
                 enabled: !accountState.busy && !accountState.fixtureMode
                 contentItem: Text { text: parent.text; color: themeState.foreground; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
