@@ -12,6 +12,7 @@ on:
       - '.github/workflows/native-arch-build.yml'
       - 'scripts/build-native-macos.sh'
       - 'scripts/native-appcast.py'
+      - 'scripts/check-sparkle-key.swift'
       - 'scripts/build-native-windows.ps1'
       - 'scripts/build-native-windows-icon.py'
       - 'scripts/check-native-windows.ps1'
@@ -103,6 +104,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - name: Test signing-key validation
+        run: python3 native/tests/check_signing_key.py
+      - name: Validate configured update signing key
+        env:
+          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ secrets.TUBIFY_SPARKLE_PRIVATE_KEY }}
+        run: |
+          if [[ -n "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
+            swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
+          fi
       - name: Build Tubify.app and disk image
         env:
           TUBIFY_SPARKLE_PRIVATE_KEY: ${{ startsWith(github.ref, 'refs/tags/native-v') && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}

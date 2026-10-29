@@ -80,12 +80,7 @@ printf 'Built %s and %s\n' "$native_output/Tubify-macos-arm64.app" "$native_outp
 
 if [[ -n "${TUBIFY_SPARKLE_PRIVATE_KEY:-}" ]]; then
   # Fail closed if a secret was rotated without updating the bundled trust anchor.
-  swift -e 'import Foundation; import CryptoKit
-let encoded = ProcessInfo.processInfo.environment["TUBIFY_SPARKLE_PRIVATE_KEY"] ?? ""
-guard let data = Data(base64Encoded: encoded), data.count == 64 else { exit(1) }
-let key = try Curve25519.Signing.PrivateKey(rawRepresentation: data.prefix(32))
-let expected = try String(contentsOfFile: CommandLine.arguments.last!, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
-guard key.publicKey.rawRepresentation.base64EncodedString() == expected else { exit(1) }' packaging/macos-native/sparkle-public-key.txt
-  signature="$(printf '%s\n' "$TUBIFY_SPARKLE_PRIVATE_KEY" | "$sparkle/bin/sign_update" --ed-key-file - -p "$native_output/Tubify-${native_version}-macos-arm64.dmg")"
+  swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
+  signature="$(printf '%s' "$TUBIFY_SPARKLE_PRIVATE_KEY" | tr -d '[:space:]' | "$sparkle/bin/sign_update" --ed-key-file - -p "$native_output/Tubify-${native_version}-macos-arm64.dmg")"
   "$native_python" scripts/native-appcast.py "$native_version" "$native_output/Tubify-${native_version}-macos-arm64.dmg" "$signature" "$native_output/appcast.xml"
 fi
