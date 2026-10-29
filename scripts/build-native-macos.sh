@@ -24,6 +24,19 @@ native_build_root="$(cd "$(mktemp -d "${TMPDIR:-/tmp}/tubify-macos-build.XXXXXX"
 native_output="$native_repo_root/dist/native"
 mkdir -p "$native_output"
 
+# Pin and verify the framework distribution before bundling its executable helpers.
+sparkle="$native_build_root/sparkle"
+mkdir -p "$sparkle"
+curl --fail --location --silent --show-error https://github.com/sparkle-project/Sparkle/releases/download/2.10.1/Sparkle-2.10.1.tar.xz -o "$sparkle/archive.tar.xz"
+printf '%s  %s\n' 1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27 "$sparkle/archive.tar.xz" | shasum -a 256 --check
+tar -xf "$sparkle/archive.tar.xz" -C "$sparkle"
+python3 native/tests/check_signing_key.py "$sparkle/bin/sign_update"
+if [[ -n "${TUBIFY_SPARKLE_PRIVATE_KEY:-}" ]]; then
+  swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
+  printf 'Tubify release-signing preflight' > "$native_build_root/signing-check.bin"
+  python3 native/sign_update.py "$sparkle/bin/sign_update" "$native_build_root/signing-check.bin" >/dev/null
+fi
+
 uv venv --quiet --python 3.13 "$native_build_root/venv"
 VIRTUAL_ENV="$native_build_root/venv" uv pip install --quiet "./native[macos-build]"
 native_python="$native_build_root/venv/bin/python"
@@ -57,12 +70,6 @@ app="$native_build_root/dist/Tubify.app"
 [[ "$(lipo -archs "$app/Contents/MacOS/Tubify")" == "arm64" ]] || { printf '%s\n' 'Tubify executable is not arm64.' >&2; exit 1; }
 # python-mpv looks up libmpv.dylib; PyInstaller only ships the versioned install name.
 ln -sf libmpv.2.dylib "$app/Contents/Frameworks/libmpv.dylib"
-# Pin and verify the framework distribution before bundling its executable helpers.
-sparkle="$native_build_root/sparkle"
-mkdir -p "$sparkle"
-curl --fail --location --silent --show-error https://github.com/sparkle-project/Sparkle/releases/download/2.10.1/Sparkle-2.10.1.tar.xz -o "$sparkle/archive.tar.xz"
-printf '%s  %s\n' 1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27 "$sparkle/archive.tar.xz" | shasum -a 256 --check
-tar -xf "$sparkle/archive.tar.xz" -C "$sparkle"
 ditto "$sparkle/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
 cp "$sparkle/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
 # Local builds are ad-hoc signed; Gatekeeper accepts them on the machine that built them.
@@ -81,6 +88,6 @@ printf 'Built %s and %s\n' "$native_output/Tubify-macos-arm64.app" "$native_outp
 if [[ -n "${TUBIFY_SPARKLE_PRIVATE_KEY:-}" ]]; then
   # Fail closed if a secret was rotated without updating the bundled trust anchor.
   swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
-  signature="$(printf '%s' "$TUBIFY_SPARKLE_PRIVATE_KEY" | tr -d '[:space:]' | "$sparkle/bin/sign_update" --ed-key-file - -p "$native_output/Tubify-${native_version}-macos-arm64.dmg")"
+  signature="$("$native_python" native/sign_update.py "$sparkle/bin/sign_update" "$native_output/Tubify-${native_version}-macos-arm64.dmg")"
   "$native_python" scripts/native-appcast.py "$native_version" "$native_output/Tubify-${native_version}-macos-arm64.dmg" "$signature" "$native_output/appcast.xml"
 fi

@@ -1,5 +1,7 @@
 """Exercise the actual macOS signing-key guard using RFC 8032 test vector 1."""
 import base64
+import importlib.util
+import sys
 import os
 from pathlib import Path
 import subprocess
@@ -18,6 +20,16 @@ def main():
             result = subprocess.run(['swift', str(guard), str(path)], env={**os.environ, 'TUBIFY_SPARKLE_PRIVATE_KEY':value}, capture_output=True, text=True)
             assert (result.returncode == 0) == valid, result.stderr
             assert not result.stdout
+        if len(sys.argv) > 1:
+            spec = importlib.util.spec_from_file_location('sign_update', Path(__file__).resolve().parents[1]/'sign_update.py')
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            archive = Path(folder)/'empty.bin'
+            archive.write_bytes(b'')
+            signature = module.sign_update(sys.argv[1], archive, secret)
+            expected = bytes.fromhex('e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b')
+            assert base64.b64decode(signature) == expected, 'Vendor signature differs from RFC 8032 test vector 1'
+            print('Actual Sparkle signing and verification passed RFC 8032 test vector 1.')
     print('Signing-key guard passed valid, whitespace, malformed and mismatched test vectors.')
 
 
