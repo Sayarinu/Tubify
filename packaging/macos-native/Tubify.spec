@@ -5,7 +5,7 @@ from pathlib import Path
 import shutil
 import tomllib
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 ROOT = Path(SPECPATH).resolve().parents[1]
 NATIVE = ROOT / "native"
@@ -29,7 +29,7 @@ analysis = Analysis(
     pathex=[str(NATIVE / "src")],
     # PyInstaller rewrites these to load from the bundle; macos.prepare_runtime puts them on the search paths.
     binaries=[(str(libmpv.resolve()), "."), helper("ffmpeg"), helper("ffprobe"), helper("deno")],
-    datas=collect_data_files("youtube_music_native") + collect_data_files("ytmusicapi"),
+    datas=copy_metadata("youtube-music-native") + collect_data_files("youtube_music_native") + collect_data_files("ytmusicapi"),
     # Worker roles and platform integrations are imported lazily by the launcher.
     hiddenimports=collect_submodules("youtube_music_native") + [
         "PySide6.QtNetwork",
@@ -56,6 +56,13 @@ app = BUNDLE(
     version=VERSION,
     info_plist={
         "CFBundleDisplayName": "Tubify",
+        "SUPublicEDKey": (ROOT / "packaging/macos-native/sparkle-public-key.txt").read_text().strip(),
+        "SUFeedURL": "https://github.com/Sayarinu/YouTube-Music-App/releases/download/native-v" + VERSION + "/appcast.xml",
+        "SUEnableAutomaticChecks": False,
+        "SUAutomaticallyUpdate": False,
+        "SUAllowsAutomaticUpdates": False,
+        "SUEnableSystemProfiling": False,
+        "SUVerifyUpdateBeforeExtraction": True,
         "CFBundleShortVersionString": VERSION,
         "CFBundleVersion": VERSION,
         "LSMinimumSystemVersion": "12.0",

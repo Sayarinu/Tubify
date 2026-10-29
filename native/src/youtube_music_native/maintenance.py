@@ -1,9 +1,11 @@
-"""Explicit release lookup and allowlisted local diagnostics; no telemetry or updater."""
+"""Explicit release lookup and allowlisted local diagnostics; no telemetry."""
 
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 import json
 import math
+import os
+import time
 from pathlib import Path
 import platform
 import re
@@ -11,9 +13,10 @@ import sys
 import tomllib
 from urllib.request import Request, urlopen
 
-from PySide6.QtCore import QObject, Property, QUrl, Signal, Slot, qVersion
+from PySide6.QtCore import QObject, Property, QUrl, QSettings, QTimer, Signal, Slot, qVersion
 from PySide6.QtGui import QGuiApplication
 
+from . import updates
 from .jobs import Worker
 from .playback import write_state
 
@@ -91,7 +94,18 @@ def public_diagnostics(snapshot):
     return result
 
 
-def perform(payload, opener=urlopen):
+def perform(payload, opener=urlopen, progress=None):
+    if payload.get("action") == "download":
+        try:
+            return updates.download(payload["tag"], payload["directory"], progress, opener)
+        except Exception:
+            return {"error": "Update download failed. Check your connection and free disk space, then retry."}
+    if payload.get("action") == "install":
+        try:
+            updates.launch_installer(payload["asset"], payload["parent_pid"])
+            return {"started": True}
+        except Exception:
+            return {"error": "Installer could not start. Retry or use Release Details."}
     if payload.get("action") == "release":
         path = Path(payload["cache_path"])
         try:
@@ -131,6 +145,17 @@ class Maintenance(QObject):
         self._factory, self._worker, self._pending = worker_factory, None, {}
         self._status, self._export_status, self._url = "Not checked", "", ""
         self.window = None
+        self.prepare_restart = lambda: None
+        self._tag, self._available, self._progress = "", False, 0
+        self._mac = None
+        self.settings = getattr(shell, "settings", None)
+        if self.settings is None:
+            self.settings = QSettings(str(Path(cache_path).parent.parent / "settings.ini"), QSettings.Format.IniFormat)
+        self._supported = updates.supported() and not fixture
+        self._automatic = self.settings.value("updates/automatic", True, type=bool)
+        self.timer = QTimer(self)
+        self.timer.setInterval(3600000)
+        self.timer.timeout.connect(self._check_due)
 
     @Property(str, constant=True)
     def currentVersion(self):
@@ -154,7 +179,90 @@ class Maintenance(QObject):
 
     @Property(str, constant=True)
     def updateGuidance(self):
-        return "On Arch Linux, update youtube-music-native through your package manager. Other installations should use their native release instructions. This app does not install updates."
+        return "Updates preserve settings and downloaded music. Installation may request OS authorization." if updates.supported() else "This installation needs a manual upgrade using Release Details. In-app updates support the packaged Arch, Windows and macOS apps."
+
+    @Property(bool, notify=changed)
+    def automaticChecks(self):
+        return self._automatic
+
+    @Property(bool, notify=changed)
+    def updateAvailable(self):
+        return self._available
+
+    @Property(bool, constant=True)
+    def installSupported(self):
+        return self._supported
+
+    @Property(bool, notify=changed)
+    def downloading(self):
+        return "download" in self._pending.values()
+
+    @Property(int, notify=changed)
+    def progress(self):
+        return self._progress
+
+    @Slot(bool)
+    def setAutomaticChecks(self, enabled):
+        self._automatic = bool(enabled)
+        self.settings.setValue("updates/automatic", self._automatic)
+        self.settings.sync()
+        self.changed.emit()
+        self._check_due()
+
+    def start(self):
+        if self.installSupported:
+            self.timer.start()
+            QTimer.singleShot(5000, self._check_due)
+        for partial in (Path(self._cache).parent / "updates").glob("*.part"):
+            partial.unlink(missing_ok=True)
+        receipt = Path(self._cache).parent / "updates/result.json"
+        if receipt.exists():
+            try:
+                success = json.loads(receipt.read_text())["success"]
+                self._status = "Update installed." if success else "Installation failed or was cancelled. Retry or use Release Details."
+            except (OSError, ValueError, KeyError, TypeError):
+                self._status = "The previous update did not finish. Retry or use Release Details."
+            receipt.unlink(missing_ok=True)
+            self.changed.emit()
+
+    def _check_due(self):
+        if self._automatic and self.installSupported and not self.busy:
+            last = self.settings.value("updates/lastAttempt", 0, type=float)
+            if not 0 <= time.time() - last < 86400:
+                self.checkRelease()
+
+    @Slot()
+    def installUpdate(self):
+        if not self.installSupported or not self._available or self.busy:
+            return
+        if sys.platform == "darwin":
+            try:
+                if self._mac is None:
+                    from .macos_updates import MacUpdater
+                    self._mac = MacUpdater(self.prepare_restart)
+                self._mac.install(self._tag)
+            except Exception:
+                self._status = "The macOS updater could not start. Use Release Details or retry."
+                self.changed.emit()
+            return
+        self._progress = 0
+        self._status = "Downloading update…"
+        self._request("download", {"tag": self._tag, "directory": str(Path(self._cache).parent / "updates")})
+
+    @Slot()
+    def cancelUpdate(self):
+        if "download" in self._pending.values():
+            self._worker.reset()
+            self._pending.clear()
+            for path in (Path(self._cache).parent / "updates").glob("*.part"):
+                path.unlink(missing_ok=True)
+            self._status = "Update download cancelled."
+            self.changed.emit()
+
+    def _download_progress(self, identifier, result):
+        if self._pending.get(identifier) == "download":
+            self._progress = result.get("percent", 0)
+            self.changed.emit()
 
     def _request(self, action, payload):
         if self.busy:
@@ -163,6 +271,8 @@ class Maintenance(QObject):
             self._worker = self._factory(self, idle_ms=15000)
             self._worker.succeeded.connect(self._result)
             self._worker.failed.connect(self._failed)
+            if hasattr(self._worker, "progress"):
+                self._worker.progress.connect(self._download_progress)
         identifier = self._worker.request("maintenance", {"action": action, **payload})
         self._pending[identifier] = action
         self.changed.emit()
@@ -171,6 +281,8 @@ class Maintenance(QObject):
     def checkRelease(self):
         if self.busy:
             return
+        self._available = False
+        self.settings.setValue("updates/lastAttempt", time.time())
         self._status = "Checking stable native releases…"
         self._request("release", {"cache_path": self._cache})
 
@@ -192,6 +304,21 @@ class Maintenance(QObject):
         action = self._pending.pop(identifier, None)
         if action is None:
             return
+        if action == "download":
+            if result.get("error"):
+                self._status = result["error"]
+            else:
+                self._status = "Preparing installer…"
+                self._request("install", {"asset": result, "parent_pid": os.getpid()})
+            self.changed.emit()
+            return
+        if action == "install":
+            if result.get("started"):
+                QGuiApplication.instance().quit()
+            else:
+                self._status = result.get("error", "Installer could not start. Retry or use Release Details.")
+            self.changed.emit()
+            return
         if action == "export":
             self._export_status = result.get("error") or "Diagnostics saved locally."
         elif result.get("error"):
@@ -206,6 +333,7 @@ class Maintenance(QObject):
                 if result.get("stale"):
                     self._status = "Offline or lookup failed. Last known stable: " + tag + ". Checked " + result.get("checkedAt", "unknown") + ". Retry for current status."
                 elif current and latest > current:
+                    self._tag, self._available = tag, True
                     self._status = "Release available: " + tag
                 elif current == latest:
                     self._status = "Installed version matches the latest stable release: " + tag
@@ -220,6 +348,7 @@ class Maintenance(QObject):
         self._result(identifier, {"error": "This operation could not finish. Retry when ready."})
 
     def close(self):
+        self.timer.stop()
         if self._worker:
             self._worker.close()
         self._pending.clear()

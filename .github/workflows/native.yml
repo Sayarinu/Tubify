@@ -10,14 +10,15 @@ on:
       - 'scripts/build-native-arch-package.sh'
       - 'scripts/check-native-arch-package.sh'
       - '.github/workflows/native-arch-build.yml'
-      - '.github/workflows/native-release-linux.yml'
       - 'scripts/build-native-macos.sh'
+      - 'scripts/native-appcast.py'
       - 'scripts/build-native-windows.ps1'
       - 'scripts/build-native-windows-icon.py'
       - 'scripts/check-native-windows.ps1'
       - '.github/workflows/native.yml'
   push:
     branches: [main]
+    tags: ['native-v*']
   workflow_dispatch:
 
 permissions:
@@ -103,7 +104,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - name: Build Tubify.app and disk image
-        run: scripts/build-native-macos.sh
+        env:
+          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ startsWith(github.ref, 'refs/tags/native-v') && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/native-v* && -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
+            echo "Stable releases require the Sparkle signing secret."
+            exit 1
+          fi
+          scripts/build-native-macos.sh
       - name: Check the bundle runs without Homebrew on PATH
         run: |
           app="dist/native/Tubify-macos-arm64.app/Contents/MacOS/Tubify"
@@ -116,7 +124,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: tubify-macos-arm64
-          path: dist/native/Tubify-*-macos-arm64.dmg
+          path: |
+            dist/native/Tubify-*-macos-arm64.dmg
+            dist/native/appcast.xml
           if-no-files-found: error
 
   windows-app:
@@ -181,6 +191,10 @@ jobs:
           set -euo pipefail
           shopt -s failglob
           assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz *.streamDeckPlugin )
+          if [[ "$GITHUB_REF" == refs/tags/native-v* ]]; then
+            test -s appcast.xml
+            assets+=(appcast.xml)
+          fi
           sha256sum "${assets[@]}" > SHA256SUMS
           sha256sum --check SHA256SUMS
       - uses: actions/upload-artifact@v4
@@ -192,7 +206,7 @@ jobs:
   release:
     name: Publish downloadable main release
     needs: release-assets
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/native-v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -209,10 +223,16 @@ jobs:
         run: |
           set -euo pipefail
           tag="main-build-${GITHUB_RUN_ID}"
+          title="Tubify main build ${GITHUB_RUN_NUMBER}"
+          if [[ "$GITHUB_REF" == refs/tags/native-v* ]]; then
+            tag="$GITHUB_REF_NAME"
+            title="Tubify ${tag#native-v}"
+          fi
           cd release
           sha256sum --check SHA256SUMS
           shopt -s failglob
           assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz *.streamDeckPlugin SHA256SUMS )
+          if [[ "$GITHUB_REF" == refs/tags/native-v* ]]; then assets+=(appcast.xml); fi
           printf 'Verified build of main commit `%s`.\n\nDownloads:\n- Windows: setup.exe\n- macOS Apple Silicon: arm64.dmg\n- Arch Linux: pkg.tar.zst (install with pacman -U)\n- Arch build sources: src.tar.gz\n- Stream Deck for Windows/macOS: streamDeckPlugin\n- Integrity checks: SHA256SUMS\n\n[Build and verification](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > notes.md
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
@@ -220,7 +240,7 @@ jobs:
               exit 0
             fi
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Tubify main build ${GITHUB_RUN_NUMBER}" --notes-file notes.md
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "$title" --notes-file notes.md
           fi
           gh release upload "$tag" "${assets[@]}" --clobber
           latest=false

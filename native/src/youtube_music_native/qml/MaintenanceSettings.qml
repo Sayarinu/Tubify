@@ -20,9 +20,17 @@ SettingsPage {
             spacing: 16
             Label { text: "Tubify " + maintenanceState.currentVersion; color: themeState.foreground; font.bold: true }
             Label { Layout.fillWidth: true; text: maintenanceState.status; color: themeState.foreground; wrapMode: Text.Wrap }
+            SettingsCheckBox {
+                text: "Check Automatically for Updates"
+                checked: maintenanceState.automaticChecks
+                onToggled: maintenanceState.setAutomaticChecks(checked)
+            }
+            ProgressBar { Layout.fillWidth: true; visible: maintenanceState.downloading; value: maintenanceState.progress / 100 }
             Flow {
                 Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8
-                ThemeActionButton { objectName: "checkReleaseButton"; text: "Check for Releases"; enabled: !maintenanceState.busy; onClicked: maintenanceState.checkRelease() }
+                ThemeActionButton { objectName: "checkReleaseButton"; text: "Check for Updates"; enabled: !maintenanceState.busy; onClicked: maintenanceState.checkRelease() }
+                ThemeActionButton { text: Qt.platform.os === "osx" ? "Update…" : "Update & Restart"; visible: maintenanceState.updateAvailable && maintenanceState.installSupported; enabled: !maintenanceState.busy; onClicked: maintenanceState.installUpdate() }
+                ThemeActionButton { text: "Cancel Download"; visible: maintenanceState.downloading; onClicked: maintenanceState.cancelUpdate() }
                 ThemeActionButton { text: "Release Details"; visible: !!maintenanceState.releaseUrl; onClicked: Qt.openUrlExternally(maintenanceState.releaseUrl) }
             }
             Label { Layout.fillWidth: true; text: maintenanceState.updateGuidance; color: themeState.secondary; wrapMode: Text.Wrap }

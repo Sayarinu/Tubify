@@ -26,7 +26,12 @@ def main():
                     service = shell.maintenanceState
                     assert service._worker is None and service.status == "Not checked"
                     dialog = window.findChild(QObject, "maintenanceSettings")
-                    QMetaObject.invokeMethod(dialog, "open")
+                    service._available = True
+                    service.changed.emit()
+                    QTest.qWait(20)
+                    review = window.findChild(QObject, "updateReview")
+                    assert review and review.property("visible")
+                    QMetaObject.invokeMethod(review, "clicked")
                     QTest.qWait(50)
                     assert dialog.property("visible") and dialog.property("height") * shell.uiScaleFactor < window.height()
                     service.exportDiagnostics(QUrl.fromLocalFile(str(report)))

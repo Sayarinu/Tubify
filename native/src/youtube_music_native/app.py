@@ -118,6 +118,17 @@ def main(argv=None):
     QGuiApplication.setApplicationDisplayName("Tubify")
     QQuickStyle.setStyle("Basic")
     app = QApplication([sys.argv[0]])
+    cleanup = []
+    def on_quit(callback):
+        called = False
+        def once():
+            nonlocal called
+            if not called:
+                called = True
+                callback()
+        cleanup.append(once)
+        app.aboutToQuit.connect(once)
+
     app.setDesktopFileName("youtube-music-native")
     app.setWindowIcon(QIcon(str(PACKAGE / "assets" / "music.svg")))
     for font in (PACKAGE / "assets").glob("*.ttf"):
@@ -181,7 +192,7 @@ def main(argv=None):
     source_worker = None if args.fixture else Worker(controller, idle_ms=15000)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     controller.discordState = DiscordPresence(player, data / "settings.ini", parent=controller, fixture=args.fixture)
-    app.aboutToQuit.connect(controller.discordState.close)
+    on_quit(controller.discordState.close)
     controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)
     controller.trayState = TrayPlayer(controller, player, data / "settings.ini", PACKAGE / "assets" / "music.svg", parent=controller)
     controller.lifecycleState = Lifecycle(data / "settings.ini", player, controller.trayState, parent=controller,
@@ -192,7 +203,7 @@ def main(argv=None):
     account.sessionChanged.connect(downloads.resetSession)
     browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller, downloads=downloads)
     controller.linkState = DeepLinks(browse, account, downloads, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
-    app.aboutToQuit.connect(controller.linkState.close)
+    on_quit(controller.linkState.close)
     search = Search(controller, account, catalog, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     actions = Actions(account, cache / "metadata.sqlite3", fixture=args.fixture, parent=controller)
     actions.applied.connect(browse.applyAction)
@@ -208,22 +219,31 @@ def main(argv=None):
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
-    app.aboutToQuit.connect(controller.apiState.close)
-    app.aboutToQuit.connect(controller.shortcutState.close)
-    app.aboutToQuit.connect(controller.lastFm.close)
-    app.aboutToQuit.connect(account.close)
-    app.aboutToQuit.connect(player.close)
-    app.aboutToQuit.connect(controller.maintenanceState.close)
-    app.aboutToQuit.connect(controller.playbackOptions.close)
-    app.aboutToQuit.connect(controller.lifecycleState.close)
-    app.aboutToQuit.connect(controller.trayState.close)
-    app.aboutToQuit.connect(downloads.close)
-    app.aboutToQuit.connect(lyrics.close)
+    on_quit(controller.apiState.close)
+    on_quit(controller.shortcutState.close)
+    on_quit(controller.lastFm.close)
+    on_quit(account.close)
+    on_quit(player.close)
+    on_quit(controller.maintenanceState.close)
+    on_quit(controller.playbackOptions.close)
+    on_quit(controller.lifecycleState.close)
+    on_quit(controller.trayState.close)
+    on_quit(downloads.close)
+    on_quit(lyrics.close)
     engine = load_window(controller, account, player, catalog, cache / "artwork", browse, downloads, search, actions, library, lyrics, theme, color_sampler)
     if not engine.rootObjects():
         return 1
     window = engine.rootObjects()[0]
+    if args.smoke_test and getattr(sys, "frozen", False):
+        if controller.maintenanceState.currentVersion == "unknown":
+            raise RuntimeError("Packaged version metadata is missing")
+        if sys.platform == "darwin":
+            from .macos_updates import MacUpdater
+            controller.maintenanceState._mac = MacUpdater(lambda: None)
     controller.maintenanceState.window = window
+    controller.maintenanceState.prepare_restart = lambda: [callback() for callback in cleanup]
+    if not (args.fixture or args.smoke_test or args.screenshot):
+        controller.maintenanceState.start()
     if not args.fixture:
         controller.restoreWindow(window, [screen.availableGeometry() for screen in app.screens()])
     controller.trayState.start(window)
@@ -249,10 +269,10 @@ def main(argv=None):
         QTimer.singleShot(0, lambda: receive_links(args.links))
     desktop = None if args.fixture else Desktop(controller, player, window, downloads, parent=controller)
     if desktop:
-        app.aboutToQuit.connect(desktop.close)
+        on_quit(desktop.close)
 
     if instance:
-        app.aboutToQuit.connect(instance.close)
+        on_quit(instance.close)
 
     def finish():
         warnings = engine.property("qmlWarnings")

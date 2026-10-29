@@ -29,4 +29,6 @@ Build each package on its own OS:
 | macOS (Apple Silicon) | `./scripts/build-native-macos.sh` | `dist/native/Tubify-<version>-macos-arm64.dmg` |
 | Windows x64 | `./scripts/build-native-windows.ps1` | `dist/native/Tubify-<version>-windows-x64-setup.exe` |
 
-See `platforms/macos` and `platforms/windows` for platform notes. CI is in `.github/workflows/native.yml` and `.github/workflows/native-release-linux.yml`. Tagging `native-v<version>` publishes the Arch package.
+See `platforms/macos` and `platforms/windows` for platform notes. CI is in `.github/workflows/native.yml`. Tagging `native-v<version>` publishes verified packages for all three platforms.
+
+Packaged installations check stable releases daily while running. **Settings → Updates & Troubleshooting** controls automatic checks and offers verified updates. Arch uses pacman with desktop authorization; Windows uses its per-user installer; macOS uses Sparkle. Install version 0.1.2 manually once to receive future in-app updates.

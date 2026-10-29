@@ -19,7 +19,7 @@ native_output="$native_repo_root/dist/native"
 mkdir -p "$native_output"
 cp packaging/arch-native/PKGBUILD "$native_build_root/PKGBUILD"
 git archive --format=tar.gz --prefix="youtube-music-native-${native_version}/" \
-  --output="$native_build_root/youtube-music-native-${native_version}.tar.gz" HEAD native packaging/arch-native
+  --output="$native_build_root/youtube-music-native-${native_version}.tar.gz" HEAD native packaging/arch-native scripts/native-appcast.py
 native_digest="$(sha256sum "$native_build_root/youtube-music-native-${native_version}.tar.gz" | cut -d' ' -f1)"
 printf '\nsha256sums=(%s)\n' "$native_digest" >> "$native_build_root/PKGBUILD"
 export PKGDEST="$native_output" SRCPKGDEST="$native_output"

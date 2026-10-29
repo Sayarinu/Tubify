@@ -57,6 +57,14 @@ app="$native_build_root/dist/Tubify.app"
 [[ "$(lipo -archs "$app/Contents/MacOS/Tubify")" == "arm64" ]] || { printf '%s\n' 'Tubify executable is not arm64.' >&2; exit 1; }
 # python-mpv looks up libmpv.dylib; PyInstaller only ships the versioned install name.
 ln -sf libmpv.2.dylib "$app/Contents/Frameworks/libmpv.dylib"
+# Pin and verify the framework distribution before bundling its executable helpers.
+sparkle="$native_build_root/sparkle"
+mkdir -p "$sparkle"
+curl --fail --location --silent --show-error https://github.com/sparkle-project/Sparkle/releases/download/2.10.1/Sparkle-2.10.1.tar.xz -o "$sparkle/archive.tar.xz"
+printf '%s  %s\n' 1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27 "$sparkle/archive.tar.xz" | shasum -a 256 --check
+tar -xf "$sparkle/archive.tar.xz" -C "$sparkle"
+ditto "$sparkle/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
+cp "$sparkle/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
 # Local builds are ad-hoc signed; Gatekeeper accepts them on the machine that built them.
 codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict "$app"
@@ -69,3 +77,15 @@ ditto "$app" "$staging/Tubify.app"
 ln -s /Applications "$staging/Applications"
 hdiutil create -quiet -volname "Tubify" -srcfolder "$staging" -ov -format UDZO "$native_output/Tubify-${native_version}-macos-arm64.dmg"
 printf 'Built %s and %s\n' "$native_output/Tubify-macos-arm64.app" "$native_output/Tubify-${native_version}-macos-arm64.dmg"
+
+if [[ -n "${TUBIFY_SPARKLE_PRIVATE_KEY:-}" ]]; then
+  # Fail closed if a secret was rotated without updating the bundled trust anchor.
+  swift -e 'import Foundation; import CryptoKit
+let encoded = ProcessInfo.processInfo.environment["TUBIFY_SPARKLE_PRIVATE_KEY"] ?? ""
+guard let data = Data(base64Encoded: encoded), data.count == 64 else { exit(1) }
+let key = try Curve25519.Signing.PrivateKey(rawRepresentation: data.prefix(32))
+let expected = try String(contentsOfFile: CommandLine.arguments.last!, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+guard key.publicKey.rawRepresentation.base64EncodedString() == expected else { exit(1) }' packaging/macos-native/sparkle-public-key.txt
+  signature="$(printf '%s\n' "$TUBIFY_SPARKLE_PRIVATE_KEY" | "$sparkle/bin/sign_update" --ed-key-file - -p "$native_output/Tubify-${native_version}-macos-arm64.dmg")"
+  "$native_python" scripts/native-appcast.py "$native_version" "$native_output/Tubify-${native_version}-macos-arm64.dmg" "$signature" "$native_output/appcast.xml"
+fi

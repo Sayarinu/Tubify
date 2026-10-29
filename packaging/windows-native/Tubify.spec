@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import tomllib
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 from PyInstaller.utils.win32.versioninfo import FixedFileInfo, StringFileInfo, StringTable, StringStruct, VarFileInfo, VarStruct, VSVersionInfo
 
 ROOT = Path(SPECPATH).resolve().parents[1]
@@ -32,7 +32,7 @@ analysis = Analysis(
     [str(Path(SPECPATH) / "tubify_entry.py")],
     pathex=[str(NATIVE / "src")],
     binaries=binaries,
-    datas=collect_data_files("youtube_music_native") + collect_data_files("ytmusicapi"),
+    datas=copy_metadata("youtube-music-native") + collect_data_files("youtube_music_native") + collect_data_files("ytmusicapi"),
     hiddenimports=(
         collect_submodules("youtube_music_native")
         + collect_submodules("winrt")
