@@ -3,7 +3,7 @@
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 
-FILTERS = {"All": None, "Songs": "songs", "Albums": "albums", "Artists": "artists", "Playlists": "playlists"}
+FILTERS = {"All": None, "Songs": "songs", "Videos": "videos", "Albums": "albums", "Artists": "artists", "Playlists": "playlists"}
 
 
 class Search(QObject):

@@ -100,6 +100,7 @@ def item(row, kind=None):
         "owned": bool(row.get("owned")), "count": text(row.get("count")), "played": text(row.get("played")),
         "explicit": bool(row.get("isExplicit")), "rating": text(row.get("likeStatus")),
         "available": bool(identifier) and row.get("isAvailable", True) is not False,
+        "videoType": text(row.get("videoType")) or ("MUSIC_VIDEO_TYPE_UGC" if result_type == "video" else ""),
         **({"category": text(row.get("category")), "subscribers": text(row.get("subscribers"))} if row.get("category") else {}),
     }
 
@@ -254,7 +255,7 @@ class Catalog:
                 raise CatalogError("Enter a song, artist, album or playlist.")
             data["title"] = query
             raw = client.search(query, filter=None, limit=max(limit, 40))
-            data.update(arrange_search(query, items([row for row in raw if row.get("resultType", "song") in {"song", "album", "artist", "playlist"}])))
+            data.update(arrange_search(query, items([row for row in raw if row.get("resultType", "song") in {"song", "video", "album", "artist", "playlist"}])))
             data["complete"] = True
         elif route == "search":
             query = text(params.get("query")).strip()
@@ -264,7 +265,8 @@ class Catalog:
             raw_limit = limit
             while True:
                 raw = client.search(query, filter=params.get("filter"), limit=raw_limit)
-                data["items"] = items([row for row in raw if row.get("resultType", "song") in {"song", "album", "artist", "playlist"}])
+                allowed = {"song", "album", "artist", "playlist"} | ({"video"} if params.get("filter") == "videos" else set())
+                data["items"] = items([row for row in raw if row.get("resultType", "song") in allowed])
                 if len(data["items"]) >= limit or len(raw) < raw_limit or raw_limit >= 100000:
                     break
                 raw_limit = min(100000, raw_limit * 2)

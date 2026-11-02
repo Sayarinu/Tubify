@@ -11,6 +11,7 @@ from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .audio import Audio
 from .queue import Queue
+from .video import has_video
 
 
 def write_state(path, content):
@@ -73,6 +74,10 @@ class Playback(QObject):
         # What the queue was started from, so autoplay can continue with a matching radio.
         self._context, self._radio_prefetch, self._context_radio_failed = {}, False, False
         self.autoplay_store = None
+        # Video plays only while the expanded player shows it and the user prefers it.
+        self._video_surface, self._video_preferred = False, True
+        self._source_video, self._request_video, self._video_failed = False, False, ""
+        self.video_store = None
         self.stateSaveFailed.connect(self._save_failed)
         if fixture:
             self.queue.replace(fixture.get("shelves", [{}])[0].get("items", []))
@@ -193,6 +198,53 @@ class Playback(QObject):
     def autoplay(self):
         return self._autoplay
 
+    @Property(bool, notify=changed)
+    def videoAvailable(self):
+        return self._video_supported() and has_video(self.currentTrack) and self.currentTrack.get("videoId") != self._video_failed
+
+    @Property(bool, notify=changed)
+    def videoPreferred(self):
+        return self._video_preferred
+
+    @Property(bool, notify=changed)
+    def showingVideo(self):
+        return self._source_video and self._loaded
+
+    @Property(QObject, notify=changed)
+    def videoFrames(self):
+        return getattr(self.audio, "frames", None) if self.audio else None
+
+    def _video_supported(self):
+        return not self._fixture and self.worker is not None and (self.audio is None or getattr(self.audio, "videoCapable", False))
+
+    def _wants_video(self):
+        return self._video_surface and self._video_preferred and self.videoAvailable
+
+    def _sync_video(self):
+        """Reload at the same position when the wanted mode differs from what is playing."""
+        if not self.hasTrack or self._stopped or not (self._loaded or self._busy):
+            self.changed.emit()
+            return
+        current = self._request_video if self._request is not None else self._source_video
+        if self._wants_video() != current:
+            self._start(self._position, paused=self._want_paused)
+        else:
+            self.changed.emit()
+
+    @Slot(bool)
+    def setVideoSurface(self, visible):
+        if bool(visible) != self._video_surface:
+            self._video_surface = bool(visible)
+            self._sync_video()
+
+    @Slot(bool)
+    def setVideoPreferred(self, value):
+        if bool(value) != self._video_preferred:
+            self._video_preferred = bool(value)
+            if self.video_store:
+                self.video_store(self._video_preferred)
+            self._sync_video()
+
     def setContext(self, context):
         """Describe where the queue came from (artist, playlist, album or radio)."""
         self._context = {key: str(value) for key, value in (context or {}).items() if key in {"kind", "playlistId"} and value}
@@ -308,12 +360,13 @@ class Playback(QObject):
     def _start(self, position=0, paused=False, force=False, damaged=False):
         self._stopped, self._device_wait = False, False
         video_id = self.currentTrack.get("videoId", "") if self.hasTrack else ""
+        video = self.hasTrack and self._wants_video()
         adopt = None
         if self.worker:
             if self._request is not None and self._request > 0:
                 self.worker.cancel(self._request)
             if self._prepare_request is not None:
-                if self._preparing_video == video_id and not force:
+                if self._preparing_video == video_id and not force and not video:
                     # The prefetch is already resolving this song; killing it would only
                     # force a cold worker start for the same answer.
                     adopt = self._prepare_request
@@ -325,6 +378,7 @@ class Playback(QObject):
         self._radio_prefetch = False
         self._request = None
         self._busy, self._playing, self._loaded = False, False, False
+        self._source_video, self._request_video = False, video
         self._last_progress = time.monotonic()
         if not force:
             self._stall_recoveries = 0
@@ -345,16 +399,17 @@ class Playback(QObject):
             self._playing = not paused
         elif self.worker:
             self._busy = True
-            prepared = self._prepared.pop(video_id, None)
+            # Video requests leave the prefetched audio source for switching back.
+            prepared = None if video else self._prepared.pop(video_id, None)
             if adopt is not None:
                 self._request = adopt
-            elif not force and not damaged and self._usable(prepared, video_id):
+            elif not force and not damaged and not video and self._usable(prepared, video_id):
                 # A prefetched signed URL plays immediately without a worker round trip.
                 self._local_counter -= 1
                 self._request = identifier = self._local_counter
                 QTimer.singleShot(0, lambda: self._resolved(identifier, prepared))
             else:
-                self._request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "force": force, "damaged": damaged, "prepared": prepared, "available": self.currentTrack.get("available", True)})
+                self._request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "force": force, "damaged": damaged, "prepared": prepared, "available": self.currentTrack.get("available", True), "video": video})
         self._queue_changed()
 
     @Slot(int, dict)
@@ -378,6 +433,11 @@ class Playback(QObject):
                 self.audio.setSpeakerFill(self._speaker_fill)
                 self.audio.volume(self.outputVolume)
             self._source_kind = source["kind"]
+            self._source_video = bool(source.get("video"))
+            if hasattr(self.audio, "setVideo") and self.audio.setVideo(self._source_video) is False and self._source_video:
+                # This libmpv cannot render video; the stream still plays as audio.
+                self._source_video = False
+                self._video_failed = self.currentTrack.get("videoId", "")
             self._source_expires = float(source.get("expires") or 0)
             self._last_progress = time.monotonic()
             self.audio.load(source, self._start_position, self._want_paused)
@@ -398,7 +458,7 @@ class Playback(QObject):
                 and str(source.get("source", "")).startswith("https://") and self.currentTrack.get("available", True) is not False)
 
     def _remember_source(self, source):
-        if source.get("kind") == "remote" and source.get("videoId"):
+        if source.get("kind") == "remote" and source.get("videoId") and not source.get("video"):
             # Keep recent sources across worker hibernation, only in memory.
             self._prepared.pop(source["videoId"], None)
             self._prepared[source["videoId"]] = source
@@ -411,6 +471,15 @@ class Playback(QObject):
             self._prepare_request, self._preparing_video = None, None
             return
         if identifier != self._request:
+            return
+        if self._request_video:
+            # A missing or blocked video stream falls back to the song's audio.
+            self._video_failed = self.currentTrack.get("videoId", "")
+            self._message = error.get("message", "This video could not be loaded. Playing audio instead.")
+            message = self._message
+            self._start(self._position, paused=self._want_paused)
+            self._message = message
+            self.changed.emit()
             return
         self._request, self._busy = None, False
         self._message = error.get("message", "This song could not be played.")

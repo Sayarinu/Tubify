@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import Tubify.Video
 import "Theme.js" as Theme
 
 Item {
@@ -10,7 +11,12 @@ Item {
     readonly property var album: typeof track.album === "object" && track.album ? track.album : ({})
     readonly property string albumName: typeof track.album === "string" ? track.album : album.name || track.albumName || track.albumTitle || ""
     readonly property string albumId: album.id || album.browseId || ""
-    readonly property real coverSize: Math.max(80, Math.min(width - 48, height - metadata.height - 64, 720))
+    readonly property real coverSize: Math.max(80, Math.min(width - 48, height - metadata.height - 64 - (modeSwitch.visible ? 52 : 0), 720))
+    // Music videos play here; leaving the expanded player returns to audio only.
+    readonly property bool videoShown: playerState.showingVideo && playerState.videoPreferred
+    readonly property real videoWidth: Math.max(160, Math.min(width - 48, (height - metadata.height - 116) * 16 / 9, 1280))
+    Component.onCompleted: playerState.setVideoSurface(true)
+    Component.onDestruction: playerState.setVideoSurface(false)
     function focusStage() { title.forceActiveFocus() }
 
     ArtworkBackdrop {
@@ -22,9 +28,44 @@ Item {
         anchors.centerIn: parent
         width: Math.min(root.width - 48, 760)
         spacing: 24
+        Row {
+            id: modeSwitch
+            objectName: "videoModeSwitch"
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: playerState.videoAvailable
+            spacing: 4
+            Repeater {
+                model: [{ label: "Song", video: false }, { label: "Video", video: true }]
+                delegate: Button {
+                    id: mode
+                    required property var modelData
+                    readonly property bool selected: playerState.videoPreferred === modelData.video
+                    text: modelData.label; height: 32; leftPadding: 18; rightPadding: 18
+                    Accessible.name: "Play " + modelData.label.toLowerCase()
+                    palette.buttonText: selected ? themeState.onAccent : themeState.foreground
+                    background: Rectangle { radius: height / 2; color: mode.selected ? themeState.accent : mode.hovered ? themeState.hover : themeState.surface; border.width: mode.visualFocus ? 2 : 0; border.color: themeState.foreground }
+                    onClicked: playerState.setVideoPreferred(modelData.video)
+                }
+            }
+        }
+        Item {
+            objectName: "videoStage"
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: root.videoShown
+            width: root.videoWidth; height: width * 9 / 16
+            Rectangle { anchors.fill: parent; radius: 12; color: "black" }
+            VideoSurface {
+                objectName: "videoSurface"
+                anchors.fill: parent
+                frames: root.videoShown ? playerState.videoFrames : null
+                Accessible.role: Accessible.Graphic
+                Accessible.name: "Video for " + (root.track.title || "current song")
+            }
+        }
         Cover {
             objectName: "immersiveArtwork"
             anchors.horizontalCenter: parent.horizontalCenter
+            visible: !root.videoShown
             width: root.coverSize; height: width; radius: 12
             largeArtwork: true
             media: root.track

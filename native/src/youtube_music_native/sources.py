@@ -5,7 +5,7 @@ import re
 import time
 from urllib.parse import parse_qs, urlparse
 
-from .compat import extractor_options
+from .compat import VIDEO_FORMAT, edl, extractor_options
 
 
 class SourceError(RuntimeError):
@@ -18,7 +18,7 @@ class Sources:
         self.extractor_factory = extractor_factory
         self._cache = {}
 
-    def resolve(self, video_id, force=False, prepared=None, available=True):
+    def resolve(self, video_id, force=False, prepared=None, available=True, video=False):
         if not isinstance(video_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
             raise SourceError("This song has no playable music identifier.")
         local = self.media.ready(video_id)
@@ -26,6 +26,8 @@ class Sources:
             return {"kind": "local", "source": str(local), "headers": [], "videoId": video_id}
         if not available:
             raise SourceError("This song is unavailable. Choose another song or repair its download.")
+        if video:
+            return self._resolve_video(video_id)
         if (not force and isinstance(prepared, dict) and prepared.get("kind") == "remote"
                 and prepared.get("videoId") == video_id and isinstance(prepared.get("expires"), (int, float))
                 and prepared["expires"] > time.time() + 60 and str(prepared.get("source", "")).startswith("https://")
@@ -63,3 +65,33 @@ class Sources:
             raise
         except Exception:
             raise SourceError("This song could not be resolved. Check your connection, reconnect, or update the extractor.") from None
+
+    def _resolve_video(self, video_id):
+        """Resolve a music video as one mpv-playable EDL of its video and audio streams."""
+        if self.auth.session is None:
+            self.auth.restore()
+        if self.auth.session is None:
+            raise SourceError("Reconnect YouTube Music to watch this video.")
+        from yt_dlp import YoutubeDL
+
+        factory = self.extractor_factory or YoutubeDL
+        options = extractor_options(Path(self.media.root))
+        options.update(skip_download=True, noplaylist=True, format=VIDEO_FORMAT)
+        try:
+            with factory(options) as extractor:
+                for cookie in self.auth.session.cookie_jar():
+                    extractor.cookiejar.set_cookie(cookie)
+                info = extractor.extract_info("https://www.youtube.com/watch?v=" + video_id, download=False)
+            formats = (info or {}).get("requested_formats") or [info or {}]
+            urls = [str(value.get("url", "")) for value in formats]
+            if not urls or not all(url.startswith("https://") for url in urls) or not any(value.get("vcodec") not in {None, "none"} for value in formats):
+                raise SourceError("No video format is available. Playing audio instead.")
+            expires = min((float(parse_qs(urlparse(url).query).get("expire", [time.time() + 300])[0]) for url in urls), default=time.time() + 300)
+            headers = (formats[0].get("http_headers") or info.get("http_headers") or {})
+            return {"kind": "remote", "video": True, "source": edl(urls) if len(urls) > 1 else urls[0],
+                    "headers": [f"{k}: {v}" for k, v in headers.items() if "\n" not in str(k) + str(v) and "\r" not in str(k) + str(v)],
+                    "expires": expires, "videoId": video_id}
+        except SourceError:
+            raise
+        except Exception:
+            raise SourceError("This video could not be loaded. Playing audio instead.") from None

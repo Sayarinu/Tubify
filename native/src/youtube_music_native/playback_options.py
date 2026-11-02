@@ -24,6 +24,8 @@ class PlaybackOptions(QObject):
         self.timer.timeout.connect(self.tick)
         player.setAutoplay(self.settings.value("autoplay", True, type=bool))
         player.autoplay_store = self._store_autoplay
+        player.setVideoPreferred(self.settings.value("videoPreferred", True, type=bool))
+        player.video_store = lambda value: (self.settings.setValue("videoPreferred", bool(value)), self.settings.sync())
         player.setNonlinearVolume(self._nonlinear)
         player.setSkipDisliked(self._skip)
         player.setSpeakerFill(self._fill)

@@ -141,7 +141,7 @@ def handle(service, request, resources=None, progress=None):
         sources = resources[root]
         if payload.get("damaged"):
             sources.media.mark_damaged(payload["videoId"])
-        return sources.resolve(payload["videoId"], force=bool(payload.get("force")), prepared=payload.get("prepared"), available=payload.get("available", True))
+        return sources.resolve(payload["videoId"], force=bool(payload.get("force")), prepared=payload.get("prepared"), available=payload.get("available", True), video=bool(payload.get("video")))
     raise AuthError("That account operation is unavailable.")
 
 

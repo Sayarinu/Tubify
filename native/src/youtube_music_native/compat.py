@@ -81,6 +81,15 @@ def play_child(payload):
         player.terminate()
 
 
+# H.264 first: it decodes cheaply everywhere; 720p keeps software rendering light.
+VIDEO_FORMAT = "bestvideo[height<=720][vcodec^=avc1]+bestaudio/bestvideo[height<=720]+bestaudio/best[height<=720]"
+
+
+def edl(urls):
+    """Combine separate video and audio streams the way mpv's own ytdl hook does."""
+    return "edl://" + ";".join(f"!new_stream;!no_clip;!no_chapters;%{len(url.encode())}%{url}" for url in urls)
+
+
 def extractor_options(directory):
     runtimes = {}
     for name in ("deno", "node"):

@@ -30,10 +30,13 @@ class Audio(QObject):
         locale.setlocale(locale.LC_NUMERIC, "C")
         import mpv
 
-        options = dict(vid="no", vo="null", ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True, audio_client_name="Tubify", **NETWORK_OPTIONS)
+        options = dict(vid="no", vo="null", ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True, audio_client_name="Tubify", hwdec="no", **NETWORK_OPTIONS)
         if output:
             options["ao"] = output
         self.player = mpv.MPV(**options)
+        # Video uses mpv's software renderer, created on first use so audio-only
+        # playback keeps the plain null video output.
+        self.frames, self.videoCapable = None, hasattr(mpv, "MpvRenderContext")
         self._speaker_fill = SpeakerFill(self.player)
         self._fill_requested, self._ready = False, False
         self.outputChanged.connect(self._refresh_options)
@@ -86,6 +89,22 @@ class Audio(QObject):
         self.player.pause = paused
         self.player.loadfile(source["source"], start=str(max(0, position)))
 
+    def setVideo(self, enabled):
+        """Turn video on or off; returns False when this libmpv cannot render video."""
+        if enabled and self.frames is None and self.videoCapable:
+            try:
+                from .video import VideoFrames
+
+                self.frames = VideoFrames(self.player, self)
+                self.player.vo = "libmpv"
+            except Exception:
+                self.frames, self.videoCapable = None, False
+        enabled = bool(enabled) and self.frames is not None
+        self.player.vid = "auto" if enabled else "no"
+        if not enabled and self.frames is not None:
+            self.frames.clear()
+        return enabled
+
     def pause(self, value):
         self.player.pause = bool(value)
 
@@ -100,4 +119,6 @@ class Audio(QObject):
         self.player.stop()
 
     def close(self):
+        if self.frames is not None:
+            self.frames.close()
         self.player.terminate()

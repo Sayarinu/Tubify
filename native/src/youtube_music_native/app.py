@@ -47,6 +47,10 @@ PACKAGE = Path(__file__).resolve().parent
 
 
 def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None, search=None, actions=None, library=None, lyrics=None, theme=None, color_sampler=None):
+    from PySide6.QtQml import qmlRegisterType
+    from .video import VideoSurface
+
+    qmlRegisterType(VideoSurface, "Tubify.Video", 1, 0, "VideoSurface")
     engine = QQmlApplicationEngine()
     engine.setProperty("qmlWarnings", [])
     engine.warnings.connect(lambda warnings: engine.setProperty("qmlWarnings", engine.property("qmlWarnings") + [str(w) for w in warnings]))
