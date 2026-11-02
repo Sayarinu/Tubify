@@ -32,7 +32,7 @@ Item {
                     required property string modelData
                     text: modelData; height: 36; leftPadding: 14; rightPadding: 14
                     palette.buttonText: libraryState.selectedSection === text ? themeState.onAccent : themeState.foreground
-                    background: Rectangle { radius: 8; color: libraryState.selectedSection === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.color: filter.visualFocus ? themeState.accent : "transparent" }
+                    background: Rectangle { radius: height / 2; color: libraryState.selectedSection === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.color: filter.visualFocus ? themeState.accent : "transparent" }
                     onClicked: libraryState.select(text)
                 }
             }
@@ -64,7 +64,7 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Item { width: grid.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
     }
     ListView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
@@ -82,14 +82,14 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Item { width: songs.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
     }
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 20
         visible: !catalogState.busy && !(root.result.items || []).length
         Text { width: parent.width; text: catalogState.error || (!accountState.connected && !appState.fixtureMode ? "Connect YouTube Music to browse your library." : root.history ? "No listening history yet." : "Your " + libraryState.selectedSection.toLowerCase() + " will appear here."); textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 16; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter }
-        Button { anchors.horizontalCenter: parent.horizontalCenter; text: "Retry"; visible: !!catalogState.error; onClicked: catalogState.refresh() }
-        Button { anchors.horizontalCenter: parent.horizontalCenter; text: "Connect YouTube Music"; visible: !accountState.connected && !appState.fixtureMode; onClicked: appState.openAccount() }
+        ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Retry"; visible: !!catalogState.error; onClicked: catalogState.refresh() }
+        ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; primary: true; text: "Connect YouTube Music"; visible: !accountState.connected && !appState.fixtureMode; onClicked: appState.openAccount() }
     }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running }
     property int revision: -1

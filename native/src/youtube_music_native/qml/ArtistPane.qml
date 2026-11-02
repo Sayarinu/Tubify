@@ -31,8 +31,8 @@ Item {
                 Item { width: 1; height: 20 }
                 Row {
                     spacing: 8
-                    Button { id: shuffle; objectName: "artistShuffle"; text: "Shuffle"; height: 36; width: 136; enabled: !!root.artist.shuffleId; palette.buttonText: themeState.onAccent; background: Rectangle { radius: 18; color: shuffle.hovered ? themeState.accentHover : themeState.accent; border.width: shuffle.visualFocus ? 2 : 0; border.color: themeState.foreground } onClicked: browseState.startRadio(root.artist.shuffleId, true) }
-                    Button { id: mix; objectName: "artistMix"; text: "Mix"; height: 36; width: 136; enabled: !!root.artist.radioId; palette.buttonText: themeState.onAccent; background: Rectangle { radius: 18; color: mix.hovered ? themeState.accentHover : themeState.accent; border.width: mix.visualFocus ? 2 : 0; border.color: themeState.foreground } onClicked: browseState.startRadio(root.artist.radioId, false) }
+                    ThemeActionButton { id: shuffle; objectName: "artistShuffle"; text: "Shuffle"; primary: true; implicitHeight: 36; width: 136; enabled: !!root.artist.shuffleId; onClicked: browseState.startRadio(root.artist.shuffleId, true) }
+                    ThemeActionButton { id: mix; objectName: "artistMix"; text: "Mix"; primary: true; implicitHeight: 36; width: 136; enabled: !!root.artist.radioId; onClicked: browseState.startRadio(root.artist.radioId, false) }
                     Button {
                         id: subscription
                         objectName: "artistSubscribe"
@@ -60,7 +60,7 @@ Item {
                     width: parent.width
                     Text { text: "Top Songs"; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 24; font.bold: true; height: 45 }
                     Repeater { model: parent.section.items; delegate: ArtistSongRow { required property var modelData; width: sections.width; media: modelData; onActivated: item => browseState.play(item) } }
-                    Button { text: "More"; flat: true; palette.windowText: themeState.foreground; onClicked: browseState.openSection(parent.section) }
+                    ThemeActionButton { text: "More"; implicitHeight: 36; onClicked: browseState.openSection(parent.section) }
                 }
             }
             Component { id: cardSection; Shelf { width: sections.width; section: parent.section; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item); onMoreRequested: browseState.openSection(section); onPlayAllRequested: browseState.playItems(section.items) } }

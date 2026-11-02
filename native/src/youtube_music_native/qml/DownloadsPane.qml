@@ -47,7 +47,7 @@ Item {
                         required property string modelData
                         text: modelData; height: 36; leftPadding: 14; rightPadding: 14
                         palette.buttonText: root.selectedKind === text ? themeState.onAccent : themeState.foreground
-                        background: Rectangle { radius: 8; color: root.selectedKind === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.width: filter.visualFocus ? 2 : 0; border.color: themeState.accent }
+                        background: Rectangle { radius: height / 2; color: root.selectedKind === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.width: filter.visualFocus ? 2 : 0; border.color: themeState.accent }
                         onClicked: root.selectedKind = text
                     }
                 }

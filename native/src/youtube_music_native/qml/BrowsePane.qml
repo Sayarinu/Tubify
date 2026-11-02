@@ -61,9 +61,9 @@ Item {
                 delegate: Button {
                     id: mood
                     required property string modelData
-                    text: modelData; height: 36; leftPadding: 13; rightPadding: 13
+                    text: modelData; height: 36; leftPadding: 16; rightPadding: 16
                     palette.buttonText: themeState.foreground
-                    background: Rectangle { radius: 8; color: mood.hovered ? themeState.hover : themeState.surface; border.width: mood.visualFocus ? 2 : 0; border.color: themeState.foreground }
+                    background: Rectangle { radius: height / 2; color: mood.hovered ? themeState.hover : themeState.surface; border.width: mood.visualFocus ? 2 : 0; border.color: themeState.foreground }
                     onClicked: browseState.homeMood(text)
                 }
             }
@@ -75,7 +75,7 @@ Item {
                         id: category
                         required property var modelData
                         Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.preferredHeight: 60
-                        background: Rectangle { radius: 6; color: category.hovered ? themeState.hover : themeState.surface; border.color: category.visualFocus ? themeState.accent : "transparent" }
+                        background: Rectangle { radius: 14; color: category.hovered ? themeState.hover : themeState.surface; border.color: category.visualFocus ? themeState.accent : "transparent" }
                         contentItem: Row { spacing: 14; leftPadding: 16; topPadding: 16; Symbol { name: category.modelData.icon; width: 24; height: 24; color: themeState.secondary } Text { text: category.modelData.title; color: themeState.foreground; font.pixelSize: 16; font.bold: true } }
                         onClicked: browseState.shortcut(modelData.action)
                     }
@@ -98,7 +98,7 @@ Item {
         }
         footer: Item {
             width: sections.width; height: 64
-            Row { anchors.centerIn: parent; spacing: 16; Button { text: "More Music"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() } Button { text: "Refresh"; enabled: !catalogState.busy; onClicked: catalogState.refresh() } }
+            Row { anchors.centerIn: parent; spacing: 16; ThemeActionButton { text: "More Music"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() } ThemeActionButton { text: "Refresh"; enabled: !catalogState.busy; onClicked: catalogState.refresh() } }
         }
     }
 
@@ -125,14 +125,14 @@ Item {
                 Column {
                     width: parent.width - (root.result.thumbnail ? 152 : 0); spacing: 16
                     Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true }
-                    Button { text: "Play All"; onClicked: browseState.playView() }
+                    ThemeActionButton { text: "Play All"; primary: true; onClicked: browseState.playView() }
                 }
             }
         }
         delegate: SongRow { required property int index; required property var modelData; width: songList.width; media: modelData; number: index + 1; onActivated: browseState.playAt(index) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Item { width: songList.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
     }
 
     GridView {
@@ -155,7 +155,7 @@ Item {
         delegate: MediaCard { required property var modelData; width: Theme.cardWidth; media: modelData; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Item { width: collectionGrid.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
     }
 
     ScrollView {
@@ -163,7 +163,7 @@ Item {
         visible: catalogState.route === "moods" && root.moodItems().length > 0
         Flow {
             width: parent.width; spacing: 16
-            Repeater { model: root.moodItems(); delegate: Button { required property var modelData; text: modelData.title || "Mood"; width: 180; height: 60; onClicked: browseState.mood(modelData) } }
+            Repeater { model: root.moodItems(); delegate: ThemeActionButton { required property var modelData; text: modelData.title || "Mood"; width: 180; implicitHeight: 52; font.pixelSize: 14; onClicked: browseState.mood(modelData) } }
         }
     }
     Column {
@@ -171,7 +171,7 @@ Item {
         visible: !catalogState.busy && !(root.result.items || []).length && !(root.result.shelves || []).length && !root.moodItems().length
         Text { width: parent.width; text: catalogState.error ? "Couldn’t Load This Page" : accountState.connected ? "No Music Here Yet" : "Your Music, Ready When You Are"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.family: Theme.headingFont; font.pixelSize: 30; font.bold: true; color: themeState.foreground }
         Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Refresh to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15; color: themeState.secondary }
-        Button { anchors.horizontalCenter: parent.horizontalCenter; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
+        ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; primary: !accountState.connected; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
     }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running && !(root.result.items || []).length && !(root.result.shelves || []).length }
     Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(600, root.width - 48); padding: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music. Refresh when you’re online." : ""); visible: text.length > 0; color: themeState.secondary; background: Rectangle { color: themeState.surface; radius: 4 } }

@@ -31,12 +31,10 @@ Item {
     Row {
         id: actions
         anchors.right: parent.right; anchors.verticalCenter: heading.verticalCenter; spacing: 16
-        Button {
+        ThemeActionButton {
             id: more
             text: root.compact ? "Play All" : "More"
-            height: 36; leftPadding: 16; rightPadding: 16
-            palette.buttonText: themeState.foreground
-            background: Rectangle { radius: 18; color: more.hovered ? themeState.surface : "transparent"; border.color: more.visualFocus ? themeState.foreground : themeState.border }
+            implicitHeight: 36
             onClicked: root.compact ? root.playAllRequested() : root.moreRequested()
         }
         IconButton { iconName: "left"; tip: "Previous Items"; outlined: true; width: 36; height: 36; enabled: cards.contentX > 0; onClicked: cards.contentX = Math.max(0, cards.contentX - cards.width) }

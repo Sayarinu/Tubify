@@ -23,9 +23,9 @@ Item {
                     delegate: Button {
                         id: filter
                         required property string modelData
-                        text: modelData; height: 36
+                        text: modelData; height: 36; leftPadding: 16; rightPadding: 16
                         palette.buttonText: searchState.selectedFilter === text ? themeState.onAccent : themeState.foreground
-                        background: Rectangle { radius: 8; color: searchState.selectedFilter === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.color: filter.visualFocus ? themeState.accent : "transparent" }
+                        background: Rectangle { radius: height / 2; color: searchState.selectedFilter === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.color: filter.visualFocus ? themeState.accent : "transparent" }
                         onClicked: searchState.selectFilter(text)
                     }
                 }
@@ -39,13 +39,13 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Button { text: "Load More"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
+        footer: Item { width: results.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
     }
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 20
         visible: !catalogState.busy && !(root.result.items || []).length
         Text { width: parent.width; text: catalogState.error || "No results. Try another song, artist, album or playlist."; textFormat: Text.PlainText; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 16 }
-        Button { anchors.horizontalCenter: parent.horizontalCenter; text: "Retry"; visible: !!catalogState.error; onClicked: catalogState.refresh() }
+        ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Retry"; visible: !!catalogState.error; onClicked: catalogState.refresh() }
     }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running }
     property int revision: -1

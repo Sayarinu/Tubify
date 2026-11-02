@@ -475,7 +475,7 @@ ApplicationWindow {
             textFormat: Text.PlainText
             color: themeState.foreground; font.pixelSize: 14; elide: Text.ElideRight
         }
-        Button { id: reconnectButton; anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: accountState.signInAvailable ? "Sign In Again" : "Reconnect"; enabled: !accountState.busy && !accountState.signingIn; onClicked: accountState.signInAvailable ? accountState.signIn() : appState.openAccount() }
+        ThemeActionButton { id: reconnectButton; primary: true; implicitHeight: 32; anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: accountState.signInAvailable ? "Sign In Again" : "Reconnect"; enabled: !accountState.busy && !accountState.signingIn; onClicked: accountState.signInAvailable ? accountState.signIn() : appState.openAccount() }
     }
 
     Item {
@@ -731,7 +731,7 @@ ApplicationWindow {
                                         textFromValue: function(value) { return value + "%" }
                                         onValueModified: appState.setUiScale(value)
                                     }
-                                    Button { text: "Reset"; enabled: appState.uiScale !== 100; onClicked: appState.setUiScale(100) }
+                                    ThemeActionButton { text: "Reset"; enabled: appState.uiScale !== 100; onClicked: appState.setUiScale(100) }
                                 }
                                 SettingsCheckBox { objectName: "reducedMotionControl"; text: "Reduce Motion"; checked: appState.reducedMotion; onToggled: appState.setReducedMotion(checked) }
                                 SettingsCheckBox { objectName: "artworkBackgroundControl"; text: "Artwork Backgrounds"; checked: appState.artworkBackground; onToggled: appState.setArtworkBackground(checked) }
