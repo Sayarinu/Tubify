@@ -74,9 +74,9 @@ def test_pages_provider_continuations_and_restores_cache_offline(tmp_path):
     auth = SimpleNamespace(profile={"name": "Fixture", "handle": "@fixture"}, catalog=lambda: provider)
     store = MetadataStore(tmp_path / "metadata.sqlite3")
     catalog = Catalog(auth, store)
-    first = catalog.fetch("search", {"query": "song"})
-    second = catalog.fetch("search", {"query": "song"}, offset=first["cursor"])
-    third = catalog.fetch("search", {"query": "song"}, offset=second["cursor"])
+    first = catalog.fetch("search", {"query": "song", "filter": "songs"})
+    second = catalog.fetch("search", {"query": "song", "filter": "songs"}, offset=first["cursor"])
+    third = catalog.fetch("search", {"query": "song", "filter": "songs"}, offset=second["cursor"])
     assert [len(p["items"]) for p in (first, second, third)] == [40, 40, 5]
     assert third["cursor"] is None and calls == [41, 81, 121]
     store.close()
@@ -86,7 +86,7 @@ def test_pages_provider_continuations_and_restores_cache_offline(tmp_path):
 
     auth.catalog = offline
     restarted = Catalog(auth, MetadataStore(tmp_path / "metadata.sqlite3"))
-    cached = restarted.fetch("search", {"query": "song"}, refresh=True)
+    cached = restarted.fetch("search", {"query": "song", "filter": "songs"}, refresh=True)
     assert cached["stale"] and cached["warning"] == "offline"
     assert len(cached["items"]) == 40
     assert "private raw" not in str(cached)
@@ -188,7 +188,35 @@ def test_music_search_filters_deferred_types_without_skipping_between_pages(tmp_
     rows = [{**track(i), "resultType": "video" if i % 3 == 0 else "song"} for i in range(100)]
     provider = SimpleNamespace(search=lambda query, filter, limit: rows[:limit])
     catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "cache.sqlite3"))
-    first = catalog.fetch("search", {"query": "music"})
-    second = catalog.fetch("search", {"query": "music"}, offset=first["cursor"])
+    first = catalog.fetch("search", {"query": "music", "filter": "songs"})
+    second = catalog.fetch("search", {"query": "music", "filter": "songs"}, offset=first["cursor"])
     assert [row["videoId"] for row in first["items"] + second["items"]] == [row["videoId"] for row in rows if row["resultType"] == "song"]
     assert second["cursor"] is None
+
+
+def test_unfiltered_search_puts_exact_artist_first_and_groups_results(tmp_path):
+    # Shape of ytmusicapi's response for "aespa": a top-result artist card without
+    # title/browseId, its songs, then the Songs shelf. Names here are fixtures.
+    rows = [
+        {"category": "Top result", "resultType": "artist", "artists": [{"name": "aespa", "id": "UCaespa"}], "subscribers": "8M", "thumbnails": []},
+        *[{**track(i), "category": "Songs", "resultType": "song"} for i in range(6)],
+        {"category": "Albums", "resultType": "album", "title": "Armageddon", "browseId": "MPREalbum", "artists": [{"name": "aespa", "id": "UCaespa"}]},
+        {"category": "Artists", "resultType": "artist", "artist": "aespa", "browseId": "UCaespa"},
+        {"category": "Community playlists", "resultType": "playlist", "title": "aespa mix", "browseId": "VLPLmix"},
+    ]
+    provider = SimpleNamespace(search=lambda query, filter, limit: rows)
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "cache.sqlite3"))
+    result = catalog.fetch("search", {"query": "aespa"}, page_size=100)
+    assert result["topResult"]["kind"] == "artist" and result["topResult"]["id"] == "UCaespa" and result["topResult"]["title"] == "aespa"
+    assert [value["kind"] for value in result["items"]][:2] == ["artist", "song"]
+    assert len(result["groups"]["song"]) == 6 and not result["groups"]["artist"]
+    assert result["groups"]["album"][0]["title"] == "Armageddon" and result["groups"]["playlist"][0]["kind"] == "playlist"
+
+
+def test_exact_artist_match_outranks_a_song_top_result():
+    from youtube_music_native.catalog import arrange_search
+
+    song = {"kind": "song", "id": "abcdefghijk", "title": "Supernova", "category": "Top result"}
+    artist = {"kind": "artist", "id": "UCaespa", "title": "aespa", "category": "Artists"}
+    arranged = arrange_search("Aespa", [song, artist])
+    assert arranged["topResult"] is artist and arranged["groups"]["song"] == [song]

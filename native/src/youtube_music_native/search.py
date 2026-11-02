@@ -77,7 +77,15 @@ class Search(QObject):
         params = {"query": self._query, "filter": FILTERS[self._filter]}
         if self.fixture:
             values = [value for section in self.fixture.get("shelves", []) for value in section.get("items", [])]
-            self.view.showLocal("search", {"title": self._query, "items": values, "shelves": [], "cursor": None}, params)
+            data = {"title": self._query, "items": values, "shelves": [], "cursor": None}
+            if params["filter"] is None:
+                from .catalog import arrange_search
+
+                songs = [{"kind": "song", "id": value.get("videoId", ""), **value} for value in values]
+                artists = [{"kind": "artist", "id": "UCfixture" + str(index), "title": name, "thumbnail": songs[0].get("thumbnail", "")}
+                           for index, name in enumerate(dict.fromkeys(value.get("artist", "") for value in songs if value.get("artist")))]
+                data.update(arrange_search(self._query, songs + artists))
+            self.view.showLocal("search", data, params)
         else:
             self.view.load("search", params)
 

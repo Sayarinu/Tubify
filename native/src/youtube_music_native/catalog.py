@@ -61,6 +61,11 @@ def item(row, kind=None):
         kind = "artist" if browse.startswith("UC") else "album" if browse.startswith("MPRE") else "playlist"
     identifier = video if kind == "song" else (browse or playlist) if kind in {"album", "artist"} else playlist or browse
     title = text(row.get("title") or row.get("name") or (row.get("artist") if kind == "artist" else ""))
+    if kind == "artist" and (not title or not identifier):
+        # Search's top-result artist card carries its name and channel only in artists[0].
+        lead = next((a for a in row.get("artists") or [] if isinstance(a, dict) and a.get("name")), {})
+        title = title or text(lead.get("name"))
+        identifier = identifier or text(lead.get("id") or lead.get("browseId"))
     if not title and row.get("isAvailable") is False:
         title = "Unavailable song"
     if not title:
@@ -95,6 +100,7 @@ def item(row, kind=None):
         "owned": bool(row.get("owned")), "count": text(row.get("count")), "played": text(row.get("played")),
         "explicit": bool(row.get("isExplicit")), "rating": text(row.get("likeStatus")),
         "available": bool(identifier) and row.get("isAvailable", True) is not False,
+        **({"category": text(row.get("category")), "subscribers": text(row.get("subscribers"))} if row.get("category") else {}),
     }
 
 
@@ -133,6 +139,32 @@ def arrange_home(sections):
 
     ordered = [section for _, section in sorted(enumerate(sections), key=rank)]
     return [{**section, "layout": shelf_layout(section)} for section in ordered]
+
+
+SEARCH_KINDS = ("song", "artist", "album", "playlist")
+
+
+def arrange_search(query, results):
+    """Group an unfiltered search like a music app: one top result, then each kind.
+
+    YouTube Music sometimes ranks songs above an artist whose name is exactly the
+    query; an exact artist match always becomes the top result.
+    """
+    wanted = query.strip().casefold()
+    top = next((value for value in results if value.get("category", "").casefold() == "top result"), None)
+    exact = next((value for value in results if value["kind"] == "artist" and value["title"].strip().casefold() == wanted), None)
+    if exact and (top is None or top["kind"] != "artist"):
+        top = exact
+    top = top or (results[0] if results else None)
+    seen, groups = {(top["kind"], top["id"])} if top else set(), {kind: [] for kind in SEARCH_KINDS}
+    for value in results:
+        key = (value["kind"], value["id"])
+        if key in seen or value["kind"] not in groups:
+            continue
+        seen.add(key)
+        groups[value["kind"]].append(value)
+    ordered = ([top] if top else []) + [value for kind in SEARCH_KINDS for value in groups[kind]]
+    return {"topResult": top or {}, "items": ordered, "groups": groups}
 
 
 class Catalog:
@@ -216,6 +248,14 @@ class Catalog:
             raw = client.get_charts(country=params.get("country", "ZZ"))
             data["shelves"] = [{**section, "layout": shelf_layout(section)} for section in
                                ({"title": name.title(), "subtitle": "", "items": items(value)} for name, value in raw.items() if isinstance(value, list))]
+        elif route == "search" and not params.get("filter"):
+            query = text(params.get("query")).strip()
+            if not query:
+                raise CatalogError("Enter a song, artist, album or playlist.")
+            data["title"] = query
+            raw = client.search(query, filter=None, limit=max(limit, 40))
+            data.update(arrange_search(query, items([row for row in raw if row.get("resultType", "song") in {"song", "album", "artist", "playlist"}])))
+            data["complete"] = True
         elif route == "search":
             query = text(params.get("query")).strip()
             if not query:

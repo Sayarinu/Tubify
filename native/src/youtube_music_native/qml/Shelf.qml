@@ -8,6 +8,8 @@ Item {
     required property var section
     property var profile: ({})
     property bool compact: section.layout === "rows"
+    property bool alwaysShowMore: false
+    property string moreLabel: "More"
     // Paging controls only make sense when part of the shelf is cut off.
     readonly property bool overflowing: cards.contentWidth > cards.width + 1
     readonly property real itemWidth: compact ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
@@ -53,8 +55,8 @@ Item {
         ThemeActionButton {
             id: more
             objectName: "shelfPrimaryAction"
-            text: root.compact ? "Play All" : "More"
-            visible: root.compact || root.overflowing
+            text: root.compact ? "Play All" : root.moreLabel
+            visible: root.compact || root.overflowing || root.alwaysShowMore
             implicitHeight: 36
             onClicked: root.compact ? root.playAllRequested() : root.moreRequested()
         }
