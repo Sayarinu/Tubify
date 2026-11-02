@@ -52,10 +52,14 @@ Item {
         header: Item {
             width: sections.width
             height: catalogState.route === "home" ? 82 : catalogState.route === "explore" ? 144 : 112
+            EdgeArrows { objectName: "moodArrows"; target: moods; visible: moods.visible; height: 36 }
             ListView {
                 // Route views may be replaced immediately; avoid unfinished offscreen delegates.
                 cacheBuffer: 0
+                id: moods
+                objectName: "homeMoods"
                 width: parent.width; height: 36; orientation: ListView.Horizontal; spacing: 12; clip: true
+                boundsBehavior: Flickable.StopAtBounds
                 visible: catalogState.route === "home"
                 model: ["Energize", "Feel good", "Workout", "Relax", "Party", "Commute", "Romance", "Focus", "Sad"]
                 delegate: Button {

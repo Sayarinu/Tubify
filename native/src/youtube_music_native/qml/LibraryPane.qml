@@ -36,6 +36,7 @@ Item {
                     onClicked: libraryState.select(text)
                 }
             }
+            EdgeArrows { target: filters; visible: filters.visible }
             ThemedComboBox {
                 id: sortOrder
                 x: parent.width - width; y: 84; width: 164; height: 36

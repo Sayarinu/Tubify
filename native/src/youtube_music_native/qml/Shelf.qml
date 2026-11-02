@@ -10,6 +10,22 @@ Item {
     property bool compact: section.layout === "rows"
     // Paging controls only make sense when part of the shelf is cut off.
     readonly property bool overflowing: cards.contentWidth > cards.width + 1
+    readonly property real itemWidth: compact ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
+    // Page by whole items and glide there, so arrows never land mid-card.
+    function page(direction) {
+        var stride = itemWidth + cards.spacing
+        var step = Math.max(1, Math.floor((cards.width + cards.spacing) / stride)) * stride
+        var minimum = cards.originX
+        var maximum = cards.originX + Math.max(0, cards.contentWidth - cards.width)
+        var start = glide.running ? glide.to : cards.contentX
+        var destination = Math.max(minimum, Math.min(maximum, minimum + Math.round((start - minimum) / stride) * stride + direction * step))
+        glide.stop()
+        if (appState.reducedMotion) { cards.contentX = destination; return }
+        glide.from = cards.contentX
+        glide.to = destination
+        glide.start()
+    }
+    NumberAnimation { id: glide; target: cards; property: "contentX"; duration: Theme.motionSlow + 120; easing.type: Easing.OutCubic }
     signal activated(var item)
     signal playRequested(var item)
     signal moreRequested()
@@ -42,8 +58,8 @@ Item {
             implicitHeight: 36
             onClicked: root.compact ? root.playAllRequested() : root.moreRequested()
         }
-        IconButton { objectName: "shelfPrevious"; visible: root.overflowing; iconName: "left"; tip: "Previous Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXBeginning; onClicked: cards.contentX = Math.max(0, cards.contentX - cards.width) }
-        IconButton { objectName: "shelfNext"; visible: root.overflowing; iconName: "right"; tip: "More Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXEnd; onClicked: cards.contentX = Math.min(Math.max(0, cards.contentWidth - cards.width), cards.contentX + cards.width) }
+        IconButton { objectName: "shelfPrevious"; visible: root.overflowing; iconName: "left"; tip: "Previous Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXBeginning; onClicked: root.page(-1) }
+        IconButton { objectName: "shelfNext"; visible: root.overflowing; iconName: "right"; tip: "More Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXEnd; onClicked: root.page(1) }
     }
     ListView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
@@ -57,7 +73,7 @@ Item {
         delegate: Loader {
             required property int index
             property var media: root.compact ? ({}) : root.section.items[index]
-            width: root.compact ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
+            width: root.itemWidth
             height: cards.height
             sourceComponent: root.compact ? rowColumn : mediaCard
             Component {
