@@ -213,7 +213,7 @@ jobs:
 
   release-assets:
     name: Assemble and verify all release downloads
-    needs: [shared-code, windows-app, macos-app, arch-app]
+    needs: [version, shared-code, windows-app, macos-app, arch-app]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -231,10 +231,15 @@ jobs:
       - name: Require every download type and generate checksums
         working-directory: release
         shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
           shopt -s failglob
-          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz )
+          # The pacman package keeps its internal name; it is published as the Tubify Linux download.
+          mv youtube-music-native-*-x86_64.pkg.tar.zst "Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
+          mv youtube-music-native-*.src.tar.gz "Tubify-${VERSION}-linux-source.tar.gz"
+          assets=( *.exe *.dmg *.pkg.tar.zst *.tar.gz )
           if [[ "$GITHUB_REF" == refs/tags/native-v* || ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ) ]]; then
             test -s appcast.xml
             assets+=(appcast.xml)
@@ -267,27 +272,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.version.outputs.version }}
+          PREVIOUS: ${{ needs.version.outputs.previous }}
         shell: bash
         run: |
           set -euo pipefail
           # Every main build is a real native-v release, so installed apps offer it as an update.
           tag="native-v${VERSION}"
           title="Tubify ${VERSION}"
-          previous="$(git tag --list 'native-v*' --sort=-v:refname --merged "$GITHUB_SHA" | grep -vx "$tag" | head -n 1 || true)"
-          {
-            printf "What's new\n"
-            if [[ -n "$previous" ]]; then
-              git log --no-merges --format='- %s' "${previous}..${GITHUB_SHA}" | sed -E 's/^- LUNE-[0-9]+ - /- /' | head -n 40
-            else
-              git log --no-merges --format='- %s' -n 20 "$GITHUB_SHA" | sed -E 's/^- LUNE-[0-9]+ - /- /'
-            fi
-          } > changes.md
+          # Short notes: what changed since the last release, then direct downloads.
+          python3 scripts/native-release-notes.py "$VERSION" "$PREVIOUS" release/notes.md
           cd release
           sha256sum --check SHA256SUMS
           shopt -s failglob
-          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz SHA256SUMS appcast.xml )
-          cp ../changes.md notes.md
-          printf '\nVerified build of main commit `%s`.\n\nDownloads:\n- Windows: setup.exe\n- macOS Apple Silicon: arm64.dmg\n- Arch Linux: pkg.tar.zst (install with pacman -U)\n- Arch build sources: src.tar.gz\n- Integrity checks: SHA256SUMS\n\n[Build and verification](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> notes.md
+          assets=( *.exe *.dmg *.pkg.tar.zst *.tar.gz SHA256SUMS appcast.xml )
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
               echo "This build is already published."

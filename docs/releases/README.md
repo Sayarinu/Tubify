@@ -7,10 +7,10 @@
 | Label on a merged PR | Bump | Example |
 |---|---|---|
 | none (default) | small change, patch | 0.1.1 → 0.1.2 |
-| `release:feature` | feature, minor | 0.1.7 → 0.2.0 |
-| `release:major` | major | 0.4.2 → 1.0.0 |
+| **Feature** | feature, minor | 0.1.7 → 0.2.0 |
+| **Major Release** | major | 0.4.2 → 1.0.0 |
 
-The "Release size" check on every PR shows the bump it will cause. It warns, without blocking, when a title that reads like a feature has no label. `scripts/native-release-version.py` stamps the chosen version into `native/pyproject.toml` and the Arch PKGBUILD in a local, unpushed CI commit, so every package is built as that version. Main runs are serialized so each bumps the version the previous one published. After all builds and tests pass, the pipeline publishes `native-v<version>` with every package, source archive, `SHA256SUMS` and the signed macOS `appcast.xml`. Its notes list the commits since the previous release, and installed apps show them in the update popup. Published releases are never overwritten.
+The "Release size" check on every PR shows the bump it will cause. It warns, without blocking, when a title that reads like a feature has no label. `scripts/native-release-version.py` stamps the chosen version into `native/pyproject.toml` and the Arch PKGBUILD in a local, unpushed CI commit, so every package is built as that version. Main runs are serialized so each bumps the version the previous one published. After all builds and tests pass, the pipeline publishes `native-v<version>` with every package, source archive, `SHA256SUMS` and the signed macOS `appcast.xml`. `scripts/native-release-notes.py` writes short notes from the titles of the PRs merged since the previous release: **New** for Feature and Major Release PRs, **Improvements and fixes** for the rest, then a download table. The in-app update popup shows only the changes. The pacman package is published as `Tubify-<version>-linux-x86_64.pkg.tar.zst`, with its source as `Tubify-<version>-linux-source.tar.gz`. Published releases are never overwritten.
 
 To jump to a specific version, raise it in `native/pyproject.toml` and the PKGBUILD together; a declared version higher than the computed one wins. A manual `native-vX.Y.Z` tag on a main commit still builds exactly X.Y.Z (it must match pyproject and pass the performance gate). Older `main-build-*` releases are kept for download but are not offered as updates.
 

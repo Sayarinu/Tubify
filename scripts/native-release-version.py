@@ -4,8 +4,8 @@
 Every push to main is a release. Its version bumps the latest native-vX.Y.Z tag
 already on main, by the largest change merged since that tag:
 
-* a PR labelled ``release:major`` bumps MAJOR (0.4.2 -> 1.0.0)
-* a PR labelled ``release:feature`` bumps MINOR (0.1.7 -> 0.2.0)
+* a PR labelled ``Major Release`` bumps MAJOR (0.4.2 -> 1.0.0)
+* a PR labelled ``Feature`` bumps MINOR (0.1.7 -> 0.2.0)
 * anything else is a small change and bumps PATCH (0.1.1 -> 0.1.2)
 
 If native/pyproject.toml declares a higher version, that wins, so a series can
@@ -30,7 +30,8 @@ PYPROJECT = ROOT / "native/pyproject.toml"
 PKGBUILD = ROOT / "packaging/arch-native/PKGBUILD"
 VERSION_LINE = re.compile(r'^version = "(\d+)\.(\d+)\.(\d+)"$', re.M)
 TAG = re.compile(r"native-v(\d+)\.(\d+)\.(\d+)")
-LEVELS = {"release:major": 3, "release:feature": 2, "release:minor": 2}
+# Label names are matched case-insensitively; the release:* names are accepted from older PRs.
+LEVELS = {"major release": 3, "feature": 2, "release:major": 3, "release:feature": 2, "release:minor": 2}
 PATCH, MINOR, MAJOR = 1, 2, 3
 NAMES = {PATCH: "patch", MINOR: "feature", MAJOR: "major"}
 
@@ -62,22 +63,27 @@ def bump(version, level):
     return (major, minor, patch + 1)
 
 
-def github_labels(repository, token):
-    """Return a function giving the labels of the PRs that merged a commit."""
-    def labels(sha):
+def github_pulls(repository, token):
+    """Return a function giving the pull requests (title, number, labels) that merged a commit."""
+    def pulls(sha):
         request = Request(f"https://api.github.com/repos/{repository}/commits/{sha}/pulls",
                           headers={"Accept": "application/vnd.github+json", "Authorization": f"Bearer {token}",
-                                   "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "tubify-release-version"})
+                                   "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "tubify-release"})
         with urlopen(request, timeout=20) as response:
-            pulls = json.load(response)
-        return {label["name"] for pull in pulls for label in pull.get("labels", [])}
-    return labels
+            return [pull for pull in json.load(response) if pull.get("merged_at")]
+    return pulls
+
+
+def github_labels(repository, token):
+    """Return a function giving the labels of the PRs that merged a commit."""
+    pulls = github_pulls(repository, token)
+    return lambda sha: {label["name"] for pull in pulls(sha) for label in pull.get("labels", [])}
 
 
 def release_level(commits, labels):
     level = PATCH
     for sha in commits:
-        level = max([level] + [LEVELS[name] for name in labels(sha) if name in LEVELS])
+        level = max([level] + [LEVELS[name.casefold()] for name in labels(sha) if name.casefold() in LEVELS])
     return level
 
 

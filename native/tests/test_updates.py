@@ -198,3 +198,11 @@ def test_third_party_notices_ship_with_the_package():
     for component in ('PySide6', 'mpv', 'FFmpeg', 'yt-dlp', 'ytmusicapi', 'Sparkle', 'Roboto', 'Lucide', 'mutagen'):
         assert component in text
     assert 'not affiliated' in text
+
+
+def test_linux_updates_find_the_tubify_named_package_and_the_legacy_name():
+    for name in ('Tubify-0.2.1-linux-x86_64.pkg.tar.zst', 'youtube-music-native-0.2.1-1-x86_64.pkg.tar.zst'):
+        row = {'tag_name': 'native-v0.2.1', 'assets': [
+            {'name': name, 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest(), 'size': len(DATA)},
+            {'name': 'Tubify-0.2.1-linux-source.tar.gz', 'digest': 'sha256:' + '0' * 64, 'size': 10}]}
+        assert updates.select_asset(row, 'linux')['name'] == name

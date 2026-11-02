@@ -35,7 +35,9 @@ def select_asset(release, system=None):
         name = item.get('name', '')
         match = name == asset_name(version, system)
         if system == 'linux':
-            match = bool(re.fullmatch(r'youtube-music-native-' + re.escape(version) + r'-\d+-x86_64\.pkg\.tar\.zst', name))
+            # Releases from 0.2.1 name the pacman package after Tubify; earlier ones used the package name.
+            match = name == f'Tubify-{version}-linux-x86_64.pkg.tar.zst' or bool(
+                re.fullmatch(r'youtube-music-native-' + re.escape(version) + r'-\d+-x86_64\.pkg\.tar\.zst', name))
         if match:
             digest, size = item.get('digest', ''), item.get('size', 0)
             if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest) or type(size) is not int or not 0 < size <= MAX_DOWNLOAD:

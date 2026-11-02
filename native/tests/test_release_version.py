@@ -19,10 +19,10 @@ def test_small_changes_bump_patch_features_bump_minor_and_major_resets():
 
 
 def test_largest_labelled_change_since_the_last_release_wins():
-    labels = {"a": {"bug"}, "b": {"release:feature"}, "c": set()}.get
+    labels = {"a": {"bug"}, "b": {"Feature"}, "c": set()}.get
     assert release.release_level(["a", "c"], labels) == release.PATCH
     assert release.release_level(["a", "b", "c"], labels) == release.MINOR
-    assert release.release_level(["a"], lambda sha: {"release:major"}) == release.MAJOR
+    assert release.release_level(["a"], lambda sha: {"Major Release"}) == release.MAJOR
 
 
 def test_declared_version_wins_when_started_by_hand():
@@ -36,6 +36,11 @@ def test_main_push_bumps_the_previous_tag_and_other_events_keep_their_version(mo
     monkeypatch.setattr(release, "git", lambda *args: "a\nb\n")
     main = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main"}
     assert release.release_version(main, labels=lambda sha: set()) == ("0.1.8", "patch", "native-v0.1.7")
-    assert release.release_version(main, labels=lambda sha: {"release:feature"} if sha == "b" else set()) == ("0.2.0", "feature", "native-v0.1.7")
+    assert release.release_version(main, labels=lambda sha: {"Feature"} if sha == "b" else set()) == ("0.2.0", "feature", "native-v0.1.7")
     assert release.release_version({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/native-v0.3.0"})[0] == "0.3.0"
     assert release.release_version({"GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF": "refs/pull/9/merge"})[0] == "0.1.2"
+
+
+def test_labels_match_case_insensitively_and_legacy_names_still_count():
+    assert release.release_level(["a"], lambda sha: {"feature"}) == release.MINOR
+    assert release.release_level(["a"], lambda sha: {"release:major"}) == release.MAJOR

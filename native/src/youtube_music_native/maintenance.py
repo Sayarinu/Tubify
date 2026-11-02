@@ -30,7 +30,9 @@ NOTES_LIMIT = 1500
 def release_notes(value):
     """Plain, bounded release notes; the popup renders them as text, never markup."""
     text = value if isinstance(value, str) else ""
-    text = "\n".join(line.rstrip() for line in text.replace("\r\n", "\n").splitlines()).strip()
+    # The popup shows what changed; the download table after "---" is for the release page.
+    text = re.split(r"(?m)^-{3,}\s*$", text.replace("\r\n", "\n"), maxsplit=1)[0]
+    text = "\n".join(re.sub(r"^#{1,6}\s+", "", line.rstrip()) for line in text.splitlines()).strip()
     return text if len(text) <= NOTES_LIMIT else text[:NOTES_LIMIT].rstrip() + "…"
 
 
