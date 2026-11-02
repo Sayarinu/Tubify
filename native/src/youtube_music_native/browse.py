@@ -12,6 +12,11 @@ from .queue_additions import QueueAdditions
 PLAYLIST_RETRY_MS = (2000, 5000, 15000, 30000, 60000)
 
 
+def without_position(item):
+    """Drop the view-only sort position before a track enters the queue."""
+    return {key: value for key, value in item.items() if key != "position"}
+
+
 class Browse(QObject):
     changed = Signal()
 
@@ -418,13 +423,14 @@ class Browse(QObject):
     @Slot("QVariantList")
     def playItems(self, values, source_label=""):
         self._cancel_play_pages()
-        songs = [dict(value) for value in values if value.get("kind", "song") == "song"]
+        songs = [without_position(value) for value in values if value.get("kind", "song") == "song"]
         if songs:
             self.player.playTracks(songs, source_label=source_label)
 
     @Slot()
     def playView(self):
-        if self.view.data.get("downloadKey"):
+        if self.view.data.get("downloadKey") or self.view.sortKey:
+            # A sorted view plays exactly in the order shown.
             self.playItems(self.view.data.get("items", []), self.view.data.get("title", ""))
         elif self.view.route in {"album", "playlist"} and not self.fixture:
             self.play({"kind": self.view.route, "id": self.view.parameters.get("id", ""), "title": self.view.data.get("title", "")})
@@ -505,7 +511,7 @@ class Browse(QObject):
     @Slot(int)
     def playAt(self, index):
         self._cancel_play_pages()
-        self.player.playTracks(self.view.data.get("items", []), index, source_label=self.view.data.get("title", ""))
+        self.player.playTracks([without_position(item) for item in self.view.data.get("items", [])], index, source_label=self.view.data.get("title", ""))
         cursor = self.view.data.get("cursor")
         if cursor is not None and self.view.route in {"album", "playlist"}:
             self._play_route, self._play_params = self.view.route, self.view.parameters

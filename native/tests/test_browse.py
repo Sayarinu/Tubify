@@ -171,3 +171,41 @@ def test_sidebar_snapshot_renders_before_the_account_restores(tmp_path):
     worker.succeeded.emit(playlist_request, {"items": [{"id": "PLfixture", "title": "Saved"}]})
     app2, restarted, *_ = setup(tmp_path)
     assert restarted.shell.playlists[0]["title"] == "Saved"
+
+
+def test_sorting_loads_every_page_plays_in_order_and_is_remembered(tmp_path):
+    from youtube_music_native.catalog_view import CatalogView
+
+    from PySide6.QtCore import QSettings
+
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    account.settings = view._settings = QSettings(str(tmp_path / "account.ini"), QSettings.Format.IniFormat)
+    view.load("playlist", {"id": "PLsort"})
+    first = [{"kind": "song", "title": "b", "artist": "Zed", "duration": 30, "videoId": "aaaaaaaaaaa"},
+             {"kind": "song", "title": "C", "artist": "", "duration": 10, "videoId": "bbbbbbbbbbb"}]
+    worker.succeeded.emit(len(worker.requests), {"title": "Mix", "items": first, "cursor": 2})
+    view.sortBy("title")
+    # The rest of the playlist is fetched before sorting so the order is complete.
+    assert worker.requests[-1][1]["offset"] == 2 and worker.requests[-1][1]["page_size"] == 100000
+    worker.succeeded.emit(len(worker.requests), {"items": [{"kind": "song", "title": "a", "artist": "Abe", "duration": 20, "videoId": "ccccccccccc"}], "cursor": None})
+    assert [item["title"] for item in view.data["items"]] == ["a", "b", "C"] and view.sortKey == "title"
+    view.sortBy("title")
+    assert [item["title"] for item in view.data["items"]] == ["C", "b", "a"] and view.sortDescending
+    view.setSort("artist", False)
+    assert [item["title"] for item in view.data["items"]] == ["a", "b", "C"]
+    view.setSort("duration", False)
+    assert [item["duration"] for item in view.data["items"]] == [10, 20, 30]
+    browse.playView()
+    assert [track["title"] for track in played[-1]] == ["C", "a", "b"]
+    restored = CatalogView(worker, tmp_path / "metadata.sqlite3", account)
+    restored.showLocal("playlist", {"items": [dict(item) for item in first]}, {"id": "PLsort"})
+    assert restored.sortKey == "duration" and restored.data["items"][0]["title"] == "C"
+    view.sortBy("")
+    assert [item["position"] for item in view.data["items"]] == [0, 1, 2]
+
+
+def test_library_title_order_is_applied_client_side_for_liked_songs(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    view.load("library_liked", {"order": "z_to_a"})
+    worker.succeeded.emit(len(worker.requests), {"items": [{"title": "a"}, {"title": "c"}, {"title": "b"}], "cursor": None})
+    assert [item["title"] for item in view.data["items"]] == ["c", "b", "a"]

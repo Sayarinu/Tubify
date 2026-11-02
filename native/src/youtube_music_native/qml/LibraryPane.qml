@@ -39,7 +39,7 @@ Item {
             ThemedComboBox {
                 id: sortOrder
                 x: parent.width - width; y: 84; width: 164; height: 36
-                visible: !root.history && libraryState.selectedSection !== "Playlists" && libraryState.selectedSection !== "Liked songs"
+                visible: !root.history
                 model: libraryState.orders; currentIndex: libraryState.orders.indexOf(libraryState.selectedOrder)
                 Accessible.name: "Library sort order"
                 onActivated: libraryState.sort(currentText)

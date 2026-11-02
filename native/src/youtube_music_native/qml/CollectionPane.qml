@@ -59,16 +59,28 @@ Item {
                 IconButton { anchors.verticalCenter: parent.verticalCenter; visible: !root.playlist || !root.album.editable; iconName: "library"; tip: root.album.saved ? "Remove from Library" : "Add to Library"; iconColor: root.album.saved ? themeState.accent : themeState.secondary; enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode) && (root.playlist || !!root.album.audioPlaylistId); onClicked: actionsState.set(root.playlist ? "playlist_library" : "album_library", root.playlist ? catalogState.parameters.id : root.album.audioPlaylistId, !root.album.saved, catalogState.parameters.id) }
                 IconButton { anchors.verticalCenter: parent.verticalCenter; visible: root.playlist && !!root.album.editable; iconName: "edit"; tip: "Rename Playlist"; enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: libraryState.edit("playlist_rename", {id: catalogState.parameters.id, title: root.album.title}) }
                 IconButton { anchors.verticalCenter: parent.verticalCenter; iconName: "shuffle"; tip: root.playlist ? "Shuffle Playlist" : "Shuffle Album"; enabled: (root.album.items || []).length > 0; onClicked: browseState.shuffleView() }
+                ThemedComboBox {
+                    id: sortChoice
+                    objectName: "collectionSort"
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 172; height: 40
+                    readonly property var keys: ["", "title", "artist", "album", "duration"]
+                    model: [root.playlist ? "Custom order" : "Album order", "Title", "Artist", "Album", "Duration"]
+                    currentIndex: Math.max(0, keys.indexOf(catalogState.sortKey))
+                    Accessible.name: "Sort songs"
+                    onActivated: index => catalogState.setSort(keys[index], index > 0 && keys[index] === catalogState.sortKey ? catalogState.sortDescending : false)
+                }
+                IconButton { anchors.verticalCenter: parent.verticalCenter; visible: !!catalogState.sortKey; iconName: catalogState.sortDescending ? "down" : "up"; tip: catalogState.sortDescending ? "Descending" : "Ascending"; onClicked: catalogState.setSort(catalogState.sortKey, !catalogState.sortDescending) }
                 IconButton { anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: root.playlist ? "Playlist Options" : "Album Options"; onClicked: appState.showMenu({kind: root.playlist ? "playlist" : "album", id: catalogState.parameters.id, title: root.album.title, owned: root.playlist && !!root.album.editable}, {}) }
             }
             Text { x: root.margin; width: parent.width - 2 * root.margin; text: actionsState.message || downloadsState.message || ""; visible: !!text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 14; bottomPadding: 12 }
             Item {
                 width: parent.width; height: 40
                 Rectangle { anchors.bottom: parent.bottom; x: root.margin; width: parent.width - 2 * root.margin; height: 1; color: themeState.border }
-                Text { x: root.margin + 12; anchors.verticalCenter: parent.verticalCenter; text: "#"; color: themeState.secondary; font.pixelSize: 12 }
-                Text { x: root.margin + (root.playlist ? 100 : 48); anchors.verticalCenter: parent.verticalCenter; text: "TITLE"; color: themeState.secondary; font.pixelSize: 12; font.letterSpacing: 1 }
-                Text { x: root.margin + (parent.width - 2 * root.margin) * 0.56; anchors.verticalCenter: parent.verticalCenter; visible: root.playlist && !root.compact; text: "ALBUM"; color: themeState.secondary; font.pixelSize: 12; font.letterSpacing: 1 }
-                Text { anchors.right: parent.right; anchors.rightMargin: root.margin + 56; anchors.verticalCenter: parent.verticalCenter; text: "TIME"; color: themeState.secondary; font.pixelSize: 12 }
+                SortHeader { objectName: "sortDefault"; x: root.margin + 8; anchors.verticalCenter: parent.verticalCenter; label: "#"; sortKey: "" }
+                SortHeader { objectName: "sortTitle"; x: root.margin + (root.playlist ? 96 : 44); anchors.verticalCenter: parent.verticalCenter; label: "TITLE"; sortKey: "title" }
+                SortHeader { objectName: "sortAlbum"; x: root.margin + (parent.width - 2 * root.margin) * 0.56; anchors.verticalCenter: parent.verticalCenter; visible: root.playlist && !root.compact; label: "ALBUM"; sortKey: "album" }
+                SortHeader { objectName: "sortDuration"; anchors.right: parent.right; anchors.rightMargin: root.margin + 52; anchors.verticalCenter: parent.verticalCenter; label: "TIME"; sortKey: "duration" }
             }
         }
         delegate: Item {
@@ -79,7 +91,7 @@ Item {
                 x: root.margin; width: parent.width - 2 * root.margin; height: parent.height
                 showArtwork: root.playlist; showDuration: true; tableLayout: true; showAlbum: root.playlist && !root.compact
                 menuContext: ({playlistId: root.playlist ? catalogState.parameters.id : "", index: parent.index})
-                media: parent.modelData; number: parent.index + 1; onActivated: browseState.playAt(parent.index)
+                media: parent.modelData; number: (parent.modelData.position !== undefined ? parent.modelData.position : parent.index) + 1; onActivated: browseState.playAt(parent.index)
             }
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
