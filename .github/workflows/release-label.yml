@@ -1,0 +1,32 @@
+name: Release size
+
+# Shows how merging this PR will bump the Tubify version. Never blocks a merge.
+on:
+  pull_request:
+    types: [opened, edited, reopened, labeled, unlabeled, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  release-size:
+    name: Release size from labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report the version bump
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case ",$LABELS," in
+            *,release:major,*) size="major (X.0.0)" ;;
+            *,release:feature,*|*,release:minor,*) size="feature (0.X.0)" ;;
+            *) size="small change (0.0.X)" ;;
+          esac
+          echo "Merging this PR releases a **$size** update. Label \`release:feature\` or \`release:major\` for bigger bumps." >> "$GITHUB_STEP_SUMMARY"
+          summary="${TITLE#LUNE-* - }"
+          if [[ "$size" == small* ]] && grep -qiE '^(add|introduce|support|play|show|publish|build|create|redesign)\b' <<< "$summary"; then
+            echo "::warning title=Release size::This looks like a new feature but will release as a small change. Add the release:feature label if it should bump the minor version."
+          fi

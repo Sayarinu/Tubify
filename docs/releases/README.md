@@ -1,8 +1,18 @@
 # Release layout
 
-`.github/workflows/native.yml` tests and packages Arch x86_64, Windows x64 and macOS arm64. Every main build remains downloadable, but only stable `native-vX.Y.Z` releases are offered by the app.
+`.github/workflows/native.yml` tests and packages Arch x86_64, Windows x64 and macOS arm64.
 
-Bump `native/pyproject.toml` and the Arch PKGBUILD together. Tag the checked main commit with the matching version (the updater first ships in `native-v0.1.2`). Tags must be on main and pass the existing performance gate. The pipeline publishes a draft only after all builds/tests pass, uploads every package, source archive, `SHA256SUMS` and signed macOS `appcast.xml`, then publishes it. Published releases are never overwritten.
+**Every push to main is a release, versioned by the size of its changes.** A `version` job in the workflow finds the newest `native-vX.Y.Z` tag on main and bumps it by the largest change merged since:
+
+| Label on a merged PR | Bump | Example |
+|---|---|---|
+| none (default) | small change, patch | 0.1.1 → 0.1.2 |
+| `release:feature` | feature, minor | 0.1.7 → 0.2.0 |
+| `release:major` | major | 0.4.2 → 1.0.0 |
+
+The "Release size" check on every PR shows the bump it will cause. It warns, without blocking, when a title that reads like a feature has no label. `scripts/native-release-version.py` stamps the chosen version into `native/pyproject.toml` and the Arch PKGBUILD in a local, unpushed CI commit, so every package is built as that version. Main runs are serialized so each bumps the version the previous one published. After all builds and tests pass, the pipeline publishes `native-v<version>` with every package, source archive, `SHA256SUMS` and the signed macOS `appcast.xml`. Its notes list the commits since the previous release, and installed apps show them in the update popup. Published releases are never overwritten.
+
+To jump to a specific version, raise it in `native/pyproject.toml` and the PKGBUILD together; a declared version higher than the computed one wins. A manual `native-vX.Y.Z` tag on a main commit still builds exactly X.Y.Z (it must match pyproject and pass the performance gate). Older `main-build-*` releases are kept for download but are not offered as updates.
 
 The macOS build pins Sparkle 2.10.1 and verifies its distribution SHA-256. `TUBIFY_SPARKLE_PRIVATE_KEY` is a GitHub Actions secret; only `packaging/macos-native/sparkle-public-key.txt` belongs in source. Stable builds fail without the private key. Keep a secure backup of this key before rotating or deleting it; existing clients trust the embedded public key. The secret stores a 64-byte seed/public-key pair. `native/sign_update.py` extracts the 32-byte seed expected by Sparkle's `sign_update --ed-key-file -`, passes it only on stdin and verifies the generated signature before returning it. The actual vendor tool is checked against RFC 8032 before packaging. Update signatures do not provide Apple notarization.
 

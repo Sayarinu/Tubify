@@ -2,6 +2,11 @@ name: Build verified native Arch packages
 
 on:
   workflow_call:
+    inputs:
+      version:
+        description: Version to build the package as
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -20,6 +25,8 @@ jobs:
           test "${GITHUB_REF_NAME#native-v}" = "$(python -c 'import pathlib,tomllib; print(tomllib.loads(pathlib.Path("native/pyproject.toml").read_text())["project"]["version"])')"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
           python native/release_gate.py
+      - name: Stamp the release version
+        run: python3 scripts/native-release-version.py --stamp "${{ inputs.version }}"
       - name: Build, install, launch and upgrade in clean Arch
         run: |
           docker run --rm --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace archlinux:latest bash -lc '

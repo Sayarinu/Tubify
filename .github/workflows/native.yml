@@ -12,6 +12,7 @@ on:
       - '.github/workflows/native-arch-build.yml'
       - 'scripts/build-native-macos.sh'
       - 'scripts/native-appcast.py'
+      - 'scripts/native-release-version.py'
       - 'scripts/check-sparkle-key.swift'
       - 'scripts/build-native-windows.ps1'
       - 'scripts/build-native-windows-icon.py'
@@ -25,10 +26,40 @@ on:
 permissions:
   contents: read
 
+# Main releases run one at a time so each bumps the version the previous one published.
+concurrency:
+  group: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'native-main-release' || format('native-{0}', github.run_id) }}
+  cancel-in-progress: false
+
 jobs:
+  version:
+    name: Choose release version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      version: ${{ steps.choose.outputs.version }}
+      level: ${{ steps.choose.outputs.level }}
+      previous: ${{ steps.choose.outputs.previous }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Bump by the largest change since the last release
+        id: choose
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/native-release-version.py
+          echo "Release version: $(grep '^version=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2) ($(grep '^level=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2))" >> "$GITHUB_STEP_SUMMARY"
+
   arch-app:
     name: Arch Linux packages
+    needs: version
     uses: ./.github/workflows/native-arch-build.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
 
   shared-code:
     name: Shared code (${{ matrix.os }}, Python ${{ matrix.python }})
@@ -100,6 +131,7 @@ jobs:
 
   macos-app:
     name: macOS app bundle (arm64)
+    needs: version
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -113,11 +145,14 @@ jobs:
           if [[ -n "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
             swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
           fi
+      - name: Stamp the release version
+        run: python3 scripts/native-release-version.py --stamp "${{ needs.version.outputs.version }}"
       - name: Build Tubify.app and disk image
         env:
-          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ startsWith(github.ref, 'refs/tags/native-v') && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
+          # Every main push and native-v tag is a release, so both sign the Sparkle appcast.
+          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ (startsWith(github.ref, 'refs/tags/native-v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/native-v* && -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
+          if [[ ( "$GITHUB_REF" == refs/tags/native-v* || ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ) ) && -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
             echo "Stable releases require the Sparkle signing secret."
             exit 1
           fi
@@ -141,6 +176,7 @@ jobs:
 
   windows-app:
     name: Windows app installer (x64)
+    needs: version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -158,6 +194,9 @@ jobs:
       - name: Install Inno Setup 6
         shell: pwsh
         run: choco install innosetup -y --no-progress
+      - name: Stamp the release version
+        shell: pwsh
+        run: python scripts/native-release-version.py --stamp "${{ needs.version.outputs.version }}"
       - name: Build the Tubify installer
         shell: pwsh
         env:
@@ -196,7 +235,7 @@ jobs:
           set -euo pipefail
           shopt -s failglob
           assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz )
-          if [[ "$GITHUB_REF" == refs/tags/native-v* ]]; then
+          if [[ "$GITHUB_REF" == refs/tags/native-v* || ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ) ]]; then
             test -s appcast.xml
             assets+=(appcast.xml)
           fi
@@ -209,13 +248,16 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Publish downloadable main release
-    needs: release-assets
+    name: Publish versioned release
+    needs: [version, release-assets]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/native-v'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           name: verified-release-downloads
@@ -224,21 +266,28 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="main-build-${GITHUB_RUN_ID}"
-          title="Tubify main build ${GITHUB_RUN_NUMBER}"
-          if [[ "$GITHUB_REF" == refs/tags/native-v* ]]; then
-            tag="$GITHUB_REF_NAME"
-            title="Tubify ${tag#native-v}"
-          fi
+          # Every main build is a real native-v release, so installed apps offer it as an update.
+          tag="native-v${VERSION}"
+          title="Tubify ${VERSION}"
+          previous="$(git tag --list 'native-v*' --sort=-v:refname --merged "$GITHUB_SHA" | grep -vx "$tag" | head -n 1 || true)"
+          {
+            printf "What's new\n"
+            if [[ -n "$previous" ]]; then
+              git log --no-merges --format='- %s' "${previous}..${GITHUB_SHA}" | sed -E 's/^- LUNE-[0-9]+ - /- /' | head -n 40
+            else
+              git log --no-merges --format='- %s' -n 20 "$GITHUB_SHA" | sed -E 's/^- LUNE-[0-9]+ - /- /'
+            fi
+          } > changes.md
           cd release
           sha256sum --check SHA256SUMS
           shopt -s failglob
-          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz SHA256SUMS )
-          if [[ "$GITHUB_REF" == refs/tags/native-v* ]]; then assets+=(appcast.xml); fi
-          printf 'Verified build of main commit `%s`.\n\nDownloads:\n- Windows: setup.exe\n- macOS Apple Silicon: arm64.dmg\n- Arch Linux: pkg.tar.zst (install with pacman -U)\n- Arch build sources: src.tar.gz\n- Integrity checks: SHA256SUMS\n\n[Build and verification](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > notes.md
+          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz SHA256SUMS appcast.xml )
+          cp ../changes.md notes.md
+          printf '\nVerified build of main commit `%s`.\n\nDownloads:\n- Windows: setup.exe\n- macOS Apple Silicon: arm64.dmg\n- Arch Linux: pkg.tar.zst (install with pacman -U)\n- Arch build sources: src.tar.gz\n- Integrity checks: SHA256SUMS\n\n[Build and verification](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> notes.md
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
               echo "This build is already published."
