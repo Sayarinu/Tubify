@@ -19,8 +19,10 @@ dependencies = [
   "pyobjc-framework-Cocoa>=11; sys_platform == 'darwin'",
   "pyobjc-framework-MediaPlayer>=11; sys_platform == 'darwin'",
   "winrt-runtime>=3.2.1,<4; sys_platform == 'win32'",
+  "winrt-Windows.Foundation>=3.2.1,<4; sys_platform == 'win32'",
   "winrt-Windows.Media>=3.2.1,<4; sys_platform == 'win32'",
   "winrt-Windows.Media.Interop>=3.2.1,<4; sys_platform == 'win32'",
+  "winrt-Windows.Storage.Streams>=3.2.1,<4; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

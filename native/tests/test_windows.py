@@ -1,4 +1,7 @@
 from datetime import timedelta
+import os
+import subprocess
+import sys
 from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication
@@ -144,3 +147,58 @@ def test_windows_sign_in_failure_explains_locked_chromium_cookies():
     with pytest.raises(NoBrowserSession) as error:
         read_session(["chrome"], reader=lambda name: [], platform="linux")
     assert "Firefox" not in str(error.value)
+
+
+def test_windows_media_controls_publish_thumbnail_and_skip_unchanged_flags():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    controls = Controls()
+    references = []
+    bus = WindowsBus(snapshot(), window=SimpleNamespace(), controls=controls, media=MEDIA,
+                     thumbnail_factory=lambda url: references.append(url) or url)
+    value = snapshot()
+    value["Metadata"]["mpris:artUrl"] = ("s", "https://example.invalid/art.jpg")
+    bus.publish(value, force=True)
+    assert controls.display_updater.thumbnail == "https://example.invalid/art.jpg"
+    controls.is_next_enabled = "untouched"
+    bus.publish(value)
+    assert controls.is_next_enabled == "untouched" and references == ["https://example.invalid/art.jpg"]
+
+
+def test_windows_media_registration_failure_disables_controls():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    controls = Controls()
+
+    def broken(_handler):
+        raise ImportError("winrt._winrt_windows_foundation")
+
+    controls.add_button_pressed = broken
+    bus = WindowsBus(snapshot(), window=SimpleNamespace(), controls=controls, media=MEDIA)
+    availability = []
+    bus.availabilityChanged.connect(lambda *value: availability.append(value))
+    bus.start()
+    assert availability == [(False, False)] and bus.controls is None
+    assert bus.publish(snapshot()) is False
+
+
+REAL_REGISTRATION = """
+from PySide6.QtGui import QGuiApplication, QWindow
+from youtube_music_native.windows_media import WindowsBus, require_projections
+require_projections()
+app = QGuiApplication([])
+window = QWindow()
+window.show()
+app.processEvents()
+bus = WindowsBus({"Metadata": {}, "Position": 0}, window=window)
+available = []
+bus.availabilityChanged.connect(lambda value, _sleep: available.append(value))
+bus.start()
+assert available == [True], available
+assert bus._button_token is not None and bus._position_token is not None
+bus.close()
+"""
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="System Media Transport Controls are Windows-only")
+def test_windows_media_controls_register_real_handlers():
+    environment = {key: value for key, value in os.environ.items() if key != "QT_QPA_PLATFORM"}
+    subprocess.run([sys.executable, "-c", REAL_REGISTRATION], check=True, timeout=60, env=environment)

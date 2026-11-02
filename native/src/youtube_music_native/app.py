@@ -240,6 +240,10 @@ def main(argv=None):
         if sys.platform == "darwin":
             from .macos_updates import MacUpdater
             controller.maintenanceState._mac = MacUpdater(lambda: None)
+        if sys.platform == "win32":
+            # Media keys need every WinRT projection the controls touch to be bundled.
+            from .windows_media import require_projections
+            require_projections()
     controller.maintenanceState.window = window
     controller.maintenanceState.prepare_restart = lambda: [callback() for callback in cleanup]
     if not (args.fixture or args.smoke_test or args.screenshot):

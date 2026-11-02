@@ -1,9 +1,29 @@
 """Windows System Media Transport Controls adapter for the shared playback snapshot."""
 
 from datetime import timedelta
+import logging
+from pathlib import Path
 import time
 
 from PySide6.QtCore import QObject, Signal
+
+LOG = logging.getLogger(__name__)
+
+
+PROJECTIONS = (
+    "winrt.windows.foundation",
+    "winrt.windows.media",
+    "winrt.windows.media.interop",
+    "winrt.windows.storage.streams",
+)
+
+
+def require_projections():
+    """Import every projection used by the controls so packaging gaps fail loudly."""
+    import importlib
+
+    for name in PROJECTIONS:
+        importlib.import_module(name)
 
 
 def metadata(snapshot):
@@ -21,6 +41,7 @@ def metadata(snapshot):
         "duration": max(0., read("mpris:length", 0) / 1_000_000),
         "position": max(0., snapshot.get("Position", 0) / 1_000_000),
         "track": read("mpris:trackid", ""),
+        "artwork": read("mpris:artUrl", ""),
         "playing": snapshot.get("PlaybackStatus") == "Playing",
         "can_play": bool(snapshot.get("CanPlay")),
         "can_pause": bool(snapshot.get("CanPause")),
@@ -37,15 +58,17 @@ class WindowsBus(QObject):
     preparingForSleep = Signal(bool)
     availabilityChanged = Signal(bool, bool)
 
-    def __init__(self, snapshot, window, parent=None, controls=None, media=None, timeline_factory=None):
+    def __init__(self, snapshot, window, parent=None, controls=None, media=None, timeline_factory=None, thumbnail_factory=None):
         super().__init__(parent)
         self.window, self.controls = window, controls
         self.media, self._timeline_factory = media, timeline_factory
+        self._thumbnail_factory = thumbnail_factory
         self._snapshot = snapshot
         self._button_token = self._position_token = None
         self._closed = False
         self._published_metadata = None
         self._published_status = None
+        self._published_flags = None
         self._last_timeline_position = None
         self._last_timeline_update = 0.
 
@@ -61,12 +84,16 @@ class WindowsBus(QObject):
                 from winrt.windows.media.interop import get_for_window
 
                 self.controls = get_for_window(int(self.window.winId()))
+            # Registration returns Windows.Foundation tokens; without that projection
+            # installed it raises and the overlay would show the track with dead buttons.
             self._button_token = self.controls.add_button_pressed(self._button_pressed)
             self._position_token = self.controls.add_playback_position_change_requested(self._position_requested)
             available = self.publish(self._snapshot, force=True)
             self.availabilityChanged.emit(available, False)
         except Exception:
+            LOG.warning("Windows media controls are unavailable", exc_info=True)
             self._remove_handlers()
+            self.controls = None
             self.availabilityChanged.emit(False, False)
 
     def _button_pressed(self, _sender, args):
@@ -86,7 +113,7 @@ class WindowsBus(QObject):
             if action:
                 self.command.emit(action, [])
         except Exception:
-            pass
+            LOG.warning("Could not handle a Windows media button", exc_info=True)
 
     def _position_requested(self, _sender, args):
         if self._closed:
@@ -96,7 +123,7 @@ class WindowsBus(QObject):
             if current["track"] and current["can_seek"]:
                 self.command.emit("SetPosition", [current["track"], round(args.request_time.total_seconds() * 1_000_000)])
         except Exception:
-            pass
+            LOG.warning("Could not handle a Windows media seek request", exc_info=True)
 
     def publish(self, snapshot, force=False):
         self._snapshot = snapshot
@@ -105,14 +132,14 @@ class WindowsBus(QObject):
         try:
             current = metadata(snapshot)
             controls, media = self.controls, self.media
-            controls.is_enabled = bool(current["track"])
-            controls.is_play_enabled = current["can_play"]
-            controls.is_pause_enabled = current["can_pause"]
-            controls.is_next_enabled = current["can_next"]
-            controls.is_previous_enabled = current["can_previous"]
-            controls.is_fast_forward_enabled = False
-            controls.is_rewind_enabled = False
-            controls.is_stop_enabled = True
+            flags = (bool(current["track"]), current["can_play"], current["can_pause"], current["can_next"], current["can_previous"])
+            if force or flags != self._published_flags:
+                (controls.is_enabled, controls.is_play_enabled, controls.is_pause_enabled,
+                 controls.is_next_enabled, controls.is_previous_enabled) = flags
+                controls.is_fast_forward_enabled = False
+                controls.is_rewind_enabled = False
+                controls.is_stop_enabled = True
+                self._published_flags = flags
             status = media.MediaPlaybackStatus.PLAYING if current["playing"] else (
                 media.MediaPlaybackStatus.PAUSED if current["track"] else media.MediaPlaybackStatus.STOPPED
             )
@@ -120,13 +147,16 @@ class WindowsBus(QObject):
                 controls.playback_status = status
                 self._published_status = status
             updater = controls.display_updater
-            identity = (current["track"], current["title"], current["artist"], current["album"], current["duration"])
+            identity = (current["track"], current["title"], current["artist"], current["album"], current["duration"], current["artwork"])
             if current["track"]:
                 metadata_changed = identity != self._published_metadata
                 if metadata_changed:
                     updater.type = media.MediaPlaybackType.MUSIC
                     music = updater.music_properties
                     music.title, music.artist, music.album_title = current["title"], current["artist"], current["album"]
+                    thumbnail = self._thumbnail(current["artwork"])
+                    if thumbnail is not None:
+                        updater.thumbnail = thumbnail
                     updater.update()
                     self._published_metadata = identity
                 timeline_due = (
@@ -145,8 +175,25 @@ class WindowsBus(QObject):
                     self._published_metadata = None
             return True
         except Exception:
+            LOG.warning("Could not publish Windows media state", exc_info=True)
             self.availabilityChanged.emit(False, False)
             return False
+
+    def _thumbnail(self, artwork):
+        """Return a stream reference for http(s) or local artwork; artwork never blocks controls."""
+        if not artwork:
+            return None
+        try:
+            if self._thumbnail_factory is None:
+                from winrt.windows.foundation import Uri
+                from winrt.windows.storage.streams import RandomAccessStreamReference
+
+                self._thumbnail_factory = lambda url: RandomAccessStreamReference.create_from_uri(Uri(url))
+            url = artwork if "://" in artwork else Path(artwork).resolve().as_uri()
+            return self._thumbnail_factory(url)
+        except Exception:
+            LOG.info("Windows media artwork is unavailable", exc_info=True)
+            return None
 
     def _publish_timeline(self, current):
         timeline = self._timeline_factory()
