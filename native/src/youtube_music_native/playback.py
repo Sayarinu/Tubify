@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
@@ -25,6 +26,12 @@ def write_state(path, content):
     finally:
         if temporary and temporary.exists():
             temporary.unlink()
+
+
+STALL_SECONDS = 25
+MAX_STALL_RECOVERIES = 2
+MAX_CONSECUTIVE_FAILURES = 3
+EXPIRY_MARGIN = 30
 
 
 class Playback(QObject):
@@ -60,6 +67,8 @@ class Playback(QObject):
         self._saver = ThreadPoolExecutor(max_workers=1, thread_name_prefix="playback-state")
         self._closed = False
         self._transport_revision, self._stopped, self._device_wait = 0, False, False
+        self._source_expires, self._last_progress = 0., time.monotonic()
+        self._stall_recoveries, self._consecutive_failures = 0, 0
         self.stateSaveFailed.connect(self._save_failed)
         if fixture:
             self.queue.replace(fixture.get("shelves", [{}])[0].get("items", []))
@@ -81,8 +90,12 @@ class Playback(QObject):
         self.save_timer = QTimer(self)
         self.save_timer.setInterval(10000)
         self.save_timer.timeout.connect(self.save)
+        self.watchdog = QTimer(self)
+        self.watchdog.setInterval(5000)
+        self.watchdog.timeout.connect(self._check_stall)
         if not self._fixture:
             self.save_timer.start()
+            self.watchdog.start()
             QTimer.singleShot(0, self._restore_current)
 
     def _restore_current(self):
@@ -173,7 +186,7 @@ class Playback(QObject):
         self._transport_revision += 1
         self._prepared = {}
         self.queue.replace([dict(track) for track in tracks], index, source_label)
-        self._failures = set()
+        self._failures, self._consecutive_failures = set(), 0
         self._start()
 
     @Slot("QVariantMap")
@@ -192,7 +205,7 @@ class Playback(QObject):
         self._prepared = {}
         self.queue.replace([dict(track) for track in tracks], source_label=source_label)
         self.queue.shuffle_all()
-        self._failures = set()
+        self._failures, self._consecutive_failures = set(), 0
         self._start()
 
     @Slot("QVariantList", bool)
@@ -226,7 +239,7 @@ class Playback(QObject):
     def select(self, index):
         self._transport_revision += 1
         if self.queue.select(index):
-            self._failures = set()
+            self._failures, self._consecutive_failures = set(), 0
             self._start()
 
     def _key_index(self, key):
@@ -242,7 +255,7 @@ class Playback(QObject):
     def selectHistoryKey(self, key):
         self._transport_revision += 1
         if self.queue.select_history(key):
-            self._failures = set()
+            self._failures, self._consecutive_failures = set(), 0
             self._start()
 
     @Slot(str)
@@ -280,6 +293,9 @@ class Playback(QObject):
         self._radio_request, self._prepare_request, self._preparing_video = None, None, None
         self._request = None
         self._busy, self._playing, self._loaded = False, False, False
+        self._last_progress = time.monotonic()
+        if not force:
+            self._stall_recoveries = 0
         self._position, self._duration = float(position), float(self.currentTrack.get("duration") or 0)
         self._source_kind, self._message = "", ""
         self._start_position, self._want_paused = float(position), paused
@@ -322,6 +338,8 @@ class Playback(QObject):
                 self.audio.setSpeakerFill(self._speaker_fill)
                 self.audio.volume(self.outputVolume)
             self._source_kind = source["kind"]
+            self._source_expires = float(source.get("expires") or 0)
+            self._last_progress = time.monotonic()
             self.audio.load(source, self._start_position, self._want_paused)
             self._loaded, self._playing = True, not self._want_paused
             self.trackStarted.emit(self.currentTrack)
@@ -359,7 +377,13 @@ class Playback(QObject):
         if self._closed:
             return
         if self._loaded and isinstance(values.get("time-pos"), (int, float)):
-            self._position = max(0., float(values["time-pos"]))
+            position = max(0., float(values["time-pos"]))
+            if position != self._position:
+                self._last_progress = time.monotonic()
+                if position > self._start_position + 2:
+                    # The song really plays, so earlier failures were not systemic.
+                    self._consecutive_failures, self._retry = 0, False
+            self._position = position
             self.positionChanged.emit()
         if self._loaded and isinstance(values.get("duration"), (int, float)):
             self._duration = max(0., float(values["duration"]))
@@ -388,13 +412,36 @@ class Playback(QObject):
             self._playing, self._busy = False, False
             self.changed.emit()
         else:
-            self._failures = set()
+            self._failures, self._consecutive_failures = set(), 0
             self._advance(automatic=True)
+
+    @Slot()
+    def _check_stall(self):
+        """Recover from mpv waiting on a dead connection; nothing else would ever notice."""
+        if self._closed or not self._loaded or self._want_paused or not self.audio:
+            return
+        if time.monotonic() - self._last_progress < STALL_SECONDS:
+            return
+        if self._stall_recoveries < MAX_STALL_RECOVERIES:
+            self._stall_recoveries += 1
+            self._start(self._position, force=True)
+        else:
+            self._message = "This song stopped loading. Skipping to the next song."
+            self._skip_failed()
 
     def _skip_failed(self):
         if self._closed or self._want_paused:
             return
         self._loaded = False
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+            # Auth, extractor or network failures affect every song; draining the queue hides them.
+            self._consecutive_failures = 0
+            self._playing, self._busy, self._want_paused = False, False, True
+            reason = self._message or "Songs could not be played."
+            self._message = "Several songs in a row could not be played. " + reason.replace(" Skipping to the next song.", "") + " Press Play to retry."
+            self.changed.emit()
+            return
         if self.queue.current:
             self._failures.add(self.queue.current["key"])
         upcoming, skipped = self._advance_entry()
@@ -422,6 +469,11 @@ class Playback(QObject):
                 self.changed.emit()
             else:
                 self._start(0 if self._duration and self._position >= self._duration - 0.2 else self._position)
+            return
+        if (not self._playing and self._source_kind == "remote" and self._source_expires
+                and self._source_expires < time.time() + EXPIRY_MARGIN):
+            # The signed URL expired while paused; resolve a fresh one at the same position.
+            self._start(self._position, force=True)
             return
         self._playing = not self._playing
         self._want_paused = not self._playing
@@ -502,7 +554,7 @@ class Playback(QObject):
     @Slot()
     def next(self):
         self._transport_revision += 1
-        self._failures = set()
+        self._failures, self._consecutive_failures = set(), 0
         self._advance()
 
     def _advance_entry(self, automatic=False):

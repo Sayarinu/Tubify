@@ -108,7 +108,7 @@ def test_windows_media_controls_publish_track_state_and_forward_commands():
     assert updater.music_properties.artist == "First, Second"
     assert updater.music_properties.album_title == "Album"
     assert controls.timeline_updates[-1].position == timedelta(seconds=5)
-    assert availability[-1] == (True, False)
+    assert availability[-1] == (True, True)
 
     controls.button_pressed.fire(SimpleNamespace(button=MEDIA.SystemMediaTransportControlsButton.PLAY_PAUSE))
     controls.playback_position_change_requested.fire(SimpleNamespace(request_time=timedelta(seconds=42.5)))
@@ -202,3 +202,13 @@ bus.close()
 def test_windows_media_controls_register_real_handlers():
     environment = {key: value for key, value in os.environ.items() if key != "QT_QPA_PLATFORM"}
     subprocess.run([sys.executable, "-c", REAL_REGISTRATION], check=True, timeout=60, env=environment)
+
+
+def test_power_broadcast_maps_to_prepare_for_sleep():
+    from youtube_music_native.windows_media import power_transition, WM_POWERBROADCAST
+
+    assert power_transition(WM_POWERBROADCAST, 0x4) is True
+    assert power_transition(WM_POWERBROADCAST, 0x7) is False
+    assert power_transition(WM_POWERBROADCAST, 0x12) is False
+    assert power_transition(WM_POWERBROADCAST, 0xA) is None
+    assert power_transition(0x10, 0x4) is None

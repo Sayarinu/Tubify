@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 import time
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QAbstractNativeEventFilter, QCoreApplication, QObject, Signal
 
 LOG = logging.getLogger(__name__)
 
@@ -51,6 +51,42 @@ def metadata(snapshot):
     }
 
 
+WM_POWERBROADCAST = 0x0218
+PBT_APMSUSPEND, PBT_APMRESUMESUSPEND, PBT_APMRESUMEAUTOMATIC = 0x4, 0x7, 0x12
+
+
+def power_transition(message, wparam):
+    """Map a WM_POWERBROADCAST notification to Linux PrepareForSleep semantics."""
+    if message != WM_POWERBROADCAST:
+        return None
+    if wparam == PBT_APMSUSPEND:
+        return True
+    if wparam in {PBT_APMRESUMESUSPEND, PBT_APMRESUMEAUTOMATIC}:
+        return False
+    return None
+
+
+class PowerFilter(QAbstractNativeEventFilter):
+    """Watch top-level window messages for suspend and resume."""
+
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def nativeEventFilter(self, event_type, message):
+        try:
+            if bytes(event_type) == b"windows_generic_MSG":
+                from ctypes import wintypes
+
+                msg = wintypes.MSG.from_address(int(message))
+                transition = power_transition(msg.message, msg.wParam)
+                if transition is not None:
+                    self.callback(transition)
+        except Exception:
+            pass
+        return False, 0
+
+
 class WindowsBus(QObject):
     """Publish metadata and timeline to Windows and relay system commands to Playback."""
 
@@ -69,6 +105,7 @@ class WindowsBus(QObject):
         self._published_metadata = None
         self._published_status = None
         self._published_flags = None
+        self._power_filter = None
         self._last_timeline_position = None
         self._last_timeline_update = 0.
 
@@ -89,12 +126,24 @@ class WindowsBus(QObject):
             self._button_token = self.controls.add_button_pressed(self._button_pressed)
             self._position_token = self.controls.add_playback_position_change_requested(self._position_requested)
             available = self.publish(self._snapshot, force=True)
-            self.availabilityChanged.emit(available, False)
+            self.availabilityChanged.emit(available, self._watch_power())
         except Exception:
             LOG.warning("Windows media controls are unavailable", exc_info=True)
             self._remove_handlers()
             self.controls = None
             self.availabilityChanged.emit(False, False)
+
+    def _watch_power(self):
+        application = QCoreApplication.instance()
+        if application is None or self._power_filter is not None:
+            return self._power_filter is not None
+        self._power_filter = PowerFilter(self._power_changed)
+        application.installNativeEventFilter(self._power_filter)
+        return True
+
+    def _power_changed(self, sleeping):
+        if not self._closed:
+            self.preparingForSleep.emit(sleeping)
 
     def _button_pressed(self, _sender, args):
         if self._closed:
@@ -236,6 +285,10 @@ class WindowsBus(QObject):
             return
         self._closed = True
         self._remove_handlers()
+        application = QCoreApplication.instance()
+        if self._power_filter is not None and application is not None:
+            application.removeNativeEventFilter(self._power_filter)
+            self._power_filter = None
         if self.controls:
             try:
                 self.controls.is_enabled = False

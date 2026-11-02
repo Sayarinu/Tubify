@@ -481,3 +481,56 @@ def test_empty_and_exhausted_queue_keeps_source_heading_without_history_rows(tmp
     restored.previous()
     assert restored.currentTrack == TRACKS[0]
     restored.close()
+
+
+def test_stalled_stream_is_reresolved_at_its_position_then_skipped(tmp_path, monkeypatch):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    from youtube_music_native import playback as module
+
+    clock = [1000.]
+    monkeypatch.setattr(module.time, "monotonic", lambda: clock[0])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks(TRACKS)
+    worker.succeeded.emit(1, {"kind": "remote", "source": "https://media.invalid/first"})
+    player.audio.updated.emit({"time-pos": 40.})
+    clock[0] += module.STALL_SECONDS + 1
+    player._check_stall()
+    assert worker.requests[-1][1]["force"] is True and player.position == 40.
+    for attempt in range(module.MAX_STALL_RECOVERIES):
+        worker.succeeded.emit(len(worker.requests), {"kind": "remote", "source": "https://media.invalid/again"})
+        clock[0] += module.STALL_SECONDS + 1
+        player._check_stall()
+    assert player.currentTrack["title"] == "Next"
+    player.close()
+
+
+def test_repeated_failures_pause_with_reason_instead_of_draining_queue(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    tracks = [{"videoId": f"abcdefghij{index}", "title": str(index), "duration": 100} for index in range(6)]
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks(tracks)
+    for _ in range(3):
+        worker.failed.emit(len(worker.requests), {"message": "Reconnect YouTube Music to stream this song."})
+        app.processEvents()
+    assert int(player.currentTrack["title"]) < 3
+    assert not player.wantsPlayback and "Several songs in a row" in player.message and "Reconnect" in player.message
+    player.close()
+
+
+def test_resuming_after_signed_url_expired_resolves_fresh_source(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    import time
+
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks(TRACKS)
+    worker.succeeded.emit(1, {"kind": "remote", "source": "https://media.invalid/first", "expires": time.time() + 5, "videoId": TRACKS[0]["videoId"]})
+    player.audio.updated.emit({"time-pos": 70.})
+    player.pause()
+    requests = len(worker.requests)
+    player.togglePlayback()
+    assert len(worker.requests) > requests and worker.requests[-1][1]["force"] is True
+    assert player.position == 70. and player.wantsPlayback
+    player.close()

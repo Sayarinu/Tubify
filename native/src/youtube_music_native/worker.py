@@ -155,11 +155,52 @@ def safe_error(error):
     return {"code": "provider_error", "message": "YouTube Music could not complete this request. Retry or reconnect your account."}
 
 
+def contain_children():
+    """Kill extractor helpers (deno, ffmpeg) whenever this Windows worker is killed."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class Basic(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD), ("SchedulingClass", wintypes.DWORD)]
+
+        class Counters(ctypes.Structure):
+            _fields_ = [(name, ctypes.c_uint64) for name in ("Read", "Write", "Other", "ReadBytes", "WriteBytes", "OtherBytes")]
+
+        class Extended(ctypes.Structure):
+            _fields_ = [("Basic", Basic), ("Io", Counters), ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.CreateJobObjectW.restype = wintypes.HANDLE
+        kernel.GetCurrentProcess.restype = wintypes.HANDLE
+        job = kernel.CreateJobObjectW(None, None)
+        if not job:
+            return None
+        info = Extended()
+        info.Basic.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not kernel.SetInformationJobObject(wintypes.HANDLE(job), 9, ctypes.byref(info), ctypes.sizeof(info)):
+            return None
+        if not kernel.AssignProcessToJobObject(wintypes.HANDLE(job), kernel.GetCurrentProcess()):
+            return None
+        # The handle stays open for the process lifetime; closing it kills the children.
+        return job
+    except Exception:
+        return None
+
+
 def main():
     if os.name == "posix":
         import resource
 
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    contain_children()
     service = None
     resources = {}
     for line in sys.stdin:

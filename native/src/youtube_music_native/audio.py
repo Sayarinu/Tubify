@@ -8,6 +8,14 @@ from PySide6.QtCore import QObject, Signal, Slot
 from .speaker_fill import SpeakerFill
 
 
+# Dropped googlevideo connections must reconnect instead of ending the song early
+# or leaving mpv waiting for cache forever.
+NETWORK_OPTIONS = {
+    "network_timeout": 15,
+    "stream_lavf_o": "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=5",
+}
+
+
 class Audio(QObject):
     updated = Signal(dict)
     ended = Signal(bool)
@@ -22,7 +30,7 @@ class Audio(QObject):
         locale.setlocale(locale.LC_NUMERIC, "C")
         import mpv
 
-        options = dict(vid="no", vo="null", ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True, audio_client_name="Tubify")
+        options = dict(vid="no", vo="null", ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True, audio_client_name="Tubify", **NETWORK_OPTIONS)
         if output:
             options["ao"] = output
         self.player = mpv.MPV(**options)

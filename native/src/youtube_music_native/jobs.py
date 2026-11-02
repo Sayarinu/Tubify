@@ -127,8 +127,15 @@ class Worker(QObject):
         self._abort("timeout", "The request timed out. Check your connection or unlock your system keyring.")
 
     def _error(self, error):
-        if not self._closed and not self._hibernating:
-            self._abort("provider_error", "This request stopped. Retry the operation.")
+        if self._closed:
+            return
+        if self._hibernating:
+            # A process killed while starting never emits finished; without this the
+            # worker would stay hibernating and hold every later request forever.
+            if self.process.state() == QProcess.ProcessState.NotRunning:
+                QTimer.singleShot(0, self._restart_if_stopped)
+            return
+        self._abort("provider_error", "This request stopped. Retry the operation.")
 
     def _finished(self, exit_code, exit_status):
         self.timer.stop()
@@ -147,7 +154,8 @@ class Worker(QObject):
                 return
             except ProcessLookupError:
                 return
-        self.process.kill() if force else self.process.terminate()
+        # Windows delivers terminate() as WM_CLOSE, which a windowless worker ignores.
+        self.process.kill() if force or os.name != "posix" else self.process.terminate()
 
     def _abort(self, code, message):
         self._hibernating = True
