@@ -12,7 +12,7 @@ If native/pyproject.toml declares a higher version, that wins, so a series can
 still be started by hand. A pushed native-vX.Y.Z tag builds exactly X.Y.Z, and
 pull requests and local builds keep pyproject's version.
 
-``--stamp VERSION`` writes the version into pyproject.toml and the Arch PKGBUILD
+``--stamp VERSION`` writes the version into pyproject.toml and the Linux PKGBUILD
 and commits it locally (never pushed): the package scripts refuse to build a
 dirty checkout and the Arch source archive is taken from HEAD.
 """

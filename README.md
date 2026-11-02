@@ -4,7 +4,7 @@
 
 # Tubify
 
-**A fast, native desktop app for YouTube Music.**
+**A fast desktop app for YouTube Music.**
 
 Your library, playlists and recommendations in a real desktop app with offline downloads, synced lyrics, music videos and full media-key support, without a browser tab.
 
@@ -64,7 +64,7 @@ Get the latest version from the **[Releases page](https://github.com/Sayarinu/Tu
 |---|---|---|
 | **Windows** | `Tubify-<version>-windows-x64-setup.exe` | Windows 10 or 11, 64-bit |
 | **macOS** | `Tubify-<version>-macos-arm64.dmg` | macOS 12 or later, Apple silicon |
-| **Linux** | `Tubify-<version>-linux-x86_64.pkg.tar.zst` | Arch Linux or an Arch-based distribution (pacman), x86_64 |
+| **Linux** | `Tubify-<version>-linux-x86_64.pkg.tar.zst` | x86_64 Linux with pacman |
 
 <details>
 <summary><b>Windows</b></summary>

@@ -1,4 +1,4 @@
-name: Build verified native Arch packages
+name: Build verified Tubify Linux packages
 
 on:
   workflow_call:
@@ -13,13 +13,13 @@ permissions:
 
 jobs:
   build-native-arch:
-    name: Native Arch install and upgrade
+    name: Install and upgrade on Linux
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Validate native release gate
+      - name: Validate the release gate
         if: startsWith(github.ref, 'refs/tags/native-v')
         run: |
           test "${GITHUB_REF_NAME#native-v}" = "$(python -c 'import pathlib,tomllib; print(tomllib.loads(pathlib.Path("native/pyproject.toml").read_text())["project"]["version"])')"
@@ -27,7 +27,7 @@ jobs:
           python native/release_gate.py
       - name: Stamp the release version
         run: python3 scripts/native-release-version.py --stamp "${{ inputs.version }}"
-      - name: Build, install, launch and upgrade in clean Arch
+      - name: Build, install, launch and upgrade in a clean Linux container
         run: |
           docker run --rm --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace archlinux:latest bash -lc '
             set -euo pipefail

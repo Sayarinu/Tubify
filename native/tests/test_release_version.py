@@ -5,7 +5,7 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts/native-release-version.py"
 if not SCRIPT.exists():
-    # The Arch source package runs these tests without the repository's CI scripts.
+    # The Linux source package runs these tests without the repository's CI scripts.
     pytest.skip("release tooling is not part of this source tree", allow_module_level=True)
 spec = importlib.util.spec_from_file_location("native_release_version", SCRIPT)
 release = importlib.util.module_from_spec(spec)

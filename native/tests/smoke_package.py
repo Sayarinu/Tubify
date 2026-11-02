@@ -1,4 +1,4 @@
-"""Check installed code and durable local media across an Arch package upgrade."""
+"""Check installed code and durable local media across a Linux package upgrade."""
 
 import argparse
 import hashlib

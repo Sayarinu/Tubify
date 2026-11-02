@@ -1,6 +1,6 @@
 # Release layout
 
-`.github/workflows/native.yml` tests and packages Arch x86_64, Windows x64 and macOS arm64.
+`.github/workflows/native.yml` tests and packages Linux x86_64, Windows x64 and macOS arm64.
 
 **Every push to main is a release, versioned by the size of its changes.** A `version` job in the workflow finds the newest `native-vX.Y.Z` tag on main and bumps it by the largest change merged since:
 
@@ -16,4 +16,4 @@ To jump to a specific version, raise it in `native/pyproject.toml` and the PKGBU
 
 The macOS build pins Sparkle 2.10.1 and verifies its distribution SHA-256. `TUBIFY_SPARKLE_PRIVATE_KEY` is a GitHub Actions secret; only `packaging/macos-native/sparkle-public-key.txt` belongs in source. Stable builds fail without the private key. Keep a secure backup of this key before rotating or deleting it; existing clients trust the embedded public key. The secret stores a 64-byte seed/public-key pair. `native/sign_update.py` extracts the 32-byte seed expected by Sparkle's `sign_update --ed-key-file -`, passes it only on stdin and verifies the generated signature before returning it. The actual vendor tool is checked against RFC 8032 before packaging. Update signatures do not provide Apple notarization.
 
-Source launches and unsupported installations use release links. Automatic checks can be disabled; downloads require an explicit update action. Arch installation errors/cancelled authorization are reported on relaunch. Windows displays native installer errors. Sparkle provides native macOS update progress and recovery. All platforms preserve application data and restore playback paused.
+Source launches and unsupported installations use release links. Automatic checks can be disabled; downloads require an explicit update action. Linux installation errors and cancelled authorization are reported on relaunch. Windows displays native installer errors. Sparkle provides native macOS update progress and recovery. All platforms preserve application data and restore playback paused.

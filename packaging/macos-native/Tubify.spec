@@ -1,4 +1,4 @@
-# PyInstaller spec for the native Tubify macOS app bundle (Apple Silicon).
+# PyInstaller spec for the Tubify macOS app bundle (Apple Silicon).
 # Build with scripts/build-native-macos.sh; it supplies TUBIFY_ICON and Homebrew helper paths.
 import os
 from pathlib import Path

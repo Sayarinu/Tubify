@@ -73,7 +73,7 @@ def lookup_release(opener=urlopen):
                 candidates.append((number, tag, release_notes(row.get("body"))))
         if len(rows) < 100:
             if not candidates:
-                raise ValueError("No stable native release found")
+                raise ValueError("No stable Tubify release found")
             _, tag, notes = max(candidates)
             return {"tag": tag, "notes": notes, "checkedAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     raise ValueError("Release listing exceeded its limit")
@@ -196,7 +196,7 @@ class Maintenance(QObject):
 
     @Property(str, constant=True)
     def updateGuidance(self):
-        return "Updates preserve settings and downloaded music. Installation may request OS authorization." if updates.supported() else "This installation needs a manual upgrade using Release Details. In-app updates support the packaged Arch, Windows and macOS apps."
+        return "Updates preserve settings and downloaded music. Installation may request OS authorization." if updates.supported() else "This installation needs a manual upgrade using Release Details. In-app updates support the packaged Linux, Windows and macOS apps."
 
     @Property(bool, notify=changed)
     def automaticChecks(self):

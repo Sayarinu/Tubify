@@ -60,7 +60,7 @@ def main():
         player.close()
         assert progress and max(progress) >= 1
         assert ended == [False]
-    print("Native Qt launch and local libmpv playback passed.")
+    print("Tubify launch and local libmpv playback passed.")
 
 
 if __name__ == "__main__":

@@ -55,7 +55,7 @@ def downloads(version, repository):
     base = f"https://github.com/{repository}/releases/download/native-v{version}/"
     files = (("Windows", f"Tubify-{version}-windows-x64-setup.exe", "Windows 10 or 11, 64-bit"),
              ("macOS", f"Tubify-{version}-macos-arm64.dmg", "macOS 12 or later, Apple silicon"),
-             ("Linux", f"Tubify-{version}-linux-x86_64.pkg.tar.zst", "Arch-based, x86_64 (sudo pacman -U the file)"))
+             ("Linux", f"Tubify-{version}-linux-x86_64.pkg.tar.zst", "x86_64 Linux with pacman (sudo pacman -U the file)"))
     rows = "\n".join(f"| {name} | [{file}]({base}{file}) | {needs} |" for name, file, needs in files)
     return f"| Platform | Download | Requirements |\n|---|---|---|\n{rows}"
 

@@ -136,7 +136,7 @@ def test_application_command_is_absolute_and_runs_outside_source_cwd(tmp_path, m
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
     result = subprocess.run([*command, "--help"], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15)
-    assert result.returncode == 0 and "native Qt client" in result.stdout, result.stderr
+    assert result.returncode == 0 and "desktop app for YouTube Music" in result.stdout, result.stderr
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     assert launcher.application_command() == [sys.executable]
     assert launcher.process_command("player") == [sys.executable, "--player-worker"]

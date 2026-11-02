@@ -21,7 +21,7 @@ The Windows installer and the macOS app include the components below so that not
 | PyWinRT (Windows only) | Media keys and the Windows media overlay | MIT | https://github.com/pywinrt/pywinrt |
 | pywin32-ctypes (Windows only) | Credential storage | BSD-3-Clause | https://github.com/enthought/pywin32-ctypes |
 
-The Arch Linux package doesn't bundle these. pacman installs Qt, mpv, FFmpeg, Deno and the Python libraries as system packages under their own licenses.
+The Linux package doesn't bundle these. pacman installs Qt, mpv, FFmpeg, Deno and the Python libraries as system packages under their own licenses.
 
 ## Python libraries
 

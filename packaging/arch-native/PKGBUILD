@@ -1,7 +1,7 @@
 pkgname=youtube-music-native
 pkgver=0.1.2
 pkgrel=1
-pkgdesc='Tubify native Qt audio client for YouTube Music'
+pkgdesc='Tubify, a desktop app for YouTube Music'
 arch=('x86_64')
 url='https://github.com/Sayarinu/Tubify'
 license=('MIT')

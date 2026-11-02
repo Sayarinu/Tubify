@@ -14,7 +14,7 @@ SettingsPage {
         ColumnLayout {
             id: body
             width: scroll.availableWidth; spacing: 16
-            Label { Layout.fillWidth: true; text: "Add a Browser Source in OBS using a paired, read-only local URL. Enable Local API first. Music playback stays in the native app."; color: themeState.secondary; wrapMode: Text.Wrap }
+            Label { Layout.fillWidth: true; text: "Add a Browser Source in OBS using a paired, read-only local URL. Enable Local API first. Music playback stays in Tubify."; color: themeState.secondary; wrapMode: Text.Wrap }
             Label { text: "Layout"; color: themeState.foreground }
             ThemedComboBox {
                 objectName: "obsLayout"

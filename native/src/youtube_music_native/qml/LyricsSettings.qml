@@ -19,7 +19,7 @@ SettingsPage {
         ColumnLayout {
             width: optionsScroll.availableWidth
             spacing: 12
-            Label { Layout.fillWidth: true; text: "Native timed lyrics are always checked first. Native plain lyrics remain a fallback."; wrapMode: Text.Wrap; color: themeState.secondary }
+            Label { Layout.fillWidth: true; text: "YouTube Music's own timed lyrics are always checked first, and its plain lyrics remain a fallback."; wrapMode: Text.Wrap; color: themeState.secondary }
             SettingsCheckBox { objectName: "externalLyricsOption"; text: "Use External Lyric Providers"; checked: lyricState.options.external; onClicked: lyricState.setOption("external", checked) }
             Label { Layout.fillWidth: true; text: "When enabled, song title, artist, album, duration or video ID are sent to the selected providers. Your YouTube session stays private."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }
             Repeater {

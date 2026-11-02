@@ -1,4 +1,4 @@
-# PyInstaller spec for the native Tubify Windows x64 app.
+# PyInstaller spec for the Tubify Windows x64 app.
 import json
 import os
 from pathlib import Path

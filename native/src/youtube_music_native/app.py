@@ -1,4 +1,4 @@
-"""Native Qt entry point, shared by Linux, Windows and macOS."""
+"""Tubify entry point, shared by Linux, Windows and macOS."""
 
 import argparse
 import json
@@ -104,12 +104,12 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Tubify native Qt client")
+    parser = argparse.ArgumentParser(description="Tubify, a desktop app for YouTube Music")
     parser.add_argument("--fixture", action="store_true", help="Render synthetic data for visual verification")
     parser.add_argument("--smoke-test", action="store_true", help="Verify window creation and exit")
     parser.add_argument("--screenshot", type=Path, help="Save a visual-verification screenshot and exit")
     parser.add_argument("--data-dir", type=Path, help="Override application data for isolated development/tests")
-    parser.add_argument("links", nargs="*", help="YouTube Music URLs or ytmusic-native links")
+    parser.add_argument("links", nargs="*", help="YouTube Music URLs or Tubify links")
     parser.add_argument("--software-rendering", action="store_true", help="Use software drawing for this launch when troubleshooting graphics")
     args = parser.parse_args(argv)
     if args.software_rendering:

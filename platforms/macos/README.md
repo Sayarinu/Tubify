@@ -1,6 +1,6 @@
 # macOS
 
-## Native Tubify client (Apple Silicon)
+## Tubify for macOS (Apple Silicon)
 
 ```sh
 scripts/build-native-macos.sh

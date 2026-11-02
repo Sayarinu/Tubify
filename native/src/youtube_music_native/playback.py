@@ -447,7 +447,7 @@ class Playback(QObject):
                 self.seeked.emit(self._start_position)
             self._prepare_next()
         except Exception:
-            self._message = "The native player could not start. Check the audio device and libmpv installation."
+            self._message = "Tubify could not start playback. Check the audio device and libmpv installation."
             self._playing = False
         self.changed.emit()
 

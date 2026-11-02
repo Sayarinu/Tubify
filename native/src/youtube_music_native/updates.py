@@ -28,7 +28,7 @@ def select_asset(release, system=None):
     system = system or sys.platform
     tag = release.get('tag_name', '')
     if not re.fullmatch(r'native-v\d+\.\d+\.\d+', tag):
-        raise ValueError('Invalid native release')
+        raise ValueError('Invalid Tubify release')
     version = tag.removeprefix('native-v')
     candidates = []
     for item in release.get('assets', []):
@@ -68,7 +68,7 @@ def supported():
 def download(tag, directory, progress=None, opener=urlopen):
     """Re-fetch release metadata so an offline cache can never authorize execution."""
     if not re.fullmatch(r'native-v\d+\.\d+\.\d+', tag):
-        raise ValueError('Invalid native release')
+        raise ValueError('Invalid Tubify release')
     request = Request('https://api.github.com/repos/Sayarinu/Tubify/releases/tags/' + tag,
                       headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'Tubify-updater'})
     with opener(request, timeout=15) as response:

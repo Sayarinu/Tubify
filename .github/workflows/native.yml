@@ -1,4 +1,4 @@
-name: Native client checks
+name: Tubify checks
 
 on:
   pull_request:
@@ -55,7 +55,7 @@ jobs:
           echo "Release version: $(grep '^version=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2) ($(grep '^level=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2))" >> "$GITHUB_STEP_SUMMARY"
 
   arch-app:
-    name: Arch Linux packages
+    name: Linux packages
     needs: version
     uses: ./.github/workflows/native-arch-build.yml
     with:
@@ -87,17 +87,17 @@ jobs:
           node-version: '24'
       - name: Install shared Python package
         run: python -m pip install -e './native[test]'
-      - name: Install native player on Linux
+      - name: Install mpv and FFmpeg on Linux
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libmpv2 ffmpeg
-      - name: Install native player on macOS
+      - name: Install mpv and FFmpeg on macOS
         if: runner.os == 'macOS'
         run: brew install mpv ffmpeg
-      - name: Locate native player on macOS
+      - name: Locate mpv on macOS
         if: runner.os == 'macOS'
         run: echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
       # mirror.msys2.org sometimes stalls while syncing; retry before failing the job.
-      - name: Install native player on Windows
+      - name: Install mpv and FFmpeg on Windows
         if: runner.os == 'Windows'
         id: msys2
         continue-on-error: true
@@ -110,7 +110,7 @@ jobs:
         if: runner.os == 'Windows' && steps.msys2.outcome == 'failure'
         shell: pwsh
         run: Start-Sleep -Seconds 30
-      - name: Install native player on Windows (retry 2 of 3)
+      - name: Install mpv and FFmpeg on Windows (retry 2 of 3)
         if: runner.os == 'Windows' && steps.msys2.outcome == 'failure'
         id: msys2_retry
         continue-on-error: true
@@ -123,7 +123,7 @@ jobs:
         if: runner.os == 'Windows' && steps.msys2.outcome == 'failure' && steps.msys2_retry.outcome == 'failure'
         shell: pwsh
         run: Start-Sleep -Seconds 60
-      - name: Install native player on Windows (retry 3 of 3)
+      - name: Install mpv and FFmpeg on Windows (retry 3 of 3)
         if: runner.os == 'Windows' && steps.msys2.outcome == 'failure' && steps.msys2_retry.outcome == 'failure'
         id: msys2_final
         uses: msys2/setup-msys2@v2
@@ -131,7 +131,7 @@ jobs:
           msystem: UCRT64
           update: true
           install: mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-ffmpeg
-      - name: Locate native player on Windows
+      - name: Locate mpv on Windows
         if: runner.os == 'Windows'
         shell: pwsh
         env:
@@ -142,15 +142,15 @@ jobs:
       - name: Test imports, session validation and isolated playback dispatch
         run: python -m pytest native/tests -q
       - name: Check portable command entry point
-        run: youtube-music-native-check --help
-      - name: Launch native Qt window and decode local audio
+        run: tubify-check --help
+      - name: Launch Tubify and decode local audio
         shell: bash
         run: |
           python native/tests/smoke_runtime.py || {
-            echo "Native runtime smoke failed; retrying once to rule out transient runner startup failures."
+            echo "Runtime smoke failed; retrying once to rule out transient runner startup failures."
             python native/tests/smoke_runtime.py
           }
-      - name: Verify authenticated local API through the native settings UI
+      - name: Verify the authenticated local API through the settings UI
         run: python native/tests/smoke_local_api.py --ui-scale 150
       - name: Verify MPRIS on an isolated session bus
         if: runner.os == 'Linux'

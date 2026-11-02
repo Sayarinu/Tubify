@@ -15,7 +15,10 @@ def test_tubify_display_name_preserves_package_desktop_and_credential_ids():
     package = tomllib.loads((NATIVE / "pyproject.toml").read_text())
     assert package["project"]["description"].startswith("Tubify")
     assert package["project"]["name"] == "youtube-music-native"
+    # tubify is the command users see; the original names keep existing launchers working.
     assert package["project"]["scripts"] == {
+        "tubify": "youtube_music_native.launcher:main",
+        "tubify-check": "youtube_music_native.launcher:compat_main",
         "youtube-music-native": "youtube_music_native.launcher:main",
         "youtube-music-native-check": "youtube_music_native.launcher:compat_main",
     }

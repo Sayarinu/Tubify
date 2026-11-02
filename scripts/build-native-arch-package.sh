@@ -10,7 +10,7 @@ fi
 native_version="$(python -c 'import pathlib,tomllib; print(tomllib.loads(pathlib.Path("native/pyproject.toml").read_text())["project"]["version"])')"
 native_pkgver="$(awk -F= '/^pkgver=/{print $2; exit}' packaging/arch-native/PKGBUILD)"
 if [[ "$native_version" != "$native_pkgver" ]]; then
-  printf '%s\n' 'Native Python and Arch package versions differ.' >&2
+  printf '%s\n' 'The Python and Arch package versions differ.' >&2
   exit 1
 fi
 native_build_root="$(mktemp -d "${TMPDIR:-/tmp}/youtube-music-native-build.XXXXXX")"

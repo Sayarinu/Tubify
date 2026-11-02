@@ -1,6 +1,6 @@
 # Windows
 
-## Native Tubify client (x64)
+## Tubify for Windows (x64)
 
 From a Windows x64 checkout with uv, MSYS2 UCRT64 (`mpv` and `ffmpeg`), Deno and Inno Setup 6:
 

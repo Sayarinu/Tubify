@@ -8,7 +8,7 @@ if (-not $AllowDirty -and (git status --porcelain)) {
     throw "Refusing to package a dirty checkout. Commit or stash changes first (or pass -AllowDirty for a local test build)."
 }
 if ($env:OS -ne "Windows_NT" -or [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne "X64") {
-    throw "The native Windows package targets x64; run this build on 64-bit Windows."
+    throw "The Tubify Windows package targets x64; run this build on 64-bit Windows."
 }
 
 $msysRoot = $env:MSYS2_ROOT

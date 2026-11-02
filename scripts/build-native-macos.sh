@@ -8,7 +8,7 @@ if [[ "${1:-}" != "--allow-dirty" && -n "$(git status --porcelain)" ]]; then
   exit 1
 fi
 if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
-  printf '%s\n' 'The native macOS build targets Apple Silicon; run it on an arm64 Mac.' >&2
+  printf '%s\n' 'The Tubify macOS build targets Apple Silicon; run it on an arm64 Mac.' >&2
   exit 1
 fi
 command -v brew >/dev/null || { printf '%s\n' 'Homebrew is required for libmpv, FFmpeg and Deno.' >&2; exit 1; }

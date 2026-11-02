@@ -60,7 +60,7 @@ def play_source(source, headers=None, offline=False):
         capture_output=True, text=True, timeout=50,
     )
     if result.returncode != 0:
-        raise ProbeError("Native playback did not reach one second.")
+        raise ProbeError("Playback did not reach one second.")
 
 
 def play_child(payload):
@@ -191,7 +191,7 @@ def main(argv=None):
     source.add_argument("--browser", choices=sorted(browsers.NAMES), help="Reuse this browser's YouTube Music sign-in")
     source.add_argument("--session", type=Path, help="Explicitly selected browser.json export")
     check.add_argument("--output", type=Path, default=Path(tempfile.gettempdir()))
-    subparsers.add_parser("play", help="Internal native playback worker")
+    subparsers.add_parser("play", help="Internal playback worker")
     args = parser.parse_args(argv)
     if os.name == "posix":
         import resource
@@ -214,7 +214,7 @@ def main(argv=None):
         print("Private proof report:", report_path)
         return 0 if report["status"] == "passed" else 1
     except Exception as error:
-        message = str(error) if isinstance(error, (SessionError, ProbeError)) else "Check the selected session and native playback prerequisites."
+        message = str(error) if isinstance(error, (SessionError, ProbeError)) else "Check the selected session and playback prerequisites (libmpv, FFmpeg and Deno)."
         print(json.dumps({"status": "failed", "failed_stage": "import_or_playback", "error_type": type(error).__name__, "message": message}))
         return 1
 

@@ -9,8 +9,8 @@ Tubify is a Python and Qt Quick (PySide6 + QML) app. One codebase in [`native/`]
 ```sh
 cd native
 python -m pip install -e '.[test]'
-youtube-music-native              # your account
-youtube-music-native --fixture    # synthetic data, no account needed
+tubify              # your account
+tubify --fixture    # synthetic data, no account needed
 python -m pytest tests -q
 ```
 
@@ -22,7 +22,7 @@ Build each package on its own operating system:
 
 | Platform | Command | Output |
 |---|---|---|
-| Linux (Arch/pacman) x86_64 | `./scripts/build-native-arch-package.sh` | `dist/native/youtube-music-native-*.pkg.tar.zst` (published as `Tubify-<version>-linux-x86_64.pkg.tar.zst`) |
+| Linux x86_64 (pacman) | `./scripts/build-native-arch-package.sh` | `dist/native/youtube-music-native-*.pkg.tar.zst` (published as `Tubify-<version>-linux-x86_64.pkg.tar.zst`) |
 | macOS (Apple Silicon) | `./scripts/build-native-macos.sh` | `dist/native/Tubify-<version>-macos-arm64.dmg` |
 | Windows x64 | `./scripts/build-native-windows.ps1` | `dist/native/Tubify-<version>-windows-x64-setup.exe` |
 
