@@ -143,3 +143,31 @@ def test_source_selection_does_not_cancel_unfinished_manual_collection(tmp_path)
     browse.play({"kind": "song", "videoId": "newsource01", "title": "New source"})
     worker.succeeded.emit(1, {"items": [{"kind": "song", "videoId": "manualsong1"}]})
     assert played[0]["title"] == "New source" and queued[0][0]["videoId"] == "manualsong1"
+
+
+def test_failed_sidebar_playlists_retry_and_reload_on_reconnect(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    account.connectedChanged.emit()
+    playlist_request = next(index + 1 for index, (_, payload) in enumerate(worker.requests) if payload.get("route") == "library_playlists")
+    worker.failed.emit(playlist_request, {"code": "timeout", "message": "timed out"})
+    assert browse.playlist_retry.isActive() and not browse.shell.playlists
+    browse.playlist_retry.timeout.emit()
+    assert worker.requests[-1][1]["route"] == "library_playlists"
+    worker.failed.emit(len(worker.requests), {"code": "provider_error", "message": "stopped"})
+    # A renewal with the same identity must still load playlists that never arrived.
+    account.connectedChanged.emit()
+    assert worker.requests[-1][1]["route"] == "library_playlists"
+    worker.succeeded.emit(len(worker.requests), {"items": [{"id": "PLfixture", "title": "Playlist"}]})
+    assert browse.shell.playlists[0]["title"] == "Playlist" and not browse.playlist_retry.isActive()
+    requests = len(worker.requests)
+    account.connectedChanged.emit()
+    assert len(worker.requests) == requests
+
+
+def test_sidebar_snapshot_renders_before_the_account_restores(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    account.connectedChanged.emit()
+    playlist_request = next(index + 1 for index, (_, payload) in enumerate(worker.requests) if payload.get("route") == "library_playlists")
+    worker.succeeded.emit(playlist_request, {"items": [{"id": "PLfixture", "title": "Saved"}]})
+    app2, restarted, *_ = setup(tmp_path)
+    assert restarted.shell.playlists[0]["title"] == "Saved"

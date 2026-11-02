@@ -112,11 +112,12 @@ class Worker(QObject):
                 self._protocol_error()
                 return
 
-    def _fail_all(self, code, message):
+    def _fail_all(self, code, message, everything=True):
         self.timer.stop()
-        pending = ([self._active] if self._active else []) + list(self._queue)
+        pending = ([self._active] if self._active else []) + (list(self._queue) if everything else [])
         self._active = None
-        self._queue.clear()
+        if everything:
+            self._queue.clear()
         for request in pending:
             self.failed.emit(request["id"], {"code": code, "message": message})
 
@@ -135,7 +136,9 @@ class Worker(QObject):
             if self.process.state() == QProcess.ProcessState.NotRunning:
                 QTimer.singleShot(0, self._restart_if_stopped)
             return
-        self._abort("provider_error", "This request stopped. Retry the operation.")
+        # A worker that cannot start would otherwise restart forever for queued requests.
+        self._abort("provider_error", "This request stopped. Retry the operation.",
+                    everything=error == QProcess.ProcessError.FailedToStart)
 
     def _finished(self, exit_code, exit_status):
         self.timer.stop()
@@ -157,10 +160,12 @@ class Worker(QObject):
         # Windows delivers terminate() as WM_CLOSE, which a windowless worker ignores.
         self.process.kill() if force or os.name != "posix" else self.process.terminate()
 
-    def _abort(self, code, message):
+    def _abort(self, code, message, everything=False):
+        # Only the active request failed; queued requests (such as sidebar playlists
+        # behind a slow Home load) run on the restarted worker.
         self._hibernating = True
         running = self.process.state() != QProcess.ProcessState.NotRunning
-        self._fail_all(code, message)
+        self._fail_all(code, message, everything)
         if running:
             self._signal_process(force=True)
         else:
@@ -182,7 +187,7 @@ class Worker(QObject):
             self._signal_process(force=True)
 
     def reset(self):
-        self._abort("cancelled", "The account connection changed. Retry this request.")
+        self._abort("cancelled", "The account connection changed. Retry this request.", everything=True)
 
     def close(self):
         self._closed = True

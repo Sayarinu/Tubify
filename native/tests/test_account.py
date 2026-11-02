@@ -207,3 +207,32 @@ def test_unreadable_saved_session_is_replaced_from_the_browser_without_a_banner(
     assert worker.requests[-1] == ("import_browser", {"browsers": ["firefox"]}) and not account.reconnect
     worker.succeeded.emit(2, {"connected": True, "profile": {"name": "Listener"}, "browser": "firefox"})
     assert account.connected and not account.reconnect
+
+
+def test_timed_out_job_fails_alone_and_queued_work_continues():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = Worker()
+    loop = QEventLoop()
+    results = []
+
+    def failed(identifier, error):
+        results.append((identifier, error["code"]))
+        if len(results) == 2:
+            loop.quit()
+
+    worker.failed.connect(failed)
+    worker.request("unknown")
+    worker.request("unknown")
+
+    def expire_first():
+        if worker._active is None:
+            QTimer.singleShot(5, expire_first)
+        else:
+            worker._timeout()
+
+    expire_first()
+    QTimer.singleShot(15000, loop.quit)
+    loop.exec()
+    worker.close()
+    assert results[0] == (1, "timeout")
+    assert results[1][0] == 2 and results[1][1] != "timeout"

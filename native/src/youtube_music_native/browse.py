@@ -1,9 +1,15 @@
 """Connect native catalog views to navigation and playback, without network work."""
 
+import json
+from pathlib import Path
+
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .playlist_ops import apply_change
 from .queue_additions import QueueAdditions
+
+
+PLAYLIST_RETRY_MS = (2000, 5000, 15000, 30000, 60000)
 
 
 class Browse(QObject):
@@ -21,6 +27,13 @@ class Browse(QObject):
         self._metadata_track_id = ""
         self._mood_request, self._mood_title = None, ""
         self._playlist_request = None
+        self._playlists_identity, self._snapshot_identity = None, None
+        self._playlist_attempts = 0
+        self.playlist_retry = QTimer(self)
+        self.playlist_retry.setSingleShot(True)
+        self.playlist_retry.timeout.connect(self.refreshPlaylists)
+        settings = getattr(shell, "settings", None)
+        self.snapshot_path = Path(settings.fileName()).with_name("sidebar-playlists.json") if settings is not None and not fixture else None
         self._identity = None
         self._message = ""
         self._history, self._play_shuffle = [], False
@@ -46,6 +59,9 @@ class Browse(QObject):
             self.worker.failed.connect(self._failed)
         if fixture:
             QTimer.singleShot(0, lambda: self.navigate("Home"))
+        elif getattr(account, "profile", None):
+            # Show the last known sidebar instantly while the account restores.
+            self._show_snapshot((account.profile.get("name"), account.profile.get("handle")))
 
     @Property(str, notify=changed)
     def message(self):
@@ -126,17 +142,52 @@ class Browse(QObject):
             if self.worker and self._playlist_request is not None:
                 self.worker.cancelQueued(self._playlist_request)
             self._playlist_request = None
+            self.playlist_retry.stop()
+            self._playlists_identity = self._snapshot_identity = None
             if not self.view.data.get("downloadKey") and self.view.route != "downloads":
                 self.view.showLocal("home", {"items": [], "shelves": []})
             self.shell.setPlaylists([])
             return
+        if self._snapshot_identity != identity and self._playlists_identity != identity:
+            self._show_snapshot(identity)
         if self.account.connected and identity != self._identity:
             self._identity = identity
             self.navigate(self.shell.page)
+        # Playlists are tracked separately so a failed or interrupted load is retried
+        # on every reconnect or renewal, not only when the account changes.
+        if self.account.connected and identity != self._playlists_identity:
             self.refreshPlaylists()
 
+    def _snapshot_key(self, identity):
+        return "\n".join(str(value or "") for value in identity)
+
+    def _show_snapshot(self, identity):
+        self._snapshot_identity = identity
+        if not self.snapshot_path:
+            return
+        try:
+            stored = json.loads(self.snapshot_path.read_text(encoding="utf-8"))
+            if stored.get("account") == self._snapshot_key(identity) and isinstance(stored.get("items"), list):
+                self.shell.setPlaylists([item for item in stored["items"] if isinstance(item, dict) and item.get("id")])
+        except (OSError, ValueError, AttributeError):
+            pass
+
+    def _save_snapshot(self, identity, items):
+        if not self.snapshot_path:
+            return
+        try:
+            self.snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = self.snapshot_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps({"account": self._snapshot_key(identity), "items": items}, separators=(",", ":")), encoding="utf-8")
+            temporary.replace(self.snapshot_path)
+        except OSError:
+            pass
+
     def refreshPlaylists(self):
+        self.playlist_retry.stop()
         if self.worker and self.account.connected:
+            if self._playlist_request is not None:
+                self.worker.cancelQueued(self._playlist_request)
             self._playlist_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": "library_playlists", "params": {}, "page_size": 100000})
 
     def _action(self, action):
@@ -316,7 +367,12 @@ class Browse(QObject):
                 self._load("search", {"query": self._artist_name, "filter": "artists"})
         elif identifier == self._playlist_request:
             self._playlist_request = None
-            self.shell.setPlaylists([{**media, "owner": self.account.profile.get("name", "Your music")} for media in result.get("items", [])])
+            self._playlist_attempts = 0
+            identity = (self.account.profile.get("name"), self.account.profile.get("handle"))
+            self._playlists_identity = identity
+            playlists = [{**media, "owner": self.account.profile.get("name", "Your music")} for media in result.get("items", [])]
+            self.shell.setPlaylists(playlists)
+            self._save_snapshot(identity, playlists)
         elif identifier == self._play_request:
             self._play_request = None
             tracks = [track for track in result.get("items", []) if track.get("kind") == "song"]
@@ -338,6 +394,12 @@ class Browse(QObject):
             self.view.showLocal("moods", result)
 
     def _failed(self, identifier, error):
+        if identifier == self._playlist_request:
+            self._playlist_request = None
+            if self.account.connected and error.get("code") != "cancelled":
+                delay = PLAYLIST_RETRY_MS[min(self._playlist_attempts, len(PLAYLIST_RETRY_MS) - 1)]
+                self._playlist_attempts += 1
+                self.playlist_retry.start(delay)
         if identifier == self._metadata_request:
             self._metadata_request = None
         if identifier == self._artist_request:
