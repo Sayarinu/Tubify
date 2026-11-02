@@ -20,8 +20,8 @@ from . import updates
 from .jobs import Worker
 from .playback import write_state
 
-REPOSITORY = "https://github.com/Sayarinu/YouTube-Music-App"
-RELEASE_API = "https://api.github.com/repos/Sayarinu/YouTube-Music-App/releases"
+REPOSITORY = "https://github.com/Sayarinu/Tubify"
+RELEASE_API = "https://api.github.com/repos/Sayarinu/Tubify/releases"
 VERSION = re.compile(r"(?:native-v)?(\d+)\.(\d+)\.(\d+)$")
 CHECK_INTERVAL = 6 * 60 * 60
 NOTES_LIMIT = 1500

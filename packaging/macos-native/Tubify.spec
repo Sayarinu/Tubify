@@ -57,7 +57,7 @@ app = BUNDLE(
     info_plist={
         "CFBundleDisplayName": "Tubify",
         "SUPublicEDKey": (ROOT / "packaging/macos-native/sparkle-public-key.txt").read_text().strip(),
-        "SUFeedURL": "https://github.com/Sayarinu/YouTube-Music-App/releases/download/native-v" + VERSION + "/appcast.xml",
+        "SUFeedURL": "https://github.com/Sayarinu/Tubify/releases/download/native-v" + VERSION + "/appcast.xml",
         "SUEnableAutomaticChecks": False,
         "SUAutomaticallyUpdate": False,
         "SUAllowsAutomaticUpdates": False,

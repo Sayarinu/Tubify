@@ -22,6 +22,6 @@ class MacUpdater:
         self.controller = objc.lookUpClass('SPUStandardUpdaterController').alloc().initWithStartingUpdater_updaterDelegate_userDriverDelegate_(False, self.delegate, None)
 
     def install(self, tag):
-        self.delegate.feed = 'https://github.com/Sayarinu/YouTube-Music-App/releases/download/' + tag + '/appcast.xml'
+        self.delegate.feed = 'https://github.com/Sayarinu/Tubify/releases/download/' + tag + '/appcast.xml'
         self.controller.startUpdater()
         self.controller.checkForUpdates_(None)

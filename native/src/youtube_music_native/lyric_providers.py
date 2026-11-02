@@ -81,7 +81,7 @@ class Providers:
         if self.retry_after.get(host, 0) > time.monotonic():
             raise ProviderUnavailable("Temporarily rate limited; retry later.")
         import requests
-        headers = {"User-Agent": "YouTube-Music-Native/0.1.1 (https://github.com/Sayarinu/YouTube-Music-App)", "Accept": "text/xml" if raw else "application/json"}
+        headers = {"User-Agent": "Tubify (https://github.com/Sayarinu/Tubify)", "Accept": "text/xml" if raw else "application/json"}
         if key:
             headers["X-API-Key"] = key
         response = None

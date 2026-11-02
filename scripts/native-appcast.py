@@ -19,7 +19,7 @@ def appcast(version, archive, signature):
     ET.SubElement(item, '{'+ns+'}version').text = version
     ET.SubElement(item, '{'+ns+'}minimumSystemVersion').text = '12.0'
     ET.SubElement(item, 'enclosure', {
-        'url': 'https://github.com/Sayarinu/YouTube-Music-App/releases/download/native-v'+version+'/'+archive.name,
+        'url': 'https://github.com/Sayarinu/Tubify/releases/download/native-v'+version+'/'+archive.name,
         'length': str(archive.stat().st_size), 'type': 'application/octet-stream', '{'+ns+'}edSignature': signature})
     return ET.tostring(rss, encoding='utf-8', xml_declaration=True)
 

@@ -11,7 +11,7 @@ import sys
 import time
 from urllib.request import Request, urlopen
 
-BASE = 'https://github.com/Sayarinu/YouTube-Music-App/releases/download/'
+BASE = 'https://github.com/Sayarinu/Tubify/releases/download/'
 MAX_DOWNLOAD = 1024 * 1024 * 1024
 
 
@@ -67,7 +67,7 @@ def download(tag, directory, progress=None, opener=urlopen):
     """Re-fetch release metadata so an offline cache can never authorize execution."""
     if not re.fullmatch(r'native-v\d+\.\d+\.\d+', tag):
         raise ValueError('Invalid native release')
-    request = Request('https://api.github.com/repos/Sayarinu/YouTube-Music-App/releases/tags/' + tag,
+    request = Request('https://api.github.com/repos/Sayarinu/Tubify/releases/tags/' + tag,
                       headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'Tubify-updater'})
     with opener(request, timeout=15) as response:
         raw = response.read(2 * 1024 * 1024 + 1)
