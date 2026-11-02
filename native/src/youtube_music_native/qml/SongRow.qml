@@ -33,7 +33,7 @@ FocusScope {
     Keys.onReturnPressed: activateSong()
     function activateSong() { if (root.currentSong) playerState.togglePlayback(); else root.activated(root.media) }
     Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { root.menuRequested(root.media); event.accepted = true } }
-    Rectangle { anchors.fill: parent; radius: 4; color: !root.queueRow && hover.hovered ? "#1affffff" : "transparent"; border.color: root.activeFocus && !root.queueRow ? themeState.accent : "transparent"; border.width: 1 }
+    Rectangle { anchors.fill: parent; radius: 8; color: !root.queueRow && hover.hovered ? "#1affffff" : "#00ffffff"; border.color: root.activeFocus && !root.queueRow ? themeState.accent : "transparent"; border.width: 1; Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionFast } } }
     Cover {
         id: art
         objectName: root.queueRow ? "queueRowArtwork-" + (root.media.key || root.media.videoId || root.media.id || "") : ""

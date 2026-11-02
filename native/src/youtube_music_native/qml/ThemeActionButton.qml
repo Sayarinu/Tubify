@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "Theme.js" as Theme
 
 Button {
     id: root
@@ -35,5 +36,6 @@ Button {
             : root.down ? themeState.border : root.hovered ? themeState.hover : themeState.surface
         border.width: root.visualFocus ? 2 : root.primary ? 0 : 1
         border.color: root.visualFocus ? themeState.accent : themeState.border
+        Behavior on color { enabled: typeof appState === "undefined" || !appState.reducedMotion; ColorAnimation { duration: Theme.motionFast } }
     }
 }

@@ -67,7 +67,8 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
     }
-    BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running }
+    LoadingSkeleton { anchors.fill: parent; mode: "shelves"; visible: catalogState.busy && !(root.artist.shelves || []).length }
+    BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running && (root.artist.shelves || []).length > 0 }
     RetryBanner { message: catalogState.error; busy: catalogState.busy; onRetry: catalogState.refresh() }
     property int revision: -1
     function restoreScroll() {

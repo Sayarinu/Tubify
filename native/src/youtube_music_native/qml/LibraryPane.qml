@@ -91,7 +91,8 @@ Item {
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Retry"; visible: !!catalogState.error; onClicked: catalogState.refresh() }
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; primary: true; text: "Connect YouTube Music"; visible: !accountState.connected && !appState.fixtureMode; onClicked: appState.openAccount() }
     }
-    BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running }
+    LoadingSkeleton { anchors.fill: parent; anchors.topMargin: 158; gutter: root.gutter; mode: root.rows ? "rows" : "grid"; visible: catalogState.busy && !(root.result.items || []).length }
+    BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && (root.result.items || []).length > 0 }
     property int revision: -1
     function restoreScroll() {
         if (catalogState.busy || revision === catalogState.revision) return

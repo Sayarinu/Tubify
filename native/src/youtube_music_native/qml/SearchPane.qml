@@ -47,7 +47,8 @@ Item {
         Text { width: parent.width; text: catalogState.error || "No results. Try another song, artist, album or playlist."; textFormat: Text.PlainText; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 16 }
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Retry"; visible: !!catalogState.error; onClicked: catalogState.refresh() }
     }
-    BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running }
+    LoadingSkeleton { anchors.fill: parent; gutter: root.gutter; mode: "rows"; visible: catalogState.busy && !(root.result.items || []).length }
+    BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && (root.result.items || []).length > 0 }
     property int revision: -1
     function restoreScroll() {
         if (catalogState.busy || revision === catalogState.revision) return

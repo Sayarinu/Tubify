@@ -496,6 +496,19 @@ ApplicationWindow {
             height: appState.expanded ? window.browseHeight : parent.height
             visible: !appState.expanded
             enabled: visible
+            // Pages ease in on every navigation instead of swapping abruptly.
+            transform: Translate { id: pageShift }
+            function enter() {
+                if (appState.reducedMotion) { pageEnter.stop(); opacity = 1; pageShift.y = 0; return }
+                pageEnter.restart()
+            }
+            ParallelAnimation {
+                id: pageEnter
+                NumberAnimation { target: pages; property: "opacity"; from: 0; to: 1; duration: Theme.motionMedium; easing.type: Easing.OutCubic }
+                NumberAnimation { target: pageShift; property: "y"; from: 12; to: 0; duration: Theme.motionSlow; easing.type: Easing.OutCubic }
+            }
+            onLoaded: enter()
+            Connections { target: catalogState; function onNavigationStarted() { pages.enter() } }
             function syncPage() {
                 var route = catalogState.route
                 var target = route === "downloads" ? downloadsPage

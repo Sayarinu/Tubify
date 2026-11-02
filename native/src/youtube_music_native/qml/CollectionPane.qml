@@ -102,7 +102,8 @@ Item {
             ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Load More"; visible: root.album.cursor !== undefined && root.album.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
         }
     }
-    BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running && !(root.album.items || []).length }
+    LoadingSkeleton { anchors.fill: parent; anchors.topMargin: root.compact ? 280 : 380; gutter: root.margin; mode: "rows"; visible: catalogState.busy && !(root.album.items || []).length }
+    BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && (root.album.items || []).length > 0 }
     RetryBanner { message: catalogState.error; busy: catalogState.busy; onRetry: catalogState.refresh() }
     property int revision: -1
     function restoreScroll() {

@@ -35,7 +35,7 @@ FocusScope {
     implicitWidth: Theme.cardWidth
     implicitHeight: Theme.cardHeight
     HoverHandler { id: cardHover }
-    Rectangle { anchors.fill: parent; radius: 10; color: cardHover.hovered ? themeState.hover : themeState.surface; border.color: root.activeFocus ? themeState.accent : themeState.border; border.width: root.activeFocus ? 2 : 1 }
+    Rectangle { anchors.fill: parent; radius: 10; color: cardHover.hovered ? themeState.hover : themeState.surface; border.color: root.activeFocus ? themeState.accent : themeState.border; border.width: root.activeFocus ? 2 : 1; Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionFast } } }
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton

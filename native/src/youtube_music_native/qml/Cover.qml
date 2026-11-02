@@ -65,6 +65,9 @@ Rectangle {
             return preferred && preferred !== root.failedSource ? preferred : root.source
         }
         retainWhileLoading: true
+        // Artwork fades in over the accent placeholder rather than popping in.
+        opacity: root.ready ? 1 : 0
+        Behavior on opacity { enabled: !appState.reducedMotion; NumberAnimation { duration: Theme.motionMedium; easing.type: Easing.OutCubic } }
         onStatusChanged: {
             if (status === Image.Ready) hasImage = true
             if (status === Image.Error) root.failedSource = source.toString()
