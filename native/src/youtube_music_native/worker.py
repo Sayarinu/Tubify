@@ -8,7 +8,7 @@ import sys
 import time
 
 from .auth import AuthError, AuthService
-from .catalog import Catalog, CatalogError
+from .catalog import STABLE_ROUTES, Catalog, CatalogError
 from .credentials import CredentialError
 from .session import SessionError
 from .store import MetadataStore
@@ -110,10 +110,14 @@ def handle(service, request, resources=None, progress=None):
             result = perform(client, payload["action"], payload["id"], payload.get("value"), payload)
         if result.get("action") in {"playlist_rename", "playlist_remove", "playlist_move", "playlist_delete"}:
             resources.setdefault("playlist_changes", []).append({"saved": time.time(), "result": result})
+        if operation == "account_history":
+            # Recording a listen changes no cached view; wiping here made Home and the
+            # sidebar refetch (and reshuffle) after every song.
+            return {**result, "contextId": payload.get("contextId", "")}
         store = None
         try:
             store = MetadataStore(payload["cache_path"])
-            store.invalidate()
+            store.invalidate(STABLE_ROUTES)
         except sqlite3.Error:
             pass
         finally:

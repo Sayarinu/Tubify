@@ -33,9 +33,21 @@ class MetadataStore:
             self.db.execute("INSERT OR REPLACE INTO views VALUES (?, ?, ?)", (key, time.time(), body))
             self.db.execute("DELETE FROM views WHERE key IN (SELECT key FROM views ORDER BY saved DESC LIMIT -1 OFFSET 200)")
 
-    def invalidate(self):
+    def invalidate(self, keep_routes=()):
+        """Drop cached views, optionally keeping routes an account change cannot affect."""
         with self.db:
-            self.db.execute("DELETE FROM views")
+            if not keep_routes:
+                self.db.execute("DELETE FROM views")
+                return
+            stale = []
+            for key, in self.db.execute("SELECT key FROM views"):
+                try:
+                    route = json.loads(key)[1]
+                except (ValueError, TypeError, IndexError, KeyError):
+                    route = None
+                if route not in keep_routes:
+                    stale.append((key,))
+            self.db.executemany("DELETE FROM views WHERE key=?", stale)
 
     def close(self):
         self.db.close()

@@ -6,7 +6,7 @@ Item {
     id: root
     required property var section
     property var profile: ({})
-    property bool compact: section.layout === "rows" || ["quick picks", "top songs", "trending"].indexOf((section.title || "").toLowerCase()) >= 0
+    property bool compact: section.layout === "rows"
     signal activated(var item)
     signal playRequested(var item)
     signal moreRequested()

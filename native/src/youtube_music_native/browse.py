@@ -214,9 +214,11 @@ class Browse(QObject):
             return
         self._cancel_mood()
         if self.fixture:
-            sections = self.fixture.get("shelves", [])
+            from .catalog import arrange_home
+
+            sections = arrange_home([{"title": "", "items": [], **section} for section in self.fixture.get("shelves", [])])
             if page == "Explore":
-                sections = [{**section, "title": "New albums & singles" if index == 0 else "Top songs", "items": [{**media, "kind": "album" if index == 0 else "song"} for media in section.get("items", [])]} for index, section in enumerate(sections)]
+                sections = [{**section, "title": "New albums & singles" if index == 0 else "Top songs", "layout": "cards" if index == 0 else "rows", "items": [{**media, "kind": "album" if index == 0 else "song"} for media in section.get("items", [])]} for index, section in enumerate(sections)]
             self.view.showLocal(page.lower(), {"title": page, "shelves": sections, "items": [], "moods": [{"title": title, "params": title} for title in ("Chill", "Focus", "Workout", "Party")]})
         else:
             self.view.load(page.lower(), {})

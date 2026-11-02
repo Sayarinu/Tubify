@@ -107,6 +107,34 @@ def shelves(rows):
             for row in rows if isinstance(row, dict) and row.get("contents")]
 
 
+# Known shelves render first in a fixed order with a fixed layout, so Home looks the
+# same between visits even though YouTube Music reorders its personalized response.
+PINNED_SHELVES = ("quick picks", "listen again", "mixed for you", "forgotten favorites", "from your library", "new releases")
+SHELF_LAYOUTS = {"quick picks": "rows", "listen again": "cards", "mixed for you": "cards"}
+HOME_SHELVES = 30
+HOME_TTL = 6 * 60 * 60
+# Routes whose content does not depend on likes, playlist edits or listening history.
+STABLE_ROUTES = ("home", "explore", "charts", "moods", "mood")
+
+
+def shelf_layout(section):
+    known = SHELF_LAYOUTS.get(section["title"].strip().casefold())
+    if known:
+        return known
+    kinds = {media.get("kind") for media in section["items"]}
+    return "rows" if kinds == {"song"} else "cards"
+
+
+def arrange_home(sections):
+    def rank(indexed):
+        index, section = indexed
+        title = section["title"].strip().casefold()
+        return (PINNED_SHELVES.index(title), 0) if title in PINNED_SHELVES else (len(PINNED_SHELVES), index)
+
+    ordered = [section for _, section in sorted(enumerate(sections), key=rank)]
+    return [{**section, "layout": shelf_layout(section)} for section in ordered]
+
+
 class Catalog:
     PAGE_SIZE = 40
     TTL = 300
@@ -135,7 +163,7 @@ class Catalog:
         page_size = page_size or (100000 if route == "album" and params.get("allTracks") else 6 if route == "home" else self.PAGE_SIZE)
         list_key = "shelves" if route == "home" else "items"
         target = offset + page_size
-        fresh = cached and time.time() - cached["saved"] < self.TTL
+        fresh = cached and time.time() - cached["saved"] < (HOME_TTL if route == "home" else self.TTL)
         complete = cached and (cached["data"].get("complete") or len(cached["data"].get(list_key, [])) > target)
         stale, warning = False, ""
         if cached and fresh and complete and not refresh:
@@ -167,8 +195,11 @@ class Catalog:
         identifier = params.get("id", "")
         data = {"title": text(params.get("title")) or route.title(), "items": [], "shelves": [], "complete": True}
         if route == "home":
-            data["shelves"] = shelves(client.get_home(limit=limit))
-            data["complete"] = len(data["shelves"]) < limit
+            # Fetch every shelf once; "More Music" pages through this same response
+            # instead of splicing a newer, differently ordered one onto it.
+            limit = max(limit, HOME_SHELVES)
+            data["shelves"] = arrange_home(shelves(client.get_home(limit=limit)))
+            data["complete"] = True
             for section in data["shelves"]:
                 if section["title"].lower() == "listen again":
                     section["subtitle"] = self.auth.profile.get("name", "Your music").upper()
@@ -183,7 +214,8 @@ class Catalog:
             data["moods"] = raw.get("moods_and_genres", [])
         elif route == "charts":
             raw = client.get_charts(country=params.get("country", "ZZ"))
-            data["shelves"] = [{"title": name.title(), "subtitle": "", "items": items(value)} for name, value in raw.items() if isinstance(value, list)]
+            data["shelves"] = [{**section, "layout": shelf_layout(section)} for section in
+                               ({"title": name.title(), "subtitle": "", "items": items(value)} for name, value in raw.items() if isinstance(value, list))]
         elif route == "search":
             query = text(params.get("query")).strip()
             if not query:

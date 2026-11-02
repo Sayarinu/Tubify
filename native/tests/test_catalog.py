@@ -142,7 +142,34 @@ def test_home_pages_shelves_and_personalizes_listen_again(tmp_path):
     second = catalog.fetch("home", offset=first["cursor"])
     assert len(first["shelves"]) == 6 and len(second["shelves"]) == 4
     assert first["shelves"][0]["subtitle"] == "FIXTURE"
-    assert second["cursor"] is None and calls == [7, 13]
+    # One full fetch backs every page, so later pages never come from a reshuffled response.
+    assert second["cursor"] is None and calls == [30]
+
+
+def test_home_pins_known_shelves_and_chooses_layout_by_content(tmp_path):
+    from youtube_music_native.catalog import arrange_home
+
+    song = {"kind": "song", "title": "Song"}
+    album = {"kind": "album", "title": "Album"}
+    sections = arrange_home([
+        {"title": "Fall vibes", "items": [album]},
+        {"title": "Listen again", "items": [song, song]},
+        {"title": "Long listening", "items": [song]},
+        {"title": "Quick picks", "items": [song]},
+    ])
+    assert [section["title"] for section in sections] == ["Quick picks", "Listen again", "Fall vibes", "Long listening"]
+    assert [section["layout"] for section in sections] == ["rows", "cards", "cards", "rows"]
+
+
+def test_listening_history_keeps_cached_home_and_actions_keep_stable_routes(tmp_path):
+    from youtube_music_native.store import MetadataStore as Store
+
+    store = Store(tmp_path / "metadata.sqlite3")
+    store.write('["scope", "home", {}]', {"shelves": []})
+    store.write('["scope", "library_playlists", {}]', {"items": []})
+    store.invalidate(("home",))
+    assert store.read('["scope", "home", {}]') and not store.read('["scope", "library_playlists", {}]')
+    store.close()
 
 
 def test_artist_subscription_uses_its_channel_id_and_unavailable_release_is_actionable(tmp_path):
