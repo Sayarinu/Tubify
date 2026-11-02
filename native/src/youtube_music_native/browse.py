@@ -12,6 +12,19 @@ from .queue_additions import QueueAdditions
 PLAYLIST_RETRY_MS = (2000, 5000, 15000, 30000, 60000)
 
 
+def play_context(route, params, data):
+    """Where a queue came from, so autoplay can continue with a radio that fits it."""
+    if route == "playlist":
+        return {"kind": "playlist", "playlistId": params.get("id") or data.get("id", "")}
+    if route == "album":
+        return {"kind": "album", "playlistId": data.get("audioPlaylistId", "")}
+    if route == "artist":
+        return {"kind": "artist", "playlistId": data.get("radioId", "")}
+    if route == "radio":
+        return {"kind": "radio"}
+    return {}
+
+
 def without_position(item):
     """Drop the view-only sort position before a track enters the queue."""
     return {key: value for key, value in item.items() if key != "position"}
@@ -306,6 +319,7 @@ class Browse(QObject):
                 if tracks:
                     title = collection.get("title") or self._play_title
                     self.player.playShuffledTracks(tracks, source_label=title) if self._play_shuffle else self.player.playTracks(tracks, source_label=title)
+                    self._set_context(play_context(self._play_route, self._play_params, collection))
             else:
                 self._request_play_page()
 
@@ -388,6 +402,7 @@ class Browse(QObject):
             elif tracks:
                 title = result.get("title") or self._play_title
                 self.player.playShuffledTracks(tracks, source_label=title) if self._play_shuffle else self.player.playTracks(tracks, source_label=title)
+                self._set_context(play_context(self._play_route, self._play_params, result))
             if result.get("cursor") is not None:
                 self._request_play_page(result["cursor"])
         elif identifier == self._mood_request:
@@ -426,6 +441,13 @@ class Browse(QObject):
         songs = [without_position(value) for value in values if value.get("kind", "song") == "song"]
         if songs:
             self.player.playTracks(songs, source_label=source_label)
+            if self.view.route in {"artist", "album", "playlist"}:
+                self._set_context(play_context(self.view.route, self.view.parameters, self.view.data))
+
+    def _set_context(self, context):
+        set_context = getattr(self.player, "setContext", None)
+        if set_context:
+            set_context(context)
 
     @Slot()
     def playView(self):
@@ -512,6 +534,7 @@ class Browse(QObject):
     def playAt(self, index):
         self._cancel_play_pages()
         self.player.playTracks([without_position(item) for item in self.view.data.get("items", [])], index, source_label=self.view.data.get("title", ""))
+        self._set_context(play_context(self.view.route, self.view.parameters, self.view.data))
         cursor = self.view.data.get("cursor")
         if cursor is not None and self.view.route in {"album", "playlist"}:
             self._play_route, self._play_params = self.view.route, self.view.parameters

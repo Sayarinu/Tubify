@@ -70,6 +70,9 @@ class Playback(QObject):
         self._source_expires, self._last_progress = 0., time.monotonic()
         self._stall_recoveries, self._consecutive_failures = 0, 0
         self._local_counter = 0
+        # What the queue was started from, so autoplay can continue with a matching radio.
+        self._context, self._radio_prefetch, self._context_radio_failed = {}, False, False
+        self.autoplay_store = None
         self.stateSaveFailed.connect(self._save_failed)
         if fixture:
             self.queue.replace(fixture.get("shelves", [{}])[0].get("items", []))
@@ -78,8 +81,11 @@ class Playback(QObject):
         elif self.path.is_file():
             try:
                 if self.path.stat().st_size <= 32 * 1024 * 1024:
-                    self._position = self.queue.restore(json.loads(self.path.read_text()))
+                    saved = json.loads(self.path.read_text())
+                    self._position = self.queue.restore(saved)
                     self._duration = float(self.currentTrack.get("duration") or 0)
+                    if isinstance(saved.get("context"), dict):
+                        self._context = {key: str(value) for key, value in saved["context"].items() if key in {"kind", "playlistId"}}
             except (OSError, ValueError, TypeError):
                 pass
         if worker:
@@ -187,10 +193,21 @@ class Playback(QObject):
     def autoplay(self):
         return self._autoplay
 
+    def setContext(self, context):
+        """Describe where the queue came from (artist, playlist, album or radio)."""
+        self._context = {key: str(value) for key, value in (context or {}).items() if key in {"kind", "playlistId"} and value}
+        self._context_radio_failed = False
+
+    def setAutoplay(self, enabled):
+        if bool(enabled) != self._autoplay:
+            self._autoplay = bool(enabled)
+            self.changed.emit()
+
     @Slot("QVariantList", int)
     def playTracks(self, tracks, index=0, source_label=""):
         self._transport_revision += 1
         self._prepared = {}
+        self._context = {}
         self.queue.replace([dict(track) for track in tracks], index, source_label)
         self._failures, self._consecutive_failures = set(), 0
         self._start()
@@ -209,6 +226,7 @@ class Playback(QObject):
     def playShuffledTracks(self, tracks, source_label=""):
         self._transport_revision += 1
         self._prepared = {}
+        self._context = {}
         self.queue.replace([dict(track) for track in tracks], source_label=source_label)
         self.queue.shuffle_all()
         self._failures, self._consecutive_failures = set(), 0
@@ -222,7 +240,7 @@ class Playback(QObject):
             self._position = 0.
             self._duration = float(self.currentTrack.get("duration") or 0)
             self._want_paused, self._playing, self._stopped = True, False, False
-        if self._radio_request is not None and self.queue.manual:
+        if self._radio_request is not None and not self._radio_prefetch and self.queue.manual:
             entry, skipped = self._advance_entry()
             if entry:
                 self._start(paused=paused)
@@ -304,6 +322,7 @@ class Playback(QObject):
         if self.radio_worker and self._radio_request is not None:
             self.radio_worker.cancelQueued(self._radio_request)
         self._radio_request, self._prepare_request, self._preparing_video = None, None, None
+        self._radio_prefetch = False
         self._request = None
         self._busy, self._playing, self._loaded = False, False, False
         self._last_progress = time.monotonic()
@@ -545,6 +564,7 @@ class Playback(QObject):
         self._request, self._prepare_request, self._radio_request = None, None, None
         self._prepared, self._preparing_video, self._busy = {}, None, False
         self._playing, self._loaded = False, False
+        self._radio_prefetch = False
         self._device_wait = False
         if self.worker:
             self.worker.reset()
@@ -603,9 +623,12 @@ class Playback(QObject):
             self._start(paused=paused)
         elif skipped:
             self._stop_disliked()
-        elif self._autoplay and self.repeat == "off" and self.radio_worker and self.hasTrack:
+        elif self._continues_with_radio():
             self._busy, self._playing = True, False
-            self._radio_request = self.radio_worker.request("catalog", {"cache_path": self.cache_path, "route": "radio", "params": {"id": self.currentTrack.get("videoId", "")}, "refresh": True})
+            # A radio prefetched before the last song ended is still on its way; wait for it.
+            self._radio_prefetch = False
+            if self._radio_request is None:
+                self._request_radio()
             self.changed.emit()
         else:
             self._playing, self._stopped = False, True
@@ -620,17 +643,49 @@ class Playback(QObject):
         self._message = "No eligible songs remain. Skip disliked songs is enabled."
         self._queue_changed()
 
+    def _continues_with_radio(self):
+        return self._autoplay and self.repeat == "off" and self.radio_worker is not None and self.hasTrack
+
+    def _radio_params(self):
+        params = {"id": self.currentTrack.get("videoId", "")}
+        playlist = self._context.get("playlistId", "")
+        if playlist and not self._context_radio_failed and self._context.get("kind") != "radio":
+            playlist = playlist[2:] if playlist.startswith("VL") else playlist
+            # Artist mixes are already radios; playlists and albums get their own radio.
+            params["playlistId"] = playlist if playlist.startswith("RD") else "RDAMPL" + playlist
+        return params
+
+    def _request_radio(self):
+        self._radio_request = self.radio_worker.request("catalog", {"cache_path": self.cache_path, "route": "radio", "params": self._radio_params(), "refresh": True})
+
     def _radio_result(self, identifier, result):
         if identifier != self._radio_request:
             return
+        prefetch, self._radio_prefetch = self._radio_prefetch, False
         paused = not self.wantsPlayback
-        self._radio_request, self._busy = None, False
-        video_id = self.currentTrack.get("videoId")
-        tracks = [track for track in result.get("items", []) if track.get("videoId") != video_id and track.get("available", True) and not (self._skip_disliked and track.get("rating") == "DISLIKE")]
+        self._radio_request = None
+        if not prefetch:
+            self._busy = False
+        heard = {entry["track"].get("videoId") for entry in self.queue.all_entries}
+        tracks, seen = [], set()
+        for track in result.get("items", []):
+            video_id = track.get("videoId")
+            if (video_id in heard or video_id in seen or not track.get("available", True)
+                    or self._skip_disliked and track.get("rating") == "DISLIKE"):
+                continue
+            seen.add(video_id)
+            tracks.append(track)
         if tracks:
             self.queue.append_context(tracks)
             self.queue.source_label = "Autoplay"
-            self._advance(paused=paused)
+            self._context = {"kind": "radio"}
+            if prefetch:
+                # Queued ahead of time; the current song keeps playing and hands off gaplessly.
+                self._queue_changed()
+            else:
+                self._advance(paused=paused)
+        elif prefetch:
+            return
         else:
             self._playing, self._stopped = False, True
             if self._skip_disliked and result.get("items"):
@@ -638,10 +693,21 @@ class Playback(QObject):
             self.changed.emit()
 
     def _radio_failed(self, identifier, error):
-        if identifier == self._radio_request:
-            self._radio_request, self._busy = None, False
-            self._message = "Autoplay is unavailable. Choose a song from your queue or downloads."
-            self.changed.emit()
+        if identifier != self._radio_request:
+            return
+        prefetch, self._radio_prefetch = self._radio_prefetch, False
+        self._radio_request = None
+        if self._context.get("playlistId") and not self._context_radio_failed:
+            # Fall back to a radio seeded by the current song.
+            self._context_radio_failed = True
+            if not prefetch:
+                self._request_radio()
+            return
+        if prefetch:
+            return
+        self._busy = False
+        self._message = "Autoplay is unavailable. Choose a song from your queue or downloads."
+        self.changed.emit()
 
     @Slot()
     def previous(self):
@@ -739,7 +805,9 @@ class Playback(QObject):
     @Slot()
     def toggleAutoplay(self):
         self._autoplay = not self._autoplay
-        self.changed.emit()
+        if self.autoplay_store:
+            self.autoplay_store(self._autoplay)
+        self._queue_changed()
 
     @Slot(str)
     def setRepeat(self, value):
@@ -761,6 +829,10 @@ class Playback(QObject):
 
     def _prepare_next(self):
         upcoming = self.queue.peek(automatic=True)
+        if upcoming is None and self._loaded and self._radio_request is None and self._continues_with_radio():
+            # Fetch the continuation radio while the last song plays, not after it ends.
+            self._radio_prefetch = True
+            self._request_radio()
         track = upcoming["track"] if upcoming else {}
         video_id = track.get("videoId", "") if track.get("available", True) and not (self._skip_disliked and track.get("rating") == "DISLIKE") else ""
         if self._prepare_request is not None and video_id != self._preparing_video:
@@ -779,7 +851,7 @@ class Playback(QObject):
 
     def save(self):
         if not self._fixture and not self._closed:
-            future = self._saver.submit(write_state, self.path, json.dumps(self.queue.snapshot(self._position), separators=(",", ":")))
+            future = self._saver.submit(write_state, self.path, json.dumps({**self.queue.snapshot(self._position), "context": self._context}, separators=(",", ":")))
             future.add_done_callback(lambda completed: self.stateSaveFailed.emit() if completed.exception() else None)
 
     def resetSession(self):

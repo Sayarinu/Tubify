@@ -555,3 +555,58 @@ def test_expired_prepared_source_is_resolved_again(tmp_path):
     player.next()
     assert worker.requests[-1][0] == "resolve" and worker.requests[-1][1]["videoId"] == TRACKS[1]["videoId"]
     player.close()
+
+
+def test_last_song_prefetches_context_radio_and_hands_off_without_repeats(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    import time
+
+    worker, radio = FakeWorker(), FakeWorker()
+    player = Playback(tmp_path, worker, radio, audio_factory=FakeAudio)
+    player.playTracks(TRACKS, 1, source_label="Road trip")
+    player.setContext({"kind": "playlist", "playlistId": "VLPLroad"})
+    worker.succeeded.emit(1, {"kind": "remote", "source": "https://media.invalid/next", "videoId": TRACKS[1]["videoId"], "expires": time.time() + 3600})
+    # The radio is requested while the final song is still playing.
+    assert radio.requests[-1][1]["params"] == {"id": TRACKS[1]["videoId"], "playlistId": "RDAMPLPLroad"}
+    assert player.playing
+    radio.succeeded.emit(1, {"items": [dict(TRACKS[0]), dict(TRACKS[1]), {"videoId": "wxyzabcdefg", "title": "Fresh"}, {"videoId": "wxyzabcdefg", "title": "Fresh"}]})
+    assert player.playing and player.currentTrack["title"] == "Next"
+    assert [entry["title"] for entry in player.entries if not entry["current"]] == ["Fresh"]
+    player.audio.ended.emit(False)
+    assert player.currentTrack["title"] == "Fresh"
+    player.close()
+
+
+def test_failed_context_radio_falls_back_to_song_radio_and_autoplay_persists(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    from youtube_music_native.playback_options import PlaybackOptions
+
+    worker, radio = FakeWorker(), FakeWorker()
+    player = Playback(tmp_path, worker, radio, audio_factory=FakeAudio)
+    options = PlaybackOptions(tmp_path / "settings.ini", player)
+    player.playTracks(TRACKS[:1])
+    player.setContext({"kind": "album", "playlistId": "OLAKalbum"})
+    worker.succeeded.emit(1, {"kind": "remote", "source": "https://media.invalid/first"})
+    radio.failed.emit(1, {"message": "unavailable"})
+    player.audio.ended.emit(False)
+    assert radio.requests[-1][1]["params"] == {"id": TRACKS[0]["videoId"]}
+    radio.succeeded.emit(len(radio.requests), {"items": [{"videoId": "wxyzabcdefg", "title": "Fresh"}]})
+    assert player.currentTrack["title"] == "Fresh"
+    player.toggleAutoplay()
+    restored = Playback(tmp_path / "other", worker, radio, audio_factory=FakeAudio)
+    PlaybackOptions(tmp_path / "settings.ini", restored)
+    assert not restored.autoplay
+    player.close()
+    restored.close()
+
+
+def test_enqueue_during_radio_prefetch_keeps_current_song(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker, radio = FakeWorker(), FakeWorker()
+    player = Playback(tmp_path, worker, radio, audio_factory=FakeAudio)
+    player.playTracks(TRACKS[:1])
+    worker.succeeded.emit(1, {"kind": "remote", "source": "https://media.invalid/first"})
+    assert radio.requests
+    player.enqueue([TRACKS[1]])
+    assert player.currentTrack["title"] == "First" and player.playing
+    player.close()

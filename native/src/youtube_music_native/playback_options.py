@@ -22,9 +22,15 @@ class PlaybackOptions(QObject):
         self.timer = QTimer(self)
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.tick)
+        player.setAutoplay(self.settings.value("autoplay", True, type=bool))
+        player.autoplay_store = self._store_autoplay
         player.setNonlinearVolume(self._nonlinear)
         player.setSkipDisliked(self._skip)
         player.setSpeakerFill(self._fill)
+
+    def _store_autoplay(self, value):
+        self.settings.setValue("autoplay", bool(value))
+        self.settings.sync()
 
     @Property(bool, notify=changed)
     def nonlinearVolume(self):
