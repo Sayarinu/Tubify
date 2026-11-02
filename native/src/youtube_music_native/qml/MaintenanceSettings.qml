@@ -34,6 +34,13 @@ SettingsPage {
                 ThemeActionButton { text: "Release Details"; visible: !!maintenanceState.releaseUrl; onClicked: Qt.openUrlExternally(maintenanceState.releaseUrl) }
             }
             Label { Layout.fillWidth: true; text: maintenanceState.updateGuidance; color: themeState.secondary; wrapMode: Text.Wrap }
+            Label { text: "About"; color: themeState.foreground; font.bold: true }
+            Label { Layout.fillWidth: true; text: "Tubify is open source under the MIT License. It is not affiliated with Google or YouTube."; color: themeState.secondary; wrapMode: Text.Wrap }
+            Flow {
+                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8
+                ThemeActionButton { objectName: "licensesButton"; text: "Open-Source Licenses"; onClicked: Qt.openUrlExternally(maintenanceState.noticesUrl) }
+                ThemeActionButton { text: "Project Page"; onClicked: Qt.openUrlExternally("https://github.com/Sayarinu/Tubify") }
+            }
             Label { text: "Rendering Issues"; color: themeState.foreground; font.bold: true }
             Label { Layout.fillWidth: true; text: "For blank artwork or drawing glitches, close the app and start it with:\nyoutube-music-native --software-rendering\n\nThis applies to that launch only. Start normally to return to automatic graphics. Software rendering may use more CPU."; color: themeState.foreground; wrapMode: Text.Wrap }
             Label { text: "Local Diagnostics"; color: themeState.foreground; font.bold: true }

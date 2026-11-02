@@ -190,3 +190,11 @@ def test_release_lookup_carries_bounded_plain_notes_and_restart_rechecks(tmp_pat
     service._worker.succeeded.emit(1, {'tag': 'native-v99.0.0', 'notes': 'Header indicator'})
     assert service.updateAvailable and service.latestVersion == '99.0.0' and service.releaseNotes == 'Header indicator'
     service.close()
+
+
+def test_third_party_notices_ship_with_the_package():
+    notices = Path(maintenance.__file__).resolve().parent / 'assets' / 'THIRD_PARTY_NOTICES.md'
+    text = notices.read_text(encoding='utf-8')
+    for component in ('PySide6', 'mpv', 'FFmpeg', 'yt-dlp', 'ytmusicapi', 'Sparkle', 'Roboto', 'Lucide', 'mutagen'):
+        assert component in text
+    assert 'not affiliated' in text

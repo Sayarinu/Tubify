@@ -167,6 +167,11 @@ class Maintenance(QObject):
         self.timer.setInterval(3600000)
         self.timer.timeout.connect(self._check_due)
 
+    @Property(QUrl, constant=True)
+    def noticesUrl(self):
+        """Third-party license notices shipped inside every package."""
+        return QUrl.fromLocalFile(str(Path(__file__).resolve().parent / "assets" / "THIRD_PARTY_NOTICES.md"))
+
     @Property(str, constant=True)
     def currentVersion(self):
         return installed_version()
