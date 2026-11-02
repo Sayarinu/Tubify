@@ -155,6 +155,7 @@ class Browse(QObject):
         identity = (self.account.profile.get("name"), self.account.profile.get("handle"))
         if not self.account.profile:
             self._identity = None
+            self.view.clearMemory()
             self._cancel_play_pages()
             self._cancel_mood()
             if self.worker and self._playlist_request is not None:
@@ -169,6 +170,8 @@ class Browse(QObject):
         if self._snapshot_identity != identity and self._playlists_identity != identity:
             self._show_snapshot(identity)
         if self.account.connected and identity != self._identity:
+            if self._identity is not None:
+                self.view.clearMemory()
             self._identity = identity
             self.navigate(self.shell.page)
         # Playlists are tracked separately so a failed or interrupted load is retried
@@ -226,7 +229,7 @@ class Browse(QObject):
         if page == "Downloads":
             self.view.showLocal("downloads", {})
             if self.downloads:
-                self.downloads.refresh()
+                self.downloads.refreshIfStale()
             return
         if page not in {"Home", "Explore"}:
             return

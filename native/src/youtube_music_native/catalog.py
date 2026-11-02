@@ -93,7 +93,7 @@ def item(row, kind=None):
         "thumbnail": thumbnail(row.get("thumbnails") or row.get("thumbnail")),
         "largeThumbnail": thumbnail(row.get("thumbnails") or row.get("thumbnail"), largest=True),
         "artworkVariants": variants(row.get("thumbnails") or row.get("thumbnail")),
-        "duration": duration(row.get("duration_seconds") or row.get("duration")),
+        "duration": duration(row.get("duration_seconds") or row.get("duration") or row.get("length")),
         "views": text(row.get("views")).removesuffix(" plays"), "year": text(row.get("year")),
         "inLibrary": bool(row.get("inLibrary")),
         "libraryTokens": {k: text(v) for k, v in (row.get("feedbackTokens") or {}).items() if k in {"add", "remove"}},

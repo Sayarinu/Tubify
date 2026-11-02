@@ -33,6 +33,8 @@ class DownloadView(QObject):
         self._bytes, self._free, self._message = 0, 0, ""
         self._minimum_request, self._status_pending = 0, False
         self._allow_network, self._resetting, self._closed = False, False, False
+        # Collections shown from memory until something may have changed them.
+        self._stale = True
         if fixture:
             tracks = json.loads((Path(__file__).parent / "assets" / "visual-fixture.json").read_text())["shelves"][0]["items"]
             for index, (kind, title, state) in enumerate((("playlist", "Evening focus", "complete"), ("album", "Somewhere quiet", "downloading"), ("playlist", "Long way home", "damaged"), ("song", "A familiar tune", "cancelled"))):
@@ -83,17 +85,23 @@ class DownloadView(QObject):
     @Slot("QVariantMap", int)
     @Slot("QVariantMap", int, bool)
     def ensureArtwork(self, media, pixels, retry=False):
-        from .artwork_sources import media_variants
+        from .artwork_sources import choose, media_variants, quality, with_resized
         video_id = media.get("videoId") or media.get("id", "")
         if self.fixture or self._closed or not video_id or not self._initialized:
             return
         pixels = max(1, min(4096, pixels))
+        downloaded = video_id in self._artwork or video_id in self._track_states
+        if not downloaded and quality(choose(with_resized(media_variants(media), pixels), pixels)) >= pixels:
+            # artworkSource already gives QML this exact resizable URL; the worker would
+            # only start a process to return the same answer.
+            return
         signature = (pixels, self._allow_network, json.dumps(media_variants(media), sort_keys=True), self._artwork.get(video_id, ""))
         if self._artwork_attempts.get(video_id) == signature:
             if not retry or time.monotonic() - self._artwork_times.get(video_id, 0) < 30:
                 return
         if not self.artwork_worker:
-            self.artwork_worker = Worker(self, idle_ms=1000)
+            # Kept for a minute so consecutive songs do not each pay a process start.
+            self.artwork_worker = Worker(self, idle_ms=60000)
             self.artwork_worker.succeeded.connect(self._artwork_ready)
             self.artwork_worker.failed.connect(self._artwork_failed)
         for request, (key, _) in list(self._artwork_requests.items()):
@@ -120,6 +128,7 @@ class DownloadView(QObject):
                 self._large_artwork.pop(next(iter(self._large_artwork)))
             self.changed.emit()
         if result.get("upgraded"):
+            self._stale = True
             self.refresh()
 
     def _artwork_failed(self, request, error):
@@ -149,6 +158,7 @@ class DownloadView(QObject):
     @Slot(bool)
     def setAccountAvailable(self, available):
         self._allow_network = available
+        self._stale = True
         self.changed.emit()
         self._pump()
 
@@ -191,6 +201,11 @@ class DownloadView(QObject):
     def refresh(self):
         if not self._status_pending:
             self._send("status")
+
+    @Slot()
+    def refreshIfStale(self):
+        if self._stale:
+            self.refresh()
 
     @Slot(str)
     def open(self, identifier):
@@ -278,6 +293,7 @@ class DownloadView(QObject):
         if identifier < self._minimum_request or operation is None:
             return
         self._message = "Preparing download…" if self._planning else ""
+        self._stale = False
         self._collections = result.get("collections", [])
         self._track_states = result.get("trackStates", {})
         self._track_progress = result.get("trackProgress", {})
@@ -336,6 +352,7 @@ class DownloadView(QObject):
             self.collectionFound.emit(identifier, {})
         if operation == "status":
             self._status_pending = False
+            self._stale = True
         if not self._resetting:
             self._message = error.get("message", "This download operation failed. Retry.")
             self.changed.emit()
@@ -343,7 +360,7 @@ class DownloadView(QObject):
     def resetSession(self):
         if not self.control:
             return
-        self._resetting = True
+        self._resetting, self._stale = True, True
         if self.artwork_worker:
             self.artwork_worker.reset()
         self._artwork_requests.clear()

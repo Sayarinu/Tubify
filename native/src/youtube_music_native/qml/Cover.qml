@@ -9,6 +9,14 @@ Rectangle {
     property string mediaKey: ""
     property var media: ({})
     property bool largeArtwork: false
+    // Songs likely to be shown next; their large artwork is fetched at this cover's size.
+    property var prefetchMedia: []
+    // The small, usually already cached cover shows at once under a large one still loading.
+    readonly property string previewSource: {
+        if (!largeArtwork) return ""
+        var local = mediaKey && downloadsState.initialized ? downloadsState.artwork[mediaKey] : ""
+        return local || (media && media.thumbnail) || ""
+    }
     readonly property int physicalSize: Math.ceil(Math.max(width, height) * Screen.devicePixelRatio * appState.uiScaleFactor)
     onPhysicalSizeChanged: requestUpgrade(true)
     onMediaChanged: { failedSource = ""; requestUpgrade(true) }
@@ -49,6 +57,18 @@ Rectangle {
         GradientStop { position: 1; color: Qt.darker(root.accent, 2.4) }
     }
     Image {
+        id: preview
+        objectName: "coverPreview"
+        anchors.fill: parent
+        visible: root.largeArtwork && !softwareMask.active && status === Image.Ready && artwork.opacity < 1
+        source: root.previewSource
+        asynchronous: true
+        fillMode: Image.PreserveAspectCrop
+        onStatusChanged: if (softwareMask.active) paintAfterLoad.restart()
+        layer.enabled: visible && root.radius > 0 && GraphicsInfo.api !== GraphicsInfo.Software
+        layer.effect: MultiEffect { maskEnabled: true; maskSource: roundedMask; autoPaddingEnabled: false }
+    }
+    Image {
         id: artwork
         objectName: "coverArtwork"
         property bool hasImage: false
@@ -65,9 +85,9 @@ Rectangle {
             return preferred && preferred !== root.failedSource ? preferred : root.source
         }
         retainWhileLoading: true
-        // Artwork fades in over the accent placeholder rather than popping in.
+        // Artwork fades in over the preview or accent placeholder rather than popping in.
         opacity: root.ready ? 1 : 0
-        Behavior on opacity { enabled: !appState.reducedMotion; NumberAnimation { duration: Theme.motionMedium; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: Theme.duration(Theme.motionMedium, appState.reducedMotion); easing.type: Easing.OutCubic } }
         onStatusChanged: {
             if (status === Image.Ready) hasImage = true
             if (status === Image.Error) root.failedSource = source.toString()
@@ -98,7 +118,8 @@ Rectangle {
         onImageLoaded: if (visible) requestPaint()
         anchors.fill: parent
         readonly property bool active: root.radius > 0 && GraphicsInfo.api === GraphicsInfo.Software
-        visible: active && root.ready
+        readonly property bool previewing: root.largeArtwork && preview.status === Image.Ready
+        visible: active && (root.ready || previewing)
         antialiasing: true
         renderTarget: Canvas.Image
         readonly property real pixelRatio: Screen.devicePixelRatio * appState.uiScaleFactor
@@ -117,7 +138,16 @@ Rectangle {
                 ctx.clearRect(0, 0, canvasSize.width, canvasSize.height)
                 clearForMedia = false
             }
-            if (artwork.status !== Image.Ready) return
+            if (artwork.status !== Image.Ready) {
+                if (!previewing) return
+                ctx.reset()
+                ctx.scale(pixelRatio, pixelRatio)
+                ctx.beginPath()
+                ctx.roundedRect(0, 0, width, height, root.radius, root.radius)
+                ctx.clip()
+                ctx.drawImage(preview, (width - preview.paintedWidth) / 2, (height - preview.paintedHeight) / 2, preview.paintedWidth, preview.paintedHeight)
+                return
+            }
             var image = artwork
             if (root.largeArtwork) {
                 // A large Image item's cached render can be blank after Loader recreation.
@@ -151,6 +181,19 @@ Rectangle {
         width: Math.min(root.width * 0.4, 54)
         height: width
         color: "#66ffffff"
-        visible: artwork.status !== Image.Ready
+        visible: artwork.status !== Image.Ready && preview.status !== Image.Ready
+    }
+    Repeater {
+        model: root.largeArtwork && root.visible && downloadsState.initialized ? root.prefetchMedia : []
+        delegate: Image {
+            required property var modelData
+            visible: false
+            asynchronous: true
+            source: {
+                var key = modelData.videoId || modelData.id || ""
+                return key && !downloadsState.artwork[key] ? downloadsState.artworkSource(modelData, root.physicalSize) : ""
+            }
+            sourceSize: artwork.sourceSize
+        }
     }
 }

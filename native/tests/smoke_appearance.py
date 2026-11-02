@@ -7,7 +7,7 @@ import traceback
 
 from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
 from PySide6.QtGui import QColor, QGuiApplication, QImage
-from PySide6.QtTest import QTest
+from PySide6.QtTest import QSignalSpy, QTest
 
 from youtube_music_native import app
 from youtube_music_native.shell import ShellController
@@ -29,6 +29,19 @@ def main():
             assert item, name
             return item
 
+        def settle(condition):
+            for _ in range(100):
+                if condition():
+                    return
+                QTest.qWait(10)
+            assert condition()
+
+        def open_rendered(popup):
+            # Popup pages are laid out while the next frame is prepared, so measure them only after a frame has been rendered.
+            frames = QSignalSpy(window.frameSwapped)
+            QMetaObject.invokeMethod(popup, "open")
+            settle(lambda: popup.property("opened") and frames.count() > 0)
+
         def shot(name):
             if options.output_dir:
                 options.output_dir.mkdir(parents=True, exist_ok=True)
@@ -40,6 +53,10 @@ def main():
                 settings = find("appearanceSettingsDialog")
                 initial = (player.position, player.playing, player.currentTrack)
                 dpr = window.devicePixelRatio()
+                # The layout matrix toggles the expanded player 36 times; slides would push it past the 25 s watchdog
+                # (which hides the window), so it runs without motion and the slide is checked separately below.
+                motion = shell.reducedMotion
+                shell.setReducedMotion(True)
                 for scale in (80, 100, 150):
                     shell.setUiScale(scale)
                     factor = scale / 100
@@ -62,8 +79,9 @@ def main():
                             if lyrics.isVisible():
                                 assert lyrics.width() >= 280
                             shell.setExpanded(True)
-                            QTest.qWait(25)
                             stage = find("expandedPlayer")
+                            # Wait until the expanded player fills the content area.
+                            settle(lambda: abs(stage.mapToScene(QPointF()).y() - content.mapToScene(QPointF()).y()) < 0.5)
                             cover = find("immersiveArtwork")
                             assert stage.isVisible() and bar.isVisible()
                             assert not find("navigationRail").isVisible()
@@ -72,7 +90,8 @@ def main():
                             assert cover_bounds.top() >= 0 and cover_bounds.bottom() <= bounds.top() + 1, (scale, size, cover_bounds)
                             assert shell.queueOpen == queue_open and shell.lyricsOpen == lyrics_open
                             shell.setExpanded(False)
-                            QTest.qWait(25)
+                            # Wait until the closed player has unloaded.
+                            settle(lambda: not window.findChild(QObject, "expandedPlayer"))
                             search, settings_button = find("searchField"), find("settingsButton")
                             assert search.x() + search.width() <= settings_button.x() + 0.1
                             for name in ("queueToggle", "lyricsToggle", "playerTransport"):
@@ -92,8 +111,7 @@ def main():
                         assert menu_bounds.left() >= -1 and menu_bounds.right() <= size[0] + 1
                         assert menu_bounds.top() >= -1 and menu_bounds.bottom() <= size[1] + 1
                         QMetaObject.invokeMethod(menu, "close")
-                        QMetaObject.invokeMethod(settings, "open")
-                        QTest.qWait(35)
+                        open_rendered(settings)
                         panel = menu.property("contentItem")
                         bounds = panel.mapRectToScene(panel.boundingRect())
                         assert bounds.left() >= 0 and bounds.right() <= size[0] + 1, (scale, size, bounds)
@@ -102,12 +120,12 @@ def main():
                         assert abs(bounds.center().y() - size[1] / 2) < 1, (scale, size, bounds)
                         shot(f"settings-{scale}-{size[0]}")
                         QMetaObject.invokeMethod(settings, "close")
+                shell.setReducedMotion(motion)
                 shell.setUiScale(150)
                 window.resize(920, 620)
                 for name in ("colorPickerDialog", "shortcutHelpDialog", "accountDialog", "lyricsSettingsDialog", "playbackSettings"):
                     popup = find(name)
-                    QMetaObject.invokeMethod(popup, "open")
-                    QTest.qWait(35)
+                    open_rendered(popup)
                     panel = popup.property("contentItem")
                     rectangle = panel.mapRectToScene(panel.boundingRect())
                     assert rectangle.top() >= 0 and rectangle.bottom() <= 620, (name, rectangle)
@@ -155,6 +173,31 @@ def main():
                 QTest.qWait(50)
                 assert not drawer.property("opened")
                 assert window.activeFocusItem() == toggle
+                # The expanded player slides up, reverses cleanly mid-close and unloads after sliding down.
+                def stage_offset():
+                    stage = window.findChild(QObject, "expandedPlayer")
+                    return stage and stage.mapToScene(QPointF()).y() - content.mapToScene(QPointF()).y()
+                shell.setExpanded(True)
+                QTest.qWait(30)
+                assert stage_offset() > 1
+                settle(lambda: abs(stage_offset()) < 0.5)
+                stage = find("expandedPlayer")
+                expanded_area = stage.mapRectToScene(stage.boundingRect())
+                shell.setExpanded(False)
+                QTest.qWait(120)
+                closing = find("expandedPlayer")
+                assert not closing.isEnabled() and find("browseLoader").isVisible()
+                # The closing pane keeps its expanded geometry while the sidebar and header return beneath it.
+                closing_area = closing.mapRectToScene(closing.boundingRect())
+                assert find("mainHeader").isVisible()
+                assert (closing_area.x(), closing_area.width(), closing_area.height()) == (expanded_area.x(), expanded_area.width(), expanded_area.height())
+                assert closing_area.y() > expanded_area.y()
+                shell.setExpanded(True)
+                assert find("expandedPlayer") == closing
+                settle(lambda: abs(stage_offset()) < 0.5)
+                assert closing.isEnabled() and window.findChild(QObject, "expandedPlayer") == closing
+                shell.setExpanded(False)
+                settle(lambda: not window.findChild(QObject, "expandedPlayer"))
                 title = find("playerTitleText")
                 title.setProperty("text", "A long synthetic title that must stay still when reduced motion is enabled")
                 shell.setReducedMotion(True)
@@ -162,6 +205,11 @@ def main():
                 assert title.x() == 0
                 QTest.qWait(1100)
                 assert title.x() == 0
+                # Reduced motion opens and closes the expanded player without a slide.
+                shell.setExpanded(True)
+                assert stage_offset() == 0
+                shell.setExpanded(False)
+                assert not find("immersiveLoader").property("active")
                 for preset in theme.darkThemes + theme.lightThemes:
                     theme.selectTheme(preset["id"])
                     for scale in (80, 100, 150):

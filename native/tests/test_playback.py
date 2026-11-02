@@ -1,3 +1,5 @@
+import json
+
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
 from youtube_music_native.playback import Playback
@@ -610,3 +612,208 @@ def test_enqueue_during_radio_prefetch_keeps_current_song(tmp_path):
     player.enqueue([TRACKS[1]])
     assert player.currentTrack["title"] == "First" and player.playing
     player.close()
+
+
+def test_restored_label_duration_places_seek_bar_at_saved_position(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    entry = {"key": "one", "track": {"videoId": "abcdefghijk", "title": "Label", "duration": "3:41"}}
+    (tmp_path / "playback.json").write_text(json.dumps({"version": 2, "entries": [entry], "source": ["one"], "source_index": 0, "manual": [], "history": [], "history_sources": [], "current": "one", "position": 110.5}))
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    try:
+        assert player.duration == 221 and player.position == 110.5 and player.progress == 0.5
+        app.processEvents()
+        # Preloading the restored song keeps the bar where playback stopped.
+        assert worker.requests and player.position == 110.5 and player.progress == 0.5
+        worker.succeeded.emit(len(worker.requests), {"kind": "local", "source": "/fixture/label.wav"})
+        assert player.audio.loads[-1][1:] == (110.5, True) and player.progress == 0.5
+    finally:
+        player.close()
+
+
+def test_stream_duration_fills_missing_track_length_for_the_next_restore(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks([{"videoId": "abcdefghijk", "title": "Radio", "duration": 0}])
+    worker.succeeded.emit(1, {"kind": "local", "source": "/fixture/radio.wav"})
+    player.audio.updated.emit({"duration": 0})
+    player.audio.updated.emit({"duration": 200.4})
+    player.audio.updated.emit({"time-pos": 50.})
+    assert player.duration == 200.4 and player.progress == 50. / 200.4
+    player.close()
+    restored = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    try:
+        assert restored.duration == 200 and restored.position == 50. and restored.progress == 0.25
+    finally:
+        restored.close()
+
+
+def remote(video_id, expires=4102444800):
+    return {"kind": "remote", "source": "https://media.invalid/" + video_id, "videoId": video_id, "expires": expires, "headers": []}
+
+
+QUEUE = [{"videoId": f"track{index:06d}", "title": f"Song {index}", "duration": 100} for index in range(6)]
+
+
+def test_prefetch_worker_resolves_next_songs_one_at_a_time(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker, prefetch = FakeWorker(), FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio, prefetch_worker=prefetch)
+    player.playTracks(QUEUE)
+    assert [payload["videoId"] for _, payload in worker.requests] == [QUEUE[0]["videoId"]]
+    assert not prefetch.requests  # Nothing competes with the song still starting.
+    worker.succeeded.emit(1, remote(QUEUE[0]["videoId"]))
+    assert player.playing and len(worker.requests) == 1
+    for index in (1, 2, 3):
+        assert len(prefetch.requests) == index and prefetch.requests[-1][1]["videoId"] == QUEUE[index]["videoId"]
+        prefetch.succeeded.emit(index, remote(QUEUE[index]["videoId"]))
+    assert len(prefetch.requests) == 3  # Three songs ahead, then it stops.
+    player.next()
+    app.processEvents()
+    assert player.audio.loads[-1][0]["videoId"] == QUEUE[1]["videoId"] and len(worker.requests) == 1
+    assert prefetch.requests[-1][1]["videoId"] == QUEUE[4]["videoId"]
+    # A failed prefetch is skipped rather than retried in a loop.
+    prefetch.failed.emit(4, {"message": "offline"})
+    player._queue_changed()
+    assert len(prefetch.requests) == 4
+    player.next()
+    app.processEvents()
+    assert prefetch.requests[-1][1]["videoId"] == QUEUE[5]["videoId"] and len(prefetch.requests) == 5
+    player.close()
+
+
+def test_cached_sources_survive_new_queues_until_the_account_changes(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker, prefetch = FakeWorker(), FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio, prefetch_worker=prefetch)
+    player.playTracks(QUEUE[:2])
+    worker.succeeded.emit(1, remote(QUEUE[0]["videoId"]))
+    prefetch.succeeded.emit(1, remote(QUEUE[1]["videoId"]))
+    player.playTracks([QUEUE[1], QUEUE[0]])
+    app.processEvents()
+    assert len(worker.requests) == 1 and player.audio.loads[-1][0]["videoId"] == QUEUE[1]["videoId"]
+    player.playShuffledTracks([QUEUE[0]])
+    app.processEvents()
+    assert len(worker.requests) == 1 and player.audio.loads[-1][0]["videoId"] == QUEUE[0]["videoId"]
+    player.stop()
+    player.playTracks([QUEUE[1]])
+    app.processEvents()
+    assert len(worker.requests) == 1 and player.playing
+    player.resetSession()
+    assert not player._prepared and prefetch.resets == 1
+    player.playTracks([QUEUE[1]])
+    assert len(worker.requests) == 2 and worker.requests[-1][1]["videoId"] == QUEUE[1]["videoId"]
+    player.close()
+
+
+def test_cache_drops_expired_sources_and_keeps_at_most_fifty(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    import time
+
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player._remember_source(remote("expiring000", time.time() + 30))
+    assert not player._prepared
+    for index in range(60):
+        player._remember_source(remote(f"cached{index:05d}"))
+    assert len(player._prepared) == 50 and "cached00000" not in player._prepared and "cached00059" in player._prepared
+    player.close()
+
+
+def test_click_during_prefetch_neither_kills_nor_waits_for_it(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker, prefetch = FakeWorker(), FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio, prefetch_worker=prefetch)
+    player.playTracks(QUEUE)
+    worker.succeeded.emit(1, remote(QUEUE[0]["videoId"]))
+    assert prefetch.requests[-1][1]["videoId"] == QUEUE[1]["videoId"]
+    other = {"videoId": "otherclick1", "title": "Clicked", "duration": 90}
+    player.play(other)
+    # The click goes straight to the dedicated worker; the prefetch keeps running.
+    assert worker.requests[-1][1]["videoId"] == "otherclick1" and not prefetch.cancelled and not worker.cancelled
+    prefetch.succeeded.emit(1, remote(QUEUE[1]["videoId"]))
+    assert not player.playing and QUEUE[1]["videoId"] in player._prepared
+    worker.succeeded.emit(2, remote("otherclick1"))
+    assert player.playing and player.audio.loads[-1][0]["videoId"] == "otherclick1"
+    player.close()
+
+
+def test_prefetch_for_the_clicked_song_starts_it_before_the_click_resolve(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker, prefetch = FakeWorker(), FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio, prefetch_worker=prefetch)
+    player.playTracks(QUEUE)
+    worker.succeeded.emit(1, remote(QUEUE[0]["videoId"]))
+    player.next()
+    assert worker.requests[-1][1]["videoId"] == QUEUE[1]["videoId"]
+    prefetch.succeeded.emit(1, remote(QUEUE[1]["videoId"]))
+    assert player.playing and player.audio.loads[-1][0]["videoId"] == QUEUE[1]["videoId"]
+    loads = len(player.audio.loads)
+    worker.succeeded.emit(2, remote(QUEUE[1]["videoId"]))  # The late duplicate is only cached.
+    assert len(player.audio.loads) == loads
+    player.close()
+
+
+def test_rapid_clicks_let_a_recent_resolve_finish_but_restart_a_stuck_one(tmp_path, monkeypatch):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    from youtube_music_native import playback
+
+    now = [100.]
+    monkeypatch.setattr(playback.time, "monotonic", lambda: now[0])
+    worker, prefetch = FakeWorker(), FakeWorker()
+    queued = []
+    worker.cancelQueued = queued.append
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio, prefetch_worker=prefetch)
+    player.play(QUEUE[0])
+    player.play(QUEUE[1])
+    assert queued == [1] and not worker.cancelled
+    now[0] += 10
+    player.play(QUEUE[2])
+    assert worker.cancelled == [2]
+    worker.succeeded.emit(1, remote(QUEUE[0]["videoId"]))  # A superseded answer is cached, not played.
+    assert not player.playing and QUEUE[0]["videoId"] in player._prepared
+    player.close()
+
+
+def test_warm_resolves_hovered_songs_but_skips_cached_downloaded_and_bursts(tmp_path, monkeypatch):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    from youtube_music_native import playback
+
+    now = [100.]
+    monkeypatch.setattr(playback.time, "monotonic", lambda: now[0])
+    worker, prefetch = FakeWorker(), FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio, prefetch_worker=prefetch)
+    assert player.warm(QUEUE[0])
+    assert prefetch.requests[-1][1]["videoId"] == QUEUE[0]["videoId"] and not worker.requests
+    assert not player.warm(QUEUE[0])  # Already resolving.
+    prefetch.succeeded.emit(1, remote(QUEUE[0]["videoId"]))
+    assert not player.warm(QUEUE[0])  # Already cached.
+    assert not player.warm({**QUEUE[1], "downloadState": "ready"})
+    assert not player.warm({"videoId": "albumbrowse", "kind": "album"})
+    assert not player.warm({"videoId": "short"})
+    for index in (1, 2, 3):
+        assert player.warm(QUEUE[index])
+    assert not player.warm(QUEUE[4])  # Rate limited.
+    now[0] += 11
+    assert player.warm(QUEUE[4])
+    # One prefetch at a time; the latest hovered song is next once it answers.
+    assert len(prefetch.requests) == 2 and prefetch.requests[-1][1]["videoId"] == QUEUE[1]["videoId"]
+    prefetch.succeeded.emit(2, remote(QUEUE[1]["videoId"]))
+    assert prefetch.requests[-1][1]["videoId"] == QUEUE[4]["videoId"]
+    player.play(QUEUE[0])
+    app.processEvents()
+    assert not worker.requests and player.playing
+    player.close()
+
+
+def test_upcoming_lists_manual_then_source_and_wraps_on_repeat():
+    from youtube_music_native.queue import Queue
+
+    queue = Queue()
+    queue.replace(QUEUE[:3], 1)
+    queue.append([QUEUE[5]])
+    assert [entry["track"]["videoId"] for entry in queue.upcoming(3)] == [QUEUE[5]["videoId"], QUEUE[2]["videoId"]]
+    queue.repeat = "all"
+    assert [entry["track"]["videoId"] for entry in queue.upcoming(3)] == [QUEUE[5]["videoId"], QUEUE[2]["videoId"], QUEUE[0]["videoId"]]
+    queue.repeat = "one"
+    assert [entry["track"]["videoId"] for entry in queue.upcoming(3)] == [QUEUE[1]["videoId"]]

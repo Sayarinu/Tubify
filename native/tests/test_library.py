@@ -87,3 +87,19 @@ def test_refresh_retains_loaded_range_and_scroll_and_new_navigation_cancels_pend
     worker.succeeded.emit(3, {"items": [], "cursor": None})
     assert view.route == "library_songs" and not actions.busy
     assert all(operation != "account_action" for operation, _ in worker.requests)
+
+
+def test_successful_mutation_marks_remembered_sections_dirty(tmp_path):
+    app, shell, worker, view, actions, library, updated = setup(tmp_path)
+    library.select("Songs")
+    worker.succeeded.emit(len(worker.requests), {"items": [{"videoId": "abcdefghijk", "rating": "INDIFFERENT"}], "cursor": None})
+    library.select("Albums")
+    worker.succeeded.emit(len(worker.requests), {"items": [], "cursor": None})
+    library.rate({"videoId": "abcdefghijk", "rating": "INDIFFERENT"}, "LIKE")
+    worker.succeeded.emit(len(worker.requests), {"action": "song_rating", "id": "abcdefghijk", "value": "LIKE"})
+    before = len(worker.requests)
+    library.select("Songs")
+    assert len(worker.requests) == before + 1 and view.revalidating
+    operation, payload = worker.requests[-1]
+    assert operation == "catalog" and payload["route"] == "library_songs" and payload["refresh"]
+    assert view.data["items"][0]["videoId"] == "abcdefghijk"

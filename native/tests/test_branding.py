@@ -35,13 +35,6 @@ def test_tubify_display_name_preserves_package_desktop_and_credential_ids():
     assert (SERVICE, USERNAME) == ("com.carter.youtube-music.native", "session")
 
 
-def test_tubify_userscript_preserves_existing_ids():
-    userscript = (NATIVE / "integrations/browser-handoff.user.js").read_text()
-    assert "// @name         YouTube Music Native handoff" in userscript
-    assert "// @namespace    com.carter.youtube-music.native" in userscript
-    assert "Open in Tubify" in userscript and "ytmusic-native://" in userscript
-
-
 def test_mpris_display_branding_keeps_desktop_and_bus_identifiers():
     pytest.importorskip("jeepney")
     from youtube_music_native.linux_media import ROOT, PATH, ROOT_VALUES

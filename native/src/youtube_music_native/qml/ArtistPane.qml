@@ -65,9 +65,9 @@ Item {
             }
             Component { id: cardSection; Shelf { width: sections.width; section: parent.section; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item); onMoreRequested: browseState.openSection(section); onPlayAllRequested: browseState.playItems(section.items) } }
         }
+        footer: LoadingSkeleton { width: sections.width; view: sections; mode: "shelves"; shelfSpacing: sections.spacing }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
     }
-    LoadingSkeleton { anchors.fill: parent; mode: "shelves"; visible: catalogState.busy && !(root.artist.shelves || []).length }
     BusyIndicator { anchors.centerIn: parent; running: catalogState.busy; visible: running && (root.artist.shelves || []).length > 0 }
     RetryBanner { message: catalogState.error; busy: catalogState.busy; onRetry: catalogState.refresh() }
     property int revision: -1

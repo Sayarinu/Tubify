@@ -16,6 +16,11 @@ from PySide6.QtTest import QTest
 from youtube_music_native import app
 
 
+def immersive_offset(window):
+    stage, content = window.findChild(QObject, "expandedPlayer"), window.findChild(QObject, "pageContent")
+    return stage and abs(stage.mapToScene(QPointF()).y() - content.mapToScene(QPointF()).y()) > 0.5
+
+
 def visual_items(item):
     yield item
     for child in item.childItems():
@@ -333,6 +338,15 @@ def main():
                     assert marker.y() + marker.height() / 2 == background.height() / 2
                     if button.property("selected"):
                         assert background.property("color").name().upper() == theme_state.selected
+                rail = window.findChild(QObject, "navigationRail")
+                if rail.isVisible():
+                    # Sidebar controls share the navigation inset and stay clear of the border.
+                    left = rail.mapToScene(QPointF()).x()
+                    for name in ("newPlaylistButton", "sidebarPlaylists"):
+                        control = window.findChild(QObject, name)
+                        assert control.mapToScene(QPointF()).x() - left == 8 and control.width() == rail.width() - 16, name
+                    divider = window.findChild(QObject, "navigationDivider")
+                    assert divider.x() == rail.width() - divider.x() - divider.width()
                 image = window.grabWindow()
                 assert not image.isNull()
                 scale = image.width() / window.width()
@@ -552,6 +566,10 @@ def main():
                         for name, action in scenarios:
                             action()
                             QTest.qWait(80)
+                            # Let the expanded player finish sliding up or down before taking the snapshot.
+                            deadline = time.monotonic() + 2
+                            while time.monotonic() < deadline and (window.property("immersiveClosing") or immersive_offset(window)):
+                                QTest.qWait(10)
                             image = check()
                             if name in {"album", "playlist"}:
                                 collection = window.findChild(QObject, "collectionPane")

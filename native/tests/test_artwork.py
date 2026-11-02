@@ -42,7 +42,16 @@ def test_google_artwork_is_resized_without_lookups():
 
     values = [{"url": "https://lh3.googleusercontent.com/abc123=w544-h544-l90-rj", "width": 544, "height": 544}]
     chosen = choose(with_resized(values, 1200), 1200)
-    assert chosen == {"url": "https://lh3.googleusercontent.com/abc123=w1200-h1200-l90-rj", "width": 1200, "height": 1200}
+    assert chosen == {"url": "https://lh3.googleusercontent.com/abc123=w1440-h1440-l90-rj", "width": 1440, "height": 1440}
     assert with_resized(values, 300) == values
     video = [{"url": "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg", "width": 480, "height": 360}]
     assert with_resized(video, 1200) == video
+
+
+def test_artwork_sizes_snap_to_shared_buckets():
+    from youtube_music_native.artwork_sources import bucket, resized
+
+    assert [bucket(value) for value in (1, 256, 257, 544, 545, 900, 1081, 1500, 4096)] == [256, 256, 544, 544, 1080, 1080, 1440, 2048, 2048]
+    values = [{"url": "https://lh3.googleusercontent.com/abc123=w120-h120"}]
+    # Different windows and scales request the same URL, so the disk cache answers.
+    assert resized(values, 601) == resized(values, 1000) == [{"url": "https://lh3.googleusercontent.com/abc123=w1080-h1080-l90-rj", "width": 1080, "height": 1080}]

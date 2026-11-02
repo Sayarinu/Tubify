@@ -8,6 +8,14 @@ from urllib.parse import urlsplit
 # never needs the album/song lookups the worker would otherwise make.
 RESIZABLE = re.compile(r"^(https://(?:lh\d+\.googleusercontent\.com|yt\d+\.(?:ggpht|googleusercontent)\.com)/[^=?#\s]+)=[a-zA-Z0-9_-]*$")
 MAX_RESIZED = 2048
+# Requests snap to a few sizes so the same URL repeats across windows, scales and
+# songs and is served from the disk cache instead of downloaded again.
+SIZE_BUCKETS = (256, 544, 1080, 1440, MAX_RESIZED)
+
+
+def bucket(pixels):
+    pixels = max(1, min(MAX_RESIZED, int(pixels)))
+    return next(size for size in SIZE_BUCKETS if size >= pixels)
 
 
 def variants(value):
@@ -50,7 +58,7 @@ def media_variants(media):
 
 def resized(values, pixels):
     """Return a square variant of a resizable Google image at the requested size."""
-    pixels = max(1, min(MAX_RESIZED, int(pixels)))
+    pixels = bucket(pixels)
     for value in sorted(variants(values), key=quality, reverse=True):
         match = RESIZABLE.match(value["url"])
         if match and (not value.get("width") or not value.get("height") or abs(value["width"] - value["height"]) <= 2):

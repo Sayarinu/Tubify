@@ -133,12 +133,14 @@ def handle(service, request, resources=None, progress=None):
             return Catalog(service, store, changes).fetch(payload["route"], payload.get("params"), payload.get("offset", 0), bool(payload.get("refresh")), payload.get("page_size"))
         finally:
             store.close()
-    if operation == "resolve":
+    if operation in {"resolve", "warmup"}:
         resources = resources if resources is not None else {}
         root = str(Path(payload["data_dir"]).resolve())
         if root not in resources:
             resources[root] = Sources(service, MediaFiles(Path(root) / "media"))
         sources = resources[root]
+        if operation == "warmup":
+            return sources.warm()
         if payload.get("damaged"):
             sources.media.mark_damaged(payload["videoId"])
         return sources.resolve(payload["videoId"], force=bool(payload.get("force")), prepared=payload.get("prepared"), available=payload.get("available", True), video=bool(payload.get("video")))

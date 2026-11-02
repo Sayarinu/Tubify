@@ -121,6 +121,64 @@ def test_cancelling_an_active_job_preserves_later_queued_work():
     assert results == [second, 3] and not failures
 
 
+def scripted_worker(**options):
+    worker = Worker(**options)
+    worker.process.setProgram(sys.executable)
+    worker.process.setArguments(["-u", "-c", "import json,sys\nfor line in sys.stdin:\n r=json.loads(line)\n print(json.dumps({'id':r['id'],'ok':True,'result':{'operation':r['operation']}}),flush=True)"])
+    return worker
+
+
+def test_warm_worker_sends_its_warmup_first_without_reporting_it():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = scripted_worker(warmup=("warmup", {"data_dir": "fixture"}))
+    loop = QEventLoop()
+    results, starts = [], []
+    worker.process.started.connect(lambda: starts.append(True))
+
+    def succeeded(identifier, result):
+        results.append(result["operation"])
+        if len(results) == 1:
+            # A cancelled active request restarts the process, which warms up again.
+            worker.cancel(worker.request("slow"))
+            QTimer.singleShot(300, lambda: worker.request("resolve"))
+        else:
+            loop.quit()
+
+    worker.succeeded.connect(succeeded)
+    worker.prestart()
+    QTimer.singleShot(200, lambda: worker.request("resolve"))
+    QTimer.singleShot(10000, loop.quit)
+    loop.exec()
+    worker.close()
+    assert results == ["resolve", "resolve"] and len(starts) == 2
+
+
+def test_cold_request_on_a_warm_worker_answers_under_its_own_identifier():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = scripted_worker(warmup=("warmup", {}))
+    loop = QEventLoop()
+    results = []
+    worker.succeeded.connect(lambda identifier, result: (results.append((identifier, result["operation"])), loop.quit()))
+    identifier = worker.request("resolve")
+    QTimer.singleShot(10000, loop.quit)
+    loop.exec()
+    worker.close()
+    assert results == [(identifier, "resolve")]
+
+
+def test_idle_warm_worker_stays_stopped_until_needed():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = scripted_worker(idle_ms=5, warmup=("warmup", {}))
+    loop = QEventLoop()
+    starts = []
+    worker.process.started.connect(lambda: starts.append(True))
+    worker.prestart()
+    QTimer.singleShot(1500, loop.quit)
+    loop.exec()
+    assert len(starts) == 1 and worker.process.state() == worker.process.ProcessState.NotRunning
+    worker.close()
+
+
 
 def browser_account(tmp_path, clock, default="firefox"):
     app = QCoreApplication.instance() or QCoreApplication([])

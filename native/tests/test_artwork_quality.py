@@ -123,6 +123,8 @@ def test_artwork_view_ignores_stale_and_lower_quality_results(tmp_path, monkeypa
     monkeypatch.setattr(download_view, "Worker", lambda *args, **kwargs: worker)
     view = download_view.DownloadView(tmp_path, fixture=True)
     view.fixture = False
+    # Downloaded songs still go through the worker, which may upgrade the local file.
+    view._track_states[VIDEO] = "ready"
     media = {"videoId": VIDEO, "artworkVariants": VARIANTS}
     view.ensureArtwork(media, 300)
     view.ensureArtwork(media, 600)
@@ -154,5 +156,25 @@ def test_artwork_failure_retries_only_on_explicit_reopen_after_cooldown(tmp_path
     view.ensureArtwork(media, 600)
     assert len(worker.requests) == 1  # Download progress does not trigger retries.
     view.ensureArtwork(media, 600, True)
+    assert len(worker.requests) == 2
+    view.close()
+
+
+def test_streamed_song_with_resizable_artwork_needs_no_worker(tmp_path, monkeypatch):
+    from youtube_music_native import download_view
+    from test_playback import FakeWorker
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    monkeypatch.setattr(download_view, "Worker", lambda *args, **kwargs: worker)
+    view = download_view.DownloadView(tmp_path, fixture=True)
+    view.fixture = False
+    resizable = {"videoId": VIDEO, "thumbnail": "https://lh3.googleusercontent.com/fixture=w120-h120-l90-rj"}
+    view.ensureArtwork(resizable, 900)
+    assert not worker.requests and view.artworkSource(resizable, 900).endswith("=w1080-h1080-l90-rj")
+    # Small fixed-size art may be improved by album lookups, and downloads by a local upgrade.
+    view.ensureArtwork({"videoId": VIDEO, "thumbnail": "https://i.ytimg.com/vi/abcdefghijk/default.jpg"}, 900)
+    assert len(worker.requests) == 1
+    view._artwork["lmnopqrstuv"] = ""
+    view.ensureArtwork({**resizable, "videoId": "lmnopqrstuv"}, 900)
     assert len(worker.requests) == 2
     view.close()

@@ -1,9 +1,12 @@
 """Native playback, queue persistence and source selection exposed to QML."""
 
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import json
+import math
 import os
 from pathlib import Path
+import re
 import tempfile
 import time
 
@@ -29,10 +32,35 @@ def write_state(path, content):
             temporary.unlink()
 
 
+def track_duration(track):
+    """Seconds from a track's duration, which may be a number or a "3:41" label."""
+    value = track.get("duration") if isinstance(track, dict) else None
+    try:
+        if isinstance(value, str) and ":" in value:
+            seconds = 0.
+            for part in value.split(":"):
+                seconds = seconds * 60 + float(part)
+        else:
+            seconds = float(value or 0)
+    except (ValueError, TypeError):
+        return 0.
+    return seconds if math.isfinite(seconds) and seconds > 0 else 0.
+
+
 STALL_SECONDS = 25
 MAX_STALL_RECOVERIES = 2
 MAX_CONSECUTIVE_FAILURES = 3
 EXPIRY_MARGIN = 30
+# Signed sources stay in memory only, keyed by videoId, until shortly before they expire.
+PREPARED_LIMIT = 50
+SOURCE_MARGIN = 60
+PREFETCH_AHEAD = 3
+# An unanswered click older than this is presumed stuck and its worker is restarted.
+STALE_REQUEST_SECONDS = 4
+PREFETCH_RETRY_SECONDS = 120
+# Hover and focus pre-resolution is limited to a few songs per window.
+WARM_LIMIT, WARM_WINDOW = 4, 10.
+VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
 
 
 class Playback(QObject):
@@ -44,11 +72,13 @@ class Playback(QObject):
     stateSaveFailed = Signal()
     seeked = Signal(float)
 
-    def __init__(self, data_dir, worker, radio_worker=None, cache_path=None, fixture=None, audio_factory=Audio, parent=None):
+    def __init__(self, data_dir, worker, radio_worker=None, cache_path=None, fixture=None, audio_factory=Audio, parent=None, prefetch_worker=None):
         super().__init__(parent)
         self.data_dir = Path(data_dir)
         self.path = self.data_dir / "playback.json"
         self.worker, self.radio_worker, self.cache_path = worker, radio_worker, str(cache_path or self.data_dir / "metadata.sqlite3")
+        # Prefetches use their own worker when given one, so a click never waits behind them.
+        self.prefetch_worker = prefetch_worker or worker
         self.queue = Queue()
         self.audio_factory, self.audio = audio_factory, None
         self._fixture = fixture is not None
@@ -56,9 +86,11 @@ class Playback(QObject):
         self._playing, self._loaded, self._busy = False, False, False
         self._message, self._source_kind = "", ""
         self._request, self._radio_request = None, None
+        self._request_worker, self._request_started, self._request_force = None, 0., False
         self._prepare_request = None
         self._preparing_video = None
-        self._prepared = {}
+        self._prepared, self._local_ids, self._prefetch_failures = {}, {}, {}
+        self._warm_target, self._warm_times = "", deque()
         self._retry, self._failures = False, set()
         self._start_position, self._want_paused = 0., False
         self._autoplay = True
@@ -81,21 +113,28 @@ class Playback(QObject):
         self.stateSaveFailed.connect(self._save_failed)
         if fixture:
             self.queue.replace(fixture.get("shelves", [{}])[0].get("items", []))
-            self._duration = float(self.currentTrack.get("duration", 120))
+            self._duration = track_duration(self.currentTrack) or 120.
             self._position, self._playing = self._duration * 0.6, True
         elif self.path.is_file():
             try:
                 if self.path.stat().st_size <= 32 * 1024 * 1024:
                     saved = json.loads(self.path.read_text())
-                    self._position = self.queue.restore(saved)
-                    self._duration = float(self.currentTrack.get("duration") or 0)
+                    self._position = max(0., self.queue.restore(saved))
                     if isinstance(saved.get("context"), dict):
                         self._context = {key: str(value) for key, value in saved["context"].items() if key in {"kind", "playlistId"}}
             except (OSError, ValueError, TypeError):
                 pass
+            # A bad duration must not discard the restored queue or leave the seek bar at the start.
+            self._duration = track_duration(self.currentTrack)
+            if self._duration:
+                self._position = min(self._position, self._duration)
+            self.positionChanged.emit()
         if worker:
             worker.succeeded.connect(self._resolved)
             worker.failed.connect(self._failed)
+        if prefetch_worker is not None and prefetch_worker is not worker:
+            prefetch_worker.succeeded.connect(lambda identifier, source: self._resolved(identifier, source, prefetch_worker))
+            prefetch_worker.failed.connect(lambda identifier, error: self._failed(identifier, error, prefetch_worker))
         if radio_worker:
             radio_worker.succeeded.connect(self._radio_result)
             radio_worker.failed.connect(self._radio_failed)
@@ -122,6 +161,10 @@ class Playback(QObject):
     def upcomingTrack(self):
         upcoming = self.queue.peek(automatic=True)
         return upcoming["track"] if upcoming else {}
+
+    @Property("QVariantList", notify=changed)
+    def upcomingTracks(self):
+        return [entry["track"] for entry in self.queue.upcoming(2)]
 
     @Property(str, notify=changed)
     def nextGroup(self):
@@ -258,7 +301,6 @@ class Playback(QObject):
     @Slot("QVariantList", int)
     def playTracks(self, tracks, index=0, source_label=""):
         self._transport_revision += 1
-        self._prepared = {}
         self._context = {}
         self.queue.replace([dict(track) for track in tracks], index, source_label)
         self._failures, self._consecutive_failures = set(), 0
@@ -277,7 +319,6 @@ class Playback(QObject):
     @Slot("QVariantList")
     def playShuffledTracks(self, tracks, source_label=""):
         self._transport_revision += 1
-        self._prepared = {}
         self._context = {}
         self.queue.replace([dict(track) for track in tracks], source_label=source_label)
         self.queue.shuffle_all()
@@ -290,7 +331,7 @@ class Playback(QObject):
         self.queue.append([dict(track) for track in tracks], next=next)
         if not had_track and self.hasTrack:
             self._position = 0.
-            self._duration = float(self.currentTrack.get("duration") or 0)
+            self._duration = track_duration(self.currentTrack)
             self._want_paused, self._playing, self._stopped = True, False, False
         if self._radio_request is not None and not self._radio_prefetch and self.queue.manual:
             entry, skipped = self._advance_entry()
@@ -363,26 +404,28 @@ class Playback(QObject):
         video = self.hasTrack and self._wants_video()
         adopt = None
         if self.worker:
-            if self._request is not None and self._request > 0:
-                self.worker.cancel(self._request)
-            if self._prepare_request is not None:
+            self._drop_request(force)
+            if self._prepare_request is not None and self.prefetch_worker is self.worker:
                 if self._preparing_video == video_id and not force and not video:
                     # The prefetch is already resolving this song; killing it would only
                     # force a cold worker start for the same answer.
                     adopt = self._prepare_request
                 else:
                     self.worker.cancel(self._prepare_request)
+                self._prepare_request, self._preparing_video = None, None
+            # A separate prefetch worker keeps going: its answer is cached, and if it is
+            # for this song it may start playback before the click's own resolve does.
         if self.radio_worker and self._radio_request is not None:
             self.radio_worker.cancelQueued(self._radio_request)
-        self._radio_request, self._prepare_request, self._preparing_video = None, None, None
+        self._radio_request = None
         self._radio_prefetch = False
-        self._request = None
+        self._request, self._request_worker = None, None
         self._busy, self._playing, self._loaded = False, False, False
         self._source_video, self._request_video = False, video
         self._last_progress = time.monotonic()
         if not force:
             self._stall_recoveries = 0
-        self._position, self._duration = float(position), float(self.currentTrack.get("duration") or 0)
+        self._position, self._duration = float(position), track_duration(self.currentTrack)
         self._source_kind, self._message = "", ""
         self._start_position, self._want_paused = float(position), paused
         if self.audio:
@@ -400,7 +443,9 @@ class Playback(QObject):
         elif self.worker:
             self._busy = True
             # Video requests leave the prefetched audio source for switching back.
-            prepared = None if video else self._prepared.pop(video_id, None)
+            prepared = None if video else self._prepared.get(video_id)
+            self._request_worker, self._request_force = self.worker, bool(force or damaged)
+            self._request_started = time.monotonic()
             if adopt is not None:
                 self._request = adopt
             elif not force and not damaged and not video and self._usable(prepared, video_id):
@@ -412,26 +457,70 @@ class Playback(QObject):
                 self._request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "force": force, "damaged": damaged, "prepared": prepared, "available": self.currentTrack.get("available", True), "video": video})
         self._queue_changed()
 
+    def _drop_request(self, force):
+        """Stop waiting for the previous click without restarting a healthy worker."""
+        if self._request is None or self._request <= 0 or self._request_worker is None:
+            return
+        if force or self._request_video or time.monotonic() - self._request_started > STALE_REQUEST_SECONDS:
+            self._request_worker.cancel(self._request)
+        else:
+            # A recent resolve finishes in the background and its answer is cached;
+            # killing it would make the next click pay a cold worker start.
+            self._request_worker.cancelQueued(self._request)
+
+    def prepareAudio(self):
+        """Create libmpv ahead of the first song; failures surface when playback starts."""
+        if self.audio is None and not self._fixture and not self._closed:
+            try:
+                self._ensure_audio()
+            except Exception:
+                self.audio = None
+
+    def _ensure_audio(self):
+        if self.audio is None:
+            audio = self.audio_factory(parent=self)
+            audio.updated.connect(self._audio_update)
+            audio.ended.connect(self._ended)
+            audio.deviceFailed.connect(self._output_failed)
+            audio.outputChanged.connect(self._output_changed)
+            audio.optionsChanged.connect(self._audio_options_changed)
+            audio.setSpeakerFill(self._speaker_fill)
+            audio.volume(self.outputVolume)
+            self.audio = audio
+
     @Slot(int, dict)
-    def _resolved(self, identifier, source):
-        if identifier == self._prepare_request:
+    def _resolved(self, identifier, source, worker=None):
+        worker = worker or self.worker
+        if worker is self.prefetch_worker and identifier == self._prepare_request:
             self._prepare_request, self._preparing_video = None, None
+            self._prefetched(source)
+            return
+        if identifier != self._request or worker is not self._request_worker:
+            # A superseded answer is still a valid source for its own song.
             self._remember_source(source)
             return
-        if identifier != self._request:
-            return
-        self._request, self._busy = None, False
+        self._play_source(source)
+
+    def _prefetched(self, source):
+        self._remember_source(source)
+        if source.get("videoId") == self._warm_target:
+            self._warm_target = ""
+        video_id = self.currentTrack.get("videoId", "") if self.hasTrack else ""
+        if (self._request is not None and self._request > 0 and self._request_worker is self.worker
+                and self.prefetch_worker is not self.worker and not self._request_video and not self._request_force
+                and self._usable(source, video_id)):
+            # The prefetch for the clicked song answered first; the click's own resolve
+            # still finishes in the background and is cached.
+            self.worker.cancelQueued(self._request)
+            self._play_source(source)
+        else:
+            self._prepare_next()
+
+    def _play_source(self, source):
+        self._request, self._request_worker, self._busy = None, None, False
         self._remember_source(source)
         try:
-            if self.audio is None:
-                self.audio = self.audio_factory(parent=self)
-                self.audio.updated.connect(self._audio_update)
-                self.audio.ended.connect(self._ended)
-                self.audio.deviceFailed.connect(self._output_failed)
-                self.audio.outputChanged.connect(self._output_changed)
-                self.audio.optionsChanged.connect(self._audio_options_changed)
-                self.audio.setSpeakerFill(self._speaker_fill)
-                self.audio.volume(self.outputVolume)
+            self._ensure_audio()
             self._source_kind = source["kind"]
             self._source_video = bool(source.get("video"))
             if hasattr(self.audio, "setVideo") and self.audio.setVideo(self._source_video) is False and self._source_video:
@@ -451,26 +540,48 @@ class Playback(QObject):
             self._playing = False
         self.changed.emit()
 
+    @staticmethod
+    def _fresh(source, video_id):
+        return (isinstance(source, dict) and source.get("kind") == "remote" and source.get("videoId") == video_id
+                and isinstance(source.get("expires"), (int, float)) and source["expires"] > time.time() + SOURCE_MARGIN
+                and str(source.get("source", "")).startswith("https://"))
+
     def _usable(self, source, video_id):
         """Only an unexpired remote source for this song skips resolution."""
-        return (isinstance(source, dict) and source.get("kind") == "remote" and source.get("videoId") == video_id
-                and isinstance(source.get("expires"), (int, float)) and source["expires"] > time.time() + 60
-                and str(source.get("source", "")).startswith("https://") and self.currentTrack.get("available", True) is not False)
+        return self._fresh(source, video_id) and self.currentTrack.get("available", True) is not False
 
     def _remember_source(self, source):
-        if source.get("kind") == "remote" and source.get("videoId") and not source.get("video"):
-            # Keep recent sources across worker hibernation, only in memory.
-            self._prepared.pop(source["videoId"], None)
-            self._prepared[source["videoId"]] = source
-            while len(self._prepared) > 3:
+        if not isinstance(source, dict) or not isinstance(source.get("videoId"), str) or source.get("video"):
+            return
+        video_id = source["videoId"]
+        if source.get("kind") == "local":
+            self._local_ids.pop(video_id, None)
+            self._local_ids[video_id] = True
+            while len(self._local_ids) > 500:
+                self._local_ids.pop(next(iter(self._local_ids)))
+        elif source.get("kind") == "remote":
+            # Recent sources survive new queues and worker restarts, only in memory.
+            self._local_ids.pop(video_id, None)
+            self._prepared.pop(video_id, None)
+            self._prepared[video_id] = source
+            for key in [key for key, value in self._prepared.items() if not self._fresh(value, key)]:
+                self._prepared.pop(key)
+            while len(self._prepared) > PREPARED_LIMIT:
                 self._prepared.pop(next(iter(self._prepared)))
 
     @Slot(int, dict)
-    def _failed(self, identifier, error):
-        if identifier == self._prepare_request:
+    def _failed(self, identifier, error, worker=None):
+        worker = worker or self.worker
+        if worker is self.prefetch_worker and identifier == self._prepare_request:
+            failed = self._preparing_video
             self._prepare_request, self._preparing_video = None, None
+            if failed:
+                self._prefetch_failures[failed] = time.monotonic()
+                if failed == self._warm_target:
+                    self._warm_target = ""
+            self._prepare_next()
             return
-        if identifier != self._request:
+        if identifier != self._request or worker is not self._request_worker:
             return
         if self._request_video:
             # A missing or blocked video stream falls back to the song's audio.
@@ -481,7 +592,7 @@ class Playback(QObject):
             self._message = message
             self.changed.emit()
             return
-        self._request, self._busy = None, False
+        self._request, self._request_worker, self._busy = None, None, False
         self._message = error.get("message", "This song could not be played.")
         self.changed.emit()
         if not self._want_paused:
@@ -500,8 +611,12 @@ class Playback(QObject):
                     self._consecutive_failures, self._retry = 0, False
             self._position = position
             self.positionChanged.emit()
-        if self._loaded and isinstance(values.get("duration"), (int, float)):
-            self._duration = max(0., float(values["duration"]))
+        if self._loaded and isinstance(values.get("duration"), (int, float)) and values["duration"] > 0:
+            self._duration = float(values["duration"])
+            if self.hasTrack and not track_duration(self.currentTrack):
+                # Remember the length of songs whose metadata had none, so a restart
+                # restores the seek bar before the stream loads again.
+                self.queue.current["track"]["duration"] = round(self._duration)
             self.positionChanged.emit()
         if "paused-for-cache" in values and self._loaded:
             self._busy = bool(values["paused-for-cache"])
@@ -631,7 +746,7 @@ class Playback(QObject):
         if self.radio_worker and self._radio_request is not None:
             self.radio_worker.cancelQueued(self._radio_request)
         self._request, self._prepare_request, self._radio_request = None, None, None
-        self._prepared, self._preparing_video, self._busy = {}, None, False
+        self._request_worker, self._preparing_video, self._busy = None, None, False
         self._playing, self._loaded = False, False
         self._radio_prefetch = False
         self._device_wait = False
@@ -902,15 +1017,63 @@ class Playback(QObject):
             # Fetch the continuation radio while the last song plays, not after it ends.
             self._radio_prefetch = True
             self._request_radio()
-        track = upcoming["track"] if upcoming else {}
-        video_id = track.get("videoId", "") if track.get("available", True) and not (self._skip_disliked and track.get("rating") == "DISLIKE") else ""
-        if self._prepare_request is not None and video_id != self._preparing_video:
+        if not self.prefetch_worker or self._closed:
+            return
+        wanted = self._prefetch_wanted()
+        if self._prepare_request is not None:
+            if self._preparing_video in wanted:
+                return
+            if self.prefetch_worker is not self.worker:
+                # One prefetch at a time; the next starts when this answer arrives.
+                return
             self.worker.cancel(self._prepare_request)
             self._prepare_request, self._preparing_video = None, None
-        if not self.worker or not video_id or video_id in self._prepared or self._prepare_request is not None:
-            return
-        self._preparing_video = video_id
-        self._prepare_request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id})
+        if wanted:
+            self._preparing_video = wanted[0]
+            self._prepare_request = self.prefetch_worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": wanted[0]})
+
+    def _prefetch_wanted(self):
+        """Songs worth resolving ahead: a hovered song first, then the next few in the queue."""
+        now = time.monotonic()
+        for key in [key for key, failed in self._prefetch_failures.items() if now - failed > PREFETCH_RETRY_SECONDS]:
+            self._prefetch_failures.pop(key)
+        candidates = [self._warm_target] if self._warm_target else []
+        if self._loaded:
+            for entry in self.queue.upcoming(PREFETCH_AHEAD):
+                track = entry["track"]
+                if track.get("available", True) and not (self._skip_disliked and track.get("rating") == "DISLIKE"):
+                    candidates.append(track.get("videoId", ""))
+        current = self.currentTrack.get("videoId", "") if self.hasTrack else ""
+        wanted = []
+        for video_id in candidates:
+            if (isinstance(video_id, str) and VIDEO_ID.fullmatch(video_id) and video_id not in wanted
+                    and not self._fresh(self._prepared.get(video_id), video_id) and video_id not in self._local_ids
+                    and video_id not in self._prefetch_failures and not (video_id == current and self._request is not None)):
+                wanted.append(video_id)
+        # A shared worker also serves clicks, so it only ever looks one song ahead.
+        return wanted if self.prefetch_worker is not self.worker else wanted[:1]
+
+    @Slot("QVariantMap", result=bool)
+    def warm(self, media):
+        """Resolve a hovered or focused song ahead of a likely click; cheap and rate limited."""
+        media = media or {}
+        video_id = media.get("videoId", "")
+        if (self._fixture or self._closed or not self.prefetch_worker or not isinstance(video_id, str) or not VIDEO_ID.fullmatch(video_id)
+                or media.get("available", True) is False or media.get("downloadState") == "ready"
+                or media.get("kind", "song") not in {"song", "video", ""}
+                or video_id in self._local_ids or self._fresh(self._prepared.get(video_id), video_id)
+                or video_id in (self._warm_target, self._preparing_video) or video_id in self._prefetch_failures
+                or self.hasTrack and video_id == self.currentTrack.get("videoId") and (self._loaded or self._busy)):
+            return False
+        now = time.monotonic()
+        while self._warm_times and now - self._warm_times[0] > WARM_WINDOW:
+            self._warm_times.popleft()
+        if len(self._warm_times) >= WARM_LIMIT:
+            return False
+        self._warm_times.append(now)
+        self._warm_target = video_id
+        self._prepare_next()
+        return True
 
     @Slot()
     def _save_failed(self):
@@ -925,9 +1088,13 @@ class Playback(QObject):
 
     def resetSession(self):
         self._request, self._prepare_request, self._radio_request = None, None, None
-        self._prepared, self._preparing_video, self._busy = {}, None, False
+        self._request_worker, self._preparing_video, self._busy = None, None, False
+        # Signed URLs belong to the old account; drop every cached one.
+        self._prepared, self._local_ids, self._prefetch_failures, self._warm_target = {}, {}, {}, ""
         if self.worker:
             self.worker.reset()
+        if self.prefetch_worker and self.prefetch_worker is not self.worker:
+            self.prefetch_worker.reset()
         if self._source_kind == "remote":
             self._playing, self._loaded = False, False
             if self.audio:
@@ -942,4 +1109,6 @@ class Playback(QObject):
             self.audio.close()
         if self.worker:
             self.worker.close()
+        if self.prefetch_worker and self.prefetch_worker is not self.worker:
+            self.prefetch_worker.close()
         self._saver.shutdown(wait=True)

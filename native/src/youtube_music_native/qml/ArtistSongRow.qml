@@ -33,6 +33,14 @@ FocusScope {
         }
     }
     HoverHandler { id: hover }
+    // Resolve a hovered or focused song shortly before a likely click.
+    readonly property bool warmWanted: (hover.hovered || root.activeFocus) && !!(root.media.videoId)
+    onWarmWantedChanged: warmWanted ? warmTimer.restart() : warmTimer.stop()
+    Timer {
+        id: warmTimer
+        interval: 200
+        onTriggered: if (root.warmWanted && downloadsState.trackStates[root.media.videoId] !== "ready" && typeof playerState.warm === "function") playerState.warm(root.media)
+    }
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: mouse => { if (mouse.button === Qt.RightButton) appState.showMenu(root.media, {}); else root.activated(root.media) } }
     DownloadButton {
         id: downloadButton

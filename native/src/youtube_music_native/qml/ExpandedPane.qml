@@ -68,6 +68,7 @@ Item {
             visible: !root.videoShown
             width: root.coverSize; height: width; radius: 12
             largeArtwork: true
+            prefetchMedia: playerState.upcomingTracks || []
             media: root.track
             source: root.track.largeThumbnail || root.track.thumbnail || ""
             mediaKey: root.track.videoId || root.track.id || ""

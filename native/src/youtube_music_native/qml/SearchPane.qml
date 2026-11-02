@@ -104,7 +104,12 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && !root.overview && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Item { width: results.width; height: visible ? 72 : 0; visible: !root.overview && root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
+        footer: Column {
+            width: results.width
+            // Unfiltered results open as a top result and shelves; filtered results are rows.
+            LoadingSkeleton { width: parent.width; view: results; mode: searchState.selectedFilter === "All" ? "shelves" : "rows"; shelfSpacing: 40 }
+            Item { width: parent.width; height: visible ? 72 : 0; visible: !root.overview && root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
+        }
     }
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 20
@@ -112,7 +117,6 @@ Item {
         Text { width: parent.width; text: catalogState.error || "No results. Try another song, artist, album or playlist."; textFormat: Text.PlainText; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 16 }
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Retry"; visible: !!catalogState.error; onClicked: catalogState.refresh() }
     }
-    LoadingSkeleton { anchors.fill: parent; gutter: root.gutter; mode: "rows"; visible: catalogState.busy && !(root.result.items || []).length }
     BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && (root.result.items || []).length > 0 }
     property int revision: -1
     function restoreScroll() {

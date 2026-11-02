@@ -15,8 +15,13 @@ class Worker(QObject):
     failed = Signal(int, dict)
     progress = Signal(int, dict)
 
-    def __init__(self, parent=None, idle_ms=0):
+    def __init__(self, parent=None, idle_ms=0, warmup=None):
         super().__init__(parent)
+        # An optional (operation, payload) sent first whenever the process starts, so
+        # imports and credential reads happen before a user request needs them.
+        self._warmup = warmup
+        self._internal = set()
+        self._idle_stop = False
         self.process = QProcess(self)
         if os.name == "posix":
             self.process.setUnixProcessParameters(QProcess.UnixProcessFlag.CreateNewSession)
@@ -46,9 +51,23 @@ class Worker(QObject):
         if self._closed:
             raise RuntimeError("The provider worker is closed")
         self._counter += 1
-        self._queue.append({"id": self._counter, "operation": operation, "payload": payload or {}})
+        identifier = self._counter
+        self._queue.append({"id": identifier, "operation": operation, "payload": payload or {}})
         self._pump()
-        return self._counter
+        return identifier
+
+    def prestart(self):
+        """Start the process ahead of demand; does nothing without a warmup request."""
+        if (self._warmup and not self._closed and not self._hibernating and not self._active and not self._queue
+                and self.process.state() == QProcess.ProcessState.NotRunning):
+            self._enqueue_warmup()
+            self._pump()
+
+    def _enqueue_warmup(self):
+        self._counter += 1
+        self._internal.add(self._counter)
+        operation, payload = self._warmup
+        self._queue.appendleft({"id": self._counter, "operation": operation, "payload": dict(payload or {})})
 
     def cancelQueued(self, identifier):
         self._queue = deque(request for request in self._queue if request["id"] != identifier)
@@ -70,6 +89,8 @@ class Worker(QObject):
         self.idle_timer.stop()
         if self.process.state() == QProcess.ProcessState.NotRunning:
             self._buffer = b""
+            if self._warmup and self._queue[0]["id"] not in self._internal:
+                self._enqueue_warmup()
             self.process.start()
         elif self.process.state() == QProcess.ProcessState.Running:
             self._active = self._queue.popleft()
@@ -101,7 +122,9 @@ class Worker(QObject):
                 identifier = self._active["id"]
                 self._active = None
                 self.timer.stop()
-                if success:
+                if identifier in self._internal:
+                    self._internal.discard(identifier)
+                elif success:
                     self.succeeded.emit(identifier, response["result"])
                 else:
                     self.failed.emit(identifier, response["error"])
@@ -119,6 +142,9 @@ class Worker(QObject):
         if everything:
             self._queue.clear()
         for request in pending:
+            if request["id"] in self._internal:
+                self._internal.discard(request["id"])
+                continue
             self.failed.emit(request["id"], {"code": code, "message": message})
 
     def _protocol_error(self):
@@ -143,7 +169,11 @@ class Worker(QObject):
     def _finished(self, exit_code, exit_status):
         self.timer.stop()
         if self._hibernating:
+            idle, self._idle_stop = self._idle_stop, False
             self._hibernating = False
+            if self._warmup and not idle and not self._closed and not self._queue:
+                # A cancelled or reset worker comes straight back warm; an idle one stays down.
+                self._enqueue_warmup()
             QTimer.singleShot(0, self._pump)
             return
         if not self._closed:
@@ -178,7 +208,7 @@ class Worker(QObject):
 
     def _hibernate(self):
         if not self._active and not self._queue and self.process.state() == QProcess.ProcessState.Running:
-            self._hibernating = True
+            self._hibernating, self._idle_stop = True, True
             self._signal_process()
             QTimer.singleShot(1000, self._kill_idle)
 
@@ -194,6 +224,7 @@ class Worker(QObject):
         self.timer.stop()
         self.idle_timer.stop()
         self._queue.clear()
+        self._internal.clear()
         self._active = None
         if self.process.state() != QProcess.ProcessState.NotRunning:
             self._signal_process()

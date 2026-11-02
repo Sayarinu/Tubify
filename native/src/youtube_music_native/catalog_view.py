@@ -1,15 +1,32 @@
 """QML catalog state with request identity checks for rapid navigation/search."""
 
 import json
+import time
+from collections import OrderedDict
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
+
+from .library import SECTIONS
 
 SORT_KEYS = ("title", "artist", "album", "duration")
 SORTABLE_ROUTES = {"album", "playlist"}
 # The provider ignores `order` for these library sections, so it is applied here.
 CLIENT_ORDER_ROUTES = {"library_playlists", "library_liked"}
 ORDER_SORTS = {"a_to_z": ("title", False), "z_to_a": ("title", True)}
+# Library sections are kept in memory so revisits render instantly, then revalidate.
+MEMORY_ROUTES = set(SECTIONS.values()) | {"history"}
+MEMORY_TTL = 300
+MEMORY_LIMIT = 48
+ALWAYS_REVALIDATE = {"history"}
+
+
+def _without_positions(data):
+    """Compare results without the client-side numbering added to each item."""
+    items = data.get("items")
+    if not isinstance(items, list):
+        return data
+    return {**data, "items": [{key: value for key, value in item.items() if key != "position"} if isinstance(item, dict) else item for item in items]}
 
 
 def sort_value(item, key):
@@ -41,6 +58,7 @@ def sorted_items(items, key, descending=False):
 class CatalogView(QObject):
     changed = Signal()
     navigationStarted = Signal()
+    revalidatingChanged = Signal()
 
     def __init__(self, worker, cache_path, account, parent=None):
         super().__init__(parent)
@@ -52,6 +70,8 @@ class CatalogView(QObject):
         self._busy, self._error, self._append = False, "", False
         self._revision, self._scroll = 0, None
         self._loading_all = False
+        self._revalidating = False
+        self._memory, self._request_key = OrderedDict(), None
         settings = getattr(account, "settings", None)
         self._settings = settings
         try:
@@ -71,6 +91,11 @@ class CatalogView(QObject):
     @Property(bool, notify=changed)
     def busy(self):
         return self._busy
+
+    @Property(bool, notify=revalidatingChanged)
+    def revalidating(self):
+        """A background refresh of data that is already on screen."""
+        return self._revalidating
 
     @Property(str, notify=changed)
     def error(self):
@@ -174,20 +199,72 @@ class CatalogView(QObject):
     def saveScroll(self, value):
         self._scroll = float(value)
 
+    def _memory_key(self):
+        profile = getattr(self.account, "profile", None)
+        identity = (profile.get("name") or "", profile.get("handle") or "") if isinstance(profile, dict) else ("", "")
+        return (identity, self._route, json.dumps(self._params, sort_keys=True, default=str))
+
+    def _remember(self):
+        # The key is captured at send time, so a reply for a previous account is never kept.
+        key = self._request_key
+        if key is None or self._route not in MEMORY_ROUTES or not isinstance(self._data.get("items"), list):
+            return
+        self._memory.pop(key, None)
+        self._memory[key] = {"data": {**self._data, "items": list(self._data["items"])}, "saved": time.monotonic(), "dirty": False}
+        while len(self._memory) > MEMORY_LIMIT:
+            self._memory.popitem(last=False)
+
+    @Slot()
+    @Slot("QStringList")
+    def invalidate(self, routes=None):
+        """Mark remembered pages so the next visit revalidates them after rendering."""
+        routes = None if routes is None else set(routes)
+        for (identity, route, params), entry in self._memory.items():
+            if routes is None or route in routes:
+                entry["dirty"] = True
+
+    @Slot()
+    def clearMemory(self):
+        self._memory.clear()
+        self._request_key = None
+
+    def _set_revalidating(self, value):
+        if self._revalidating != value:
+            self._revalidating = value
+            self.revalidatingChanged.emit()
+
     @Slot(str, "QVariantMap")
     def load(self, route, params):
         self.navigationStarted.emit()
         self._route, self._params = route, dict(params)
-        self._data = {}
         self._revision, self._scroll = self._revision + 1, None
         self._loading_all = False
-        self._send()
+        key = self._memory_key()
+        entry = self._memory.get(key) if route in MEMORY_ROUTES and self.worker else None
+        if entry is None:
+            self._data = {}
+            self._send()
+            return
+        self._memory.move_to_end(key)
+        if self._request is not None:
+            self.worker.cancelQueued(self._request)
+        self._request, self._busy, self._error = None, False, ""
+        self._set_revalidating(False)
+        self._data = {**entry["data"], "items": list(entry["data"]["items"])}
+        self._apply_sort()
+        stale = entry["dirty"] or time.monotonic() - entry["saved"] >= MEMORY_TTL or route in ALWAYS_REVALIDATE
+        if stale and not self._loading_all:
+            count = max(len(self._data.get("items", [])), len(self._data.get("shelves", [])))
+            self._send(refresh=entry["dirty"], page_size=count or None, revalidate=True)
+        else:
+            self.changed.emit()
 
     def showLocal(self, route, data, params=None, scroll=None):
         self.navigationStarted.emit()
         if self.worker and self._request is not None:
             self.worker.cancelQueued(self._request)
         self._request, self._busy, self._error = None, False, ""
+        self._set_revalidating(False)
         self._route, self._data = route, dict(data)
         self._params = dict(params or {})
         self._revision, self._scroll = self._revision + 1, scroll
@@ -215,17 +292,23 @@ class CatalogView(QObject):
         if not self._busy and self._data.get("cursor") is not None:
             self._send(offset=self._data["cursor"])
 
-    def _send(self, offset=0, refresh=False, page_size=None):
+    def _send(self, offset=0, refresh=False, page_size=None, revalidate=False):
         if not self.worker:
             return
         if self._request is not None:
             self.worker.cancelQueued(self._request)
-        self._busy, self._error, self._append = True, "", offset > 0
+        # Revalidation keeps the visible page interactive; only real loads are busy.
+        self._busy, self._error, self._append = not revalidate, "", offset > 0
+        self._set_revalidating(revalidate)
+        self._request_key = self._memory_key()
         self._request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": self._route, "params": self._params, "offset": offset, "refresh": refresh, "page_size": page_size})
         self.changed.emit()
 
     def _succeeded(self, identifier, result):
         if identifier != self._request:
+            return
+        if self._revalidating:
+            self._revalidated(result)
             return
         if self._append:
             existing = self._data.get("items", [])
@@ -237,12 +320,37 @@ class CatalogView(QObject):
         self._data, self._busy, self._request = result, False, None
         self._loading_all = False
         self._apply_sort()
+        self._remember()
         if result.get("warning") == "reconnect":
             self.account.requireReconnect("Your session needs reconnecting. Cached music remains available.")
         self.changed.emit()
 
+    def _revalidated(self, result):
+        """Swap in fresh data in place: same revision and scroll, no signal if nothing changed."""
+        previous = self._data
+        if isinstance(result.get("items"), list):
+            result["items"] = self._number(result["items"])
+        self._data, self._busy, self._request = result, False, None
+        self._loading_all = False
+        self._set_revalidating(False)
+        self._apply_sort()
+        self._remember()
+        if result.get("warning") == "reconnect":
+            self.account.requireReconnect("Your session needs reconnecting. Cached music remains available.")
+        if self._busy or _without_positions(self._data) != _without_positions(previous):
+            self.changed.emit()
+        else:
+            self._data = previous
+
     def _failed(self, identifier, error):
         if identifier != self._request:
+            return
+        if self._revalidating:
+            # The remembered page stays on screen; only a lost session needs attention.
+            self._request = None
+            self._set_revalidating(False)
+            if error.get("code") in {"reconnect", "AuthError"}:
+                self.account.requireReconnect(error.get("message", "Your session needs reconnecting."))
             return
         self._busy, self._request, self._loading_all = False, None, False
         self._error = error.get("message", "This page could not be loaded. Retry.")

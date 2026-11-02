@@ -97,6 +97,16 @@ class Queue:
             return self.source[0]
         return None
 
+    def upcoming(self, count):
+        """The next entries automatic playback would reach, without moving the queue."""
+        if self.repeat == "one" and self.current:
+            return [self.current]
+        result = self.manual[:count]
+        result += [entry for entry in self.source[self.source_index + 1:] if entry is not self.current][:count - len(result)]
+        if self.repeat == "all" and len(result) < count:
+            result += [entry for entry in self.source if entry is not self.current and entry not in result][:count - len(result)]
+        return result[:count]
+
     def advance(self, automatic=False):
         entry = self.peek(automatic)
         if entry is None:

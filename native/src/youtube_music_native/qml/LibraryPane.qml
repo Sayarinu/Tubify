@@ -65,7 +65,11 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Item { width: grid.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
+        footer: Column {
+            width: grid.width
+            LoadingSkeleton { width: parent.width; view: grid; mode: "grid"; columns: grid.columns; cellWidth: grid.cellWidth; cellHeight: grid.cellHeight }
+            Item { width: parent.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
+        }
     }
     ListView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
@@ -83,7 +87,11 @@ Item {
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
-        footer: Item { width: songs.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
+        footer: Column {
+            width: songs.width
+            LoadingSkeleton { width: parent.width; view: songs; mode: "rows" }
+            Item { width: parent.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
+        }
     }
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 20
@@ -92,8 +100,7 @@ Item {
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Retry"; visible: !!catalogState.error; onClicked: catalogState.refresh() }
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; primary: true; text: "Connect YouTube Music"; visible: !accountState.connected && !appState.fixtureMode; onClicked: appState.openAccount() }
     }
-    LoadingSkeleton { anchors.fill: parent; anchors.topMargin: 158; gutter: root.gutter; mode: root.rows ? "rows" : "grid"; visible: catalogState.busy && !(root.result.items || []).length }
-    BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && (root.result.items || []).length > 0 }
+    BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy && !catalogState.revalidating; visible: running && (root.result.items || []).length > 0 }
     property int revision: -1
     function restoreScroll() {
         if (catalogState.busy || revision === catalogState.revision) return

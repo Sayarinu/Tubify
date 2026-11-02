@@ -96,3 +96,99 @@ downloads.close()
     env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software", "QT_SCALE_FACTOR": str(scale), "PYTHONPATH": str(Path(__file__).parents[1] / "src")}
     result = subprocess.run([sys.executable, "-c", script, str(tmp_path), str(scale), str(ui_scale)], env=env, capture_output=True, text=True, timeout=20)
     assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("backend", ["software", ""])
+def test_large_cover_shows_small_thumbnail_until_the_large_image_arrives(tmp_path, backend):
+    script = r'''
+import faulthandler
+import sys
+# Report where the child is stuck instead of being killed silently by the timeout.
+faulthandler.dump_traceback_later(20, exit=True)
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+import socketserver
+import threading
+import time
+from PySide6.QtCore import QObject, QUrl
+from PySide6.QtGui import QGuiApplication, QImage
+from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtTest import QTest
+from youtube_music_native.download_view import DownloadView
+from youtube_music_native.theme import ThemeState
+from youtube_music_native.shell import ShellController
+from youtube_music_native.app import PACKAGE
+app = QGuiApplication([])
+root = Path(sys.argv[1])
+for name, size, color in (("small", 60, 0xFFCC2222), ("large", 1200, 0xFF22CC22)):
+    image = QImage(size, size, QImage.Format.Format_RGB32)
+    image.fill(color)
+    assert image.save(str(root / (name + ".png")))
+small = (root / "small.png").as_uri()
+release = threading.Event()
+class Slow(BaseHTTPRequestHandler):
+    def do_GET(self):
+        release.wait(10)
+        body = (root / "large.png").read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *args):
+        pass
+class LoopbackServer(ThreadingHTTPServer):
+    # HTTPServer.server_bind resolves the host's FQDN, which can block for many
+    # seconds on macOS runners; a loopback fixture needs no name.
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
+server = LoopbackServer(("127.0.0.1", 0), Slow)
+threading.Thread(target=server.serve_forever, daemon=True).start()
+large = "http://127.0.0.1:%d/large.png" % server.server_port
+downloads = DownloadView(root, fixture=True)
+downloads._large_artwork["abcdefghijk"] = {"url": large, "width": 1200, "height": 1200}
+theme = ThemeState(root / "theme.ini")
+shell = ShellController(root / "shell.ini")
+engine = QQmlApplicationEngine()
+engine.rootContext().setContextProperty("appState", shell)
+engine.rootContext().setContextProperty("downloadsState", downloads)
+engine.rootContext().setContextProperty("themeState", theme)
+engine.rootContext().setContextProperty("smallCover", small)
+engine.loadData(b'import QtQuick\nimport QtQuick.Controls\nimport "."\nApplicationWindow { visible: true; width: 400; height: 400; Cover { objectName: "largeCover"; width: 300; height: 300; largeArtwork: true; mediaKey: "abcdefghijk"; source: smallCover; media: ({videoId: "abcdefghijk", thumbnail: smallCover}) } }', QUrl.fromLocalFile(str(PACKAGE / "qml" / "test.qml")))
+window = engine.rootObjects()[0]
+cover = window.findChild(QObject, "largeCover")
+def wait_until(predicate, description, seconds=3):
+    deadline = time.monotonic() + seconds
+    while not predicate() and time.monotonic() < deadline:
+        QTest.qWait(10)
+    assert predicate(), description
+def center():
+    frame = window.grabWindow()
+    return None if frame.isNull() else frame.pixelColor(150, 150)
+def red():
+    color = center()
+    return color is not None and color.red() > 180 and color.green() < 80
+def green():
+    color = center()
+    return color is not None and color.green() > 180 and color.red() < 80
+wait_until(red, "The cached small thumbnail did not show while the large image loaded")
+assert not cover.property("ready")
+release.set()
+wait_until(lambda: cover.property("ready") and green(), "The large image did not replace the thumbnail")
+window.close()
+engine.deleteLater()
+downloads.close()
+server.shutdown()
+server.server_close()
+'''
+    env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "PYTHONPATH": str(Path(__file__).parents[1] / "src")}
+    if backend:
+        env["QT_QUICK_BACKEND"] = backend
+    else:
+        env.pop("QT_QUICK_BACKEND", None)
+    try:
+        result = subprocess.run([sys.executable, "-c", script, str(tmp_path)], env=env, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired as error:
+        raise AssertionError(f"Cover test hung; stderr so far: {error.stderr!r}") from None
+    assert result.returncode == 0, result.stderr

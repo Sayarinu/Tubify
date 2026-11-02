@@ -42,7 +42,6 @@ Your library, playlists and recommendations in a real desktop app with offline d
 - **Media keys** and the system now-playing controls on Windows, macOS and Linux (MPRIS).
 - **Global keyboard shortcuts**, a mini player in the system tray, launch at login, and recovery after sleep.
 - **Sleep timer**, a natural volume curve, stereo-to-surround speaker fill, and an option to skip disliked songs.
-- **Open in Tubify** from YouTube and YouTube Music pages in your browser, using the optional [browser userscript](native/integrations/browser-handoff.user.js).
 
 ### Look and feel
 - 12 built-in themes (including Catppuccin, Dracula, Nord, Gruvbox, Tokyo Night, Rosé Pine and Solarized), plus a custom theme editor with import and export.

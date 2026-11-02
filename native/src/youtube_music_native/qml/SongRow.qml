@@ -12,6 +12,10 @@ FocusScope {
     property bool reorderable: false
     property bool queueRow: false
     property var menuContext: ({})
+    // Duration and hover actions share the trailing edge: More, then the time column, then Download.
+    readonly property real durationRight: 56
+    readonly property real durationWidth: 48
+    readonly property real trailingWidth: queueRow ? 68 : showDuration ? durationRight + durationWidth + 8 + 44 + 4 : 104
     property string downloadStatus: downloadsState.trackStates[media.videoId || media.id] || media.downloadState || ""
     readonly property bool currentSong: playerState.hasTrack && (queueRow && media.key ? !!media.current : (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id))
     readonly property var artistItems: {
@@ -60,7 +64,7 @@ FocusScope {
         objectName: root.queueRow ? "queueRowMetadata-" + (root.media.key || "") : ""
         x: root.queueRow ? 52 : root.tableLayout ? root.showArtwork ? 100 : 48 : root.showArtwork ? root.number > 0 ? 104 : 72 : 56
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.max(0, (root.showAlbum ? parent.width * 0.54 : parent.width - (root.queueRow ? 68 : root.showDuration ? 112 : 104)) - x); spacing: 3
+        width: Math.max(0, (root.showAlbum ? parent.width * 0.54 : parent.width - root.trailingWidth) - x); spacing: 3
         opacity: root.media.available === false ? 0.5 : 1
         Text { width: parent.width; text: root.media.title || "Unavailable song"; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.foreground; font.pixelSize: 14 }
         Row {
@@ -141,7 +145,7 @@ FocusScope {
     }
     Text {
         id: albumColumn
-        x: parent.width * 0.56; width: Math.min(implicitWidth, parent.width * 0.44 - 120); anchors.verticalCenter: parent.verticalCenter; visible: root.showAlbum; text: root.media.album ? root.media.album.name || "" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: albumColumnLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 13
+        x: parent.width * 0.56; width: Math.max(0, Math.min(implicitWidth, parent.width * 0.44 - root.trailingWidth)); anchors.verticalCenter: parent.verticalCenter; visible: root.showAlbum; text: root.media.album ? root.media.album.name || "" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: albumColumnLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 13
         font.underline: albumColumnLink.containsMouse || activeFocus
         activeFocusOnTab: !!(root.media.album && (root.media.album.id || root.media.album.browseId))
         Accessible.role: activeFocusOnTab ? Accessible.Link : Accessible.StaticText
@@ -151,12 +155,21 @@ FocusScope {
         function openAlbum() { var album = root.media.album || ({}); var id = album.id || album.browseId; if (id) browseState.open({kind: "album", id: id, title: album.name}) }
         MouseArea { id: albumColumnLink; anchors.fill: parent; z: 2; enabled: !!(root.media.album && (root.media.album.id || root.media.album.browseId)); hoverEnabled: enabled; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: albumColumn.openAlbum() }
     }
-    Text { anchors.right: parent.right; anchors.rightMargin: 56; anchors.verticalCenter: parent.verticalCenter; visible: root.showDuration; text: root.media.duration ? Theme.timeLabel(root.media.duration) : "–"; color: themeState.secondary; font.pixelSize: 13 }
+    // Fixed and right-aligned so times line up with each other and the TIME column header.
+    Text { id: durationLabel; objectName: "songDuration"; anchors.right: parent.right; anchors.rightMargin: root.durationRight; anchors.verticalCenter: parent.verticalCenter; width: root.durationWidth; horizontalAlignment: Text.AlignRight; visible: root.showDuration; text: root.media.duration ? Theme.timeLabel(root.media.duration) : "–"; color: themeState.secondary; font.pixelSize: 13 }
     HoverHandler { id: hover }
+    // Resolve a hovered or focused song shortly before a likely click.
+    readonly property bool warmWanted: (hover.hovered || root.activeFocus) && !!(root.media.videoId)
+    onWarmWantedChanged: warmWanted ? warmTimer.restart() : warmTimer.stop()
+    Timer {
+        id: warmTimer
+        interval: 200
+        onTriggered: if (root.warmWanted && !root.currentSong && root.downloadStatus !== "ready" && typeof playerState.warm === "function") playerState.warm(root.media)
+    }
     MouseArea { z: -1; anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: function(mouse) { if (mouse.button === Qt.RightButton) root.menuRequested(root.media); else root.activateSong() } }
     Item {
         id: reorderRegion
-        width: Math.max(0, root.width - (root.queueRow ? 68 : 104))
+        width: Math.max(0, root.width - root.trailingWidth)
         height: root.height
         opacity: 0
         DragHandler {
@@ -173,9 +186,12 @@ FocusScope {
     }
     DownloadButton {
         id: downloadButton
-        objectName: root.queueRow ? "queueRowDownload-" + (root.media.key || "") : ""
+        objectName: root.queueRow ? "queueRowDownload-" + (root.media.key || "") : "songDownload"
         width: root.queueRow ? 32 : implicitWidth
-        anchors.right: parent.right; anchors.rightMargin: root.queueRow ? 32 : 56; anchors.verticalCenter: parent.verticalCenter
+        // Beside the duration, never on top of it; queue and plain rows keep their slot left of More.
+        anchors.right: root.showDuration && !root.queueRow ? durationLabel.left : parent.right
+        anchors.rightMargin: root.queueRow ? 32 : root.showDuration ? 8 : 56
+        anchors.verticalCenter: parent.verticalCenter
         visible: hover.hovered || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued"
         background: Rectangle {
             radius: width / 2

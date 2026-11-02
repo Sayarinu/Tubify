@@ -47,5 +47,4 @@ package() {
     "$pkgdir/usr/share/licenses/$pkgname/lucide-LICENSE"
   install -Dm644 native/src/youtube_music_native/assets/THIRD_PARTY_NOTICES.md \
     "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_NOTICES.md"
-  install -Dm644 native/integrations/browser-handoff.user.js "$pkgdir/usr/share/doc/$pkgname/browser-handoff.user.js"
 }

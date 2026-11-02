@@ -17,6 +17,52 @@ class Sources:
         self.auth, self.media = auth, media
         self.extractor_factory = extractor_factory
         self._cache = {}
+        # One extractor per format for the worker's lifetime keeps yt-dlp's player and
+        # connection caches warm; the worker restarts whenever the account changes.
+        self._extractors = {}
+
+    def warm(self):
+        """Pay imports and the credential read before the first song is chosen."""
+        try:
+            if self.auth.session is None:
+                self.auth.restore()
+            if self.auth.session is not None:
+                self._extractor("audio", {})
+        except Exception:
+            # The first real request reports any problem with a user-facing message.
+            pass
+        return {"ready": self.auth.session is not None}
+
+    def _extractor(self, kind, extra):
+        extractor = self._extractors.get(kind)
+        if extractor is None:
+            from yt_dlp import YoutubeDL
+
+            factory = self.extractor_factory or YoutubeDL
+            options = extractor_options(Path(self.media.root))
+            options.update(skip_download=True, noplaylist=True, **extra)
+            extractor = self._extractors[kind] = factory(options).__enter__()
+        return extractor
+
+    def _extract(self, kind, extra, video_id):
+        extractor = self._extractor(kind, extra)
+        try:
+            # Only the current session's cookies; nothing from earlier responses persists.
+            extractor.cookiejar.clear()
+            for cookie in self.auth.session.cookie_jar():
+                extractor.cookiejar.set_cookie(cookie)
+            return extractor.extract_info("https://www.youtube.com/watch?v=" + video_id, download=False)
+        except Exception:
+            self._discard(kind)
+            raise
+
+    def _discard(self, kind):
+        extractor = self._extractors.pop(kind, None)
+        if extractor is not None:
+            try:
+                extractor.__exit__(None, None, None)
+            except Exception:
+                pass
 
     def resolve(self, video_id, force=False, prepared=None, available=True, video=False):
         if not isinstance(video_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
@@ -41,16 +87,8 @@ class Sources:
             self.auth.restore()
         if self.auth.session is None:
             raise SourceError("Reconnect YouTube Music to stream this song. Downloaded songs remain available.")
-        from yt_dlp import YoutubeDL
-
-        factory = self.extractor_factory or YoutubeDL
-        options = extractor_options(Path(self.media.root))
-        options.update(skip_download=True, noplaylist=True)
         try:
-            with factory(options) as extractor:
-                for cookie in self.auth.session.cookie_jar():
-                    extractor.cookiejar.set_cookie(cookie)
-                info = extractor.extract_info("https://www.youtube.com/watch?v=" + video_id, download=False)
+            info = self._extract("audio", {}, video_id)
             if not info or info.get("vcodec") != "none" or not str(info.get("url", "")).startswith("https://"):
                 raise SourceError("No audio-only format is available for this song.")
             expires = parse_qs(urlparse(info["url"]).query).get("expire", [None])[0]
@@ -72,16 +110,8 @@ class Sources:
             self.auth.restore()
         if self.auth.session is None:
             raise SourceError("Reconnect YouTube Music to watch this video.")
-        from yt_dlp import YoutubeDL
-
-        factory = self.extractor_factory or YoutubeDL
-        options = extractor_options(Path(self.media.root))
-        options.update(skip_download=True, noplaylist=True, format=VIDEO_FORMAT)
         try:
-            with factory(options) as extractor:
-                for cookie in self.auth.session.cookie_jar():
-                    extractor.cookiejar.set_cookie(cookie)
-                info = extractor.extract_info("https://www.youtube.com/watch?v=" + video_id, download=False)
+            info = self._extract("video", {"format": VIDEO_FORMAT}, video_id)
             formats = (info or {}).get("requested_formats") or [info or {}]
             urls = [str(value.get("url", "")) for value in formats]
             if not urls or not all(url.startswith("https://") for url in urls) or not any(value.get("vcodec") not in {None, "none"} for value in formats):

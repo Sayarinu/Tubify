@@ -207,6 +207,8 @@ class Library(QObject):
 
     def _applied(self, result):
         action, identifier = result["action"], result["id"]
+        # Remembered sections render instantly on the next visit, then revalidate.
+        self.view.invalidate()
         if action in {"song_rating", "song_library"}:
             values = {"rating" if action == "song_rating" else "inLibrary": result["value"]}
             self.browse.updateTrack(identifier, values)

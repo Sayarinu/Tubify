@@ -2,7 +2,6 @@ import gc
 import json
 from pathlib import Path
 import subprocess
-import shutil
 import sys
 import time
 from types import SimpleNamespace
@@ -217,43 +216,10 @@ def test_file_open_and_cold_start_are_deferred_until_ready(tmp_path):
     instance.close()
 
 
-def test_package_and_userscript_register_only_native_handler():
+def test_package_registers_only_native_handler():
     root = Path(__file__).resolve().parents[2]
     desktop = (root / "packaging/arch-native/youtube-music-native.desktop").read_text()
     assert "Exec=youtube-music-native -- %u" in desktop and "MimeType=x-scheme-handler/ytmusic-native;" in desktop
-    userscript = (root / "native/integrations/browser-handoff.user.js").read_text()
-    assert "GM_getValue(preference, false)" in userscript and "GM_setValue(preference, enabled)" in userscript
-    assert "location.replace" not in userscript and "fetch(" not in userscript
-
-
-@pytest.mark.skipif(shutil.which("node") is None, reason="Optional userscript behavior check needs Node.js")
-def test_userscript_requires_per_host_enable_and_only_creates_explicit_links():
-    script = Path(__file__).resolve().parents[1] / "integrations/browser-handoff.user.js"
-    code = r"""
-const fs = require('fs'), vm = require('vm'), assert = require('assert');
-const source = fs.readFileSync(process.argv[1], 'utf8');
-function setup(address) {
-  let toggle; const saved = {}, events = {}, children = [];
-  const document = {
-    documentElement: {append(node) { children.push(node); }},
-    addEventListener(name, fn) { events[name] = fn; },
-    createElement(tag) { return {tag, style: {}, children: [], setAttribute() {}, addEventListener() {}, append(node) {this.children.push(node)}, remove() {const i=children.indexOf(this); if(i>=0)children.splice(i,1)}} }
-  };
-  const context = {URL, location: new URL(address), document, window: {addEventListener() {}}, GM_getValue(key, fallback) {return saved[key] ?? fallback}, GM_setValue(key, value) {saved[key]=value}, GM_registerMenuCommand(label, fn) {toggle=fn}};
-  vm.runInNewContext(source, context);
-  assert.equal(children.length, 0);
-  toggle();
-  assert.equal(saved['enabled:' + context.location.hostname], true);
-  const links = children[0].children.filter(node => node.tag === 'a');
-  assert(links.every(node => node.href.startsWith('ytmusic-native://')));
-  assert.equal(new URL(links[0].href).searchParams.get('url'), address);
-  toggle(); assert.equal(children.length, 0);
-  return links.length;
-}
-assert.equal(setup('https://music.youtube.com/watch?v=abcdefghijk'),3);
-assert.equal(setup('https://www.youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa'),1);
-"""
-    subprocess.run([shutil.which("node"), "-e", code, str(script)], check=True, capture_output=True, text=True)
 
 
 def test_batch_launch_is_rejected_before_claiming_player(tmp_path):

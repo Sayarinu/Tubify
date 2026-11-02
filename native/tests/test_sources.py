@@ -90,3 +90,55 @@ def test_invalid_index_paths_cannot_escape_the_media_directory(tmp_path):
     media.db.execute("INSERT INTO audio VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "../outside.opus", 7))
     media.db.commit()
     assert media.ready("abcdefghijk") is None
+
+
+def test_one_extractor_serves_every_song_with_only_current_cookies(tmp_path, monkeypatch):
+    from http.cookiejar import Cookie
+
+    monkeypatch.setattr(sources, "extractor_options", lambda root: {})
+    created, seen = [], []
+
+    def cookie(name):
+        return Cookie(0, name, "value", None, False, ".youtube.com", True, True, "/", True, True, None, False, None, None, {})
+
+    class Extractor:
+        def __init__(self, options):
+            created.append(options)
+            self.cookiejar = CookieJar()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def extract_info(self, url, download):
+            seen.append(sorted(item.name for item in self.cookiejar))
+            self.cookiejar.set_cookie(cookie("FROM_RESPONSE"))
+            if url.endswith("brokenvideo"):
+                raise RuntimeError("extractor failure")
+            return {"url": "https://media.invalid/audio?expire=4102444800", "vcodec": "none"}
+
+    def jar():
+        value = CookieJar()
+        value.set_cookie(cookie("SID"))
+        return value
+
+    auth = SimpleNamespace(session=SimpleNamespace(cookie_jar=jar), restore=lambda: None)
+    service = Sources(auth, MediaFiles(tmp_path), Extractor)
+    assert service.warm() == {"ready": True} and len(created) == 1
+    service.resolve("abcdefghijk")
+    service.resolve("lmnopqrstuv")
+    assert len(created) == 1 and seen == [["SID"], ["SID"]]
+    with pytest.raises(sources.SourceError):
+        service.resolve("brokenvideo")
+    service.resolve("wxyzabcdefg")
+    assert len(created) == 2  # A failed extractor is replaced, not reused.
+
+
+def test_warm_without_a_session_reports_not_ready(tmp_path):
+    def forbidden(*args):
+        raise AssertionError("No extractor is built without a session")
+
+    auth = SimpleNamespace(session=None, restore=lambda: None)
+    assert Sources(auth, MediaFiles(tmp_path), forbidden).warm() == {"ready": False}

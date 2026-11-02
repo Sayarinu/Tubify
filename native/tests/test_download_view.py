@@ -94,3 +94,27 @@ for line in sys.stdin:
     release.touch()
     view.close()
     assert results and results[0]["items"] and still_planning
+
+
+def test_refresh_if_stale_requests_status_only_when_stale(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    view = DownloadView(tmp_path, fixture=True)
+    sent = []
+    view._send = lambda operation, payload=None, authoritative=False: sent.append(operation)
+    view.refreshIfStale()
+    assert sent == ["status"]
+    view._pending[7] = "status"
+    view._result(7, {"collections": []})
+    view.refreshIfStale()
+    assert sent == ["status"]
+    view.refresh()
+    assert sent == ["status", "status"]
+    view.setAccountAvailable(False)
+    view.refreshIfStale()
+    assert sent == ["status"] * 3
+    view._pending[8] = "status"
+    view._result(8, {"collections": []})
+    view._pending[9] = "status"
+    view._failed(9, {"message": "Failed"})
+    view.refreshIfStale()
+    assert sent == ["status"] * 4

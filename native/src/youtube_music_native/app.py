@@ -193,8 +193,15 @@ def main(argv=None):
     media_data.mkdir(parents=True, exist_ok=True, mode=0o700)
     account = Account(data / "settings.ini", fixture=args.fixture, parent=controller)
     catalog = CatalogView(account.worker, cache / "metadata.sqlite3", account, parent=controller)
-    source_worker = None if args.fixture else Worker(controller, idle_ms=15000)
-    player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
+    # Clicks and prefetches resolve in separate warm workers so a click never waits
+    # behind, or kills, a prefetch. Both restart warm after an account change.
+    warmup = ("warmup", {"data_dir": str(media_data)})
+    source_worker = None if args.fixture else Worker(controller, idle_ms=10 * 60 * 1000, warmup=warmup)
+    prefetch_worker = None if args.fixture else Worker(controller, idle_ms=5 * 60 * 1000, warmup=warmup)
+    player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller, prefetch_worker=prefetch_worker)
+    if source_worker and not (args.smoke_test or args.screenshot):
+        QTimer.singleShot(0, source_worker.prestart)
+        QTimer.singleShot(0, player.prepareAudio)
     controller.discordState = DiscordPresence(player, data / "settings.ini", parent=controller, fixture=args.fixture)
     on_quit(controller.discordState.close)
     controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)

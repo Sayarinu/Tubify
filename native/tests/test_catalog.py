@@ -16,6 +16,8 @@ def test_normalizes_provider_variants_and_unavailable_tracks():
         {"url": "https://example.com/large.jpg", "width": 900, "height": 900},
     ]})
     assert value["duration"] == 222
+    # Radio (watch playlist) rows label their length instead of a duration.
+    assert item({"videoId": "radio000001", "title": "Radio", "length": "3:07"})["duration"] == 187
     assert not value["available"]
     assert value["setVideoId"] == "duplicate-entry"
     assert value["thumbnail"] == "https://example.com/a.jpg"

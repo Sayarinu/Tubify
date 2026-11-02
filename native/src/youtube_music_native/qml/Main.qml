@@ -32,12 +32,12 @@ ApplicationWindow {
     palette.light: themeState.border
     palette.dark: themeState.background
     palette.link: themeState.accent
-    // Warm the artwork caches for the next song so track changes never show a blank cover.
+    // Warm the artwork caches for the next songs so track changes never show a blank cover.
     Repeater {
-        model: playerState.upcomingTrack.videoId ? [
-            { url: playerState.upcomingTrack.thumbnail || "", size: 136 },
-            { url: downloadsState.artworkSource(playerState.upcomingTrack, Math.ceil(720 * Screen.devicePixelRatio * appState.uiScaleFactor)), size: Math.ceil(720 * Screen.devicePixelRatio * appState.uiScaleFactor) }
-        ] : []
+        model: (playerState.upcomingTracks || []).filter(track => !!track.videoId).reduce((items, track) => items.concat([
+            { url: track.thumbnail || "", size: 136 },
+            { url: downloadsState.artworkSource(track, Math.ceil(720 * Screen.devicePixelRatio * appState.uiScaleFactor)), size: Math.ceil(720 * Screen.devicePixelRatio * appState.uiScaleFactor) }
+        ]), [])
         delegate: Image {
             required property var modelData
             visible: false
@@ -81,6 +81,8 @@ ApplicationWindow {
     property var browseFocus: null
     property real browseWidth: 0
     property real browseHeight: 0
+    // Keeps the expanded player loaded while it slides back down.
+    property bool immersiveClosing: false
     function focusSearch() {
         appState.setExpanded(false)
         Qt.callLater(function() { search.forceActiveFocus() })
@@ -94,8 +96,10 @@ ApplicationWindow {
                 window.browseWidth = pages.width
                 window.browseHeight = pages.height
             }
+            immersive.slide(entering)
         }
         function onPlayerViewChanged() {
+            if (appState.expanded) window.immersiveClosing = false
             Qt.callLater(function() {
                 if (appState.expanded && immersive.item) immersive.item.focusStage()
                 else if (window.browseFocus && window.browseFocus.visible && window.browseFocus.enabled) window.browseFocus.forceActiveFocus()
@@ -261,11 +265,12 @@ ApplicationWindow {
                 }
             }
         }
-        Rectangle { x: 16; y: navigation.y + navigation.height + 12; width: sidebar.width - 48; height: 1; color: themeState.border }
+        Rectangle { objectName: "navigationDivider"; x: 16; y: navigation.y + navigation.height + 12; width: sidebar.width - 32; height: 1; color: themeState.border }
         Button {
             id: newPlaylist
-            x: 12; y: navigation.y + navigation.height + 24
-            width: sidebar.width - 24; height: 40
+            objectName: "newPlaylistButton"
+            x: 8; y: navigation.y + navigation.height + 24
+            width: sidebar.width - 16; height: 40
             text: window.wideNavigation ? "+  New Playlist" : "+"
             Accessible.name: "New Playlist"
             ToolTip.text: "New Playlist"
@@ -276,10 +281,12 @@ ApplicationWindow {
             onClicked: appState.requestAction("newPlaylist")
         }
         ListView {
+            objectName: "sidebarPlaylists"
             anchors.top: newPlaylist.bottom
             anchors.topMargin: 12
             anchors.bottom: parent.bottom
-            width: parent.width
+            // Inset like the navigation items so hover highlights never cover the sidebar border.
+            x: 8; width: parent.width - 16
             clip: true
             model: appState.playlists
             delegate: ItemDelegate {
@@ -291,9 +298,9 @@ ApplicationWindow {
                 ToolTip.text: modelData.title
                 ToolTip.visible: hovered && !window.wideNavigation
                 contentItem: Item {
-                    Cover { x: 16; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 8; source: modelData.thumbnail || ""; mediaKey: "playlist:" + modelData.id; accent: themeState.selected }
+                    Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 8; source: modelData.thumbnail || ""; mediaKey: "playlist:" + modelData.id; accent: themeState.selected }
                     Column {
-                        x: 68; anchors.verticalCenter: parent.verticalCenter; width: parent.width - 80; spacing: 4
+                        x: 60; anchors.verticalCenter: parent.verticalCenter; width: parent.width - 72; spacing: 4
                         visible: window.wideNavigation
                         Text { width: parent.width; text: modelData.title; textFormat: Text.PlainText; color: themeState.foreground; font.pixelSize: 14; elide: Text.ElideRight }
                         Text { width: parent.width; text: modelData.owner || ""; textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 12; elide: Text.ElideRight }
@@ -543,10 +550,48 @@ ApplicationWindow {
 
         Loader {
             id: immersive
-            anchors.fill: parent
-            active: appState.expanded
+            objectName: "immersiveLoader"
+            // While closing, hold the expanded geometry so the returning sidebar and header don't re-lay out the pane;
+            // content sits above them, and the docks and player bar above it.
+            property rect closingArea: Qt.rect(0, 0, 0, 0)
+            x: window.immersiveClosing ? closingArea.x - content.x : 0
+            y: window.immersiveClosing ? closingArea.y - content.y : 0
+            width: window.immersiveClosing ? closingArea.width : parent.width
+            height: window.immersiveClosing ? closingArea.height : parent.height
+            z: 1
+            active: appState.expanded || window.immersiveClosing
+            // The closing pane only animates; input and focus belong to the pages beneath it.
+            enabled: appState.expanded
             sourceComponent: Component { ExpandedPane {} }
             onLoaded: item.focusStage()
+            transform: Translate { id: immersiveShift }
+            property bool opening: true
+            // Runs before the expanded flag flips, so the pane starts off-screen and stays loaded while closing.
+            function slide(entering) {
+                immersiveSlide.stop()
+                // Only a close raises the flag; an open clears it after the flip so a reversal never unloads the pane.
+                if (!entering && !window.immersiveClosing) closingArea = Qt.rect(content.x, content.y, content.width, content.height)
+                if (!entering) window.immersiveClosing = !appState.reducedMotion
+                if (appState.reducedMotion) {
+                    immersiveShift.y = 0
+                    opacity = 1
+                    return
+                }
+                // A fresh open starts below the content; reopening mid-close reverses from where it is.
+                if (entering && !active) { immersiveShift.y = content.height; opacity = 0.6 }
+                opening = entering
+                immersiveTarget.to = entering ? 0 : closingArea.height
+                immersiveSlide.start()
+            }
+            SequentialAnimation {
+                id: immersiveSlide
+                ParallelAnimation {
+                    NumberAnimation { id: immersiveTarget; target: immersiveShift; property: "y"; duration: Theme.motionSlow; easing.type: immersive.opening ? Easing.OutCubic : Easing.InCubic }
+                    NumberAnimation { id: immersiveFade; target: immersive; property: "opacity"; to: immersive.opening ? 1 : 0.6; duration: Theme.motionSlow; easing.type: immersive.opening ? Easing.OutCubic : Easing.InCubic }
+                }
+                // Stopping to reverse skips this, so only a finished close unloads the pane.
+                ScriptAction { script: if (!appState.expanded) window.immersiveClosing = false }
+            }
         }
 
     }

@@ -65,7 +65,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 172; height: 40
                     readonly property var keys: ["", "title", "artist", "album", "duration"]
-                    model: [root.playlist ? "Custom order" : "Album order", "Title", "Artist", "Album", "Duration"]
+                    model: ["Number", "Title", "Artist", "Album", "Duration"]
                     currentIndex: Math.max(0, keys.indexOf(catalogState.sortKey))
                     Accessible.name: "Sort songs"
                     onActivated: index => catalogState.setSort(keys[index], index > 0 && keys[index] === catalogState.sortKey ? catalogState.sortDescending : false)
@@ -98,11 +98,12 @@ Item {
         onAtYEndChanged: if (atYEnd && root.album.cursor !== undefined && root.album.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Column {
             width: songs.width
+            // Table rows: number column first, playlist covers at 44px, album rows without artwork.
+            LoadingSkeleton { width: parent.width; view: songs; gutter: root.margin; mode: "rows"; coverInset: 44; coverSize: root.playlist ? 40 : 0; textInset: root.playlist ? 100 : 48; showDuration: true }
             Text { width: parent.width; padding: 24; text: "Add songs from a song’s menu."; visible: root.playlist && !catalogState.busy && !catalogState.error && !(root.album.items || []).length; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; color: themeState.secondary; font.pixelSize: 16 }
             ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Load More"; visible: root.album.cursor !== undefined && root.album.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
         }
     }
-    LoadingSkeleton { anchors.fill: parent; anchors.topMargin: root.compact ? 280 : 380; gutter: root.margin; mode: "rows"; visible: catalogState.busy && !(root.album.items || []).length }
     BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && (root.album.items || []).length > 0 }
     RetryBanner { message: catalogState.error; busy: catalogState.busy; onRetry: catalogState.refresh() }
     property int revision: -1

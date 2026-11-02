@@ -292,8 +292,9 @@ jobs:
           shopt -s failglob
           # The pacman package keeps its internal name; it is published as the Tubify Linux download.
           mv youtube-music-native-*-x86_64.pkg.tar.zst "Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
-          mv youtube-music-native-*.src.tar.gz "Tubify-${VERSION}-linux-source.tar.gz"
-          assets=( *.exe *.dmg *.pkg.tar.zst *.tar.gz )
+          # Releases carry only the desktop app builds; the source package is only used to test upgrades in CI.
+          rm -f youtube-music-native-*.src.tar.gz
+          assets=( *.exe *.dmg *.pkg.tar.zst )
           if [[ "$GITHUB_REF" == refs/tags/native-v* || ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ) ]]; then
             test -s appcast.xml
             assets+=(appcast.xml)
@@ -338,7 +339,7 @@ jobs:
           cd release
           sha256sum --check SHA256SUMS
           shopt -s failglob
-          assets=( *.exe *.dmg *.pkg.tar.zst *.tar.gz SHA256SUMS appcast.xml )
+          assets=( *.exe *.dmg *.pkg.tar.zst SHA256SUMS appcast.xml )
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
               echo "This build is already published."
