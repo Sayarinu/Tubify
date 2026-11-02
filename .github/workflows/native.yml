@@ -96,9 +96,36 @@ jobs:
       - name: Locate native player on macOS
         if: runner.os == 'macOS'
         run: echo "DYLD_FALLBACK_LIBRARY_PATH=$(brew --prefix)/lib" >> "$GITHUB_ENV"
+      # mirror.msys2.org sometimes stalls while syncing; retry before failing the job.
       - name: Install native player on Windows
         if: runner.os == 'Windows'
         id: msys2
+        continue-on-error: true
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-ffmpeg
+      - name: Wait before retrying the MSYS2 mirror
+        if: runner.os == 'Windows' && steps.msys2.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 30
+      - name: Install native player on Windows (retry 2 of 3)
+        if: runner.os == 'Windows' && steps.msys2.outcome == 'failure'
+        id: msys2_retry
+        continue-on-error: true
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-ffmpeg
+      - name: Wait before retrying the MSYS2 mirror
+        if: runner.os == 'Windows' && steps.msys2.outcome == 'failure' && steps.msys2_retry.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 60
+      - name: Install native player on Windows (retry 3 of 3)
+        if: runner.os == 'Windows' && steps.msys2.outcome == 'failure' && steps.msys2_retry.outcome == 'failure'
+        id: msys2_final
         uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
@@ -108,7 +135,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location || steps.msys2_retry.outputs.msys2-location || steps.msys2_final.outputs.msys2-location }}
         run: |
           $mpvDllDirectory = Join-Path $env:MSYS2_LOCATION 'ucrt64\bin'
           Add-Content -Path $env:GITHUB_ENV -Value "PATH=$env:PATH;$mpvDllDirectory"
@@ -184,8 +211,35 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      # mirror.msys2.org sometimes stalls while syncing; retry before failing the job.
       - name: Install MPV and FFmpeg for UCRT64
         id: msys2
+        continue-on-error: true
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-ffmpeg
+      - name: Wait before retrying the MSYS2 mirror
+        if: steps.msys2.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 30
+      - name: Install MPV and FFmpeg for UCRT64 (retry 2 of 3)
+        if: steps.msys2.outcome == 'failure'
+        id: msys2_retry
+        continue-on-error: true
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-mpv mingw-w64-ucrt-x86_64-ffmpeg
+      - name: Wait before retrying the MSYS2 mirror
+        if: steps.msys2.outcome == 'failure' && steps.msys2_retry.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 60
+      - name: Install MPV and FFmpeg for UCRT64 (retry 3 of 3)
+        if: steps.msys2.outcome == 'failure' && steps.msys2_retry.outcome == 'failure'
+        id: msys2_final
         uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
@@ -200,7 +254,7 @@ jobs:
       - name: Build the Tubify installer
         shell: pwsh
         env:
-          MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
+          MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location || steps.msys2_retry.outputs.msys2-location || steps.msys2_final.outputs.msys2-location }}
         run: ./scripts/build-native-windows.ps1
       - name: Verify install, upgrade, launch, and uninstall
         shell: pwsh
