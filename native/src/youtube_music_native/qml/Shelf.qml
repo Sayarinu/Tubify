@@ -4,9 +4,12 @@ import "Theme.js" as Theme
 
 Item {
     id: root
+    objectName: "shelf"
     required property var section
     property var profile: ({})
     property bool compact: section.layout === "rows"
+    // Paging controls only make sense when part of the shelf is cut off.
+    readonly property bool overflowing: cards.contentWidth > cards.width + 1
     signal activated(var item)
     signal playRequested(var item)
     signal moreRequested()
@@ -33,12 +36,14 @@ Item {
         anchors.right: parent.right; anchors.verticalCenter: heading.verticalCenter; spacing: 16
         ThemeActionButton {
             id: more
+            objectName: "shelfPrimaryAction"
             text: root.compact ? "Play All" : "More"
+            visible: root.compact || root.overflowing
             implicitHeight: 36
             onClicked: root.compact ? root.playAllRequested() : root.moreRequested()
         }
-        IconButton { iconName: "left"; tip: "Previous Items"; outlined: true; width: 36; height: 36; enabled: cards.contentX > 0; onClicked: cards.contentX = Math.max(0, cards.contentX - cards.width) }
-        IconButton { iconName: "right"; tip: "More Items"; outlined: true; width: 36; height: 36; enabled: cards.contentX < cards.contentWidth - cards.width; onClicked: cards.contentX = Math.min(Math.max(0, cards.contentWidth - cards.width), cards.contentX + cards.width) }
+        IconButton { objectName: "shelfPrevious"; visible: root.overflowing; iconName: "left"; tip: "Previous Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXBeginning; onClicked: cards.contentX = Math.max(0, cards.contentX - cards.width) }
+        IconButton { objectName: "shelfNext"; visible: root.overflowing; iconName: "right"; tip: "More Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXEnd; onClicked: cards.contentX = Math.min(Math.max(0, cards.contentWidth - cards.width), cards.contentX + cards.width) }
     }
     ListView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
