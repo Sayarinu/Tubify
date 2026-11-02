@@ -23,6 +23,15 @@ from .playback import write_state
 REPOSITORY = "https://github.com/Sayarinu/YouTube-Music-App"
 RELEASE_API = "https://api.github.com/repos/Sayarinu/YouTube-Music-App/releases"
 VERSION = re.compile(r"(?:native-v)?(\d+)\.(\d+)\.(\d+)$")
+CHECK_INTERVAL = 6 * 60 * 60
+NOTES_LIMIT = 1500
+
+
+def release_notes(value):
+    """Plain, bounded release notes; the popup renders them as text, never markup."""
+    text = value if isinstance(value, str) else ""
+    text = "\n".join(line.rstrip() for line in text.replace("\r\n", "\n").splitlines()).strip()
+    return text if len(text) <= NOTES_LIMIT else text[:NOTES_LIMIT].rstrip() + "…"
 
 
 def installed_version():
@@ -59,12 +68,12 @@ def lookup_release(opener=urlopen):
             tag = row.get("tag_name", "")
             number = release_version(tag)
             if number and tag.startswith("native-v"):
-                candidates.append((number, tag))
+                candidates.append((number, tag, release_notes(row.get("body"))))
         if len(rows) < 100:
             if not candidates:
                 raise ValueError("No stable native release found")
-            _, tag = max(candidates)
-            return {"tag": tag, "checkedAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+            _, tag, notes = max(candidates)
+            return {"tag": tag, "notes": notes, "checkedAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     raise ValueError("Release listing exceeded its limit")
 
 
@@ -112,7 +121,7 @@ def perform(payload, opener=urlopen, progress=None):
             result = lookup_release(opener)
         except Exception:
             try:
-                if path.stat().st_size > 4096:
+                if path.stat().st_size > 16384:
                     raise ValueError()
                 cached = json.loads(path.read_text(encoding="utf-8"))
                 if not str(cached.get("tag", "")).startswith("native-v") or not release_version(cached["tag"]):
@@ -147,6 +156,7 @@ class Maintenance(QObject):
         self.window = None
         self.prepare_restart = lambda: None
         self._tag, self._available, self._progress = "", False, 0
+        self._notes = ""
         self._mac = None
         self.settings = getattr(shell, "settings", None)
         if self.settings is None:
@@ -189,6 +199,14 @@ class Maintenance(QObject):
     def updateAvailable(self):
         return self._available
 
+    @Property(str, notify=changed)
+    def latestVersion(self):
+        return self._tag.removeprefix("native-v")
+
+    @Property(str, notify=changed)
+    def releaseNotes(self):
+        return self._notes
+
     @Property(bool, constant=True)
     def installSupported(self):
         return self._supported
@@ -209,10 +227,23 @@ class Maintenance(QObject):
         self.changed.emit()
         self._check_due()
 
+    def _known_newer(self):
+        """A previously found release that is newer than this build."""
+        try:
+            if Path(self._cache).stat().st_size > 16384:
+                return False
+            cached = json.loads(Path(self._cache).read_text(encoding="utf-8"))
+            latest, current = release_version(cached.get("tag")), release_version(self.currentVersion)
+            return bool(latest and current and latest > current)
+        except (OSError, ValueError, TypeError, AttributeError):
+            return False
+
     def start(self):
         if self.installSupported:
             self.timer.start()
-            QTimer.singleShot(5000, self._check_due)
+            # Re-confirm a known update right away so the header indicator returns
+            # after a restart; cached data alone never advertises an install.
+            QTimer.singleShot(3000 if self._known_newer() else 5000, self.checkRelease if self._known_newer() else self._check_due)
         for partial in (Path(self._cache).parent / "updates").glob("*.part"):
             partial.unlink(missing_ok=True)
         receipt = Path(self._cache).parent / "updates/result.json"
@@ -228,7 +259,7 @@ class Maintenance(QObject):
     def _check_due(self):
         if self._automatic and self.installSupported and not self.busy:
             last = self.settings.value("updates/lastAttempt", 0, type=float)
-            if not 0 <= time.time() - last < 86400:
+            if not 0 <= time.time() - last < CHECK_INTERVAL:
                 self.checkRelease()
 
     @Slot()
@@ -334,6 +365,7 @@ class Maintenance(QObject):
                     self._status = "Offline or lookup failed. Last known stable: " + tag + ". Checked " + result.get("checkedAt", "unknown") + ". Retry for current status."
                 elif current and latest > current:
                     self._tag, self._available = tag, True
+                    self._notes = release_notes(result.get("notes"))
                     self._status = "Release available: " + tag
                 elif current == latest:
                     self._status = "Installed version matches the latest stable release: " + tag

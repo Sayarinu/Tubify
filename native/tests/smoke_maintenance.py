@@ -29,9 +29,23 @@ def main():
                     service._available = True
                     service.changed.emit()
                     QTest.qWait(20)
-                    review = window.findChild(QObject, "updateReview")
-                    assert review and review.property("visible")
-                    QMetaObject.invokeMethod(review, "clicked")
+                    service._tag = "native-v99.0.0"
+                    service._notes = "Faster search and a header update indicator."
+                    service.changed.emit()
+                    QTest.qWait(20)
+                    # The header shows an update icon with a dot; one click opens the update popup.
+                    button = window.findChild(QObject, "updateButton")
+                    badge = window.findChild(QObject, "updateBadge")
+                    assert button and button.property("visible") and badge.property("visible")
+                    QMetaObject.invokeMethod(button, "clicked")
+                    QTest.qWait(50)
+                    popup = window.findChild(QObject, "updateDialog")
+                    assert popup.property("visible") and popup.property("height") * shell.uiScaleFactor < window.height()
+                    assert window.findChild(QObject, "updateNotes").property("text") == service.releaseNotes
+                    QMetaObject.invokeMethod(window.findChild(QObject, "updateLater"), "clicked")
+                    QTest.qWait(50)
+                    assert not popup.property("visible")
+                    QMetaObject.invokeMethod(dialog, "open")
                     QTest.qWait(50)
                     assert dialog.property("visible") and dialog.property("height") * shell.uiScaleFactor < window.height()
                     service.exportDiagnostics(QUrl.fromLocalFile(str(report)))

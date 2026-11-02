@@ -7,7 +7,6 @@ import "Theme.js" as Theme
 
 ApplicationWindow {
     id: window
-    property bool updateDismissed: false
     visible: false
     width: appState.initialWidth
     height: appState.initialHeight
@@ -143,21 +142,6 @@ ApplicationWindow {
     Binding { target: window.Overlay.overlay; property: "height"; value: uiRoot.height }
     Item {
         id: uiRoot
-    Rectangle {
-        z: 100
-        anchors.top: parent.top; anchors.right: parent.right
-        anchors.margins: 16
-        width: Math.min(440, parent.width - 32); height: updateActions.implicitHeight + 24
-        radius: 8; color: themeState.surface; border.color: themeState.accent
-        visible: maintenanceState.updateAvailable && !window.updateDismissed
-        RowLayout {
-            id: updateActions
-            anchors.fill: parent; anchors.margins: 12
-            Label { text: "A new Tubify release is available"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.foreground }
-            ThemeActionButton { objectName: "updateReview"; text: "Review"; onClicked: maintenanceSettings.open() }
-            ThemeActionButton { text: "Later"; onClicked: window.updateDismissed = true }
-        }
-    }
         objectName: "scaledContent"
         width: window.width / appState.uiScaleFactor
         height: window.height / appState.uiScaleFactor
@@ -335,7 +319,7 @@ ApplicationWindow {
             objectName: "searchField"
             x: window.compactNavigation ? 92 : header.width < 480 ? 56 : 96
             y: 11
-            width: Math.max(80, Math.min(480, (historyButton.visible ? historyButton.x : settingsButton.x) - x - 12))
+            width: Math.max(80, Math.min(480, (updateButton.visible ? updateButton.x : historyButton.visible ? historyButton.x : settingsButton.x) - x - 12))
             height: 42
             leftPadding: header.width < 400 ? 34 : 52
             rightPadding: text.length > 0 ? 48 : 16
@@ -402,6 +386,31 @@ ApplicationWindow {
         }
         IconButton { id: settingsButton; objectName: "settingsButton"; anchors.right: profileButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "settings"; tip: "Settings"; onClicked: settingsWindow.open() }
         IconButton { id: historyButton; objectName: "historyButton"; visible: header.width >= 640; anchors.right: settingsButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening History"; onClicked: libraryState.history() }
+        IconButton {
+            id: updateButton
+            objectName: "updateButton"
+            // Shown only while a newer stable release is waiting or downloading.
+            visible: maintenanceState.updateAvailable || maintenanceState.downloading
+            anchors.right: historyButton.visible ? historyButton.left : settingsButton.left; anchors.rightMargin: 12
+            y: 10; width: 44; height: 44
+            iconName: "update"; iconColor: themeState.accent
+            tip: maintenanceState.downloading ? "Downloading update " + maintenanceState.progress + "%" : "Tubify " + maintenanceState.latestVersion + " is available"
+            Accessible.name: "Update available"
+            onClicked: updateDialog.open()
+            Rectangle {
+                objectName: "updateBadge"
+                width: 10; height: 10; radius: 5
+                x: parent.width - width - 8; y: 8
+                color: themeState.accent
+                border.width: 2; border.color: themeState.background
+                SequentialAnimation on scale {
+                    running: updateButton.visible && !appState.reducedMotion
+                    loops: 3
+                    NumberAnimation { from: 1; to: 1.5; duration: 400; easing.type: Easing.OutQuad }
+                    NumberAnimation { from: 1.5; to: 1; duration: 400; easing.type: Easing.InQuad }
+                }
+            }
+        }
     }
 
     ThemedMenu {
@@ -432,6 +441,7 @@ ApplicationWindow {
 
     PlaybackSettings { id: playbackSettings; host: settingsWindow }
     MaintenanceSettings { id: maintenanceSettings; host: settingsWindow }
+    UpdateDialog { id: updateDialog }
     DesktopSettings { id: desktopSettings; host: settingsWindow }
     ShortcutSettings { id: shortcutSettings; host: settingsWindow }
     ApiSettings { id: apiSettings; host: settingsWindow }

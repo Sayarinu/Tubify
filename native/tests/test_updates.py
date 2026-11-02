@@ -171,3 +171,22 @@ def test_update_preferences_use_shell_config_not_replaceable_cache(tmp_path):
     assert service.settings is shell.settings
     assert shell.settings.value('updates/automatic', True, type=bool) is False
     service.close()
+
+
+def test_release_lookup_carries_bounded_plain_notes_and_restart_rechecks(tmp_path, monkeypatch):
+    rows = [{'tag_name': 'native-v0.3.0', 'body': 'Line one\r\n' + 'x' * 3000}, {'tag_name': 'native-v0.2.0', 'body': 'old'}]
+    result = maintenance.lookup_release(lambda request, timeout: io.BytesIO(json.dumps(rows).encode()))
+    assert result['tag'] == 'native-v0.3.0' and result['notes'].startswith('Line one\n')
+    assert len(result['notes']) <= maintenance.NOTES_LIMIT + 1 and result['notes'].endswith('…')
+    app = QCoreApplication.instance() or QCoreApplication([])
+    monkeypatch.setattr(updates, 'supported', lambda: True)
+    cache = tmp_path/'cache/release.json'
+    cache.parent.mkdir()
+    cache.write_text(json.dumps({'tag': 'native-v99.0.0', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
+    service = maintenance.Maintenance(cache, object(), worker_factory=Worker)
+    # A cached newer release is re-confirmed at startup instead of trusted.
+    assert service._known_newer() and not service.updateAvailable
+    service.checkRelease()
+    service._worker.succeeded.emit(1, {'tag': 'native-v99.0.0', 'notes': 'Header indicator'})
+    assert service.updateAvailable and service.latestVersion == '99.0.0' and service.releaseNotes == 'Header indicator'
+    service.close()
