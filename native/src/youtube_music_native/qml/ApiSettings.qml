@@ -28,7 +28,7 @@ SettingsPage {
             ThemeActionButton { text: "Retry Server"; visible: apiState.enabled && !!apiState.error; onClicked: apiState.retry() }
             Rectangle { Layout.fillWidth: true; height: 1; color: themeState.border }
             Text { text: "Pair a Client"; font.bold: true; color: themeState.foreground }
-            TextField { id: clientName; objectName: "apiClientName"; Layout.fillWidth: true; placeholderText: "Client name, such as Stream Deck"; maximumLength: 64; Accessible.name: "API client name" }
+            TextField { id: clientName; objectName: "apiClientName"; Layout.fillWidth: true; placeholderText: "Client name, such as a remote control"; maximumLength: 64; Accessible.name: "API client name" }
             ThemedComboBox { id: clientScope; objectName: "apiClientScope"; Layout.fillWidth: true; model: ["Overlay · Read Now Playing", "Playback Control · Read and Control"]; Accessible.name: "API permission" }
             ThemeActionButton { objectName: "apiBeginPairing"; text: "Generate Pairing Code"; enabled: apiState.active && clientName.text.trim().length > 0; onClicked: apiState.beginPairing(clientName.text, clientScope.currentIndex === 0 ? "overlay" : "control") }
             Text { Layout.fillWidth: true; text: "Paste the one-time code into your client within two minutes. A new code replaces the previous one. Overlay access cannot change playback or read your queue."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }

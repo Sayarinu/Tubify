@@ -1,5 +1,4 @@
 """Display branding must not move existing accounts, package or integration identities."""
-import json
 from pathlib import Path
 import tomllib
 
@@ -33,12 +32,7 @@ def test_tubify_display_name_preserves_package_desktop_and_credential_ids():
     assert (SERVICE, USERNAME) == ("com.carter.youtube-music.native", "session")
 
 
-def test_tubify_integration_labels_preserve_existing_plugin_and_userscript_ids():
-    manifest = json.loads((NATIVE / "integrations/streamdeck/com.carter.youtube-music.sdPlugin/manifest.json").read_text())
-    assert manifest["Name"] == manifest["Category"] == "Tubify"
-    assert manifest["UUID"] == "com.carter.youtube-music"
-    actions = {"toggle", "play", "pause", "previous", "next", "stop", "like", "dislike", "shuffle", "repeat", "volume-up", "volume-down", "volume", "track"}
-    assert {action["UUID"] for action in manifest["Actions"]} == {"com.carter.youtube-music." + name for name in actions}
+def test_tubify_userscript_preserves_existing_ids():
     userscript = (NATIVE / "integrations/browser-handoff.user.js").read_text()
     assert "// @name         YouTube Music Native handoff" in userscript
     assert "// @namespace    com.carter.youtube-music.native" in userscript

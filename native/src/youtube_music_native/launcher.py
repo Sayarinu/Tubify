@@ -31,10 +31,6 @@ def main(argv=None):
 
     prepare_runtime()
     prepare_windows_runtime()
-    if args == ["--streamdeck-credentials"]:
-        from .streamdeck_credentials import main as credential_main
-
-        return credential_main()
     if args == [FLAGS["provider"]]:
         from .worker import main as worker_main
 

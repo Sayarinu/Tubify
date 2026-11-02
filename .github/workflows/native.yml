@@ -174,7 +174,7 @@ jobs:
 
   release-assets:
     name: Assemble and verify all release downloads
-    needs: [shared-code, windows-app, macos-app, arch-app, streamdeck]
+    needs: [shared-code, windows-app, macos-app, arch-app]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -189,18 +189,13 @@ jobs:
         with:
           name: native-arch-package
           path: release
-      # The plugin is platform-independent; all three matrix builds are tested.
-      - uses: actions/download-artifact@v4
-        with:
-          name: streamdeck-windows-latest
-          path: release
       - name: Require every download type and generate checksums
         working-directory: release
         shell: bash
         run: |
           set -euo pipefail
           shopt -s failglob
-          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz *.streamDeckPlugin )
+          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz )
           if [[ "$GITHUB_REF" == refs/tags/native-v* ]]; then
             test -s appcast.xml
             assets+=(appcast.xml)
@@ -241,9 +236,9 @@ jobs:
           cd release
           sha256sum --check SHA256SUMS
           shopt -s failglob
-          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz *.streamDeckPlugin SHA256SUMS )
+          assets=( *.exe *.dmg *.pkg.tar.zst *.src.tar.gz SHA256SUMS )
           if [[ "$GITHUB_REF" == refs/tags/native-v* ]]; then assets+=(appcast.xml); fi
-          printf 'Verified build of main commit `%s`.\n\nDownloads:\n- Windows: setup.exe\n- macOS Apple Silicon: arm64.dmg\n- Arch Linux: pkg.tar.zst (install with pacman -U)\n- Arch build sources: src.tar.gz\n- Stream Deck for Windows/macOS: streamDeckPlugin\n- Integrity checks: SHA256SUMS\n\n[Build and verification](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > notes.md
+          printf 'Verified build of main commit `%s`.\n\nDownloads:\n- Windows: setup.exe\n- macOS Apple Silicon: arm64.dmg\n- Arch Linux: pkg.tar.zst (install with pacman -U)\n- Arch build sources: src.tar.gz\n- Integrity checks: SHA256SUMS\n\n[Build and verification](https://github.com/%s/actions/runs/%s)\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > notes.md
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
               echo "This build is already published."
@@ -258,29 +253,3 @@ jobs:
             latest=true
           fi
           gh release edit "$tag" --draft=false --latest="$latest"
-
-  streamdeck:
-    name: Stream Deck (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    defaults:
-      run:
-        working-directory: native/integrations/streamdeck
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: native/integrations/streamdeck/package-lock.json
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npm test
-      - run: npm run validate
-      - run: npm run pack
-      - uses: actions/upload-artifact@v4
-        with:
-          name: streamdeck-${{ matrix.os }}
-          path: native/integrations/streamdeck/dist/*.streamDeckPlugin
