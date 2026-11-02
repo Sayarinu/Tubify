@@ -35,3 +35,14 @@ def test_artwork_survives_restart_without_reaching_the_network(tmp_path):
     reply.deleteLater()
     restarted.deleteLater()
     app.processEvents()
+
+
+def test_google_artwork_is_resized_without_lookups():
+    from youtube_music_native.artwork_sources import choose, with_resized
+
+    values = [{"url": "https://lh3.googleusercontent.com/abc123=w544-h544-l90-rj", "width": 544, "height": 544}]
+    chosen = choose(with_resized(values, 1200), 1200)
+    assert chosen == {"url": "https://lh3.googleusercontent.com/abc123=w1200-h1200-l90-rj", "width": 1200, "height": 1200}
+    assert with_resized(values, 300) == values
+    video = [{"url": "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg", "width": 480, "height": 360}]
+    assert with_resized(video, 1200) == video

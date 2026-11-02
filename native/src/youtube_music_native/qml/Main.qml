@@ -33,6 +33,21 @@ ApplicationWindow {
     palette.light: themeState.border
     palette.dark: themeState.background
     palette.link: themeState.accent
+    // Warm the artwork caches for the next song so track changes never show a blank cover.
+    Repeater {
+        model: playerState.upcomingTrack.videoId ? [
+            { url: playerState.upcomingTrack.thumbnail || "", size: 136 },
+            { url: downloadsState.artworkSource(playerState.upcomingTrack, Math.ceil(720 * Screen.devicePixelRatio * appState.uiScaleFactor)), size: Math.ceil(720 * Screen.devicePixelRatio * appState.uiScaleFactor) }
+        ] : []
+        delegate: Image {
+            required property var modelData
+            visible: false
+            asynchronous: true
+            source: modelData.url
+            sourceSize.width: modelData.size
+            sourceSize.height: modelData.size
+        }
+    }
     property bool wideNavigation: true
     readonly property bool compactNavigation: !appState.expanded && (appState.queueOpen || appState.lyricsOpen) && uiRoot.width < 780
     onCompactNavigationChanged: navigationDrawer.close()

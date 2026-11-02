@@ -9,7 +9,7 @@ import tempfile
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QImageReader
 
-from .artwork_sources import apply_artwork, choose, media_variants, quality, variants
+from .artwork_sources import apply_artwork, choose, media_variants, quality, variants, with_resized
 from .downloads import DownloadStore, VIDEO_ID, cache_artwork
 
 
@@ -42,6 +42,7 @@ def resolve(auth, data_dir, media, pixels, online, fetch=cache_artwork):
                     local = image
         if quality(local) >= pixels or not online:
             return {"videoId": video_id, **local}
+        values = with_resized(values, pixels)
         chosen = choose(values, pixels)
         if quality(chosen) < pixels:
             try:

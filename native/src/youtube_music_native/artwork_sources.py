@@ -1,7 +1,13 @@
 """Normalized artwork variants shared by catalog, downloads and large covers."""
 
 import math
+import re
 from urllib.parse import urlsplit
+
+# Google image hosts serve any square size from the same URL stem, so a larger cover
+# never needs the album/song lookups the worker would otherwise make.
+RESIZABLE = re.compile(r"^(https://(?:lh\d+\.googleusercontent\.com|yt\d+\.(?:ggpht|googleusercontent)\.com)/[^=?#\s]+)=[a-zA-Z0-9_-]*$")
+MAX_RESIZED = 2048
 
 
 def variants(value):
@@ -40,6 +46,23 @@ def media_variants(media):
     return variants(list(media.get("artworkVariants") or []) + [
         {"url": media.get("thumbnail", "")}, {"url": media.get("largeThumbnail", "")},
     ])
+
+
+def resized(values, pixels):
+    """Return a square variant of a resizable Google image at the requested size."""
+    pixels = max(1, min(MAX_RESIZED, int(pixels)))
+    for value in sorted(variants(values), key=quality, reverse=True):
+        match = RESIZABLE.match(value["url"])
+        if match and (not value.get("width") or not value.get("height") or abs(value["width"] - value["height"]) <= 2):
+            return [{"url": f"{match.group(1)}=w{pixels}-h{pixels}-l90-rj", "width": pixels, "height": pixels}]
+    return []
+
+
+def with_resized(values, pixels):
+    values = variants(values)
+    if quality(max(values, key=quality, default={})) >= pixels:
+        return values
+    return values + resized(values, pixels)
 
 
 def choose(values, pixels):

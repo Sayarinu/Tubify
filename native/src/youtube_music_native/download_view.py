@@ -77,8 +77,8 @@ class DownloadView(QObject):
 
     @Slot("QVariantMap", int, result=str)
     def artworkSource(self, media, pixels):
-        from .artwork_sources import choose, media_variants
-        return choose(media_variants(media), pixels).get("url", "")
+        from .artwork_sources import choose, media_variants, with_resized
+        return choose(with_resized(media_variants(media), pixels), pixels).get("url", "")
 
     @Slot("QVariantMap", int)
     @Slot("QVariantMap", int, bool)

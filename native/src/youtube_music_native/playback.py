@@ -69,6 +69,7 @@ class Playback(QObject):
         self._transport_revision, self._stopped, self._device_wait = 0, False, False
         self._source_expires, self._last_progress = 0., time.monotonic()
         self._stall_recoveries, self._consecutive_failures = 0, 0
+        self._local_counter = 0
         self.stateSaveFailed.connect(self._save_failed)
         if fixture:
             self.queue.replace(fixture.get("shelves", [{}])[0].get("items", []))
@@ -105,6 +106,11 @@ class Playback(QObject):
     @Property("QVariantMap", notify=changed)
     def currentTrack(self):
         return self.queue.current["track"] if self.queue.current else {}
+
+    @Property("QVariantMap", notify=changed)
+    def upcomingTrack(self):
+        upcoming = self.queue.peek(automatic=True)
+        return upcoming["track"] if upcoming else {}
 
     @Property(str, notify=changed)
     def nextGroup(self):
@@ -283,11 +289,18 @@ class Playback(QObject):
 
     def _start(self, position=0, paused=False, force=False, damaged=False):
         self._stopped, self._device_wait = False, False
+        video_id = self.currentTrack.get("videoId", "") if self.hasTrack else ""
+        adopt = None
         if self.worker:
-            if self._request is not None:
+            if self._request is not None and self._request > 0:
                 self.worker.cancel(self._request)
             if self._prepare_request is not None:
-                self.worker.cancel(self._prepare_request)
+                if self._preparing_video == video_id and not force:
+                    # The prefetch is already resolving this song; killing it would only
+                    # force a cold worker start for the same answer.
+                    adopt = self._prepare_request
+                else:
+                    self.worker.cancel(self._prepare_request)
         if self.radio_worker and self._radio_request is not None:
             self.radio_worker.cancelQueued(self._radio_request)
         self._radio_request, self._prepare_request, self._preparing_video = None, None, None
@@ -313,8 +326,16 @@ class Playback(QObject):
             self._playing = not paused
         elif self.worker:
             self._busy = True
-            video_id = self.currentTrack.get("videoId", "")
-            self._request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "force": force, "damaged": damaged, "prepared": self._prepared.pop(video_id, None), "available": self.currentTrack.get("available", True)})
+            prepared = self._prepared.pop(video_id, None)
+            if adopt is not None:
+                self._request = adopt
+            elif not force and not damaged and self._usable(prepared, video_id):
+                # A prefetched signed URL plays immediately without a worker round trip.
+                self._local_counter -= 1
+                self._request = identifier = self._local_counter
+                QTimer.singleShot(0, lambda: self._resolved(identifier, prepared))
+            else:
+                self._request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "force": force, "damaged": damaged, "prepared": prepared, "available": self.currentTrack.get("available", True)})
         self._queue_changed()
 
     @Slot(int, dict)
@@ -350,6 +371,12 @@ class Playback(QObject):
             self._message = "The native player could not start. Check the audio device and libmpv installation."
             self._playing = False
         self.changed.emit()
+
+    def _usable(self, source, video_id):
+        """Only an unexpired remote source for this song skips resolution."""
+        return (isinstance(source, dict) and source.get("kind") == "remote" and source.get("videoId") == video_id
+                and isinstance(source.get("expires"), (int, float)) and source["expires"] > time.time() + 60
+                and str(source.get("source", "")).startswith("https://") and self.currentTrack.get("available", True) is not False)
 
     def _remember_source(self, source):
         if source.get("kind") == "remote" and source.get("videoId"):

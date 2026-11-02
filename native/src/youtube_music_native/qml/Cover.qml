@@ -26,7 +26,7 @@ Rectangle {
     }
     Timer {
         id: upgrade
-        interval: 150
+        interval: 60
         property bool allowRetry: false
         onTriggered: {
             var retry = allowRetry

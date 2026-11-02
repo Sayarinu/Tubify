@@ -212,9 +212,12 @@ def test_failed_source_retries_once_then_skips_and_prepares_upcoming(tmp_path):
     retry_id = len(worker.requests)
     assert worker.requests[-1][1]["force"] is True
     worker.succeeded.emit(retry_id, {"kind": "remote", "source": "https://media.invalid/retry"})
+    prefetch = player._prepare_request
+    assert worker.requests[prefetch - 1][1]["videoId"] == TRACKS[1]["videoId"]
     player.audio.ended.emit(True)
     assert player.currentTrack["title"] == "Next"
-    assert not worker.requests[-1][1]["force"]
+    # The in-flight prefetch for the next song is adopted rather than killed.
+    assert player._request == prefetch and prefetch not in worker.cancelled
     player.close()
 
 
@@ -227,11 +230,15 @@ def test_previous_reuses_recent_source_after_worker_hibernation_without_saving_i
     player.playTracks(TRACKS)
     worker.succeeded.emit(1, first)
     worker.succeeded.emit(player._prepare_request, upcoming)
+    requests = len(worker.requests)
     player.next()
-    assert worker.requests[-1][1]["prepared"] == upcoming
-    worker.succeeded.emit(len(worker.requests), upcoming)
+    app.processEvents()
+    # Prefetched, unexpired sources start directly instead of waiting for the worker.
+    assert player.audio.loads[-1][0] == upcoming and player.playing
     player.previous()
-    assert worker.requests[-1][1]["prepared"] == first
+    app.processEvents()
+    assert player.audio.loads[-1][0] == first
+    assert all(payload.get("videoId") != TRACKS[0]["videoId"] for _, payload in worker.requests[requests:])
     player.close()
     assert "media.invalid" not in player.path.read_text()
 
@@ -533,4 +540,18 @@ def test_resuming_after_signed_url_expired_resolves_fresh_source(tmp_path):
     player.togglePlayback()
     assert len(worker.requests) > requests and worker.requests[-1][1]["force"] is True
     assert player.position == 70. and player.wantsPlayback
+    player.close()
+
+
+def test_expired_prepared_source_is_resolved_again(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    import time
+
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks(TRACKS)
+    worker.succeeded.emit(1, {"kind": "remote", "source": "https://media.invalid/first", "videoId": TRACKS[0]["videoId"], "expires": time.time() + 3600})
+    worker.succeeded.emit(player._prepare_request, {"kind": "remote", "source": "https://media.invalid/next", "videoId": TRACKS[1]["videoId"], "expires": time.time() + 30})
+    player.next()
+    assert worker.requests[-1][0] == "resolve" and worker.requests[-1][1]["videoId"] == TRACKS[1]["videoId"]
     player.close()
