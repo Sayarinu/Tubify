@@ -52,8 +52,8 @@ SettingsPage {
                     Label { Layout.fillWidth: true; text: "API Credentials"; font.bold: true; color: themeState.foreground }
                     ThemeActionButton { text: "Get Credentials"; onClicked: Qt.openUrlExternally("https://www.last.fm/api/account/create") }
                 }
-                TextField { id: apiKey; objectName: "lastFmApiKey"; Layout.fillWidth: true; echoMode: TextInput.Password; placeholderText: "API key"; maximumLength: 32; Accessible.name: "Last.fm API key" }
-                TextField { id: secret; objectName: "lastFmSecret"; Layout.fillWidth: true; echoMode: TextInput.Password; placeholderText: "Shared secret"; maximumLength: 32; Accessible.name: "Last.fm shared secret" }
+                ThemedTextField { id: apiKey; objectName: "lastFmApiKey"; Layout.fillWidth: true; echoMode: TextInput.Password; placeholderText: "API key"; maximumLength: 32; Accessible.name: "Last.fm API key" }
+                ThemedTextField { id: secret; objectName: "lastFmSecret"; Layout.fillWidth: true; echoMode: TextInput.Password; placeholderText: "Shared secret"; maximumLength: 32; Accessible.name: "Last.fm shared secret" }
                 ThemeActionButton { text: "Save Credentials"; enabled: !!root.service && !root.service.busy && apiKey.text.length === 32 && secret.text.length === 32; onClicked: { root.service.configure(apiKey.text, secret.text); apiKey.clear(); secret.clear(); root.editingCredentials = false } }
                 Label { Layout.fillWidth: true; text: "Kept in your system keyring."; color: themeState.secondary; font.pixelSize: 12 }
             }

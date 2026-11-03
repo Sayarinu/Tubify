@@ -11,7 +11,7 @@ from PySide6.QtCore import QEvent, QLockFile, QObject, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
 from .deep_links import parse_link, LinkError
-from .playback import write_state
+from .util import atomic_write
 
 MAX_MESSAGE = 48 * 1024
 
@@ -48,7 +48,7 @@ class LinkInstance(QObject):
             self._primary, self._token = True, secrets.token_hex(32)
             # A private token also protects macOS, where Unix socket modes are ignored.
             try:
-                write_state(self.manifest, json.dumps({"token": self._token}))
+                atomic_write(self.manifest, json.dumps({"token": self._token}))
             except OSError:
                 self.close()
                 raise LinkError("The application could not save local link handling state.") from None

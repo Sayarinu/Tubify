@@ -83,7 +83,6 @@ FocusScope {
         text: root.media.title || ""
         textFormat: Text.PlainText
         color: themeState.foreground
-        font.family: Theme.bodyFont
         font.pixelSize: 14
         font.weight: Font.Bold
         wrapMode: Text.Wrap
@@ -106,12 +105,12 @@ FocusScope {
         spacing: 5
         Text {
             text: root.media.label || (root.media.kind ? root.media.kind.charAt(0).toUpperCase() + root.media.kind.slice(1) : "Song")
-            color: themeState.secondary; font.family: Theme.bodyFont; font.pixelSize: 14
+            color: themeState.secondary; font.pixelSize: 14
         }
         Text {
             id: artist
             objectName: "cardArtist"
-            text: root.media.artist || root.primaryArtist.name || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: artistLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.family: Theme.bodyFont; font.pixelSize: 14; visible: text.length > 0; width: Math.min(implicitWidth, Math.max(0, subtitle.width - x - 4))
+            text: root.media.artist || root.primaryArtist.name || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: artistLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 14; visible: text.length > 0; width: Math.min(implicitWidth, Math.max(0, subtitle.width - x - 4))
             font.underline: artistLink.containsMouse || activeFocus
             activeFocusOnTab: !!root.primaryArtist.id
             function openArtist() { if (root.primaryArtist.id) browseState.open({kind: "artist", id: root.primaryArtist.id, title: root.primaryArtist.name}) }

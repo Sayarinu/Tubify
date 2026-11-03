@@ -14,7 +14,7 @@ tubify --fixture    # synthetic data, no account needed
 python -m pytest tests -q
 ```
 
-Playback needs libmpv, FFmpeg and Deno on `PATH`.
+Playback needs FFmpeg and Deno on `PATH`, and libmpv where the system library loader can find it: installed system-wide or on `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS). On Windows, libmpv's DLL directory must be on `PATH`.
 
 ## Packages
 

@@ -148,10 +148,6 @@ class DownloadView(QObject):
     def message(self):
         return self._message
 
-    @Property(str, notify=changed)
-    def activeCollection(self):
-        return self._active or ""
-
     @Property(float, notify=changed)
     def usedBytes(self):
         return float(self._bytes)

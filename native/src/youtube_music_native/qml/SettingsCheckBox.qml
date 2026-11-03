@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "Theme.js" as Theme
 
 CheckBox {
     id: root
@@ -13,7 +14,7 @@ CheckBox {
     Accessible.checkable: true
     contentItem: Text {
         text: root.text
-        font.pixelSize: 14
+        font.pixelSize: Theme.textBody
         color: root.enabled ? themeState.foreground : themeState.secondary
         rightPadding: 36
         verticalAlignment: Text.AlignVCenter
@@ -22,7 +23,7 @@ CheckBox {
     indicator: Rectangle {
         x: root.width - width - root.rightPadding
         y: (root.height - height) / 2
-        implicitWidth: 24; implicitHeight: 24; radius: 12
+        implicitWidth: 24; implicitHeight: 24; radius: Theme.radiusMedium
         color: root.checked ? themeState.accent : themeState.background
         border.width: 1
         border.color: root.checked ? themeState.accent : themeState.secondary

@@ -26,3 +26,17 @@ def test_incomplete_invalid_and_missed_targets_block_release(name, value):
     report["measurements"][name] = value
     with pytest.raises(ValueError):
         module.verify(report)
+
+
+def test_reports_without_a_wrapper_baseline_use_the_native_targets_alone():
+    report = passing_report()
+    for name in ("wrapper_steady_pss_mib", "wrapper_stream_start_p95_ms", "wrapper_skip_p95_ms"):
+        del report["measurements"][name]
+    module.verify(report)
+    report["measurements"]["native_steady_pss_mib"] = 301
+    with pytest.raises(ValueError):
+        module.verify(report)
+    report["measurements"]["native_steady_pss_mib"] = 250
+    report["measurements"]["wrapper_skip_p95_ms"] = None
+    with pytest.raises(ValueError):
+        module.verify(report)

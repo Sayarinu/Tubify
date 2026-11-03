@@ -3,7 +3,6 @@
 import json
 import math
 from pathlib import Path
-import re
 import time
 import unicodedata
 from urllib.parse import urlparse

@@ -22,7 +22,7 @@ SettingsPage {
                 text: "Experimental. Tubify shows up in the Cast menu of the YouTube Music app on phones connected to the same network. The phone can then play, pause, skip, seek and change the volume. This uses an unofficial YouTube connection that may stop working when YouTube changes it."
             }
             Label { text: "Device Name"; color: themeState.foreground }
-            TextField {
+            ThemedTextField {
                 id: deviceName
                 objectName: "castDeviceName"
                 Layout.fillWidth: true

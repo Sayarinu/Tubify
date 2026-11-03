@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "Theme.js" as Theme
 
 Item {
     id: root
@@ -65,7 +64,7 @@ Item {
                     contentItem: Item {
                         // Same cached cover as the sidebar playlist list.
                         Cover { objectName: "playlistChoiceCover"; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 6; opacity: entry.enabled ? 1 : 0.5; source: entry.modelData.thumbnail || ""; mediaKey: "playlist:" + entry.modelData.id; accent: themeState.selected }
-                        Text { x: 52; width: parent.width - x; height: parent.height; text: entry.modelData.title; textFormat: Text.PlainText; color: entry.enabled ? themeState.foreground : themeState.muted; font.family: Theme.bodyFont; font.pixelSize: 14; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                        Text { x: 52; width: parent.width - x; height: parent.height; text: entry.modelData.title; textFormat: Text.PlainText; color: entry.enabled ? themeState.foreground : themeState.muted; font.pixelSize: 14; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                     }
                     background: Rectangle { radius: 8; color: entry.down || entry.hovered || entry.highlighted ? themeState.hover : "transparent"; border.width: entry.visualFocus ? 1 : 0; border.color: themeState.accent }
                     onClicked: libraryState.add(modelData.id, root.target)

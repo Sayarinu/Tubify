@@ -74,7 +74,6 @@ Item {
             color: themeState.secondary
             wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
-            font.family: Theme.bodyFont
             font.pixelSize: 14
         }
         Text {
@@ -183,7 +182,6 @@ Item {
                 textFormat: Text.StyledText
                 wrapMode: Text.Wrap
                 color: !root.timed || line.index === lyricState.currentLine ? themeState.foreground : themeState.secondary
-                font.family: Theme.bodyFont
                 font.bold: true
                 font.pixelSize: root.lyricFontSize
                 lineHeight: 1.15
@@ -220,7 +218,6 @@ Item {
             text: [lyricState.data.source || "", lyricState.data.cached ? "Saved lyrics" : "", root.hasLyrics ? (lyricState.data.syncLevel === "syllable" ? "Syllable timing" : lyricState.data.syncLevel === "word" ? "Word timing" : root.timed ? "Line timing" : "Unsynced lyrics") : "", lyricState.data.match === "approximate" ? "Approximate match" : ""].filter(Boolean).join(" · ")
             textFormat: Text.PlainText
             color: themeState.secondary
-            font.family: Theme.bodyFont
             font.pixelSize: 12
             wrapMode: Text.Wrap
             visible: !!text
@@ -233,7 +230,6 @@ Item {
             text: lyricState.busy ? "Refreshing lyrics…" : lyricState.error || lyricState.data.status || ""
             textFormat: Text.PlainText
             color: themeState.secondary
-            font.family: Theme.bodyFont
             font.pixelSize: 12
             wrapMode: Text.Wrap
             visible: !!text

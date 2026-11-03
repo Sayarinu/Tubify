@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from urllib.request import Request, urlopen
 
@@ -204,6 +205,19 @@ def launch_installer(asset, parent_pid):
         raise ValueError('Use the macOS updater')
 
 
+def verified_copy(path, digest, directory):
+    """Copy path into directory, hashing the bytes as they are written, and return the copy."""
+    copy = directory / path.name
+    hasher = hashlib.sha256()
+    with path.open('rb') as source, copy.open('xb') as target:
+        while chunk := source.read(1 << 20):
+            hasher.update(chunk)
+            target.write(chunk)
+    if hasher.hexdigest() != digest:
+        raise ValueError('Installer changed')
+    return copy
+
+
 def install_arch(parent, package, digest, signature=None):
     for _ in range(120):
         try:
@@ -216,15 +230,18 @@ def install_arch(parent, package, digest, signature=None):
     path = Path(package)
     result = 1
     try:
-        with path.open('rb') as handle:
-            if hashlib.file_digest(handle, 'sha256').hexdigest() != digest:
-                raise ValueError('Installer changed')
-        if signature and Path(ARCH_HELPER).is_file():
-            # The helper checks the release signature as root, so polkit allows it without a password.
-            command = [ARCH_HELPER, str(path), str(signature)]
-        else:
-            command = ['/usr/bin/pacman', '-U', '--noconfirm', str(path)]
-        result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', *command]).returncode
+        with tempfile.TemporaryDirectory(prefix='tubify-update-') as private:
+            if signature and Path(ARCH_HELPER).is_file():
+                with path.open('rb') as handle:
+                    if hashlib.file_digest(handle, 'sha256').hexdigest() != digest:
+                        raise ValueError('Installer changed')
+                # The helper checks the release signature as root, so polkit allows it without a password.
+                command = [ARCH_HELPER, str(path), str(signature)]
+            else:
+                # pacman installs whatever file it is given, so hand it a verified copy in a
+                # private directory rather than the file in the user-writable updates folder.
+                command = ['/usr/bin/pacman', '-U', '--noconfirm', str(verified_copy(path, digest, Path(private)))]
+            result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', *command]).returncode
     except (OSError, ValueError):
         pass
     finally:

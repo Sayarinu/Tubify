@@ -14,6 +14,7 @@ from PySide6.QtQml import QQmlProperty
 from PySide6.QtTest import QTest
 
 from youtube_music_native import app
+from youtube_music_native.theme import DEFAULT_COLORS
 
 
 def immersive_offset(window):
@@ -440,7 +441,7 @@ def main():
                     assert rename_button and delete_button and export_button
                     assert dark_grid.property("count") == 9
                     assert light_grid.property("count") == 3
-                    assert color_grid.property("count") == 11
+                    assert color_grid.property("count") == len(DEFAULT_COLORS)
                     assert not rename_button.property("enabled")
                     assert not delete_button.property("enabled")
                     assert not export_button.property("enabled")
@@ -472,7 +473,7 @@ def main():
                     assert export_button.property("enabled")
                     theme_dialog.setProperty("editingColors", True)
                     QTest.qWait(30)
-                    assert color_grid.property("count") == 11
+                    assert color_grid.property("count") == len(DEFAULT_COLORS)
                     for width, height in ((1280, 820), (920, 620), (1280, 820)):
                         window.resize(width, height)
                         QTest.qWait(30)
@@ -693,7 +694,7 @@ def main():
                     state["index"] += 1
                     state["audio_position"] = max(state["audio_position"], player.position)
                     if time.monotonic() - state["started"] >= args.soak_seconds:
-                        assert player.sourceKind == "local" and state["audio_position"] > 2
+                        assert player._source_kind == "local" and state["audio_position"] > 2
                         timer.stop()
                         finish(True)
                 except Exception:

@@ -130,21 +130,6 @@ class Queue:
         self.source_index = next((index for index, entry in enumerate(self.source) if entry["key"] == anchor), -1)
         return self.current
 
-    def select_history(self, key):
-        index = next((i for i, entry in enumerate(self.history) if entry["key"] == key), -1)
-        if index < 0:
-            return None
-
-        target = self.history[index]
-        if target not in self.source:
-            return None
-        anchor = self._history_sources[index]
-        self.history = self.history[:index]
-        self._history_sources = self._history_sources[:index]
-        self.source_index = next((i for i, entry in enumerate(self.source) if entry["key"] == anchor), -1)
-        self.current = target
-        return target
-
     def clear_manual(self):
         self.manual = []
 

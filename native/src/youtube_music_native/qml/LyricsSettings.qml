@@ -56,7 +56,7 @@ SettingsPage {
             Rectangle { Layout.fillWidth: true; height: 1; color: themeState.border }
             Label { text: "Better Lyrics API Key"; font.bold: true; color: themeState.foreground }
             Label { Layout.fillWidth: true; text: "Cached songs need no key. Uncached songs require an existing key; the provider currently does not issue new keys."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }
-            TextField { id: apiKey; objectName: "lyricApiKey"; Layout.fillWidth: true; echoMode: TextInput.Password; placeholderText: "Existing API key"; maximumLength: 2048; enabled: !lyricState.keyBusy; Accessible.name: "Better Lyrics API Key" }
+            ThemedTextField { id: apiKey; objectName: "lyricApiKey"; Layout.fillWidth: true; echoMode: TextInput.Password; placeholderText: "Existing API key"; maximumLength: 2048; enabled: !lyricState.keyBusy; Accessible.name: "Better Lyrics API Key" }
             RowLayout {
                 ThemeActionButton { text: "Save Key"; enabled: !!apiKey.text.trim() && !lyricState.keyBusy; onClicked: { lyricState.keyAction("save", apiKey.text); apiKey.clear() } }
                 ThemeActionButton { text: "Remove Key"; enabled: lyricState.hasKey && !lyricState.keyBusy; onClicked: lyricState.keyAction("clear", "") }

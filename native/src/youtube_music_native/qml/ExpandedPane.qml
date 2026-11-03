@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import Tubify.Video
-import "Theme.js" as Theme
 
 Item {
     id: root
@@ -79,24 +78,19 @@ Item {
             id: metadata
             width: parent.width
             spacing: 4
-            Button {
+            TextLink {
                 id: title
                 objectName: "immersiveTrackTitle"
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(implicitWidth, parent.width)
-                padding: 4
+                text: root.track.title || "Nothing Playing"
+                pixelSize: root.width < 600 ? 24 : 32; bold: true
+                maximumLineCount: 2
+                underlineOnHover: false
+                Accessible.role: Accessible.Button
                 Accessible.name: (root.track.title || "Current song") + " options"
                 enabled: playerState.hasTrack
                 onClicked: appState.showMenu(root.track, {nowPlaying: true})
-                contentItem: Text {
-                    text: root.track.title || "Nothing Playing"
-                    textFormat: Text.PlainText
-                    color: themeState.foreground; font.family: Theme.headingFont
-                    font.pixelSize: root.width < 600 ? 24 : 32; font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight
-                }
-                background: Rectangle { radius: 8; color: title.hovered ? themeState.hover : "transparent"; border.width: title.visualFocus ? 2 : 0; border.color: themeState.accent }
             }
             Item {
                 id: artistLine
@@ -113,24 +107,19 @@ Item {
                             required property var modelData
                             required property int index
                             height: artistRow.height
-                            Button {
-                                id: artist
+                            TextLink {
                                 objectName: "immersiveArtist-" + index
                                 height: parent.height
                                 text: modelData.name || ""
-                                flat: true
-                                Accessible.role: Accessible.Link
+                                pixelSize: 16
                                 onClicked: browseState.openArtist(modelData)
-                                contentItem: Text { text: artist.text; textFormat: Text.PlainText; font.pixelSize: 16; color: themeState.foreground; font.underline: artist.hovered; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
-                                background: Rectangle { radius: 8; color: artist.hovered ? themeState.hover : "transparent"; border.width: artist.visualFocus ? 2 : 0; border.color: themeState.accent }
                             }
                             Text { visible: index < root.artists.length - 1; height: parent.height; text: "•"; color: themeState.secondary; font.pixelSize: 16; verticalAlignment: Text.AlignVCenter }
                         }
                     }
                 }
             }
-            Button {
-                id: albumLink
+            TextLink {
                 objectName: "immersiveAlbum"
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(implicitWidth, parent.width)
@@ -138,11 +127,8 @@ Item {
                 visible: !!root.albumName
                 enabled: !!root.albumId
                 text: root.albumName
-                flat: true
-                Accessible.role: enabled ? Accessible.Link : Accessible.StaticText
+                textColor: themeState.secondary
                 onClicked: browseState.open({kind: "album", id: root.albumId, title: root.albumName})
-                contentItem: Text { text: albumLink.text; textFormat: Text.PlainText; elide: Text.ElideRight; font.pixelSize: 14; color: themeState.secondary; font.underline: albumLink.hovered && albumLink.enabled; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
-                background: Rectangle { radius: 8; color: albumLink.hovered && albumLink.enabled ? themeState.hover : "transparent"; border.width: albumLink.visualFocus ? 2 : 0; border.color: themeState.accent }
             }
         }
     }

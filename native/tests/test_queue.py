@@ -59,7 +59,7 @@ def test_forward_selection_keeps_skipped_source_tracks_in_previous_history():
     assert names(queue.remaining) == ["World", "Twinleaf", "Route"]
 
 
-def test_selecting_history_ignores_consumed_manual_tracks_and_preserves_pending_ones():
+def test_history_ignores_consumed_manual_tracks():
     queue = Queue()
     queue.replace(tracks("Main", "World", "Twinleaf", "Route"), source_label="Time & Space")
     queue.append(tracks("Manual one", "Manual two"))
@@ -67,15 +67,7 @@ def test_selecting_history_ignores_consumed_manual_tracks_and_preserves_pending_
     queue.advance()  # Manual two
     queue.advance()  # World
     queue.advance()  # Twinleaf
-    queue.append(tracks("Still queued"))
-    main = next(entry for entry in queue.history if entry["track"]["title"] == "Main")
-
     assert names(queue.history) == ["Main", "World"]
-    assert queue.select_history(main["key"]) is main
-    assert queue.current is main
-    assert names(queue.history) == []
-    assert names(queue.manual) == ["Still queued"]
-    assert names(queue.remaining) == ["World", "Twinleaf", "Route"]
 
 
 def test_restore_discards_legacy_manual_entries_from_history():

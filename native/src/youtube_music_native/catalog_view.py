@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
 from .library import SECTIONS
+from .util import needs_reconnect
 
 SORT_KEYS = ("title", "artist", "album", "duration")
 SORTABLE_ROUTES = {"album", "playlist"}
@@ -116,10 +117,6 @@ class CatalogView(QObject):
     @Property(bool, notify=changed)
     def sortDescending(self):
         return self._effective_sort()[1]
-
-    @Property(bool, notify=changed)
-    def sortable(self):
-        return self._route in SORTABLE_ROUTES
 
     def _scope(self):
         return f"{self._route}:{self._params.get('id', '')}" if self._route in SORTABLE_ROUTES else None
@@ -349,11 +346,11 @@ class CatalogView(QObject):
             # The remembered page stays on screen; only a lost session needs attention.
             self._request = None
             self._set_revalidating(False)
-            if error.get("code") in {"reconnect", "AuthError"}:
+            if needs_reconnect(error):
                 self.account.requireReconnect(error.get("message", "Your session needs reconnecting."))
             return
         self._busy, self._request, self._loading_all = False, None, False
         self._error = error.get("message", "This page could not be loaded. Retry.")
-        if error.get("code") in {"reconnect", "AuthError"}:
+        if needs_reconnect(error):
             self.account.requireReconnect(self._error)
         self.changed.emit()

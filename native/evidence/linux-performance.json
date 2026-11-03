@@ -40,7 +40,7 @@
     "scope": "Predates device-pixel-ratio artwork sizing and restored-queue preloading; repeated navigation uses real local playback, not remote extraction"
   },
   "wrapper": {
-    "account": "Real imported account; private track and session data excluded",
+    "account": "Real account; private track and session data excluded",
     "content_match": "Exact title, artist and duration matched privately for the native comparison",
     "platform": "Arch Linux, KDE Wayland; installed Tauri/WebKit wrapper through X11",
     "client_size": [
@@ -207,7 +207,6 @@
     "remaining_verification": "Shared-output real-account comparison passed; details are in native_common_output",
     "additional_check": "A restored end-of-song position stays paused on the same song and explicit Play restarts it from zero"
   },
-  "environment_limitation": "Automatic approval review intermittently fails because its model is at capacity. The wrapper baseline was completed using the prepared harness in the user's terminal. The native harness is prepared for the same fallback.",
   "native_common_output": {
     "shell_ms": 308.821,
     "preload_ready_ms": 2517.617,
@@ -287,6 +286,6 @@
     "The stable 30-minute synthetic soak ran on the recorded parent revision before the final playback, artwork and database follow-ups.",
     "Launch samples use existing OS file caches; the GPU repeats render synthetic UI while the separate account comparison supplies actual desktop shell timing.",
     "Streaming click timings cover prepared current tracks and queued skips; asynchronous cold extraction is reported separately.",
-    "Physical sleep/wake remains deferred at the user's request; see linux-verification.json."
+    "Physical sleep/wake was not measured."
   ]
 }

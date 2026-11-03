@@ -11,7 +11,7 @@ from PySide6.QtCore import QSettings
 import youtube_music_native
 from youtube_music_native.compat import play_source
 from youtube_music_native.downloads import DownloadStore
-from youtube_music_native.playback import write_state
+from youtube_music_native.util import atomic_write
 from youtube_music_native.queue import Queue
 from youtube_music_native.sources import Sources
 
@@ -44,7 +44,7 @@ def main():
         store.progress(key, 2, 2, state="complete")
         queue = Queue()
         queue.replace([TRACK, TRACK])
-        write_state(args.root / "playback.json", json.dumps(queue.snapshot(1.25)))
+        atomic_write(args.root / "playback.json", json.dumps(queue.snapshot(1.25)))
         settings.setValue("volume", 31)
         settings.sync()
         (args.root / "audio.sha256").write_text(hashlib.sha256(audio.read_bytes()).hexdigest())

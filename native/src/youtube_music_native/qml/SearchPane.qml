@@ -34,17 +34,15 @@ Item {
                 spacing: 12
                 Repeater {
                     model: searchState.filters
-                    delegate: Button {
-                        id: filter
+                    delegate: FilterChip {
                         required property string modelData
-                        text: modelData; height: 36; leftPadding: 16; rightPadding: 16
-                        palette.buttonText: searchState.selectedFilter === text ? themeState.onAccent : themeState.foreground
-                        background: Rectangle { radius: height / 2; color: searchState.selectedFilter === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.color: filter.visualFocus ? themeState.accent : "transparent" }
-                        onClicked: searchState.selectFilter(text)
+                        text: modelData
+                        selected: searchState.selectedFilter === modelData
+                        onClicked: searchState.selectFilter(modelData)
                     }
                 }
             }
-            Text { width: parent.width; visible: !root.overview; text: "Results for “" + (root.result.title || appState.query) + "”"; textFormat: Text.PlainText; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 28; font.bold: true }
+            Text { width: parent.width; visible: !root.overview; text: "Results for “" + (root.result.title || appState.query) + "”"; textFormat: Text.PlainText; color: themeState.foreground; font.pixelSize: 28; font.bold: true }
         }
         delegate: Loader {
             required property var modelData
@@ -66,7 +64,7 @@ Item {
                     id: topColumn
                     width: parent.stacked ? parent.width : Math.min(460, parent.width * 0.42)
                     spacing: 16
-                    Text { text: "Top result"; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 24; font.bold: true }
+                    Text { text: "Top result"; color: themeState.foreground; font.pixelSize: 24; font.bold: true }
                     TopResultCard { id: top; width: parent.width; media: root.result.topResult || ({}) }
                 }
                 Column {
@@ -79,7 +77,7 @@ Item {
                     visible: parent.songs.length > 0
                     Item {
                         width: parent.width; height: 40
-                        Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Songs"; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 24; font.bold: true }
+                        Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "Songs"; color: themeState.foreground; font.pixelSize: 24; font.bold: true }
                         ThemeActionButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; implicitHeight: 32; text: "Show all"; visible: (root.groups.song || []).length > 4; onClicked: searchState.selectFilter("Songs") }
                     }
                     Repeater {

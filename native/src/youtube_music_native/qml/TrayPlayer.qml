@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
-import "Theme.js" as Theme
 
 ApplicationWindow {
     id: root

@@ -1,7 +1,9 @@
 import time
 from types import SimpleNamespace
 
-from youtube_music_native.catalog import Catalog, item
+import pytest
+
+from youtube_music_native.catalog import Catalog, CatalogError, item
 from youtube_music_native.store import MetadataStore
 
 
@@ -92,6 +94,26 @@ def test_pages_provider_continuations_and_restores_cache_offline(tmp_path):
     assert cached["stale"] and cached["warning"] == "offline"
     assert len(cached["items"]) == 40
     assert "private raw" not in str(cached)
+    restarted.store.close()
+
+
+def test_rejected_session_marks_the_cached_page_for_reconnecting(tmp_path):
+    from ytmusicapi.exceptions import YTMusicServerError, YTMusicUserError
+
+    provider = SimpleNamespace(search=lambda query, filter, limit: [track(0)])
+    auth = SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider)
+    catalog = Catalog(auth, MetadataStore(tmp_path / "metadata.sqlite3"))
+    catalog.fetch("search", {"query": "song", "filter": "songs"})
+    for error, warning in ((YTMusicServerError("Server returned HTTP 401: Unauthorized.\nprivate"), "reconnect"),
+                           (YTMusicUserError("private"), "reconnect"),
+                           (YTMusicServerError("Server returned HTTP 500: Error.\nprivate"), "offline"),
+                           (RuntimeError("Server returned HTTP 403"), "offline")):
+        def failing(error=error):
+            raise error
+        auth.catalog = failing
+        page = catalog.fetch("search", {"query": "song", "filter": "songs"}, refresh=True)
+        assert page["stale"] and page["warning"] == warning
+    catalog.store.close()
 
 
 def test_album_inherits_artwork_and_artist_and_cache_is_account_scoped(tmp_path):
@@ -243,3 +265,26 @@ def test_exact_artist_match_outranks_a_song_top_result():
     artist = {"kind": "artist", "id": "UCaespa", "title": "aespa", "category": "Artists"}
     arranged = arrange_search("Aespa", [song, artist])
     assert arranged["topResult"] is artist and arranged["groups"]["song"] == [song]
+
+
+def test_each_simple_route_reaches_its_provider_method(tmp_path):
+    provider = SimpleNamespace(
+        get_history=lambda: [track(1)],
+        get_search_suggestions=lambda query: ["suggested " + query],
+        get_mood_categories=lambda: {"Moods": [{"title": "Chill", "params": "p"}]},
+        get_mood_playlists=lambda params: [{"playlistId": "PLmood", "title": "Mood " + params}],
+        get_watch_playlist=lambda **kwargs: {"tracks": [track(2)], "lyrics": "MPLY", "related": "MPTR"},
+        get_artist_albums=lambda identifier, params, limit: [{"browseId": "MPREb", "title": "Album"}],
+    )
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "cache.sqlite3"))
+    assert catalog.fetch("history")["items"][0]["videoId"] == track(1)["videoId"]
+    assert catalog.fetch("suggestions", {"query": "so"})["suggestions"] == ["suggested so"]
+    assert catalog.fetch("moods")["groups"]["Moods"][0]["title"] == "Chill"
+    assert catalog.fetch("mood", {"params": "x"})["items"][0]["title"] == "Mood x"
+    radio = catalog.fetch("radio", {"id": track(2)["videoId"]})
+    assert radio["lyricsId"] == "MPLY" and radio["items"][0]["videoId"] == track(2)["videoId"]
+    assert catalog.fetch("artist_albums", {"id": "UCartist", "params": "p"})["items"][0]["kind"] == "album"
+    for route in ("unknown", "library_unknown"):
+        with pytest.raises(CatalogError, match="unavailable"):
+            catalog.fetch(route)
+    catalog.store.close()

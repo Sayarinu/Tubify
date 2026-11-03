@@ -138,7 +138,7 @@ def test_every_playback_entry_point_selects_disk_with_expired_credentials(tmp_pa
     operation, payload = worker.requests[-1]
     result = source.resolve(payload["videoId"], available=False)
     worker.succeeded.emit(len(worker.requests), result)
-    assert player.playing and player.sourceKind == "local" and not catalog_worker.requests
+    assert player.playing and player._source_kind == "local" and not catalog_worker.requests
     player.seek(0.5)
     player.close()
     restarted = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)

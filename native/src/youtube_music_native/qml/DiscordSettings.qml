@@ -24,7 +24,7 @@ SettingsPage {
                 Layout.fillWidth: true
                 spacing: 12
                 Label { text: "Discord Application ID"; color: themeState.foreground }
-                TextField { id: client; objectName: "discordClientId"; Layout.fillWidth: true; text: discordState.clientId; placeholderText: "Numeric Application ID"; maximumLength: 20; Accessible.name: "Discord Application ID"; onAccepted: discordState.setClientId(text) }
+                ThemedTextField { id: client; objectName: "discordClientId"; Layout.fillWidth: true; text: discordState.clientId; placeholderText: "Numeric Application ID"; maximumLength: 20; Accessible.name: "Discord Application ID"; onAccepted: discordState.setClientId(text) }
                 ThemeActionButton { text: "Save ID"; onClicked: discordState.setClientId(client.text) }
                 Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Tubify includes its own Application ID. Only change this if you use a separately registered Discord application. No bot token or client secret is needed."; color: themeState.secondary; font.pixelSize: 12 }
             }

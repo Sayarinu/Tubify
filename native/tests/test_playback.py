@@ -103,7 +103,7 @@ def test_manual_play_cancels_active_prefetch_and_ignores_its_late_result(tmp_pat
     worker.succeeded.emit(prefetch, {"kind": "remote", "source": "https://media.invalid/stale", "videoId": TRACKS[1]["videoId"]})
     assert not player._prepared
     worker.succeeded.emit(len(worker.requests), {"kind": "local", "source": "/fixture/first.wav"})
-    assert player.sourceKind == "local" and player.playing
+    assert player._source_kind == "local" and player.playing
     player.close()
 
 
@@ -346,7 +346,7 @@ def test_unavailable_manual_entries_are_skipped_once_before_offline_source(tmp_p
     player._skip_failed()
     assert player.currentTrack == TRACKS[1] and not player.manualCount
     worker.succeeded.emit(player._request, {"kind": "local", "source": "/fixture/second.wav"})
-    assert player.sourceKind == "local" and player.playing
+    assert player._source_kind == "local" and player.playing
     player.close()
 
 
@@ -424,22 +424,6 @@ def test_entries_hide_history_without_changing_previous_or_snapshot(tmp_path):
     player.previous()
     assert player.currentTrack["title"] == "First"
     assert [entry["title"] for entry in player.entries] == ["First", "Next", "Third"]
-    player.close()
-
-
-def test_selecting_history_key_restarts_playback_at_that_session_position(tmp_path):
-    app = QCoreApplication.instance() or QCoreApplication([])
-    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
-    player.playTracks(TRACKS)
-    first_key = player.queue.current["key"]
-    player.next()
-
-    player.selectHistoryKey(first_key)
-
-    assert player.currentTrack["title"] == "First"
-    assert [entry["title"] for entry in player.entries] == ["First", "Next"]
-    assert player.entries[0]["group"] == "Now playing"
-    assert not any(entry["group"] == "Previously played" for entry in player.entries)
     player.close()
 
 

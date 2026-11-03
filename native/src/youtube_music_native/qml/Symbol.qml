@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Window
-import "Theme.js" as Theme
 import "Icons.js" as Icons
 
 Item {
