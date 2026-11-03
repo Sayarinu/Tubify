@@ -4,19 +4,18 @@ from contextlib import ExitStack
 import errno
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import shutil
 import sqlite3
 import subprocess
-import tempfile
 import time
 
 from .catalog import items, text, thumbnail
 from .artwork_sources import apply_artwork, media_variants
 from .compat import ProbeError, extractor_options
 from .media import MediaFiles
+from .util import atomic_write
 
 
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
@@ -29,6 +28,10 @@ class DownloadError(RuntimeError):
 
 class DownloadCancelled(DownloadError):
     pass
+
+
+class DownloadBlocked(DownloadError):
+    """A cause (account, full disk, another transfer) that would fail every queued collection."""
 
 
 def clean_track(value):
@@ -60,7 +63,6 @@ def cache_artwork(url, folder):
     target = folder / (hashlib.sha256(url.encode()).hexdigest() + ".image")
     if target.is_file() and not QImage(str(target)).isNull():
         return target.as_uri()
-    temporary = None
     try:
         with requests.get(url, stream=True, timeout=10) as response:
             response.raise_for_status()
@@ -71,18 +73,10 @@ def cache_artwork(url, folder):
                     return ""
         if QImage.fromData(bytes(content)).isNull():
             return ""
-        with tempfile.NamedTemporaryFile(dir=folder, delete=False) as handle:
-            temporary = Path(handle.name)
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
+        atomic_write(target, content)
         return target.as_uri()
     except (requests.RequestException, OSError):
         return ""
-    finally:
-        if temporary and temporary.exists():
-            temporary.unlink()
 
 
 class DownloadStore:
@@ -371,11 +365,11 @@ class Downloads:
                 self.run(identifier)
             except DownloadCancelled:
                 pass
-            except DownloadError as error:
-                # The failure is recorded on that collection and the rest of the queue
-                # continues, unless the cause (account, disk, lock) would fail them all.
-                if str(error).startswith(("Reconnect", "The disk is full", "Another download")):
-                    raise
+            except DownloadBlocked:
+                raise
+            except DownloadError:
+                # The failure is recorded on that collection and the rest of the queue continues.
+                pass
             row = self.store.next_queued(attempted)
             identifier = row[0] if row else None
         return self.store.status()
@@ -387,7 +381,7 @@ class Downloads:
         lock = QLockFile(str(self.store.root / "transfer.lock"))
         lock.setStaleLockTime(0)
         if not lock.tryLock(0):
-            raise DownloadError("Another download is running. Wait for it to finish and retry.")
+            raise DownloadBlocked("Another download is running. Wait for it to finish and retry.")
         total, completed, unavailable = len(body["items"]), 0, 0
         staging, audio = self.store.root / "staging", self.store.root / "audio"
         extractor, last_progress = None, [0.]
@@ -430,7 +424,7 @@ class Downloads:
                             if self.auth.session is None:
                                 self.auth.restore()
                             if self.auth.session is None:
-                                raise DownloadError("Reconnect YouTube Music to finish this download. Completed songs were kept.")
+                                raise DownloadBlocked("Reconnect YouTube Music to finish this download. Completed songs were kept.")
                             from yt_dlp import YoutubeDL
 
                             options = extractor_options(staging)
@@ -472,15 +466,16 @@ class Downloads:
             if self.store.state(identifier) in {"cancelled", "removed"}:
                 raise DownloadCancelled("Download cancelled. Completed songs were kept.") from None
             message = "The download failed. Check your connection, available space and account, then retry. Completed songs were kept."
+            failure = DownloadError
             if getattr(error, "errno", None) == errno.ENOSPC or getattr(error, "sqlite_errorcode", None) == sqlite3.SQLITE_FULL:
-                message = "The disk is full. Free space and retry. Completed songs were kept."
+                message, failure = "The disk is full. Free space and retry. Completed songs were kept.", DownloadBlocked
             elif isinstance(error, DownloadError):
-                message = str(error)
+                message, failure = str(error), type(error)
             try:
                 self.store.progress(identifier, completed, total, error=message, state="failed")
             except sqlite3.Error:
                 pass
-            raise DownloadError(message) from None
+            raise failure(message) from None
         finally:
             lock.unlock()
 

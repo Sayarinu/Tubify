@@ -92,6 +92,26 @@ def test_pages_provider_continuations_and_restores_cache_offline(tmp_path):
     assert cached["stale"] and cached["warning"] == "offline"
     assert len(cached["items"]) == 40
     assert "private raw" not in str(cached)
+    restarted.store.close()
+
+
+def test_rejected_session_marks_the_cached_page_for_reconnecting(tmp_path):
+    from ytmusicapi.exceptions import YTMusicServerError, YTMusicUserError
+
+    provider = SimpleNamespace(search=lambda query, filter, limit: [track(0)])
+    auth = SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider)
+    catalog = Catalog(auth, MetadataStore(tmp_path / "metadata.sqlite3"))
+    catalog.fetch("search", {"query": "song", "filter": "songs"})
+    for error, warning in ((YTMusicServerError("Server returned HTTP 401: Unauthorized.\nprivate"), "reconnect"),
+                           (YTMusicUserError("private"), "reconnect"),
+                           (YTMusicServerError("Server returned HTTP 500: Error.\nprivate"), "offline"),
+                           (RuntimeError("Server returned HTTP 403"), "offline")):
+        def failing(error=error):
+            raise error
+        auth.catalog = failing
+        page = catalog.fetch("search", {"query": "song", "filter": "songs"}, refresh=True)
+        assert page["stale"] and page["warning"] == warning
+    catalog.store.close()
 
 
 def test_album_inherits_artwork_and_artist_and_cache_is_account_scoped(tmp_path):

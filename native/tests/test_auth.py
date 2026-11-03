@@ -92,3 +92,12 @@ def test_browser_sign_in_is_validated_before_replacing_the_saved_session(monkeyp
     with pytest.raises(RuntimeError):
         service.import_browser(["firefox"])
     assert "private-first" in credentials.load().session.headers["cookie"]
+
+
+def test_safe_error_asks_to_reconnect_only_for_rejected_sessions():
+    from ytmusicapi.exceptions import YTMusicServerError
+
+    assert safe_error(YTMusicServerError("Server returned HTTP 403: Forbidden.\nprivate"))["code"] == "reconnect"
+    assert safe_error(YTMusicServerError("Server returned HTTP 500: Error.\nprivate"))["code"] == "provider_error"
+    # Wording alone from another error type must not sign the account out.
+    assert safe_error(RuntimeError("Server returned HTTP 401"))["code"] == "provider_error"

@@ -20,6 +20,7 @@ from .playlist_ops import PlaylistError, perform as playlist_action
 from .lyric_data import Lyrics, LyricsError
 from .lyric_providers import ProviderUnavailable, provider_key
 from .lastfm_service import LastFmService, LastFmError
+from .util import session_rejected
 
 
 def handle(service, request, resources=None, progress=None):
@@ -165,7 +166,7 @@ def safe_error(error):
 
     if isinstance(error, (requests.ConnectionError, requests.Timeout)):
         return {"code": "offline", "message": "YouTube Music could not be reached. Downloads remain available offline."}
-    if str(error).startswith(("Server returned HTTP 401", "Server returned HTTP 403")):
+    if session_rejected(error):
         return {"code": "reconnect", "message": "Your session needs reconnecting. Downloaded music remains available."}
     return {"code": "provider_error", "message": "YouTube Music could not complete this request. Retry or reconnect your account."}
 

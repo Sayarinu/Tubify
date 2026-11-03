@@ -3,10 +3,12 @@
 import hashlib
 import json
 import sqlite3
+import sys
 import time
 
 from .artwork_sources import variants, apply_artwork, media_variants
 from .playlist_ops import apply_change
+from .util import session_rejected
 
 
 class CatalogError(RuntimeError):
@@ -30,6 +32,14 @@ def thumbnail(value, largest=False):
     else:
         choice = min(choices, key=lambda v: abs((v.get("width") or 300) - 300))
     return choice["url"]
+
+
+def _session_problem(error):
+    from .auth import AuthError
+
+    exceptions = sys.modules.get("ytmusicapi.exceptions")
+    user_error = exceptions is not None and isinstance(error, exceptions.YTMusicUserError)
+    return isinstance(error, AuthError) or user_error or session_rejected(error)
 
 
 def duration(value):
@@ -222,8 +232,7 @@ class Catalog:
                 if not cached:
                     raise
                 data, stale = cached["data"], True
-                name = type(error).__name__
-                warning = "reconnect" if name in {"AuthError", "YTMusicUserError"} or str(error).startswith(("Server returned HTTP 401", "Server returned HTTP 403")) else "offline"
+                warning = "reconnect" if _session_problem(error) else "offline"
             else:
                 self._apply_changes(data, route, params)
                 try:
