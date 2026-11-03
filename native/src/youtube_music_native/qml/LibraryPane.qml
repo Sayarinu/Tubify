@@ -13,13 +13,8 @@ Item {
     Component {
         id: controls
         Item {
-            Row {
-                width: parent.width; height: 52; spacing: 24; visible: !root.history
-                Button { id: libraryTab; text: "Library"; flat: true; height: 52; palette.windowText: themeState.foreground; onClicked: libraryState.select("Playlists"); Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: themeState.accent } }
-                Button { text: "Downloads"; flat: true; height: 52; palette.windowText: themeState.secondary; onClicked: appState.navigate("Downloads") }
-            }
-            Rectangle { y: 52; height: 1; width: parent.width; color: themeState.border; visible: !root.history }
-            Row { spacing: 16; visible: root.history; height: 72; Text { text: "History"; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 30 } }
+            LibraryTabs { width: parent.width; current: "Library"; visible: !root.history }
+            Row { spacing: 16; visible: root.history; height: 72; Text { text: "History"; color: themeState.foreground; font.bold: true; font.pixelSize: 30 } }
             ListView {
                 // Route views may be replaced immediately; avoid unfinished offscreen delegates.
                 cacheBuffer: 0
@@ -27,13 +22,11 @@ Item {
                 y: 84; width: parent.width - (sortOrder.visible ? 180 : 0); height: 36
                 visible: !root.history; orientation: ListView.Horizontal; spacing: 12; clip: true
                 model: libraryState.sections
-                delegate: Button {
-                    id: filter
+                delegate: FilterChip {
                     required property string modelData
-                    text: modelData; height: 36; leftPadding: 14; rightPadding: 14
-                    palette.buttonText: libraryState.selectedSection === text ? themeState.onAccent : themeState.foreground
-                    background: Rectangle { radius: height / 2; color: libraryState.selectedSection === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.color: filter.visualFocus ? themeState.accent : "transparent" }
-                    onClicked: libraryState.select(text)
+                    text: modelData
+                    selected: libraryState.selectedSection === modelData
+                    onClicked: libraryState.select(modelData)
                 }
             }
             EdgeArrows { target: filters; visible: filters.visible }

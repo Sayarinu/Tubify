@@ -14,7 +14,6 @@ ApplicationWindow {
     minimumHeight: 620
     title: appState.fixtureMode ? "Tubify · Visual Fixture" : "Tubify"
     color: themeState.background
-    font.family: Theme.bodyFont
     font.pixelSize: 14
     palette.window: themeState.surface
     palette.base: themeState.background
@@ -249,7 +248,7 @@ ApplicationWindow {
                     contentItem: Row {
                         leftPadding: 16; spacing: 20
                         Symbol { anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon; color: nav.selected ? themeState.accent : themeState.secondary }
-                        Text { anchors.verticalCenter: parent.verticalCenter; visible: window.wideNavigation; text: nav.text; color: themeState.foreground; font.family: Theme.bodyFont; font.pixelSize: 16 }
+                        Text { anchors.verticalCenter: parent.verticalCenter; visible: window.wideNavigation; text: nav.text; color: themeState.foreground; font.pixelSize: 16 }
                     }
                     ToolTip.text: text
                     ToolTip.visible: !window.wideNavigation && hovered
@@ -262,13 +261,19 @@ ApplicationWindow {
             objectName: "newPlaylistButton"
             x: 8; y: navigation.y + navigation.height + 24
             width: sidebar.width - 16; height: 40
-            text: window.wideNavigation ? "+  New Playlist" : "+"
-            Accessible.name: "New Playlist"
-            ToolTip.text: "New Playlist"
+            text: "New Playlist"
+            Accessible.name: text
+            ToolTip.text: text
             ToolTip.visible: hovered
-            font.pixelSize: 14
-            palette.buttonText: themeState.foreground
-            background: Rectangle { radius: 20; color: newPlaylist.hovered ? themeState.hover : themeState.surface; border.width: newPlaylist.visualFocus ? 2 : 0; border.color: themeState.foreground }
+            contentItem: Item {
+                Row {
+                    anchors.centerIn: parent
+                    spacing: Theme.spacingSmall
+                    Symbol { anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; name: "plus"; color: themeState.foreground }
+                    Text { anchors.verticalCenter: parent.verticalCenter; visible: window.wideNavigation; text: newPlaylist.text; color: themeState.foreground; font.pixelSize: Theme.textBody }
+                }
+            }
+            background: Rectangle { radius: height / 2; color: newPlaylist.hovered ? themeState.hover : themeState.surface; border.width: newPlaylist.visualFocus ? 2 : 0; border.color: themeState.foreground }
             onClicked: appState.requestAction("newPlaylist")
         }
         ListView {
@@ -312,7 +317,7 @@ ApplicationWindow {
         visible: !appState.expanded
         IconButton { id: navigationToggle; objectName: "navigationToggle"; visible: window.compactNavigation; x: 8; y: 10; width: 36; height: 44; iconName: "menu"; tip: "Open Navigation"; Keys.onShortcutOverride: function(event) { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return) event.accepted = true }; Keys.onReturnPressed: navigationDrawer.open(); onClicked: navigationDrawer.open() }
         IconButton { x: window.compactNavigation ? 44 : header.width < 480 ? 8 : 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
-        TextField {
+        ThemedTextField {
             id: search
             objectName: "searchField"
             x: window.compactNavigation ? 92 : header.width < 480 ? 56 : 96
@@ -321,13 +326,10 @@ ApplicationWindow {
             height: 42
             leftPadding: header.width < 400 ? 34 : 52
             rightPadding: text.length > 0 ? 48 : 16
-            color: themeState.foreground
+            radius: Theme.radiusMedium
             placeholderText: header.width < 400 ? "Search" : "Search songs, albums, artists"
-            placeholderTextColor: themeState.muted
             font.pixelSize: 16
-            selectByMouse: true
             Accessible.name: "Search YouTube Music"
-            background: Rectangle { radius: 12; color: search.activeFocus ? themeState.hover : themeState.surface; border.color: search.activeFocus ? themeState.accent : themeState.border; border.width: 1 }
             Symbol { x: header.width < 400 ? 8 : 16; anchors.verticalCenter: parent.verticalCenter; name: "search"; width: 20; height: 20; color: themeState.secondary }
             IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; visible: search.text.length > 0; iconName: "close"; tip: "Clear Search"; onClicked: { search.clear(); searchState.clearSuggestions(); search.forceActiveFocus() } }
             onAccepted: {
@@ -477,14 +479,16 @@ ApplicationWindow {
         anchors.top: header.bottom
         visible: accountState.reconnect
         height: visible ? 44 : 0
-        color: "#352724"
+        // A light wash of the error colour keeps the primary text readable on light and dark themes.
+        color: Qt.tint(themeState.surface, Qt.alpha(themeState.error, 0.16))
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.alpha(themeState.error, 0.4) }
         Text {
             anchors.left: parent.left; anchors.leftMargin: 24
             anchors.right: reconnectButton.left; anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
             text: "Reconnect your account. Downloaded music remains available."
             textFormat: Text.PlainText
-            color: themeState.foreground; font.pixelSize: 14; elide: Text.ElideRight
+            color: themeState.foreground; font.pixelSize: Theme.textBody; elide: Text.ElideRight
         }
         ThemeActionButton { id: reconnectButton; primary: true; implicitHeight: 32; anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: accountState.signInAvailable ? "Sign In Again" : "Reconnect"; enabled: !accountState.busy && !accountState.signingIn; onClicked: accountState.signInAvailable ? accountState.signIn() : appState.openAccount() }
     }
@@ -641,62 +645,48 @@ ApplicationWindow {
         Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: browseState.queueMessage || actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.pixelSize: 14 }
     }
 
-    Popup {
+    ThemedDialog {
         id: accountDialog
         objectName: "accountDialog"
-        anchors.centerIn: Overlay.overlay
         width: Math.min(uiRoot.width - 64, 440)
-        modal: true; focus: true
-        padding: 20
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle { radius: 16; color: themeState.surface; border.color: themeState.border; border.width: 1 }
+        title: "Connection Settings"
         contentItem: ColumnLayout {
             spacing: 14
-            RowLayout {
-                Layout.fillWidth: true
-                Label { Layout.fillWidth: true; text: "Connection Settings"; color: themeState.foreground; font.pixelSize: 15; font.bold: true }
-                IconButton { iconName: "close"; tip: "Close"; iconSize: 18; implicitWidth: 34; implicitHeight: 34; onClicked: accountDialog.close() }
-            }
             Label { Layout.fillWidth: true; text: "Current User:"; horizontalAlignment: Text.AlignHCenter; color: themeState.secondary; font.pixelSize: 13 }
             Label { Layout.fillWidth: true; text: accountState.profile.name || "Not Signed In"; horizontalAlignment: Text.AlignHCenter; color: themeState.foreground; font.pixelSize: 21; font.bold: true; elide: Text.ElideRight }
-            Button {
+            ThemeActionButton {
                 objectName: "browserSignIn"
                 Layout.fillWidth: true; Layout.preferredHeight: 44
+                primary: true
+                font.pixelSize: Theme.textBody; font.bold: true
                 text: accountState.signingIn ? "Waiting for Browser Sign-In…" : "Sign in via Browser"
                 visible: accountState.signInAvailable && !accountState.connected; enabled: !accountState.busy && !accountState.signingIn
-                contentItem: Text { text: parent.text; color: themeState.onAccent; font.pixelSize: 14; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: 20; color: parent.down ? themeState.accent : parent.hovered ? themeState.accentHover : themeState.accent; border.width: parent.visualFocus ? 2 : 0; border.color: themeState.foreground }
                 onClicked: accountState.signIn()
             }
-            Button {
+            ThemeActionButton {
                 Layout.alignment: Qt.AlignHCenter
+                flat: true
                 text: "Cancel"; visible: accountState.signingIn && !accountState.connected
-                contentItem: Text { text: parent.text; color: themeState.secondary; font.pixelSize: 13; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: 15; color: parent.hovered ? themeState.hover : "transparent" }
                 onClicked: accountState.cancelSignIn()
             }
-            Button {
+            ThemeActionButton {
                 Layout.fillWidth: true; Layout.preferredHeight: 44
+                font.pixelSize: Theme.textBody
                 text: "Choose Browser Session File"
                 enabled: !accountState.busy && !accountState.fixtureMode
-                contentItem: Text { text: parent.text; color: themeState.foreground; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: 20; color: parent.down ? themeState.border : parent.hovered ? themeState.surface : "transparent"; border.width: parent.visualFocus ? 2 : 1; border.color: parent.visualFocus ? themeState.accent : themeState.border }
                 onClicked: sessionPicker.open()
             }
             BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: accountState.busy || accountState.signingIn; visible: running }
             Label { Layout.fillWidth: true; text: accountState.message; textFormat: Text.PlainText; visible: text.length > 0 && !accountState.connected; wrapMode: Text.Wrap; color: themeState.secondary }
-            Button {
-                Layout.fillWidth: true; Layout.preferredHeight: 38
+            ThemeActionButton {
+                Layout.fillWidth: true
                 text: "Sign Out"; visible: accountState.connected
-                contentItem: Text { text: parent.text; color: themeState.foreground; font.pixelSize: 13; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: 19; color: parent.hovered ? themeState.surface : "transparent"; border.color: themeState.border; border.width: 1 }
                 onClicked: { accountState.signOut(); accountDialog.close() }
             }
-            Button {
-                Layout.fillWidth: true; Layout.preferredHeight: 34
+            ThemeActionButton {
+                Layout.fillWidth: true
+                flat: true
                 text: "Export Instructions"
-                contentItem: Text { text: parent.text; color: themeState.foreground; font.pixelSize: 13; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: 17; color: parent.hovered ? themeState.hover : "transparent" }
                 onClicked: Qt.openUrlExternally("https://ytmusicapi.readthedocs.io/en/stable/setup/browser.html")
             }
         }
@@ -708,7 +698,6 @@ ApplicationWindow {
         ownHeading: true
         objectName: "appearanceSettingsDialog"
         property string activeColorRole: ""
-        property color pickerColor: "white"
         property bool editingColors: false
         contentItem: ColumnLayout {
             spacing: 12
@@ -812,7 +801,7 @@ ApplicationWindow {
                 Item {
                     ColumnLayout {
                         anchors.fill: parent; spacing: 8
-                        Label { Layout.fillWidth: true; text: "Adjust all eleven colors in this custom theme."; color: themeState.secondary; font.pixelSize: 12; wrapMode: Text.Wrap }
+                        Label { Layout.fillWidth: true; text: "Adjust every color in this custom theme."; color: themeState.secondary; font.pixelSize: 12; wrapMode: Text.Wrap }
                         GridView {
                             id: colorRoles
                             objectName: "colorRoles"
@@ -829,18 +818,19 @@ ApplicationWindow {
                                     background: Rectangle { radius: 8; color: modelData.value; border.color: themeState.border; border.width: 1 }
                                     onClicked: {
                                         settingsDialog.activeColorRole = modelData.key
-                                        settingsDialog.pickerColor = modelData.value
                                         palettePicker.setDraft(modelData.value)
                                         palettePicker.open()
                                     }
                                 }
                                 Label { Layout.fillWidth: true; text: modelData.label; color: themeState.foreground; elide: Text.ElideRight; font.pixelSize: 11 }
-                                TextField {
+                                ThemedTextField {
                                     Layout.preferredWidth: 82
+                                    implicitHeight: 32
+                                    leftPadding: 4; rightPadding: 4
                                     text: modelData.value
-                                    maximumLength: 7; color: themeState.foreground; selectByMouse: true
+                                    maximumLength: 7
                                     font.pixelSize: 11; horizontalAlignment: TextInput.AlignHCenter
-                                    background: Rectangle { radius: 7; color: themeState.background; border.color: parent.activeFocus ? themeState.accent : "transparent"; border.width: parent.activeFocus ? 1 : 0 }
+                                    Accessible.name: modelData.label + " hex color"
                                     onEditingFinished: themeState.setColor(modelData.key, text)
                                 }
                             }
@@ -956,7 +946,7 @@ ApplicationWindow {
             spacing: 10
             Label { Layout.fillWidth: true; text: importThemeDialog.replaceCustom ? "A custom theme already uses this name. Save to replace it, or choose another name." : "Name this imported custom theme. Built-in themes are protected and cannot be replaced."; color: themeState.foreground; wrapMode: Text.Wrap }
             ThemedTextField { id: importThemeName; Layout.fillWidth: true; placeholderText: "Theme name"; maximumLength: 60 }
-            Label { Layout.fillWidth: true; text: themeState.message; visible: text.length > 0; color: "#ffb4a6"; wrapMode: Text.Wrap }
+            Label { Layout.fillWidth: true; text: themeState.message; visible: text.length > 0; color: themeState.error; wrapMode: Text.Wrap }
             RowLayout {
                 Layout.fillWidth: true; Item { Layout.fillWidth: true }
                 ThemeActionButton { text: "Cancel"; onClicked: importThemeDialog.close() }
@@ -991,15 +981,18 @@ ApplicationWindow {
         defaultSuffix: "json"
         onAccepted: themeState.exportTheme(selectedFile.toString())
     }
-    Popup {
+    ThemedDialog {
         id: palettePicker
         objectName: "colorPickerDialog"
-        anchors.centerIn: Overlay.overlay
         width: Math.min(uiRoot.width - 48, 430)
         height: Math.min(implicitHeight, uiRoot.height - 48)
-        padding: 20
-        modal: true; focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        title: "Choose a Color"
+        headerAction: Component {
+            IconButton {
+                iconName: "pipette"; tip: "Pick a Color from the Screen"; iconSize: 19; implicitWidth: 34; implicitHeight: 34
+                onClicked: { palettePicker.close(); settingsDialog.close(); screenPickerOverlay.show() }
+            }
+        }
         property string draftHex: "#A78BFA"
         property color previewColor: "#A78BFA"
         property real hue: 0.72
@@ -1034,7 +1027,6 @@ ApplicationWindow {
                 close()
             }
         }
-        background: Rectangle { radius: 16; color: themeState.surface; border.color: themeState.border; border.width: 1 }
         contentItem: ScrollView {
             id: colorPickerScroll
             clip: true
@@ -1044,26 +1036,14 @@ ApplicationWindow {
                 width: colorPickerScroll.availableWidth
             spacing: 14
             RowLayout {
-                Layout.fillWidth: true
-                Label { Layout.fillWidth: true; text: "Choose a Color"; color: themeState.foreground; font.pixelSize: 15; font.bold: true }
-                IconButton {
-                    iconName: "pipette"; tip: "Pick a Color from the Screen"; iconSize: 19; implicitWidth: 34; implicitHeight: 34
-                    onClicked: { palettePicker.close(); settingsDialog.close(); screenPickerOverlay.show() }
-                }
-                IconButton { iconName: "close"; tip: "Close"; iconSize: 18; implicitWidth: 34; implicitHeight: 34; onClicked: palettePicker.close() }
-            }
-            RowLayout {
                 Layout.fillWidth: true; spacing: 12
                 Rectangle { Layout.preferredWidth: 38; Layout.preferredHeight: 38; radius: 12; color: palettePicker.previewColor; border.color: themeState.border; border.width: 1 }
-                TextField {
+                ThemedTextField {
                     Layout.fillWidth: true
                     text: palettePicker.draftHex
                     maximumLength: 7
-                    selectByMouse: true
-                    color: themeState.foreground
-                    font.pixelSize: 14
                     horizontalAlignment: TextInput.AlignHCenter
-                    background: Rectangle { radius: 18; color: themeState.background; border.color: parent.activeFocus ? themeState.accent : themeState.border; border.width: 1 }
+                    Accessible.name: "Hex color"
                     onTextEdited: {
                         if (/^#[0-9A-Fa-f]{6}$/.test(text)) palettePicker.setDraft(text)
                     }
@@ -1153,17 +1133,10 @@ ApplicationWindow {
             RowLayout {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
-                Button {
-                    text: "Cancel"; height: 36; leftPadding: 18; rightPadding: 18
-                    contentItem: Text { text: parent.text; color: themeState.foreground; font.pixelSize: 13; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                    background: Rectangle { radius: 18; color: parent.hovered ? themeState.surface : "transparent"; border.color: themeState.border; border.width: 1 }
-                    onClicked: palettePicker.close()
-                }
-                Button {
-                    text: "Apply"; height: 36; leftPadding: 18; rightPadding: 18
+                ThemeActionButton { text: "Cancel"; onClicked: palettePicker.close() }
+                ThemeActionButton {
+                    text: "Apply"; primary: true
                     enabled: /^#[0-9A-Fa-f]{6}$/.test(palettePicker.draftHex)
-                    contentItem: Text { text: parent.text; color: themeState.onAccent; font.pixelSize: 13; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                    background: Rectangle { radius: 18; color: parent.enabled ? parent.hovered ? themeState.accentHover : themeState.accent : themeState.muted }
                     onClicked: palettePicker.applyColor()
                 }
             }

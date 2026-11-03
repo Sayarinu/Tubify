@@ -52,8 +52,8 @@ Item {
         Column {
             width: parent.width - (root.section.subtitle ? 72 : 0)
             anchors.verticalCenter: parent.verticalCenter; spacing: 4
-            Text { width: parent.width; visible: !!root.section.subtitle; text: root.section.subtitle || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: 14; font.family: Theme.bodyFont }
-            Text { width: parent.width; text: root.section.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 24 }
+            Text { width: parent.width; visible: !!root.section.subtitle; text: root.section.subtitle || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: 14 }
+            Text { width: parent.width; text: root.section.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.foreground; font.bold: true; font.pixelSize: 24 }
         }
     }
     Row {

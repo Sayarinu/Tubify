@@ -90,7 +90,7 @@ Item {
             }
             Column {
                 width: parent.width; visible: !root.landing; spacing: 12
-                Text { width: parent.width; text: root.result.title || ""; textFormat: Text.PlainText; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; elide: Text.ElideRight }
+                Text { width: parent.width; text: root.result.title || ""; textFormat: Text.PlainText; color: themeState.foreground; font.pixelSize: 32; font.bold: true; elide: Text.ElideRight }
             }
         }
         delegate: Shelf {
@@ -135,7 +135,7 @@ Item {
                 Cover { width: 128; height: 128; source: root.result.thumbnail || ""; visible: source.length > 0 }
                 Column {
                     width: parent.width - (root.result.thumbnail ? 152 : 0); spacing: 16
-                    Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true }
+                    Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.pixelSize: 32; font.bold: true }
                     ThemeActionButton { text: "Play All"; primary: true; onClicked: browseState.playView() }
                 }
             }
@@ -166,7 +166,7 @@ Item {
             anchors.top: collectionGrid.top
             anchors.bottom: collectionGrid.bottom
         }
-        header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true; color: themeState.foreground } }
+        header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.pixelSize: 32; font.bold: true; color: themeState.foreground } }
         delegate: MediaCard { required property var modelData; width: Theme.cardWidth; media: modelData; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
@@ -188,7 +188,7 @@ Item {
     Column {
         anchors.centerIn: parent; width: Math.min(parent.width - 80, 480); spacing: 18
         visible: !catalogState.busy && !(root.result.items || []).length && !(root.result.shelves || []).length && !root.moodItems().length
-        Text { width: parent.width; text: catalogState.error ? "Couldn’t Load This Page" : accountState.connected ? "No Music Here Yet" : "Your Music, Ready When You Are"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.family: Theme.headingFont; font.pixelSize: 30; font.bold: true; color: themeState.foreground }
+        Text { width: parent.width; text: catalogState.error ? "Couldn’t Load This Page" : accountState.connected ? "No Music Here Yet" : "Your Music, Ready When You Are"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 30; font.bold: true; color: themeState.foreground }
         Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Refresh to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15; color: themeState.secondary }
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; primary: !accountState.connected; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
     }

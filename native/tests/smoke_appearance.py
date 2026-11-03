@@ -131,16 +131,19 @@ def main():
                     assert rectangle.top() >= 0 and rectangle.bottom() <= 620, (name, rectangle)
                     if name == "colorPickerDialog":
                         # A modal owns Tab focus, and clipped controls scroll into view.
+                        # The header's pipette and close buttons sit above the scrolling content.
+                        dialog_item = panel.parentItem()
                         for _ in range(40):
                             QTest.keyClick(window, Qt.Key.Key_Tab)
                             QTest.qWait(10)
                             focused = window.activeFocusItem()
                             ancestor = focused
-                            while ancestor and ancestor != panel:
+                            while ancestor and ancestor not in (panel, dialog_item):
                                 ancestor = ancestor.parentItem()
-                            assert ancestor == panel, "Focus escaped the color picker"
-                            bounds = focused.mapRectToScene(focused.boundingRect())
-                            assert rectangle.top() - 1 <= bounds.top() and bounds.bottom() <= rectangle.bottom() + 1, bounds
+                            assert ancestor in (panel, dialog_item), "Focus escaped the color picker"
+                            if ancestor == panel:
+                                bounds = focused.mapRectToScene(focused.boundingRect())
+                                assert rectangle.top() - 1 <= bounds.top() and bounds.bottom() <= rectangle.bottom() + 1, bounds
                     if name in ("lyricsSettingsDialog", "playbackSettings"):
                         option = find("lyricApiKey" if name == "lyricsSettingsDialog" else "skipDislikedOption")
                         option.forceActiveFocus()

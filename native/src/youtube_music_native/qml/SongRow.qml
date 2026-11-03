@@ -37,7 +37,8 @@ FocusScope {
     Keys.onReturnPressed: activateSong()
     function activateSong() { if (root.currentSong) playerState.togglePlayback(); else root.activated(root.media) }
     Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { root.menuRequested(root.media); event.accepted = true } }
-    Rectangle { anchors.fill: parent; radius: 8; color: !root.queueRow && hover.hovered ? "#1affffff" : "#00ffffff"; border.color: root.activeFocus && !root.queueRow ? themeState.accent : "transparent"; border.width: 1; Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionFast } } }
+    // A translucent foreground wash reads on artwork backdrops and on light and dark themes alike.
+    Rectangle { anchors.fill: parent; radius: Theme.radiusSmall; color: Qt.alpha(themeState.foreground, !root.queueRow && hover.hovered ? 0.1 : 0); border.color: root.activeFocus && !root.queueRow ? themeState.accent : "transparent"; border.width: 1; Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionFast } } }
     Cover {
         id: art
         objectName: root.queueRow ? "queueRowArtwork-" + (root.media.key || root.media.videoId || root.media.id || "") : ""
@@ -193,12 +194,7 @@ FocusScope {
         anchors.rightMargin: root.queueRow ? 32 : root.showDuration ? 8 : 56
         anchors.verticalCenter: parent.verticalCenter
         visible: hover.hovered || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued"
-        background: Rectangle {
-            radius: width / 2
-            color: root.queueRow ? "transparent" : parent.down ? themeState.border : parent.hovered ? themeState.hover : "transparent"
-            border.width: !root.queueRow && parent.visualFocus ? 2 : 0
-            border.color: themeState.accent
-        }
+        quiet: root.queueRow
         media: ({kind: "song", id: root.media.videoId || root.media.id || "", videoId: root.media.videoId || "", title: root.media.title || "", thumbnail: root.media.thumbnail || ""})
     }
     IconButton {
@@ -207,12 +203,7 @@ FocusScope {
         anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
         iconName: "more"; tip: "More options for " + (root.media.title || "song")
         visible: hover.hovered || root.activeFocus
-        background: Rectangle {
-            radius: width / 2
-            color: root.queueRow ? "transparent" : parent.down ? themeState.border : parent.hovered ? themeState.hover : "transparent"
-            border.width: !root.queueRow && parent.visualFocus ? 2 : 0
-            border.color: themeState.accent
-        }
+        quiet: root.queueRow
         onClicked: root.menuRequested(root.media)
     }
 }

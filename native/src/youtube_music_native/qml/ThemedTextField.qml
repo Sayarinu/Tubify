@@ -4,15 +4,15 @@ import "Theme.js" as Theme
 
 TextField {
     id: root
+    property real radius: Theme.radiusSmall
     implicitHeight: 40
-    leftPadding: 12
-    rightPadding: 12
+    leftPadding: Theme.spacingMedium
+    rightPadding: Theme.spacingMedium
     color: themeState.foreground
     placeholderTextColor: themeState.secondary
     selectionColor: themeState.accent
     selectedTextColor: themeState.onAccent
     selectByMouse: true
-    font.family: Theme.bodyFont
-    font.pixelSize: 14
-    background: Rectangle { radius: 8; color: themeState.hover; border.width: root.activeFocus ? 2 : 1; border.color: root.activeFocus ? themeState.accent : themeState.border }
+    font.pixelSize: Theme.textBody
+    background: Rectangle { radius: root.radius; color: themeState.hover; border.width: root.activeFocus ? 2 : 1; border.color: root.activeFocus ? themeState.accent : themeState.border }
 }

@@ -32,23 +32,16 @@ Item {
         ScrollBar.vertical: ScrollBar {}
         header: Item {
             width: list.width; height: 204
-            Row {
-                width: parent.width; height: 52; spacing: 24
-                Button { text: "Library"; flat: true; height: 52; palette.windowText: themeState.secondary; onClicked: libraryState.select("Playlists") }
-                Button { text: "Downloads"; flat: true; height: 52; palette.windowText: themeState.foreground; Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: themeState.accent } }
-            }
-            Rectangle { y: 52; height: 1; width: parent.width; color: themeState.border }
+            LibraryTabs { width: parent.width; current: "Downloads" }
             Row {
                 y: 84; height: 36; spacing: 12
                 Repeater {
                     model: ["All", "Songs", "Albums", "Playlists"]
-                    Button {
-                        id: filter
+                    FilterChip {
                         required property string modelData
-                        text: modelData; height: 36; leftPadding: 14; rightPadding: 14
-                        palette.buttonText: root.selectedKind === text ? themeState.onAccent : themeState.foreground
-                        background: Rectangle { radius: height / 2; color: root.selectedKind === filter.text ? themeState.accent : filter.hovered ? themeState.hover : themeState.surface; border.width: filter.visualFocus ? 2 : 0; border.color: themeState.accent }
-                        onClicked: root.selectedKind = text
+                        text: modelData
+                        selected: root.selectedKind === modelData
+                        onClicked: root.selectedKind = modelData
                     }
                 }
             }
@@ -84,7 +77,7 @@ Item {
                     width: parent.width - x - controls.width - 16; spacing: 5
                     Text { width: parent.width; text: entry.modelData.title; textFormat: Text.PlainText; color: themeState.foreground; elide: Text.ElideRight; font.pixelSize: 16 }
                     Text { width: parent.width; text: entry.modelData.kind.charAt(0).toUpperCase() + entry.modelData.kind.slice(1) + " · " + entry.modelData.total + (entry.modelData.total === 1 ? " song" : " songs"); color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: 12 }
-                    Text { width: parent.width; text: root.stateLabel(entry.modelData); textFormat: Text.PlainText; color: entry.modelData.state === "damaged" || entry.modelData.state === "failed" ? "#ffb4a6" : themeState.secondary; elide: Text.ElideRight; font.pixelSize: 12 }
+                    Text { width: parent.width; text: root.stateLabel(entry.modelData); textFormat: Text.PlainText; color: entry.modelData.state === "damaged" || entry.modelData.state === "failed" ? themeState.error : themeState.secondary; elide: Text.ElideRight; font.pixelSize: 12 }
                     ProgressBar { width: parent.width; height: 3; value: entry.modelData.progress || 0; visible: entry.modelData.state === "downloading" || entry.modelData.state === "queued" }
                 }
                 Row {
@@ -101,7 +94,7 @@ Item {
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 16
         visible: !root.entries.length
-        Text { width: parent.width; text: "Music Wherever You Go"; color: themeState.foreground; font.family: Theme.headingFont; font.bold: true; font.pixelSize: 28; horizontalAlignment: Text.AlignHCenter }
+        Text { width: parent.width; text: "Music Wherever You Go"; color: themeState.foreground; font.bold: true; font.pixelSize: 28; horizontalAlignment: Text.AlignHCenter }
         Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + root.selectedKind.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
     }
     ThemedMenu {

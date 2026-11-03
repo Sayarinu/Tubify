@@ -257,7 +257,6 @@ Item {
             required property int index
             property bool songRow: !modelData.rowType
             property bool dropTarget: root.dropIndex === index && root.draggingKey !== modelData.key
-            property bool rowHovered: rowHover.hovered
             width: queueList.width
             height: songRow ? 64 : modelData.rowType === "drop" ? 56 : modelData.rowType === "empty" ? 72 : 44
             opacity: songRow && root.draggingKey === modelData.key ? 0.38 : 1

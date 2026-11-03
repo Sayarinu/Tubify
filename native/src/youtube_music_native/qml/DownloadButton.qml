@@ -1,5 +1,4 @@
 import QtQuick
-import "Theme.js" as Theme
 
 IconButton {
     id: root
@@ -15,7 +14,7 @@ IconButton {
     readonly property real progress: song ? (downloadsState.trackProgress[mediaId] || 0) : (entry.progress || 0)
     iconName: status === "complete" || status === "ready" ? "circleCheck" : "download"
     tip: status === "complete" || status === "ready" ? entry.state === "complete" ? "Remove Download" : "Downloaded" : status === "downloading" || status === "queued" ? "Cancel Download" : status === "damaged" ? "Repair Download" : "Download"
-    iconColor: status === "complete" || status === "ready" ? themeState.accent : status === "damaged" ? "#ffb4a6" : themeState.foreground
+    iconColor: status === "complete" || status === "ready" ? themeState.accent : status === "damaged" ? themeState.error : themeState.foreground
     enabled: !!mediaId && !(song && (status === "complete" || status === "ready") && entry.state !== "complete")
     onClicked: {
         if ((entry.state === "complete" || entry.state === "ready") && entry.key) downloadsState.remove(entry.key)

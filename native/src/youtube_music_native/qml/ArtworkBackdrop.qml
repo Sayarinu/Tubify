@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Window
-import "Theme.js" as Theme
 
 Item {
     id: root

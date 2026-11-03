@@ -8,15 +8,14 @@ ComboBox {
     implicitHeight: 40
     leftPadding: 12
     rightPadding: 40
-    font.family: Theme.bodyFont
-    font.pixelSize: 14
+    font.pixelSize: Theme.textBody
     contentItem: Text {
         text: root.displayText; textFormat: Text.PlainText
         color: root.enabled ? themeState.foreground : themeState.muted
         font: root.font; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
     }
     indicator: Symbol { x: root.width - width - 12; anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; name: "down"; color: themeState.secondary }
-    background: Rectangle { radius: 8; color: root.hovered || root.down ? themeState.hover : themeState.surface; border.width: root.visualFocus ? 2 : 1; border.color: root.visualFocus ? themeState.accent : themeState.border }
+    background: Rectangle { radius: Theme.radiusSmall; color: root.hovered || root.down ? themeState.hover : themeState.surface; border.width: root.visualFocus ? 2 : 1; border.color: root.visualFocus ? themeState.accent : themeState.border }
     delegate: ItemDelegate {
         id: option
         required property var model
@@ -31,7 +30,7 @@ ComboBox {
             color: themeState.foreground; font: root.font
             verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
         }
-        background: Rectangle { radius: 8; color: option.highlighted || option.hovered ? themeState.hover : "transparent" }
+        background: Rectangle { radius: Theme.radiusSmall; color: option.highlighted || option.hovered ? themeState.hover : "transparent" }
     }
     popup: Popup {
         y: root.height + 4
@@ -46,6 +45,6 @@ ComboBox {
             currentIndex: root.highlightedIndex
             ScrollBar.vertical: ScrollBar {}
         }
-        background: Rectangle { radius: 12; color: themeState.surface; border.color: themeState.border; border.width: 1 }
+        background: Rectangle { radius: Theme.radiusMedium; color: themeState.surface; border.color: themeState.border; border.width: 1 }
     }
 }

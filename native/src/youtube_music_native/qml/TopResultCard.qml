@@ -34,7 +34,7 @@ FocusScope {
         }
         Text {
             width: parent.width; text: root.media.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight
-            color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 32; font.bold: true
+            color: themeState.foreground; font.pixelSize: 32; font.bold: true
         }
         Row {
             spacing: 8

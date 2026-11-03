@@ -9,6 +9,8 @@ ToolButton {
     property color iconColor: themeState.foreground
     property int iconSize: 24
     property bool outlined: false
+    // No hover fill or focus ring, for buttons inside rows that draw their own highlight.
+    property bool quiet: false
     implicitWidth: 44
     implicitHeight: 44
     Accessible.name: tip
@@ -17,9 +19,9 @@ ToolButton {
     ToolTip.delay: 600
     background: Rectangle {
         radius: width / 2
-        color: root.down ? themeState.border : root.hovered ? themeState.hover : Qt.rgba(themeState.hover.r, themeState.hover.g, themeState.hover.b, 0)
+        color: !root.quiet && root.down ? themeState.border : !root.quiet && root.hovered ? themeState.hover : Qt.alpha(themeState.hover, 0)
         Behavior on color { enabled: typeof appState === "undefined" || !appState.reducedMotion; ColorAnimation { duration: Theme.motionFast } }
-        border.width: root.visualFocus ? 2 : root.outlined ? 1 : 0
+        border.width: root.visualFocus && !root.quiet ? 2 : root.outlined ? 1 : 0
         border.color: root.visualFocus ? themeState.accent : themeState.border
     }
     contentItem: Item {

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "Theme.js" as Theme
 
 Popup {
     id: root
@@ -15,7 +16,7 @@ Popup {
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    background: Rectangle { radius: 16; color: themeState.surface; border.color: themeState.border }
+    background: Rectangle { radius: Theme.radiusLarge; color: themeState.surface; border.color: themeState.border }
     function showPage(page) {
         currentPage = page
         open()
@@ -48,7 +49,7 @@ Popup {
                             required property var modelData
                             width: parent.width
                             spacing: 4
-                            Label { leftPadding: 12; bottomPadding: 4; text: modelData.title; font.pixelSize: 12; font.bold: true; color: themeState.secondary }
+                            Label { leftPadding: 12; bottomPadding: 4; text: modelData.title; font.pixelSize: Theme.textSmall; font.bold: true; color: themeState.secondary }
                             Repeater {
                                 model: modelData.pages
                                 Button {
