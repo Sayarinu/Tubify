@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "Theme.js" as Theme
 
 SettingsPage {
     id: root
@@ -18,33 +17,6 @@ SettingsPage {
         id: options
         width: optionsScroll.availableWidth
         spacing: 16
-        Text { text: "Sleep Timer"; color: themeState.foreground; font.bold: true; font.pixelSize: 16 }
-        Text {
-            Layout.fillWidth: true
-            text: playbackOptions.sleepRemaining > 0 ? "Pause in " + Theme.timeLabel(playbackOptions.sleepRemaining) : playbackOptions.sleepStatus || "Pause playback after a set time."
-            color: themeState.secondary; wrapMode: Text.Wrap
-            Accessible.role: Accessible.StaticText
-        }
-        Flow {
-            Layout.fillWidth: true
-            Layout.preferredHeight: childrenRect.height
-            spacing: 8
-            Repeater {
-                model: [5, 10, 15, 30, 45, 60]
-                ThemeActionButton {
-                    required property int modelData
-                    objectName: "sleepPreset-" + modelData
-                    text: modelData + " min"
-                    onClicked: playbackOptions.startSleep(modelData)
-                }
-            }
-        }
-        ThemeActionButton {
-            objectName: "cancelSleep"
-            text: "Cancel Timer"
-            visible: playbackOptions.sleepRemaining > 0
-            onClicked: playbackOptions.cancelSleep()
-        }
         SettingsCheckBox {
             objectName: "nonlinearVolumeOption"
             text: "Finer Volume at Low Levels"

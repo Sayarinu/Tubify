@@ -442,7 +442,6 @@ ApplicationWindow {
     TroubleshootingSettings { id: troubleshootingSettings; host: settingsWindow }
     UpdateDialog { id: updateDialog }
     DesktopSettings { id: desktopSettings; host: settingsWindow }
-    ShortcutSettings { id: shortcutSettings; host: settingsWindow }
     DiscordSettings { id: discordSettings; host: settingsWindow }
     Loader { active: trayState.enabled; sourceComponent: TrayPlayer { palette: window.palette } }
 
@@ -451,7 +450,7 @@ ApplicationWindow {
         currentPage: settingsDialog
         sections: [
             { title: "General", pages: [settingsDialog, playbackSettings, lyricsSettings] },
-            { title: "Application", pages: [desktopSettings, shortcutSettings] },
+            { title: "Application", pages: [desktopSettings] },
             { title: "Connections", pages: [discordSettings, lastFmSettings] },
             { title: "Support", pages: [updateSettings, troubleshootingSettings] }
         ]

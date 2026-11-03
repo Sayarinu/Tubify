@@ -202,11 +202,49 @@ Rectangle {
         anchors.right: parent.right; anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
         IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "more"; tip: "Current Song Options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
+        IconButton {
+            id: sleepButton
+            objectName: "sleepTimerButton"
+            implicitWidth: root.dense ? 36 : 44
+            visible: typeof playbackOptions !== "undefined"
+            iconName: "timer"
+            iconColor: visible && playbackOptions.sleepRemaining > 0 ? themeState.accent : themeState.secondary
+            tip: visible && playbackOptions.sleepRemaining > 0 ? "Sleep Timer: pauses in " + Theme.timeLabel(playbackOptions.sleepRemaining) : "Sleep Timer"
+            onClicked: sleepMenu.opened ? sleepMenu.close() : sleepMenu.popup(sleepButton, (sleepButton.width - sleepMenu.width) / 2, -sleepMenu.height - 8)
+        }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: queueToggle; objectName: "queueToggle"; iconName: "queue"; tip: appState.queueOpen ? "Close Queue" : "Queue"; iconColor: appState.queueOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleQueue() }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: lyricsToggle; objectName: "lyricsToggle"; iconName: "music"; tip: appState.lyricsOpen ? "Close Lyrics" : "Lyrics"; iconColor: appState.lyricsOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleLyrics() }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: volume; iconName: appState.volume > 0 ? "volume" : "muted"; tip: root.compact ? "Volume" : appState.volume > 0 ? "Mute" : "Unmute"; onClicked: root.compact ? volumePopup.open() : appState.toggleMute() }
         AccentSlider { width: 84; height: 44; visible: !root.compact; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: immersiveToggle; objectName: "immersiveToggle"; enabled: playerState.hasTrack; iconName: appState.expanded ? "down" : "up"; tip: appState.expanded ? "Return to Browsing" : "Open Immersive Player"; onClicked: appState.requestAction("expandPlayer") }
+    }
+    // A small popover above the timer button, not a dialog: pick a time, turn it off, or click away.
+    ThemedMenu {
+        id: sleepMenu
+        objectName: "sleepTimerMenu"
+        implicitWidth: 200
+        ContextMenuItem {
+            objectName: "sleepTimerRemaining"
+            visible: typeof playbackOptions !== "undefined" && playbackOptions.sleepRemaining > 0
+            height: visible ? implicitHeight : 0
+            enabled: false
+            text: visible ? "Pauses in " + Theme.timeLabel(playbackOptions.sleepRemaining) : ""
+        }
+        ContextMenuItem { objectName: "sleepPreset-5"; text: "5 minutes"; onTriggered: playbackOptions.startSleep(5) }
+        ContextMenuItem { objectName: "sleepPreset-10"; text: "10 minutes"; onTriggered: playbackOptions.startSleep(10) }
+        ContextMenuItem { objectName: "sleepPreset-15"; text: "15 minutes"; onTriggered: playbackOptions.startSleep(15) }
+        ContextMenuItem { objectName: "sleepPreset-30"; text: "30 minutes"; onTriggered: playbackOptions.startSleep(30) }
+        ContextMenuItem { objectName: "sleepPreset-45"; text: "45 minutes"; onTriggered: playbackOptions.startSleep(45) }
+        ContextMenuItem { objectName: "sleepPreset-60"; text: "60 minutes"; onTriggered: playbackOptions.startSleep(60) }
+        ThemedMenuSeparator { visible: sleepOff.visible; height: visible ? implicitHeight : 0 }
+        ContextMenuItem {
+            id: sleepOff
+            objectName: "cancelSleep"
+            visible: typeof playbackOptions !== "undefined" && playbackOptions.sleepRemaining > 0
+            height: visible ? implicitHeight : 0
+            text: "Turn Off Timer"
+            onTriggered: playbackOptions.cancelSleep()
+        }
     }
     Popup {
         id: volumePopup

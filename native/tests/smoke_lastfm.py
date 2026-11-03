@@ -52,6 +52,11 @@ def main():
                 assert state.enabled
                 state.setEnabled(False)
                 assert not state.enabled
+                # Saved credentials stay out of the way until the user chooses to change them.
+                assert not dialog.findChild(QObject, "lastFmSecret").property("visible")
+                click(dialog.findChild(QObject, "lastFmEditCredentials"))
+                QTest.qWait(30)
+                assert dialog.findChild(QObject, "lastFmSecret").property("visible")
                 for scale in (80, 100, 150):
                     shell.setUiScale(scale)
                     for width, height in ((1600, 900), (1280, 820), (920, 620)):

@@ -15,7 +15,7 @@ from smoke_visual import visual_items
 PAGES = {
     "appearanceSettingsDialog": "Appearance", "playbackSettings": "Playback",
     "lyricsSettingsDialog": "Lyrics", "desktopSettings": "Desktop",
-    "shortcutSettings": "Global Shortcuts", "discordSettingsDialog": "Discord Presence",
+    "discordSettingsDialog": "Discord Presence",
     "lastFmSettingsDialog": "Last.fm", "updateSettings": "Updates", "troubleshootingSettings": "Troubleshooting",
 }
 
