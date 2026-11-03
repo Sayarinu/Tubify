@@ -18,7 +18,7 @@ from PySide6.QtGui import QGuiApplication
 
 from . import updates
 from .jobs import Worker
-from .playback import write_state
+from .util import atomic_write
 
 REPOSITORY = "https://github.com/Sayarinu/Tubify"
 RELEASE_API = "https://api.github.com/repos/Sayarinu/Tubify/releases"
@@ -145,14 +145,14 @@ def perform(payload, opener=urlopen, progress=None):
             except (OSError, ValueError, KeyError, TypeError, AttributeError):
                 return {"error": "Release information is unavailable. Check your connection and retry."}
         try:
-            write_state(path, json.dumps(result))
+            atomic_write(path, json.dumps(result))
         except OSError:
             return {**result, "warning": "Release checked, but its offline cache could not be saved."}
         return result
     if payload.get("action") == "export":
         try:
             report = public_diagnostics(payload.get("snapshot") or {})
-            write_state(Path(payload["path"]), json.dumps(report, indent=2) + "\n")
+            atomic_write(Path(payload["path"]), json.dumps(report, indent=2) + "\n")
             return {"exported": True}
         except (OSError, ValueError, TypeError):
             return {"error": "Diagnostics could not be saved. Choose a writable folder and retry."}

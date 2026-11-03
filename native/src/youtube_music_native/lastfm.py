@@ -12,7 +12,7 @@ from PySide6.QtGui import QDesktopServices
 
 from .jobs import Worker
 from .lastfm_service import metadata
-from .playback import write_state
+from .util import atomic_write
 
 
 class LastFm(QObject):
@@ -312,7 +312,7 @@ class LastFm(QObject):
             if track:
                 rows.append({"id": row["id"], "timestamp": row["timestamp"], "track": {"title": track["track"], "artist": track["artist"], "albumName": track.get("album", ""), "duration": track.get("duration", 0)}})
         content = json.dumps({"owner": self.username, "listens": rows}, ensure_ascii=False, separators=(",", ":"))
-        future = self._saver.submit(write_state, self._spool_path, content)
+        future = self._saver.submit(atomic_write, self._spool_path, content)
         future.add_done_callback(lambda completed: self.spoolFailed.emit() if completed.exception() else None)
 
     def _discard_spool(self):

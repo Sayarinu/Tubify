@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .playlist_ops import apply_change
 from .queue_additions import QueueAdditions
+from .util import atomic_write
 
 
 PLAYLIST_RETRY_MS = (2000, 5000, 15000, 30000, 60000)
@@ -219,10 +220,7 @@ class Browse(QObject):
         if not self.snapshot_path:
             return
         try:
-            self.snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = self.snapshot_path.with_suffix(".tmp")
-            temporary.write_text(json.dumps({"account": self._snapshot_key(identity), "items": items}, separators=(",", ":")), encoding="utf-8")
-            temporary.replace(self.snapshot_path)
+            atomic_write(self.snapshot_path, json.dumps({"account": self._snapshot_key(identity), "items": items}, separators=(",", ":")))
         except OSError:
             pass
 

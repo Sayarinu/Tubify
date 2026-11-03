@@ -4,6 +4,8 @@ import re
 
 from PySide6.QtCore import QObject
 
+from .util import needs_reconnect
+
 
 class Listening(QObject):
     def __init__(self, account, player, cache_path, parent=None):
@@ -39,5 +41,5 @@ class Listening(QObject):
     def _failed(self, identifier, error):
         if identifier in self._pending:
             self._pending.discard(identifier)
-            if error.get("code") in {"reconnect", "AuthError"}:
+            if needs_reconnect(error):
                 self.account.requireReconnect("Reconnect YouTube Music to update listening history.")

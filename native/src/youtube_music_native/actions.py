@@ -2,6 +2,8 @@
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
+from .util import needs_reconnect
+
 
 class Actions(QObject):
     changed = Signal()
@@ -57,6 +59,6 @@ class Actions(QObject):
         if identifier == self._request:
             self._request, self._busy = None, False
             self._message = error.get("message", "Your library could not be updated. Retry.")
-            if error.get("code") in {"reconnect", "AuthError"}:
+            if needs_reconnect(error):
                 self.account.requireReconnect(self._message)
             self.changed.emit()

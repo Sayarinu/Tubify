@@ -53,7 +53,7 @@ def test_file_registration_preserves_foreign_items_and_failed_replacements(tmp_p
     registration.command = ["/new"]
     def fail_replace(*args):
         raise OSError("synthetic disk error")
-    monkeypatch.setattr(Path, "replace", fail_replace)
+    monkeypatch.setattr(os, "replace", fail_replace)
     with pytest.raises(OSError):
         registration.set_enabled(True)
     assert registration.path.read_bytes() == saved

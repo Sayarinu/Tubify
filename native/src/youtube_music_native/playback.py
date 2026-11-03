@@ -3,48 +3,21 @@
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import json
-import math
-import os
 from pathlib import Path
 import re
-import tempfile
 import time
 
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .audio import Audio
 from .queue import Queue
+from .util import atomic_write, parse_duration
 from .video import has_video
-
-
-def write_state(path, content):
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, encoding="utf-8", delete=False) as handle:
-            temporary = Path(handle.name)
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        if temporary and temporary.exists():
-            temporary.unlink()
 
 
 def track_duration(track):
     """Seconds from a track's duration, which may be a number or a "3:41" label."""
-    value = track.get("duration") if isinstance(track, dict) else None
-    try:
-        if isinstance(value, str) and ":" in value:
-            seconds = 0.
-            for part in value.split(":"):
-                seconds = seconds * 60 + float(part)
-        else:
-            seconds = float(value or 0)
-    except (ValueError, TypeError):
-        return 0.
-    return seconds if math.isfinite(seconds) and seconds > 0 else 0.
+    return parse_duration(track.get("duration") if isinstance(track, dict) else None)
 
 
 STALL_SECONDS = 25
@@ -1174,7 +1147,7 @@ class Playback(QObject):
 
     def save(self):
         if not self._fixture and not self._closed:
-            future = self._saver.submit(write_state, self.path, json.dumps({**self.queue.snapshot(self._position), "context": self._context}, separators=(",", ":")))
+            future = self._saver.submit(atomic_write, self.path, json.dumps({**self.queue.snapshot(self._position), "context": self._context}, separators=(",", ":")))
             future.add_done_callback(lambda completed: self.stateSaveFailed.emit() if completed.exception() else None)
 
     def resetSession(self):

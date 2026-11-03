@@ -5,9 +5,9 @@ from pathlib import Path
 import plistlib
 import subprocess
 import sys
-import tempfile
 
 from .launcher import application_command
+from .util import atomic_write
 
 
 APP_ID = "com.carter.youtube-music-native"
@@ -119,12 +119,4 @@ class StartupRegistration:
             return
         content = self._content()
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = None
-        try:
-            with tempfile.NamedTemporaryFile(dir=path.parent, prefix=path.name + ".", delete=False) as handle:
-                temporary = Path(handle.name)
-                handle.write(content)
-            temporary.replace(path)
-        finally:
-            if temporary:
-                temporary.unlink(missing_ok=True)
+        atomic_write(path, content)

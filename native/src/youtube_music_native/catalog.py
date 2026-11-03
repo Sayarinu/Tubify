@@ -8,7 +8,7 @@ import time
 
 from .artwork_sources import variants, apply_artwork, media_variants
 from .playlist_ops import apply_change
-from .util import session_rejected
+from .util import parse_duration, session_rejected
 
 
 class CatalogError(RuntimeError):
@@ -43,15 +43,7 @@ def _session_problem(error):
 
 
 def duration(value):
-    try:
-        if isinstance(value, str) and ":" in value:
-            seconds = 0
-            for part in value.split(":"):
-                seconds = seconds * 60 + int(part)
-            return max(0, seconds)
-        return max(0, int(value or 0))
-    except (ValueError, TypeError):
-        return 0
+    return int(parse_duration(value))
 
 
 def item(row, kind=None):
