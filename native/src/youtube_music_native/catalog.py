@@ -240,122 +240,152 @@ class Catalog:
         return page
 
     def _fetch(self, client, route, params, limit):
-        identifier = params.get("id", "")
         data = {"title": text(params.get("title")) or route.title(), "items": [], "shelves": [], "complete": True}
-        if route == "home":
-            # Fetch every shelf once; "More Music" pages through this same response
-            # instead of splicing a newer, differently ordered one onto it.
-            limit = max(limit, HOME_SHELVES)
-            data["shelves"] = arrange_home(shelves(client.get_home(limit=limit)))
-            data["complete"] = True
-            for section in data["shelves"]:
-                if section["title"].lower() == "listen again":
-                    section["subtitle"] = self.auth.profile.get("name", "Your music").upper()
-        elif route == "explore":
-            raw = client.get_explore()
-            for name in ("new_releases", "top_songs", "trending", "new_videos"):
-                content = raw.get(name, [])
-                normalized = items(content.get("items", []) if isinstance(content, dict) else content)
-                if normalized:
-                    title = {"new_releases": "New albums & singles", "top_songs": "Top songs", "trending": "Trending", "new_videos": "New music videos"}[name]
-                    data["shelves"].append({"title": title, "subtitle": "", "items": normalized, "layout": "rows" if name in {"top_songs", "trending"} else "cards"})
-            data["moods"] = raw.get("moods_and_genres", [])
-        elif route == "charts":
-            raw = client.get_charts(country=params.get("country", "ZZ"))
-            data["shelves"] = [{**section, "layout": shelf_layout(section)} for section in
-                               ({"title": name.title(), "subtitle": "", "items": items(value)} for name, value in raw.items() if isinstance(value, list))]
-        elif route == "search" and not params.get("filter"):
-            query = text(params.get("query")).strip()
-            if not query:
-                raise CatalogError("Enter a song, artist, album or playlist.")
-            data["title"] = query
-            raw = client.search(query, filter=None, limit=max(limit, 40))
-            data.update(arrange_search(query, items([row for row in raw if row.get("resultType", "song") in {"song", "video", "album", "artist", "playlist"}])))
-            data["complete"] = True
-        elif route == "search":
-            query = text(params.get("query")).strip()
-            if not query:
-                raise CatalogError("Enter a song, artist, album or playlist.")
-            data["title"] = query
-            raw_limit = limit
-            while True:
-                raw = client.search(query, filter=params.get("filter"), limit=raw_limit)
-                allowed = {"song", "album", "artist", "playlist"} | ({"video"} if params.get("filter") == "videos" else set())
-                data["items"] = items([row for row in raw if row.get("resultType", "song") in allowed])
-                if len(data["items"]) >= limit or len(raw) < raw_limit or raw_limit >= 100000:
-                    break
-                raw_limit = min(100000, raw_limit * 2)
-            data["complete"] = len(raw) < raw_limit or raw_limit >= 100000
-        elif route in {"album", "playlist"}:
-            try:
-                raw = client.get_album(identifier) if route == "album" else client.get_playlist(identifier, limit=limit)
-            except KeyError:
-                if route != "playlist":
-                    raise
-                # The provider omits the song shelf for an empty owned playlist.
-                candidate = next((row for row in client.get_library_playlists(limit=None) if (row.get("playlistId") or text(row.get("browseId")).removeprefix("VL")) == identifier), None)
-                if not candidate or not candidate.get("owned") or str(candidate.get("count")) not in {"0", "0 songs"}:
-                    raise CatalogError("This playlist could not be loaded. Refresh and retry.") from None
-                raw = {**candidate, "tracks": [], "trackCount": 0, "author": {"name": self.auth.profile.get("name", "Your music")}}
-            if not isinstance(raw, dict) or not raw.get("title"):
-                raise CatalogError("This release is unavailable. Go back and choose another item.")
-            data.update(title=text(raw.get("title")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")), largeThumbnail=thumbnail(raw.get("thumbnails"), largest=True), items=items(raw.get("tracks", []), "song"), editable=bool(raw.get("owned")))
-            apply_artwork(data, variants(raw.get("thumbnails")))
-            data.update(id=identifier, kind=route, artists=raw.get("artists") or [], year=text(raw.get("year")), trackCount=duration(raw.get("trackCount")) or len(data["items"]), duration=duration(raw.get("duration_seconds")), audioPlaylistId=text(raw.get("audioPlaylistId")), saved=bool(raw.get("isSaved")) or bool(data["items"]) and all(track.get("inLibrary") for track in data["items"]))
-            data.update(author=text((raw.get("author") or {}).get("name")) if isinstance(raw.get("author"), dict) else text(raw.get("author")), privacy=text(raw.get("privacy")))
-            if route == "album":
-                artists = raw.get("artists") or []
-                for track in data["items"]:
-                    track["album"] = {"name": data["title"], "id": identifier}
-                    track["thumbnail"] = track["thumbnail"] or data["thumbnail"]
-                    apply_artwork(track, media_variants(track) + media_variants(data))
-                    if not track["artists"]:
-                        track["artists"] = artists
-                        track["artist"] = " • ".join(text(a.get("name")) for a in artists)
-            else:
-                data["complete"] = len(data["items"]) < limit
-        elif route == "artist":
-            raw = client.get_artist(identifier)
-            if not isinstance(raw, dict) or not raw.get("name"):
-                raise CatalogError("This artist is unavailable. Go back and choose another artist.")
-            data.update(title=text(raw.get("name")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")))
-            wide = [photo for photo in (raw.get("thumbnails") or []) if isinstance(photo, dict) and (photo.get("width") or 0) >= (photo.get("height") or 1) * 1.4 and text(photo.get("url")).startswith("https://")]
-            data.update(id=identifier, kind="artist", subscriptionId=text(raw.get("channelId")), subscribed=bool(raw.get("subscribed")), subscribers=text(raw.get("subscribers")), monthlyListeners=text(raw.get("monthlyListeners")), shuffleId=text(raw.get("shuffleId")), radioId=text(raw.get("radioId")), hero=wide[-1]["url"] if wide else "")
-            for name in ("songs", "albums", "singles", "related"):
-                section = raw.get(name) or {}
-                content = items(section.get("results", []))
-                for value in content:
-                    if value["kind"] == "song" and not value["artist"]:
-                        value["artist"] = data["title"]
-                        value["artists"] = [{"id": identifier, "name": data["title"]}]
-                if content and name == "songs":
-                    data["shelves"].append(artist_songs(section, content))
-                elif content:
-                    data["shelves"].append({"title": name.title(), "subtitle": "", "items": content, "browseId": text(section.get("browseId")), "params": text(section.get("params"))})
-        elif route == "artist_albums":
-            data["items"] = items(client.get_artist_albums(identifier, params["params"], limit=limit), "album")
-            data["complete"] = len(data["items"]) < limit
+        if route == "search":
+            fetch = self._search if params.get("filter") else self._search_all
         elif route.startswith("library_"):
-            methods = {"library_songs": ("get_library_songs", "song"), "library_albums": ("get_library_albums", "album"), "library_artists": ("get_library_artists", "artist"), "library_playlists": ("get_library_playlists", "playlist"), "library_subscriptions": ("get_library_subscriptions", "artist"), "library_liked": ("get_liked_songs", "song")}
-            if route not in methods:
-                raise CatalogError("This library section is unavailable.")
-            method, kind = methods[route]
-            kwargs = {"order": params["order"]} if params.get("order") in {"a_to_z", "z_to_a", "recently_added"} and route not in {"library_playlists", "library_liked"} else {}
-            raw = getattr(client, method)(limit=limit, **kwargs)
-            data["items"] = items(raw.get("tracks", []) if isinstance(raw, dict) else raw, kind)
-            data["title"] = "Liked songs" if route == "library_liked" else route.removeprefix("library_").title()
-            data["complete"] = len(data["items"]) < limit
-        elif route == "history":
-            data["items"] = items(client.get_history(), "song")
-        elif route == "suggestions":
-            data["suggestions"] = client.get_search_suggestions(text(params.get("query")))
-        elif route == "radio":
-            raw = client.get_watch_playlist(videoId=identifier or None, playlistId=params.get("playlistId"), radio=bool(params.get("radio", True)), shuffle=bool(params.get("shuffle")), limit=limit)
-            data.update(items=items(raw.get("tracks", []), "song"), lyricsId=raw.get("lyrics"), relatedId=raw.get("related"))
-        elif route == "moods":
-            data["groups"] = client.get_mood_categories()
-        elif route == "mood":
-            data["items"] = items(client.get_mood_playlists(params["params"]), "playlist")
+            fetch = self._library
         else:
-            raise CatalogError("This catalog section is unavailable. Return to Home.")
+            fetch = {
+                "home": self._home, "explore": self._explore, "charts": self._charts,
+                "album": self._collection, "playlist": self._collection,
+                "artist": self._artist, "artist_albums": self._artist_albums,
+                "history": self._history, "suggestions": self._suggestions, "radio": self._radio,
+                "moods": self._moods, "mood": self._mood,
+            }.get(route)
+            if fetch is None:
+                raise CatalogError("This catalog section is unavailable. Return to Home.")
+        fetch(client, route, params, limit, data)
         return data
+
+    def _home(self, client, route, params, limit, data):
+        # Fetch every shelf once; "More Music" pages through this same response
+        # instead of splicing a newer, differently ordered one onto it.
+        limit = max(limit, HOME_SHELVES)
+        data["shelves"] = arrange_home(shelves(client.get_home(limit=limit)))
+        data["complete"] = True
+        for section in data["shelves"]:
+            if section["title"].lower() == "listen again":
+                section["subtitle"] = self.auth.profile.get("name", "Your music").upper()
+
+    def _explore(self, client, route, params, limit, data):
+        raw = client.get_explore()
+        for name in ("new_releases", "top_songs", "trending", "new_videos"):
+            content = raw.get(name, [])
+            normalized = items(content.get("items", []) if isinstance(content, dict) else content)
+            if normalized:
+                title = {"new_releases": "New albums & singles", "top_songs": "Top songs", "trending": "Trending", "new_videos": "New music videos"}[name]
+                data["shelves"].append({"title": title, "subtitle": "", "items": normalized, "layout": "rows" if name in {"top_songs", "trending"} else "cards"})
+        data["moods"] = raw.get("moods_and_genres", [])
+
+    def _charts(self, client, route, params, limit, data):
+        raw = client.get_charts(country=params.get("country", "ZZ"))
+        data["shelves"] = [{**section, "layout": shelf_layout(section)} for section in
+                           ({"title": name.title(), "subtitle": "", "items": items(value)} for name, value in raw.items() if isinstance(value, list))]
+
+    def _search_all(self, client, route, params, limit, data):
+        query = text(params.get("query")).strip()
+        if not query:
+            raise CatalogError("Enter a song, artist, album or playlist.")
+        data["title"] = query
+        raw = client.search(query, filter=None, limit=max(limit, 40))
+        data.update(arrange_search(query, items([row for row in raw if row.get("resultType", "song") in {"song", "video", "album", "artist", "playlist"}])))
+        data["complete"] = True
+
+    def _search(self, client, route, params, limit, data):
+        query = text(params.get("query")).strip()
+        if not query:
+            raise CatalogError("Enter a song, artist, album or playlist.")
+        data["title"] = query
+        raw_limit = limit
+        while True:
+            raw = client.search(query, filter=params.get("filter"), limit=raw_limit)
+            allowed = {"song", "album", "artist", "playlist"} | ({"video"} if params.get("filter") == "videos" else set())
+            data["items"] = items([row for row in raw if row.get("resultType", "song") in allowed])
+            if len(data["items"]) >= limit or len(raw) < raw_limit or raw_limit >= 100000:
+                break
+            raw_limit = min(100000, raw_limit * 2)
+        data["complete"] = len(raw) < raw_limit or raw_limit >= 100000
+
+    def _collection(self, client, route, params, limit, data):
+        identifier = params.get("id", "")
+        try:
+            raw = client.get_album(identifier) if route == "album" else client.get_playlist(identifier, limit=limit)
+        except KeyError:
+            if route != "playlist":
+                raise
+            # The provider omits the song shelf for an empty owned playlist.
+            candidate = next((row for row in client.get_library_playlists(limit=None) if (row.get("playlistId") or text(row.get("browseId")).removeprefix("VL")) == identifier), None)
+            if not candidate or not candidate.get("owned") or str(candidate.get("count")) not in {"0", "0 songs"}:
+                raise CatalogError("This playlist could not be loaded. Refresh and retry.") from None
+            raw = {**candidate, "tracks": [], "trackCount": 0, "author": {"name": self.auth.profile.get("name", "Your music")}}
+        if not isinstance(raw, dict) or not raw.get("title"):
+            raise CatalogError("This release is unavailable. Go back and choose another item.")
+        data.update(title=text(raw.get("title")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")), largeThumbnail=thumbnail(raw.get("thumbnails"), largest=True), items=items(raw.get("tracks", []), "song"), editable=bool(raw.get("owned")))
+        apply_artwork(data, variants(raw.get("thumbnails")))
+        data.update(id=identifier, kind=route, artists=raw.get("artists") or [], year=text(raw.get("year")), trackCount=duration(raw.get("trackCount")) or len(data["items"]), duration=duration(raw.get("duration_seconds")), audioPlaylistId=text(raw.get("audioPlaylistId")), saved=bool(raw.get("isSaved")) or bool(data["items"]) and all(track.get("inLibrary") for track in data["items"]))
+        data.update(author=text((raw.get("author") or {}).get("name")) if isinstance(raw.get("author"), dict) else text(raw.get("author")), privacy=text(raw.get("privacy")))
+        if route == "album":
+            artists = raw.get("artists") or []
+            for track in data["items"]:
+                track["album"] = {"name": data["title"], "id": identifier}
+                track["thumbnail"] = track["thumbnail"] or data["thumbnail"]
+                apply_artwork(track, media_variants(track) + media_variants(data))
+                if not track["artists"]:
+                    track["artists"] = artists
+                    track["artist"] = " • ".join(text(a.get("name")) for a in artists)
+        else:
+            data["complete"] = len(data["items"]) < limit
+
+    def _artist(self, client, route, params, limit, data):
+        identifier = params.get("id", "")
+        raw = client.get_artist(identifier)
+        if not isinstance(raw, dict) or not raw.get("name"):
+            raise CatalogError("This artist is unavailable. Go back and choose another artist.")
+        data.update(title=text(raw.get("name")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")))
+        wide = [photo for photo in (raw.get("thumbnails") or []) if isinstance(photo, dict) and (photo.get("width") or 0) >= (photo.get("height") or 1) * 1.4 and text(photo.get("url")).startswith("https://")]
+        data.update(id=identifier, kind="artist", subscriptionId=text(raw.get("channelId")), subscribed=bool(raw.get("subscribed")), subscribers=text(raw.get("subscribers")), monthlyListeners=text(raw.get("monthlyListeners")), shuffleId=text(raw.get("shuffleId")), radioId=text(raw.get("radioId")), hero=wide[-1]["url"] if wide else "")
+        for name in ("songs", "albums", "singles", "related"):
+            section = raw.get(name) or {}
+            content = items(section.get("results", []))
+            for value in content:
+                if value["kind"] == "song" and not value["artist"]:
+                    value["artist"] = data["title"]
+                    value["artists"] = [{"id": identifier, "name": data["title"]}]
+            if content and name == "songs":
+                data["shelves"].append(artist_songs(section, content))
+            elif content:
+                data["shelves"].append({"title": name.title(), "subtitle": "", "items": content, "browseId": text(section.get("browseId")), "params": text(section.get("params"))})
+
+    def _artist_albums(self, client, route, params, limit, data):
+        identifier = params.get("id", "")
+        data["items"] = items(client.get_artist_albums(identifier, params["params"], limit=limit), "album")
+        data["complete"] = len(data["items"]) < limit
+
+    def _library(self, client, route, params, limit, data):
+        methods = {"library_songs": ("get_library_songs", "song"), "library_albums": ("get_library_albums", "album"), "library_artists": ("get_library_artists", "artist"), "library_playlists": ("get_library_playlists", "playlist"), "library_subscriptions": ("get_library_subscriptions", "artist"), "library_liked": ("get_liked_songs", "song")}
+        if route not in methods:
+            raise CatalogError("This library section is unavailable.")
+        method, kind = methods[route]
+        kwargs = {"order": params["order"]} if params.get("order") in {"a_to_z", "z_to_a", "recently_added"} and route not in {"library_playlists", "library_liked"} else {}
+        raw = getattr(client, method)(limit=limit, **kwargs)
+        data["items"] = items(raw.get("tracks", []) if isinstance(raw, dict) else raw, kind)
+        data["title"] = "Liked songs" if route == "library_liked" else route.removeprefix("library_").title()
+        data["complete"] = len(data["items"]) < limit
+
+    def _history(self, client, route, params, limit, data):
+        data["items"] = items(client.get_history(), "song")
+
+    def _suggestions(self, client, route, params, limit, data):
+        data["suggestions"] = client.get_search_suggestions(text(params.get("query")))
+
+    def _radio(self, client, route, params, limit, data):
+        identifier = params.get("id", "")
+        raw = client.get_watch_playlist(videoId=identifier or None, playlistId=params.get("playlistId"), radio=bool(params.get("radio", True)), shuffle=bool(params.get("shuffle")), limit=limit)
+        data.update(items=items(raw.get("tracks", []), "song"), lyricsId=raw.get("lyrics"), relatedId=raw.get("related"))
+
+    def _moods(self, client, route, params, limit, data):
+        data["groups"] = client.get_mood_categories()
+
+    def _mood(self, client, route, params, limit, data):
+        data["items"] = items(client.get_mood_playlists(params["params"]), "playlist")

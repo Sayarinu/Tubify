@@ -409,87 +409,110 @@ class Browse(QObject):
             self._lookup_track_metadata(track)
 
     def _result(self, identifier, result):
-        if identifier == self._metadata_request:
-            self._metadata_request = None
-            track = next((item for item in result.get("items", []) if item.get("videoId") == self._metadata_video_id), None)
-            album = track.get("album") if track else None
-            if (not track or not (isinstance(album, dict) and album.get("name"))) and self._metadata_fallback_query and not self._metadata_fallback_attempted:
-                self._metadata_fallback_attempted = True
-                self._metadata_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": "search", "params": {"query": self._metadata_fallback_query, "filter": "songs"}})
-                return
-            if track:
-                values = {}
-                if isinstance(album, dict) and album.get("name"):
-                    values["album"] = album
-                if track.get("artists"):
-                    values["artists"] = track["artists"]
-                if track.get("thumbnail"):
-                    values["thumbnail"] = track["thumbnail"]
-                if track.get("largeThumbnail"):
-                    values["largeThumbnail"] = track["largeThumbnail"]
-                if track.get("artworkVariants"):
-                    values["artworkVariants"] = track["artworkVariants"]
-                if not values:
-                    return
-                self.player.updateTrack(self._metadata_video_id, values)
-                self.updateTrack(self._metadata_video_id, values)
-        elif identifier == self._artist_request:
-            self._artist_request = None
-            artist = next((item for item in result.get("items", []) if item.get("kind") == "artist" and item.get("title", "").casefold() == self._artist_name.casefold()), None)
-            if artist and artist.get("id"):
-                self.open(artist)
-            else:
-                self._load("search", {"query": self._artist_name, "filter": "artists"})
-        elif identifier == self._playlist_request:
-            self._playlist_request = None
-            self._playlist_attempts = 0
-            identity = (self.account.profile.get("name"), self.account.profile.get("handle"))
-            self._playlists_identity = identity
-            playlists = [{**media, "owner": self.account.profile.get("name", "Your music")} for media in result.get("items", [])]
-            self.shell.setPlaylists(playlists)
-            self._save_snapshot(identity, playlists)
-        elif identifier == self._play_request:
-            self._play_request = None
-            tracks = [track for track in result.get("items", []) if track.get("kind") == "song"]
-            if tracks:
-                title = result.get("title") or self._play_title
-                self.player.playShuffledTracks(tracks, source_label=title) if self._play_shuffle else self.player.playTracks(tracks, source_label=title)
-                self._set_context(play_context(self._play_route, self._play_params, result))
-            if result.get("cursor") is not None:
-                self._request_rest(result["cursor"])
-        elif self.pages is self.worker and identifier == self._rest_request:
+        # Request identifiers are unique per worker, so at most one handler answers.
+        handler = {
+            self._metadata_request: self._metadata_loaded,
+            self._artist_request: self._artist_loaded,
+            self._playlist_request: self._playlists_loaded,
+            self._play_request: self._play_loaded,
+            self._mood_request: self._moods_loaded,
+        }.get(identifier)
+        if handler:
+            handler(result)
+        elif self.pages is self.worker:
             self._rest_result(identifier, result)
-        elif identifier == self._mood_request:
-            self._mood_request = None
-            groups = result.get("groups", {})
-            for values in groups.values():
-                for value in values:
-                    if value.get("title", "").casefold() == self._mood_title.casefold():
-                        self.mood(value)
-                        return
-            self.view.showLocal("moods", result)
 
     def _failed(self, identifier, error):
-        if identifier == self._playlist_request:
-            self._playlist_request = None
-            if self.account.connected and error.get("code") != "cancelled":
-                delay = PLAYLIST_RETRY_MS[min(self._playlist_attempts, len(PLAYLIST_RETRY_MS) - 1)]
-                self._playlist_attempts += 1
-                self.playlist_retry.start(delay)
-        if identifier == self._metadata_request:
-            self._metadata_request = None
-        if identifier == self._artist_request:
-            self._artist_request = None
-            self._load("search", {"query": self._artist_name, "filter": "artists"})
-        if identifier == self._play_request:
-            self._play_request = None
-            self._message = error.get("message", "This collection could not be played. Retry.")
-            self.changed.emit()
+        handler = {
+            self._playlist_request: self._playlists_failed,
+            self._metadata_request: self._metadata_failed,
+            self._artist_request: self._artist_failed,
+            self._play_request: self._play_failed,
+            self._mood_request: self._moods_failed,
+        }.get(identifier)
+        if handler:
+            handler(error)
         if self.pages is self.worker:
             self._rest_failed(identifier, error)
-        if identifier == self._mood_request:
-            self._mood_request = None
-            self.view.load("moods", {})
+
+    def _metadata_loaded(self, result):
+        self._metadata_request = None
+        track = next((item for item in result.get("items", []) if item.get("videoId") == self._metadata_video_id), None)
+        album = track.get("album") if track else None
+        if (not track or not (isinstance(album, dict) and album.get("name"))) and self._metadata_fallback_query and not self._metadata_fallback_attempted:
+            self._metadata_fallback_attempted = True
+            self._metadata_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": "search", "params": {"query": self._metadata_fallback_query, "filter": "songs"}})
+            return
+        if not track:
+            return
+        values = {}
+        if isinstance(album, dict) and album.get("name"):
+            values["album"] = album
+        for key in ("artists", "thumbnail", "largeThumbnail", "artworkVariants"):
+            if track.get(key):
+                values[key] = track[key]
+        if values:
+            self.player.updateTrack(self._metadata_video_id, values)
+            self.updateTrack(self._metadata_video_id, values)
+
+    def _metadata_failed(self, error):
+        self._metadata_request = None
+
+    def _artist_loaded(self, result):
+        self._artist_request = None
+        artist = next((item for item in result.get("items", []) if item.get("kind") == "artist" and item.get("title", "").casefold() == self._artist_name.casefold()), None)
+        if artist and artist.get("id"):
+            self.open(artist)
+        else:
+            self._load("search", {"query": self._artist_name, "filter": "artists"})
+
+    def _artist_failed(self, error):
+        self._artist_request = None
+        self._load("search", {"query": self._artist_name, "filter": "artists"})
+
+    def _playlists_loaded(self, result):
+        self._playlist_request = None
+        self._playlist_attempts = 0
+        identity = (self.account.profile.get("name"), self.account.profile.get("handle"))
+        self._playlists_identity = identity
+        playlists = [{**media, "owner": self.account.profile.get("name", "Your music")} for media in result.get("items", [])]
+        self.shell.setPlaylists(playlists)
+        self._save_snapshot(identity, playlists)
+
+    def _playlists_failed(self, error):
+        self._playlist_request = None
+        if self.account.connected and error.get("code") != "cancelled":
+            delay = PLAYLIST_RETRY_MS[min(self._playlist_attempts, len(PLAYLIST_RETRY_MS) - 1)]
+            self._playlist_attempts += 1
+            self.playlist_retry.start(delay)
+
+    def _play_loaded(self, result):
+        self._play_request = None
+        tracks = [track for track in result.get("items", []) if track.get("kind") == "song"]
+        if tracks:
+            title = result.get("title") or self._play_title
+            self.player.playShuffledTracks(tracks, source_label=title) if self._play_shuffle else self.player.playTracks(tracks, source_label=title)
+            self._set_context(play_context(self._play_route, self._play_params, result))
+        if result.get("cursor") is not None:
+            self._request_rest(result["cursor"])
+
+    def _play_failed(self, error):
+        self._play_request = None
+        self._message = error.get("message", "This collection could not be played. Retry.")
+        self.changed.emit()
+
+    def _moods_loaded(self, result):
+        self._mood_request = None
+        for values in result.get("groups", {}).values():
+            for value in values:
+                if value.get("title", "").casefold() == self._mood_title.casefold():
+                    self.mood(value)
+                    return
+        self.view.showLocal("moods", result)
+
+    def _moods_failed(self, error):
+        self._mood_request = None
+        self.view.load("moods", {})
 
     @Slot("QVariantList")
     def playItems(self, values, source_label=""):

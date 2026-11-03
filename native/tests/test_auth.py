@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from youtube_music_native.auth import AuthService
+from youtube_music_native.auth import AuthError, AuthService
 from youtube_music_native.credentials import Credentials
 from youtube_music_native.worker import safe_error
 
@@ -101,3 +101,22 @@ def test_safe_error_asks_to_reconnect_only_for_rejected_sessions():
     assert safe_error(YTMusicServerError("Server returned HTTP 500: Error.\nprivate"))["code"] == "provider_error"
     # Wording alone from another error type must not sign the account out.
     assert safe_error(RuntimeError("Server returned HTTP 401"))["code"] == "provider_error"
+
+
+@pytest.mark.parametrize("operation", ["unknown", None, ["catalog"]])
+def test_unknown_worker_operations_are_refused(operation):
+    from youtube_music_native.worker import handle
+
+    with pytest.raises(AuthError, match="unavailable"):
+        handle(None, {"operation": operation, "payload": {}})
+
+
+def test_unknown_download_operation_is_refused(tmp_path):
+    from youtube_music_native.downloads import DownloadError
+    from youtube_music_native.worker import handle
+
+    resources = {}
+    with pytest.raises(DownloadError, match="unavailable"):
+        handle(None, {"operation": "downloads_unknown", "payload": {"data_dir": str(tmp_path)}}, resources)
+    for value in resources.values():
+        value.close()

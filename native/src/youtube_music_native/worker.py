@@ -23,138 +23,209 @@ from .lastfm_service import LastFmService, LastFmError
 from .util import session_rejected
 
 
+PLAYLIST_ACTIONS = {"playlist_create", "playlist_rename", "playlist_delete", "playlist_add", "playlist_remove", "playlist_move"}
+# Edits that delayed catalog reads must not undo (see _catalog).
+REMEMBERED_CHANGES = {"playlist_rename", "playlist_remove", "playlist_move", "playlist_delete"}
+
+
+def _shared(resources, kind, payload, create):
+    """One long-lived helper per kind and data folder, reused across requests."""
+    root = str(Path(payload["data_dir"]).resolve())
+    key = (kind, root)
+    if key not in resources:
+        resources[key] = create(root)
+    return resources[key]
+
+
+def _maintenance(service, payload, resources, progress):
+    from .maintenance import perform as maintenance_action
+    return maintenance_action(payload, progress=progress)
+
+
+def _lastfm(service, payload, resources, progress):
+    lastfm = _shared(resources, "lastfm", payload, LastFmService)
+    try:
+        return lastfm.perform(payload.get("action"), payload)
+    except LastFmError:
+        raise
+    except Exception:
+        raise LastFmError("storage", "Last.fm could not save or read its local state. Check storage and retry.") from None
+
+
+def _artwork(service, payload, resources, progress):
+    from .large_artwork import resolve
+    return resolve(service, payload["data_dir"], payload["media"], payload["pixels"], bool(payload.get("online")))
+
+
+def _lyrics_key(service, payload, resources, progress):
+    return provider_key(payload.get("action"), payload.get("value", ""))
+
+
+def _lyrics(service, payload, resources, progress):
+    lyrics = _shared(resources, "lyrics", payload, lambda root: Lyrics(service, root))
+    return lyrics.fetch(payload["videoId"], bool(payload.get("refresh")), payload.get("track"), payload.get("options"))
+
+
+def _with_progress(downloads, progress, action):
+    downloads.notify = progress or (lambda value: None)
+    try:
+        return action()
+    finally:
+        downloads.notify = lambda value: None
+
+
+def _schedule(downloads, payload, progress):
+    identifier = downloads.schedule(payload["media"])
+    return {**downloads.store.status(), "scheduled": identifier}
+
+
+def _schedule_all(downloads, payload, progress):
+    playlists = payload.get("playlists")
+    if not isinstance(playlists, list) or len(playlists) > 10000:
+        raise DownloadError("Choose playlists to download.")
+    return _with_progress(downloads, progress, lambda: {**downloads.store.status(), **downloads.schedule_all(playlists)})
+
+
+def _run_downloads(downloads, payload, progress):
+    downloads.notify = progress or (lambda value: None)
+    return downloads.run_queue(payload["id"])
+
+
+def _stop_download(downloads, payload, progress):
+    if downloads.store.state(payload["id"]) in {"queued", "downloading"}:
+        body = downloads.store.collection(payload["id"])
+        downloads.store.progress(payload["id"], 0, len(body["items"]), state="failed", error="Download stopped. Retry to continue; completed songs were kept.")
+    return downloads.store.status()
+
+
+def _then_status(change):
+    def action(downloads, payload, progress):
+        change(downloads.store, payload)
+        return downloads.store.status()
+    return action
+
+
+DOWNLOAD_OPERATIONS = {
+    "downloads_status": _then_status(lambda store, payload: None),
+    "downloads_initialize": _then_status(lambda store, payload: store.recover()),
+    "downloads_schedule": _schedule,
+    "downloads_schedule_all": _schedule_all,
+    "downloads_run": _run_downloads,
+    "downloads_cancel": _then_status(lambda store, payload: store.cancel(payload["id"])),
+    "downloads_retry": _then_status(lambda store, payload: store.retry(payload["id"])),
+    "downloads_remove": _then_status(lambda store, payload: store.remove(payload["id"])),
+    "downloads_collection": lambda downloads, payload, progress: downloads.store.view(payload["id"]),
+    "downloads_lookup": lambda downloads, payload, progress: downloads.store.lookup(payload["kind"], payload["id"]),
+    "downloads_fail": _stop_download,
+}
+
+
+def _downloads(operation, service, payload, resources, progress):
+    downloads = _shared(resources, "downloads", payload, lambda root: Downloads(service, root))
+    action = DOWNLOAD_OPERATIONS.get(operation)
+    if action is None:
+        raise DownloadError("This download operation is unavailable.")
+    return action(downloads, payload, progress)
+
+
+def _account_change(change):
+    """Run a sign-in change; cached workers belong to the previous account."""
+    def action(service, payload, resources, progress):
+        result = change(service, payload)
+        resources.clear()
+        return result
+    return action
+
+
+def _account_history(service, payload, resources, progress):
+    client = service.catalog()
+    response = client.add_history_item(client.get_song(payload["videoId"]))
+    if response.status_code != 204:
+        raise ActionError("Listening history could not be updated.")
+    # Recording a listen changes no cached view; wiping here made Home and the
+    # sidebar refetch (and reshuffle) after every song.
+    return {"recorded": True, "contextId": payload.get("contextId", "")}
+
+
+def _account_action(service, payload, resources, progress):
+    client = service.catalog()
+    if payload["action"] in PLAYLIST_ACTIONS:
+        result = playlist_action(client, payload["action"], payload)
+    else:
+        result = perform(client, payload["action"], payload["id"], payload.get("value"), payload)
+    if result.get("action") in REMEMBERED_CHANGES:
+        resources.setdefault("playlist_changes", []).append({"saved": time.time(), "result": result})
+    store = None
+    try:
+        store = MetadataStore(payload["cache_path"])
+        store.invalidate(STABLE_ROUTES)
+    except sqlite3.Error:
+        pass
+    finally:
+        if store:
+            store.close()
+    return {**result, "contextId": payload.get("contextId", "")}
+
+
+def _catalog(service, payload, resources, progress):
+    # Keep delayed read responses from undoing confirmed edits or skipping songs.
+    changes = [change for change in resources.get("playlist_changes", []) if time.time() - change["saved"] < 30][-100:]
+    resources["playlist_changes"] = changes
+    store = MetadataStore(payload["cache_path"])
+    try:
+        return Catalog(service, store, changes).fetch(payload["route"], payload.get("params"), payload.get("offset", 0), bool(payload.get("refresh")), payload.get("page_size"))
+    finally:
+        store.close()
+
+
+def _sources(service, payload, resources):
+    root = str(Path(payload["data_dir"]).resolve())
+    if root not in resources:
+        resources[root] = Sources(service, MediaFiles(Path(root) / "media"))
+    return resources[root]
+
+
+def _warmup(service, payload, resources, progress):
+    return _sources(service, payload, resources).warm()
+
+
+def _resolve(service, payload, resources, progress):
+    sources = _sources(service, payload, resources)
+    if payload.get("damaged"):
+        sources.media.mark_damaged(payload["videoId"])
+    return sources.resolve(payload["videoId"], force=bool(payload.get("force")), prepared=payload.get("prepared"), available=payload.get("available", True), video=bool(payload.get("video")))
+
+
+OPERATIONS = {
+    "maintenance": _maintenance,
+    "lastfm": _lastfm,
+    "artwork": _artwork,
+    "lyrics_key": _lyrics_key,
+    "lyrics": _lyrics,
+    "restore": lambda service, payload, resources, progress: service.restore(),
+    "import_session": _account_change(lambda service, payload: service.import_session(payload["path"])),
+    "import_browser": _account_change(lambda service, payload: service.import_browser([name for name in payload.get("browsers", []) if isinstance(name, str)])),
+    "sign_out": _account_change(lambda service, payload: service.sign_out()),
+    "account_history": _account_history,
+    "account_action": _account_action,
+    "catalog": _catalog,
+    "warmup": _warmup,
+    "resolve": _resolve,
+}
+
+
 def handle(service, request, resources=None, progress=None):
     operation = request.get("operation")
     payload = request.get("payload") or {}
     resources = resources if resources is not None else {}
-    if operation == "maintenance":
-        from .maintenance import perform as maintenance_action
-        return maintenance_action(payload, progress=progress)
-    if operation == "lastfm":
-        root = str(Path(payload["data_dir"]).resolve())
-        key = ("lastfm", root)
-        if key not in resources:
-            resources[key] = LastFmService(root)
-        try:
-            return resources[key].perform(payload.get("action"), payload)
-        except LastFmError:
-            raise
-        except Exception:
-            raise LastFmError("storage", "Last.fm could not save or read its local state. Check storage and retry.") from None
-    if operation == "artwork":
-        from .large_artwork import resolve
-        return resolve(service, payload["data_dir"], payload["media"], payload["pixels"], bool(payload.get("online")))
-    if operation == "lyrics_key":
-        return provider_key(payload.get("action"), payload.get("value", ""))
-    if operation == "lyrics":
-        root = str(Path(payload["data_dir"]).resolve())
-        key = ("lyrics", root)
-        if key not in resources:
-            resources[key] = Lyrics(service, root)
-        return resources[key].fetch(payload["videoId"], bool(payload.get("refresh")), payload.get("track"), payload.get("options"))
-    if isinstance(operation, str) and operation.startswith("downloads_"):
-        resources = resources if resources is not None else {}
-        root = str(Path(payload["data_dir"]).resolve())
-        key = ("downloads", root)
-        if key not in resources:
-            resources[key] = Downloads(service, root)
-        downloads = resources[key]
-        if operation == "downloads_initialize":
-            downloads.store.recover()
-        elif operation == "downloads_schedule":
-            identifier = downloads.schedule(payload["media"])
-            return {**downloads.store.status(), "scheduled": identifier}
-        elif operation == "downloads_schedule_all":
-            playlists = payload.get("playlists")
-            if not isinstance(playlists, list) or len(playlists) > 10000:
-                raise DownloadError("Choose playlists to download.")
-            downloads.notify = progress or (lambda value: None)
-            try:
-                return {**downloads.store.status(), **downloads.schedule_all(playlists)}
-            finally:
-                downloads.notify = lambda value: None
-        elif operation == "downloads_run":
-            downloads.notify = progress or (lambda value: None)
-            return downloads.run_queue(payload["id"])
-        elif operation == "downloads_cancel":
-            downloads.store.cancel(payload["id"])
-        elif operation == "downloads_retry":
-            downloads.store.retry(payload["id"])
-        elif operation == "downloads_remove":
-            downloads.store.remove(payload["id"])
-        elif operation == "downloads_collection":
-            return downloads.store.view(payload["id"])
-        elif operation == "downloads_lookup":
-            return downloads.store.lookup(payload["kind"], payload["id"])
-        elif operation == "downloads_fail":
-            if downloads.store.state(payload["id"]) in {"queued", "downloading"}:
-                body = downloads.store.collection(payload["id"])
-                downloads.store.progress(payload["id"], 0, len(body["items"]), state="failed", error="Download stopped. Retry to continue; completed songs were kept.")
-        elif operation != "downloads_status":
-            raise DownloadError("This download operation is unavailable.")
-        return downloads.store.status()
-    if operation == "restore":
-        return service.restore()
-    if operation == "import_session":
-        result = service.import_session(payload["path"])
-        resources.clear()
-        return result
-    if operation == "import_browser":
-        result = service.import_browser([name for name in payload.get("browsers", []) if isinstance(name, str)])
-        resources.clear()
-        return result
-    if operation == "sign_out":
-        result = service.sign_out()
-        resources.clear()
-        return result
-    if operation in {"account_action", "account_history"}:
-        client = service.catalog()
-        if operation == "account_history":
-            response = client.add_history_item(client.get_song(payload["videoId"]))
-            if response.status_code != 204:
-                raise ActionError("Listening history could not be updated.")
-            result = {"recorded": True}
-        elif payload["action"] in {"playlist_create", "playlist_rename", "playlist_delete", "playlist_add", "playlist_remove", "playlist_move"}:
-            result = playlist_action(client, payload["action"], payload)
-        else:
-            result = perform(client, payload["action"], payload["id"], payload.get("value"), payload)
-        if result.get("action") in {"playlist_rename", "playlist_remove", "playlist_move", "playlist_delete"}:
-            resources.setdefault("playlist_changes", []).append({"saved": time.time(), "result": result})
-        if operation == "account_history":
-            # Recording a listen changes no cached view; wiping here made Home and the
-            # sidebar refetch (and reshuffle) after every song.
-            return {**result, "contextId": payload.get("contextId", "")}
-        store = None
-        try:
-            store = MetadataStore(payload["cache_path"])
-            store.invalidate(STABLE_ROUTES)
-        except sqlite3.Error:
-            pass
-        finally:
-            if store:
-                store.close()
-        return {**result, "contextId": payload.get("contextId", "")}
-    if operation == "catalog":
-        # Keep delayed read responses from undoing confirmed edits or skipping songs.
-        changes = [change for change in resources.get("playlist_changes", []) if time.time() - change["saved"] < 30][-100:]
-        resources["playlist_changes"] = changes
-        store = MetadataStore(payload["cache_path"])
-        try:
-            return Catalog(service, store, changes).fetch(payload["route"], payload.get("params"), payload.get("offset", 0), bool(payload.get("refresh")), payload.get("page_size"))
-        finally:
-            store.close()
-    if operation in {"resolve", "warmup"}:
-        resources = resources if resources is not None else {}
-        root = str(Path(payload["data_dir"]).resolve())
-        if root not in resources:
-            resources[root] = Sources(service, MediaFiles(Path(root) / "media"))
-        sources = resources[root]
-        if operation == "warmup":
-            return sources.warm()
-        if payload.get("damaged"):
-            sources.media.mark_damaged(payload["videoId"])
-        return sources.resolve(payload["videoId"], force=bool(payload.get("force")), prepared=payload.get("prepared"), available=payload.get("available", True), video=bool(payload.get("video")))
-    raise AuthError("That account operation is unavailable.")
+    if not isinstance(operation, str):
+        raise AuthError("That account operation is unavailable.")
+    if operation.startswith("downloads_"):
+        return _downloads(operation, service, payload, resources, progress)
+    action = OPERATIONS.get(operation)
+    if action is None:
+        raise AuthError("That account operation is unavailable.")
+    return action(service, payload, resources, progress)
 
 
 def safe_error(error):
