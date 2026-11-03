@@ -188,7 +188,7 @@ def test_release_lookup_carries_bounded_plain_notes_and_restart_rechecks(tmp_pat
     assert service._known_newer() and not service.updateAvailable
     service.checkRelease()
     service._worker.succeeded.emit(1, {'tag': 'native-v99.0.0', 'notes': 'Header indicator'})
-    assert service.updateAvailable and service.latestVersion == '99.0.0' and service.releaseNotes == 'Header indicator'
+    assert service.updateAvailable and service.latestName == 'Tubify 99.0.0' and service.releaseNotes == 'Header indicator'
     service.close()
 
 

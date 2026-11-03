@@ -392,7 +392,7 @@ ApplicationWindow {
             anchors.right: historyButton.visible ? historyButton.left : settingsButton.left; anchors.rightMargin: 12
             y: 10; width: 44; height: 44
             iconName: "update"; iconColor: themeState.accent
-            tip: maintenanceState.downloading ? "Downloading update " + maintenanceState.progress + "%" : "Tubify " + maintenanceState.latestVersion + " is available"
+            tip: maintenanceState.downloading ? "Downloading update " + maintenanceState.progress + "%" : maintenanceState.latestName + " is available"
             Accessible.name: "Update available"
             onClicked: updateDialog.open()
             Rectangle {
@@ -438,7 +438,8 @@ ApplicationWindow {
     }
 
     PlaybackSettings { id: playbackSettings; host: settingsWindow }
-    MaintenanceSettings { id: maintenanceSettings; host: settingsWindow }
+    UpdateSettings { id: updateSettings; host: settingsWindow }
+    TroubleshootingSettings { id: troubleshootingSettings; host: settingsWindow }
     UpdateDialog { id: updateDialog }
     DesktopSettings { id: desktopSettings; host: settingsWindow }
     ShortcutSettings { id: shortcutSettings; host: settingsWindow }
@@ -452,7 +453,7 @@ ApplicationWindow {
             { title: "General", pages: [settingsDialog, playbackSettings, lyricsSettings] },
             { title: "Application", pages: [desktopSettings, shortcutSettings] },
             { title: "Connections", pages: [discordSettings, lastFmSettings] },
-            { title: "Support", pages: [maintenanceSettings] }
+            { title: "Support", pages: [updateSettings, troubleshootingSettings] }
         ]
         onClosed: settingsButton.forceActiveFocus()
     }

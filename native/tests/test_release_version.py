@@ -44,3 +44,30 @@ def test_main_push_bumps_the_previous_tag_and_other_events_keep_their_version(mo
 def test_labels_match_case_insensitively_and_legacy_names_still_count():
     assert release.release_level(["a"], lambda sha: {"feature"}) == release.MINOR
     assert release.release_level(["a"], lambda sha: {"release:major"}) == release.MAJOR
+
+
+def test_experimental_push_targets_the_next_stable_version_and_counts_its_builds(monkeypatch):
+    monkeypatch.setattr(release, "declared", lambda: (0, 1, 2))
+    monkeypatch.setattr(release, "newest_stable_tag", lambda: ((0, 6, 0), "native-v0.6.0"))
+    monkeypatch.setattr(release, "git", lambda *args: "a\nb\n")
+    builds = {(0, 6, 1): [], (0, 7, 0): [1, 2]}
+    monkeypatch.setattr(release, "experimental_builds", lambda version: builds[version])
+    monkeypatch.setattr(release, "previous_experimental", lambda ref="HEAD": None)
+    experimental = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/experimental"}
+    assert release.release_version(experimental, labels=lambda sha: set()) == ("0.6.1b1", "patch", "origin/main")
+    monkeypatch.setattr(release, "previous_experimental", lambda ref="HEAD": "native-v0.7.0b2")
+    assert release.release_version(experimental, labels=lambda sha: {"Feature"}) == ("0.7.0b3", "feature", "native-v0.7.0b2")
+
+
+def test_only_main_experimental_and_tag_pushes_publish():
+    assert release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main"})
+    assert release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/experimental"})
+    assert release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/native-v0.7.0"})
+    assert not release.is_release({"GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF": "refs/heads/experimental"})
+    assert not release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/LUNE-473"})
+
+
+def test_stamp_rejects_versions_outside_the_two_channels():
+    for bad in ("0.7", "0.7.0-rc1", "0.7.0b", "0.7.0;rm"):
+        with pytest.raises(SystemExit):
+            release.stamp(bad)

@@ -1,6 +1,7 @@
 # PyInstaller spec for the Tubify Windows x64 app.
 import json
 import os
+import re
 from pathlib import Path
 import tomllib
 
@@ -10,7 +11,8 @@ from PyInstaller.utils.win32.versioninfo import FixedFileInfo, StringFileInfo, S
 ROOT = Path(SPECPATH).resolve().parents[1]
 NATIVE = ROOT / "native"
 VERSION = tomllib.loads((NATIVE / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
-version_tuple = tuple(int(part) for part in VERSION.split("."))
+# Windows file versions are four numbers: an experimental X.Y.ZbN build is X.Y.Z.N.
+version_tuple = tuple(int(part) for part in re.findall(r"\d+", VERSION))
 version_tuple = (version_tuple + (0, 0, 0, 0))[:4]
 version_info = VSVersionInfo(
     ffi=FixedFileInfo(filevers=version_tuple, prodvers=version_tuple, OS=0x40004, fileType=1),

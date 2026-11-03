@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Choose the version every native package in this CI run is built and released as.
 
-Every push to main is a release. Its version bumps the latest native-vX.Y.Z tag
-already on main, by the largest change merged since that tag:
+Every push to main is a stable release. Its version bumps the latest native-vX.Y.Z
+tag already on main, by the largest change merged since that tag:
 
 * a PR labelled ``Major Release`` bumps MAJOR (0.4.2 -> 1.0.0)
 * a PR labelled ``Feature`` bumps MINOR (0.1.7 -> 0.2.0)
@@ -11,6 +11,11 @@ already on main, by the largest change merged since that tag:
 If native/pyproject.toml declares a higher version, that wins, so a series can
 still be started by hand. A pushed native-vX.Y.Z tag builds exactly X.Y.Z, and
 pull requests and local builds keep pyproject's version.
+
+Every push to the experimental branch is an experimental prerelease, X.Y.ZbN: X.Y.Z
+is the stable version its changes are heading for (the newest stable tag bumped by
+the largest change on experimental but not yet on main) and N counts its builds.
+PEP 440, pacman's vercmp and Sparkle all sort 0.7.0 < 0.7.1b1 < 0.7.1b2 < 0.7.1.
 
 ``--stamp VERSION`` writes the version into pyproject.toml and the Linux PKGBUILD
 and commits it locally (never pushed): the package scripts refuse to build a
@@ -30,6 +35,8 @@ PYPROJECT = ROOT / "native/pyproject.toml"
 PKGBUILD = ROOT / "packaging/arch-native/PKGBUILD"
 VERSION_LINE = re.compile(r'^version = "(\d+)\.(\d+)\.(\d+)"$', re.M)
 TAG = re.compile(r"native-v(\d+)\.(\d+)\.(\d+)")
+BETA_TAG = re.compile(r"native-v(\d+)\.(\d+)\.(\d+)b(\d+)")
+STABLE_BRANCH, EXPERIMENTAL_BRANCH = "refs/heads/main", "refs/heads/experimental"
 # Label names are matched case-insensitively; the release:* names are accepted from older PRs.
 LEVELS = {"major release": 3, "feature": 2, "release:major": 3, "release:feature": 2, "release:minor": 2}
 PATCH, MINOR, MAJOR = 1, 2, 3
@@ -52,6 +59,36 @@ def previous_tag(ref="HEAD"):
     tags = [(tuple(map(int, match.groups())), name) for name in git("tag", "--list", "native-v*", "--merged", ref).split()
             if (match := TAG.fullmatch(name))]
     return max(tags)[1] if tags else None
+
+
+def newest_stable_tag():
+    """The newest stable release anywhere in the repository, merged or not."""
+    tags = [(tuple(map(int, match.groups())), name) for name in git("tag", "--list", "native-v*").split() if (match := TAG.fullmatch(name))]
+    return max(tags) if tags else None
+
+
+def experimental_builds(version):
+    """Build numbers already released for the experimental series of ``version``."""
+    prefix = "native-v" + text(version) + "b"
+    return [int(match.group(4)) for name in git("tag", "--list", prefix + "*").split() if (match := BETA_TAG.fullmatch(name))]
+
+
+def previous_experimental(ref="HEAD"):
+    """The newest experimental build already contained in ``ref``."""
+    tags = [(tuple(map(int, match.groups())), name) for name in git("tag", "--list", "native-v*b*", "--merged", ref).split()
+            if (match := BETA_TAG.fullmatch(name))]
+    return max(tags)[1] if tags else None
+
+
+def experimental_version(floor, labels):
+    newest = newest_stable_tag()
+    base = newest[0] if newest else floor
+    # Only changes that have not reached a stable release yet decide where experimental is heading.
+    commits = git("rev-list", "--no-merges", "--max-count=200", "origin/main..HEAD").split()
+    level = release_level(commits, labels)
+    target = next_version(base, level, floor)
+    build = max(experimental_builds(target), default=0) + 1
+    return f"{text(target)}b{build}", NAMES[level], previous_experimental() or "origin/main"
 
 
 def bump(version, level):
@@ -101,21 +138,29 @@ def release_version(environ=os.environ, labels=None):
     ref, event = environ.get("GITHUB_REF", ""), environ.get("GITHUB_EVENT_NAME", "")
     if ref.startswith("refs/tags/native-v"):
         return ref.removeprefix("refs/tags/native-v"), "tag", ""
-    if not (event == "push" and ref == "refs/heads/main"):
+    if not (event == "push" and ref in {STABLE_BRANCH, EXPERIMENTAL_BRANCH}):
         return text(floor), "none", ""
+    if labels is None:
+        labels = github_labels(environ["GITHUB_REPOSITORY"], environ["GH_TOKEN"])
+    if ref == EXPERIMENTAL_BRANCH:
+        return experimental_version(floor, labels)
     previous = previous_tag()
     # Every change merged since the last release decides how big this one is.
     commits = git("rev-list", "--no-merges", "--max-count=200", f"{previous}..HEAD").split() if previous else git("rev-list", "-1", "HEAD").split()
-    if labels is None:
-        labels = github_labels(environ["GITHUB_REPOSITORY"], environ["GH_TOKEN"])
     level = release_level(commits, labels)
     match = TAG.fullmatch(previous) if previous else None
     base = tuple(map(int, match.groups())) if match else floor
     return text(next_version(base, level, floor)), NAMES[level], previous or ""
 
 
+def is_release(environ):
+    """Pushes to main or experimental, and native-v tags, publish signed releases."""
+    ref = environ.get("GITHUB_REF", "")
+    return ref.startswith("refs/tags/native-v") or (environ.get("GITHUB_EVENT_NAME") == "push" and ref in {STABLE_BRANCH, EXPERIMENTAL_BRANCH})
+
+
 def stamp(version):
-    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+    if not re.fullmatch(r"\d+\.\d+\.\d+(?:b\d+)?", version):
         raise SystemExit("Invalid release version: " + version)
     PYPROJECT.write_text(VERSION_LINE.sub(f'version = "{version}"', PYPROJECT.read_text(encoding="utf-8"), count=1), encoding="utf-8")
     PKGBUILD.write_text(re.sub(r"^pkgver=.*$", "pkgver=" + version, PKGBUILD.read_text(encoding="utf-8"), count=1, flags=re.M), encoding="utf-8")
@@ -137,6 +182,8 @@ def main(argv=None):
     if output:
         with open(output, "a", encoding="utf-8") as handle:
             handle.write(f"version={version}\nlevel={level}\nprevious={previous}\n")
+            handle.write(f"prerelease={'true' if 'b' in version else 'false'}\n")
+            handle.write(f"publish={'true' if is_release(os.environ) else 'false'}\n")
     print(version)
     return 0
 

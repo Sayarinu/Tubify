@@ -2,23 +2,23 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Asks whether to install a newer stable release; Update Now runs the verified installer.
+// Asks whether to install a newer release on the chosen channel (or switch back to Stable); the button runs the verified installer.
 ThemedDialog {
     id: root
     objectName: "updateDialog"
-    title: "Update Available"
+    title: maintenanceState.switchingChannel ? "Switch to Stable" : "Update Available"
     width: Math.min(460, (parent ? parent.width : 460) - 32)
     contentItem: ColumnLayout {
         spacing: 14
         Label {
             Layout.fillWidth: true
-            text: "Tubify " + (maintenanceState.latestVersion || "") + " is ready to install."
+            text: (maintenanceState.latestName || "Tubify") + " is ready to install."
             textFormat: Text.PlainText; wrapMode: Text.Wrap
             color: themeState.foreground; font.pixelSize: 18; font.bold: true
         }
         Label {
             Layout.fillWidth: true
-            text: "You have version " + maintenanceState.currentVersion + ". Updating keeps your settings, queue and downloaded music."
+            text: "You have " + maintenanceState.versionName + ". " + (maintenanceState.switchingChannel ? "Switching to the latest stable release keeps your settings, queue and downloaded music; features only in experimental builds go away." : "Updating keeps your settings, queue and downloaded music.")
             textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.secondary
         }
         Rectangle {
@@ -60,9 +60,11 @@ ThemedDialog {
             ThemeActionButton {
                 objectName: "updateNow"
                 primary: true
-                text: !maintenanceState.installSupported ? "Download" : Qt.platform.os === "osx" ? "Update…" : "Update & Restart"
+                // Sparkle cannot install an older build, so macOS switches back by downloading it.
+                property bool manual: !maintenanceState.installSupported || (maintenanceState.switchingChannel && Qt.platform.os === "osx")
+                text: manual ? "Download" : maintenanceState.switchingChannel ? "Switch & Restart" : Qt.platform.os === "osx" ? "Update…" : "Update & Restart"
                 enabled: !maintenanceState.busy
-                onClicked: maintenanceState.installSupported ? maintenanceState.installUpdate() : Qt.openUrlExternally(maintenanceState.releaseUrl)
+                onClicked: manual ? Qt.openUrlExternally(maintenanceState.releaseUrl) : maintenanceState.installUpdate()
             }
         }
     }

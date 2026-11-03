@@ -16,6 +16,32 @@ MAX_DOWNLOAD = 1024 * 1024 * 1024
 MAX_SIGNATURE = 4096
 # Installed by the Arch package: applies signed updates without a password prompt.
 ARCH_HELPER = '/usr/lib/youtube-music-native/apply-update'
+# Stable releases are native-vX.Y.Z; experimental prereleases are native-vX.Y.ZbN.
+TAG = re.compile(r'native-v(\d+)\.(\d+)\.(\d+)(?:b(\d+))?')
+VERSION = re.compile(r'(?:native-v)?(\d+)\.(\d+)\.(\d+)(?:b(\d+))?')
+
+
+def version_key(value):
+    """Sortable (X, Y, Z, stable?, N): 0.7.0 < 0.7.1b1 < 0.7.1b2 < 0.7.1; None if invalid."""
+    match = VERSION.fullmatch(value) if isinstance(value, str) else None
+    if not match:
+        return None
+    major, minor, patch, build = match.groups()
+    return (int(major), int(minor), int(patch), 0 if build else 1, int(build or 0))
+
+
+def is_experimental(value):
+    key = version_key(value)
+    return bool(key and key[3] == 0)
+
+
+def release_name(value):
+    """What people see: "Tubify 0.7.0" for stable builds, "Tubify Experimental 0.7.1b3" for experimental ones."""
+    key = version_key(value)
+    if not key:
+        return 'Tubify'
+    version = value.removeprefix('native-v')
+    return ('Tubify Experimental ' if key[3] == 0 else 'Tubify ') + version
 
 
 def integrity(item, limit):
@@ -37,7 +63,7 @@ def asset_name(version, system=None):
 def select_asset(release, system=None):
     system = system or sys.platform
     tag = release.get('tag_name', '')
-    if not re.fullmatch(r'native-v\d+\.\d+\.\d+', tag):
+    if not TAG.fullmatch(tag):
         raise ValueError('Invalid Tubify release')
     version = tag.removeprefix('native-v')
     candidates = []
@@ -80,7 +106,7 @@ def supported():
 
 def download(tag, directory, progress=None, opener=urlopen):
     """Re-fetch release metadata so an offline cache can never authorize execution."""
-    if not re.fullmatch(r'native-v\d+\.\d+\.\d+', tag):
+    if not TAG.fullmatch(tag):
         raise ValueError('Invalid Tubify release')
     request = Request('https://api.github.com/repos/Sayarinu/Tubify/releases/tags/' + tag,
                       headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'Tubify-updater'})
@@ -89,7 +115,8 @@ def download(tag, directory, progress=None, opener=urlopen):
     if len(raw) > 2 * 1024 * 1024:
         raise ValueError('Release response too large')
     release = json.loads(raw)
-    if release.get('draft') or release.get('prerelease') or release.get('tag_name') != tag:
+    # Experimental tags must be published as prereleases and stable tags must not be.
+    if release.get('draft') or bool(release.get('prerelease')) != is_experimental(tag) or release.get('tag_name') != tag:
         raise ValueError('Release unavailable')
     asset = select_asset(release)
     directory = Path(directory)
@@ -139,7 +166,9 @@ def launch_installer(asset, parent_pid):
         # Copy before package replacement: the helper survives GUI/worker shutdown.
         helper = path.parent / 'install.py'
         shutil.copyfile(__file__, helper)
-        signature = [asset['signature_path']] if asset.get('signature_path') else []
+        # The password-free helper only installs newer builds; switching back to an
+        # older stable build goes through pacman with the usual password prompt.
+        signature = [asset['signature_path']] if asset.get('signature_path') and not asset.get('downgrade') else []
         subprocess.Popen([sys.executable, '-I', str(helper), str(parent_pid), str(path), asset['sha256'], *signature],
                          start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

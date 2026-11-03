@@ -1,4 +1,4 @@
-"""Create one stable, signed Sparkle entry; never read private signing material."""
+"""Create one signed Sparkle entry (stable X.Y.Z or experimental X.Y.ZbN); never read private signing material."""
 import base64
 from pathlib import Path
 import re
@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 
 def appcast(version, archive, signature):
-    if not re.fullmatch(r'\d+\.\d+\.\d+', version) or len(base64.b64decode(signature, validate=True)) != 64:
+    if not re.fullmatch(r'\d+\.\d+\.\d+(?:b\d+)?', version) or len(base64.b64decode(signature, validate=True)) != 64:
         raise ValueError('Invalid version or EdDSA signature')
     ns = 'http://www.andymatuschak.org/xml-namespaces/sparkle'
     ET.register_namespace('sparkle', ns)

@@ -63,7 +63,8 @@ app = BUNDLE(
         "SUAllowsAutomaticUpdates": False,
         "SUEnableSystemProfiling": False,
         "SUVerifyUpdateBeforeExtraction": True,
-        "CFBundleShortVersionString": VERSION,
+        # Finder shows X.Y.Z; Sparkle compares CFBundleVersion, where X.Y.ZbN sorts before X.Y.Z.
+        "CFBundleShortVersionString": VERSION.split("b")[0],
         "CFBundleVersion": VERSION,
         "LSMinimumSystemVersion": "12.0",
         "LSApplicationCategoryType": "public.app-category.music",

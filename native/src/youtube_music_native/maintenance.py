@@ -22,7 +22,7 @@ from .playback import write_state
 
 REPOSITORY = "https://github.com/Sayarinu/Tubify"
 RELEASE_API = "https://api.github.com/repos/Sayarinu/Tubify/releases"
-VERSION = re.compile(r"(?:native-v)?(\d+)\.(\d+)\.(\d+)$")
+CHANNELS = ("stable", "experimental")
 CHECK_INTERVAL = 6 * 60 * 60
 NOTES_LIMIT = 1500
 
@@ -48,11 +48,19 @@ def installed_version():
 
 
 def release_version(value):
-    match = VERSION.fullmatch(value) if isinstance(value, str) else None
-    return tuple(map(int, match.groups())) if match else None
+    """Sortable version (stable X.Y.Z or experimental X.Y.ZbN), or None."""
+    return updates.version_key(value)
 
 
-def lookup_release(opener=urlopen):
+def channel_accepts(row, channel):
+    """Stable sees only stable releases; experimental sees both and takes the newest."""
+    tag = row.get("tag_name", "")
+    if row.get("draft") or not updates.TAG.fullmatch(tag) or bool(row.get("prerelease")) != updates.is_experimental(tag):
+        return False
+    return channel == "experimental" or not updates.is_experimental(tag)
+
+
+def lookup_release(opener=urlopen, channel="stable"):
     """Bound listing size and reject partial scans instead of claiming up-to-date."""
     candidates = []
     for page in range(1, 6):
@@ -65,17 +73,14 @@ def lookup_release(opener=urlopen):
         if not isinstance(rows, list):
             raise ValueError("Invalid release list")
         for row in rows:
-            if not isinstance(row, dict) or row.get("draft") or row.get("prerelease"):
-                continue
-            tag = row.get("tag_name", "")
-            number = release_version(tag)
-            if number and tag.startswith("native-v"):
-                candidates.append((number, tag, release_notes(row.get("body"))))
+            if isinstance(row, dict) and channel_accepts(row, channel):
+                tag = row["tag_name"]
+                candidates.append((release_version(tag), tag, release_notes(row.get("body"))))
         if len(rows) < 100:
             if not candidates:
-                raise ValueError("No stable Tubify release found")
+                raise ValueError("No Tubify release found")
             _, tag, notes = max(candidates)
-            return {"tag": tag, "notes": notes, "checkedAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+            return {"tag": tag, "notes": notes, "channel": channel, "checkedAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     raise ValueError("Release listing exceeded its limit")
 
 
@@ -119,14 +124,15 @@ def perform(payload, opener=urlopen, progress=None):
             return {"error": "Installer could not start. Retry or use Release Details."}
     if payload.get("action") == "release":
         path = Path(payload["cache_path"])
+        channel = payload.get("channel") if payload.get("channel") in CHANNELS else "stable"
         try:
-            result = lookup_release(opener)
+            result = lookup_release(opener, channel)
         except Exception:
             try:
                 if path.stat().st_size > 16384:
                     raise ValueError()
                 cached = json.loads(path.read_text(encoding="utf-8"))
-                if not str(cached.get("tag", "")).startswith("native-v") or not release_version(cached["tag"]):
+                if not updates.TAG.fullmatch(str(cached.get("tag", ""))) or cached.get("channel", "stable") != channel:
                     raise ValueError()
                 checked = datetime.fromisoformat(cached["checkedAt"]).isoformat(timespec="seconds")
                 return {"tag": cached["tag"], "checkedAt": checked, "stale": True}
@@ -158,13 +164,16 @@ class Maintenance(QObject):
         self.window = None
         self.prepare_restart = lambda: None
         self._tag, self._available, self._progress = "", False, 0
-        self._notes = ""
+        self._notes, self._downgrade = "", False
         self._mac = None
         self.settings = getattr(shell, "settings", None)
         if self.settings is None:
             self.settings = QSettings(str(Path(cache_path).parent.parent / "settings.ini"), QSettings.Format.IniFormat)
         self._supported = updates.supported() and not fixture
         self._automatic = self.settings.value("updates/automatic", True, type=bool)
+        # Experimental builds follow the experimental channel until the user picks Stable.
+        channel = str(self.settings.value("updates/channel", "") or "")
+        self._channel = channel if channel in CHANNELS else "experimental" if updates.is_experimental(installed_version()) else "stable"
         self.timer = QTimer(self)
         self.timer.setInterval(3600000)
         self.timer.timeout.connect(self._check_due)
@@ -177,6 +186,30 @@ class Maintenance(QObject):
     @Property(str, constant=True)
     def currentVersion(self):
         return installed_version()
+
+    @Property(str, constant=True)
+    def versionName(self):
+        return updates.release_name(installed_version())
+
+    @Property(str, notify=changed)
+    def channel(self):
+        return self._channel
+
+    @Property(bool, notify=changed)
+    def switchingChannel(self):
+        """The offered build is an older stable release replacing an experimental one."""
+        return self._available and self._downgrade
+
+    @Slot(str)
+    def setChannel(self, channel):
+        if channel not in CHANNELS or channel == self._channel:
+            return
+        self._channel = channel
+        self.settings.setValue("updates/channel", channel)
+        self.settings.sync()
+        self._tag, self._available, self._downgrade, self._notes = "", False, False, ""
+        self.changed.emit()
+        self.checkRelease()
 
     @Property(str, notify=changed)
     def status(self):
@@ -207,8 +240,8 @@ class Maintenance(QObject):
         return self._available
 
     @Property(str, notify=changed)
-    def latestVersion(self):
-        return self._tag.removeprefix("native-v")
+    def latestName(self):
+        return updates.release_name(self._tag) if self._tag else ""
 
     @Property(str, notify=changed)
     def releaseNotes(self):
@@ -240,6 +273,8 @@ class Maintenance(QObject):
             if Path(self._cache).stat().st_size > 16384:
                 return False
             cached = json.loads(Path(self._cache).read_text(encoding="utf-8"))
+            if cached.get("channel", "stable") != self._channel:
+                return False
             latest, current = release_version(cached.get("tag")), release_version(self.currentVersion)
             return bool(latest and current and latest > current)
         except (OSError, ValueError, TypeError, AttributeError):
@@ -274,6 +309,11 @@ class Maintenance(QObject):
         if not self.installSupported or not self._available or self.busy:
             return
         if sys.platform == "darwin":
+            if self._downgrade:
+                # Sparkle only installs newer builds; an older stable build is a manual download.
+                self._status = "To switch to " + self.latestName + " on macOS, download it from Release Details and replace Tubify."
+                self.changed.emit()
+                return
             try:
                 if self._mac is None:
                     from .macos_updates import MacUpdater
@@ -319,10 +359,10 @@ class Maintenance(QObject):
     def checkRelease(self):
         if self.busy:
             return
-        self._available = False
+        self._available, self._downgrade = False, False
         self.settings.setValue("updates/lastAttempt", time.time())
-        self._status = "Checking stable native releases…"
-        self._request("release", {"cache_path": self._cache})
+        self._status = "Checking for " + self._channel + " releases…"
+        self._request("release", {"cache_path": self._cache, "channel": self._channel})
 
     def snapshot(self):
         result = {"windowSystem": QGuiApplication.platformName(), "fixture": self.fixture, "softwareRequested": self.software, "uiScale": getattr(self.shell, "uiScale", 100), "reducedMotion": getattr(self.shell, "reducedMotion", False)}
@@ -347,7 +387,7 @@ class Maintenance(QObject):
                 self._status = result["error"]
             else:
                 self._status = "Preparing installer…"
-                self._request("install", {"asset": result, "parent_pid": os.getpid()})
+                self._request("install", {"asset": {**result, "downgrade": self._downgrade}, "parent_pid": os.getpid()})
             self.changed.emit()
             return
         if action == "install":
@@ -364,20 +404,23 @@ class Maintenance(QObject):
         else:
             tag = result.get("tag", "")
             latest, current = release_version(tag), release_version(self.currentVersion)
-            if not latest or not tag.startswith("native-v"):
+            label = updates.release_name(tag)
+            if not latest or not updates.TAG.fullmatch(tag):
                 self._status = "Release information is invalid. Retry later."
             else:
                 self._url = REPOSITORY + "/releases/tag/" + tag
+                # Leaving the experimental channel offers the latest stable build even when it is older.
+                switching = bool(current) and latest < current and updates.is_experimental(self.currentVersion) and self._channel == "stable"
                 if result.get("stale"):
-                    self._status = "Offline or lookup failed. Last known stable: " + tag + ". Checked " + result.get("checkedAt", "unknown") + ". Retry for current status."
-                elif current and latest > current:
-                    self._tag, self._available = tag, True
+                    self._status = "Offline or lookup failed. Last known " + self._channel + " release: " + label + ". Checked " + result.get("checkedAt", "unknown") + ". Retry for current status."
+                elif current and (latest > current or switching):
+                    self._tag, self._available, self._downgrade = tag, True, switching
                     self._notes = release_notes(result.get("notes"))
-                    self._status = "Release available: " + tag
+                    self._status = (label + " is available to switch back to Stable." if switching else label + " is available.")
                 elif current == latest:
-                    self._status = "Installed version matches the latest stable release: " + tag
+                    self._status = "You have the latest " + self._channel + " release, " + label + "."
                 else:
-                    self._status = "Latest stable release: " + tag + ". This build has a different version."
+                    self._status = "The latest " + self._channel + " release is " + label + ". This build has a different version."
                 if result.get("warning"):
                     self._status += " " + result["warning"]
         self.changed.emit()

@@ -19,16 +19,16 @@ on:
       - 'scripts/check-native-windows.ps1'
       - '.github/workflows/native.yml'
   push:
-    branches: [main]
+    branches: [main, experimental]
     tags: ['native-v*']
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Main releases run one at a time so each bumps the version the previous one published.
+# Stable (main) and experimental releases run one at a time so each bumps the version the previous one published.
 concurrency:
-  group: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'native-main-release' || format('native-{0}', github.run_id) }}
+  group: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/experimental') && 'native-main-release' || format('native-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
@@ -42,6 +42,9 @@ jobs:
       version: ${{ steps.choose.outputs.version }}
       level: ${{ steps.choose.outputs.level }}
       previous: ${{ steps.choose.outputs.previous }}
+      # Pushes to main and experimental (and native-v tags) publish signed releases.
+      publish: ${{ steps.choose.outputs.publish }}
+      prerelease: ${{ steps.choose.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -174,11 +177,12 @@ jobs:
         run: python3 scripts/native-release-version.py --stamp "${{ needs.version.outputs.version }}"
       - name: Build Tubify.app and disk image
         env:
-          # Every main push and native-v tag is a release, so both sign the Sparkle appcast.
-          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ (startsWith(github.ref, 'refs/tags/native-v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
+          # Every published release (stable or experimental) signs the Sparkle appcast.
+          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
+          PUBLISH: ${{ needs.version.outputs.publish }}
         run: |
-          if [[ ( "$GITHUB_REF" == refs/tags/native-v* || ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ) ) && -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
-            echo "Stable releases require the Sparkle signing secret."
+          if [[ "$PUBLISH" == true && -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
+            echo "Releases require the Sparkle signing secret."
             exit 1
           fi
           scripts/build-native-macos.sh
@@ -289,7 +293,8 @@ jobs:
         env:
           VERSION: ${{ needs.version.outputs.version }}
           # Releases sign the Linux package so the Arch update helper can install it without a password.
-          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ (startsWith(github.ref, 'refs/tags/native-v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
+          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
+          PUBLISH: ${{ needs.version.outputs.publish }}
         run: |
           set -euo pipefail
           shopt -s failglob
@@ -299,11 +304,11 @@ jobs:
           # Releases carry only the desktop app builds; the source package is only used to test upgrades in CI.
           rm -f youtube-music-native-*.src.tar.gz
           assets=( *.exe *.dmg *.pkg.tar.zst )
-          if [[ "$GITHUB_REF" == refs/tags/native-v* || ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ) ]]; then
+          if [[ "$PUBLISH" == true ]]; then
             test -s appcast.xml
             assets+=(appcast.xml)
             if [[ -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
-              echo "Stable releases require the update signing secret."
+              echo "Releases require the update signing secret."
               exit 1
             fi
             python3 -m venv "$RUNNER_TEMP/signing"
@@ -325,7 +330,7 @@ jobs:
   release:
     name: Publish versioned release
     needs: [version, release-assets]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/native-v'))
+    if: needs.version.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -343,12 +348,17 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.version.outputs.version }}
           PREVIOUS: ${{ needs.version.outputs.previous }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
         shell: bash
         run: |
           set -euo pipefail
-          # Every main build is a real native-v release, so installed apps offer it as an update.
+          # Every main build is a stable native-v release and every experimental build a prerelease;
+          # installed apps offer each one on its update channel.
           tag="native-v${VERSION}"
           title="Tubify ${VERSION}"
+          if [ "$PRERELEASE" = true ]; then
+            title="Tubify Experimental ${VERSION}"
+          fi
           # Short notes: what changed since the last release, then direct downloads.
           python3 scripts/native-release-notes.py "$VERSION" "$PREVIOUS" release/notes.md
           cd release
@@ -361,11 +371,11 @@ jobs:
               exit 0
             fi
           else
-            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "$title" --notes-file notes.md
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --prerelease="$PRERELEASE" --title "$title" --notes-file notes.md
           fi
           gh release upload "$tag" "${assets[@]}" --clobber
           latest=false
-          if [ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA" ]; then
+          if [ "$PRERELEASE" != true ] && [ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA" ]; then
             latest=true
           fi
-          gh release edit "$tag" --draft=false --latest="$latest"
+          gh release edit "$tag" --draft=false --prerelease="$PRERELEASE" --latest="$latest"
