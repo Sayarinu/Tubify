@@ -4,6 +4,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -110,6 +111,29 @@ def test_arch_auth_cancel_relaunches_without_elevating_gui(tmp_path, monkeypatch
     assert calls[0][:3] == ['/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/pacman']
     assert calls[1] == ['/usr/bin/youtube-music-native']
     assert json.loads((tmp_path/'result.json').read_text()) == {'success':False}
+
+
+def test_arch_password_fallback_installs_a_private_verified_copy(tmp_path, monkeypatch):
+    package = tmp_path/'package.pkg.tar.zst'
+    package.write_bytes(DATA)
+    monkeypatch.setattr(updates.os, 'kill', lambda pid, signal: (_ for _ in ()).throw(ProcessLookupError()))
+    monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: None)
+    installed = []
+    def run(argv):
+        # Changing the downloaded file after the check must not change what pacman installs.
+        package.write_bytes(b'changed')
+        copy = Path(argv[-1])
+        installed.append((copy, copy.parent.stat().st_mode & 0o777, copy.read_bytes()))
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(updates.subprocess, 'run', run)
+    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest()) == 0
+    copy, mode, data = installed[0]
+    assert copy.parent != tmp_path and copy.name == package.name and data == DATA
+    if sys.platform != 'win32':
+        assert mode == 0o700
+    assert not copy.parent.exists()
+    monkeypatch.setattr(updates.subprocess, 'run', lambda argv: pytest.fail('A changed package must not install'))
+    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest()) == 1
 
 
 def test_tampered_installer_never_launches(tmp_path, monkeypatch):
