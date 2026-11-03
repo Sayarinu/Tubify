@@ -1,9 +1,14 @@
 """Create one signed Sparkle entry (stable X.Y.Z or experimental X.Y.ZbN); never read private signing material."""
 import base64
+import importlib.util
 from pathlib import Path
 import re
 import sys
 import xml.etree.ElementTree as ET
+
+_spec = importlib.util.spec_from_file_location("tubify_updates", Path(__file__).resolve().parents[1] / "native/src/youtube_music_native/updates.py")
+updates = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(updates)
 
 
 def appcast(version, archive, signature):
@@ -19,7 +24,7 @@ def appcast(version, archive, signature):
     ET.SubElement(item, '{'+ns+'}version').text = version
     ET.SubElement(item, '{'+ns+'}minimumSystemVersion').text = '12.0'
     ET.SubElement(item, 'enclosure', {
-        'url': 'https://github.com/Sayarinu/Tubify/releases/download/native-v'+version+'/'+archive.name,
+        'url': 'https://github.com/Sayarinu/Tubify/releases/download/'+updates.release_tag(version)+'/'+archive.name,
         'length': str(archive.stat().st_size), 'type': 'application/octet-stream', '{'+ns+'}edSignature': signature})
     return ET.tostring(rss, encoding='utf-8', xml_declaration=True)
 

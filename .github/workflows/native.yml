@@ -20,7 +20,7 @@ on:
       - '.github/workflows/native.yml'
   push:
     branches: [main, experimental]
-    tags: ['native-v*']
+    tags: ['native-v*', 'Tubify-*']
   workflow_dispatch:
 
 permissions:
@@ -42,9 +42,10 @@ jobs:
       version: ${{ steps.choose.outputs.version }}
       level: ${{ steps.choose.outputs.level }}
       previous: ${{ steps.choose.outputs.previous }}
-      # Pushes to main and experimental (and native-v tags) publish signed releases.
+      # Pushes to main and experimental (and release tags) publish signed releases.
       publish: ${{ steps.choose.outputs.publish }}
       prerelease: ${{ steps.choose.outputs.prerelease }}
+      tag: ${{ steps.choose.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -349,12 +350,15 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
           PREVIOUS: ${{ needs.version.outputs.previous }}
           PRERELEASE: ${{ needs.version.outputs.prerelease }}
+          TAG: ${{ needs.version.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          # Every main build is a stable native-v release and every experimental build a prerelease;
-          # installed apps offer each one on its update channel.
-          tag="native-v${VERSION}"
+          # Every main build is a stable release and every experimental build a prerelease;
+          # installed apps offer each one on its update channel. Tags come from updates.release_tag:
+          # Tubify-X.Y.Z / Tubify-Experimental-X.Y.ZbN (native-vVERSION through the 0.7.0 bridge).
+          tag="${TAG}"
+          test -n "$tag"
           title="Tubify ${VERSION}"
           if [ "$PRERELEASE" = true ]; then
             title="Tubify Experimental ${VERSION}"

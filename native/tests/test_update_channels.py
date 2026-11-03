@@ -174,3 +174,58 @@ def test_appcast_accepts_experimental_versions(tmp_path):
     archive.write_bytes(DATA)
     result = code.appcast('0.7.0b2', archive, base64.b64encode(b's' * 64).decode()).decode()
     assert 'native-v0.7.0b2/Tubify-0.7.0b2-macos-arm64.dmg' in result and '>0.7.0b2<' in result
+
+
+def test_tags_switch_to_tubify_names_after_the_070_bridge():
+    # Apps from before the new tags only find native-v releases, so everything through 0.7.0 keeps them.
+    assert updates.release_tag('0.6.0') == 'native-v0.6.0'
+    assert updates.release_tag('0.7.0b5') == 'native-v0.7.0b5'
+    assert updates.release_tag('0.7.0') == 'native-v0.7.0'
+    assert updates.release_tag('0.7.1b1') == 'Tubify-Experimental-0.7.1b1'
+    assert updates.release_tag('0.7.1') == 'Tubify-0.7.1'
+    assert updates.release_tag('1.0.0') == 'Tubify-1.0.0'
+    for bad in ('Tubify-0.7.1', 'native-v0.7.1', '0.7', 'latest'):
+        with pytest.raises(ValueError):
+            updates.release_tag(bad)
+
+
+def test_both_tag_formats_parse_and_must_match_their_channel():
+    assert updates.tag_version('Tubify-0.7.1') == '0.7.1' and updates.tag_version('native-v0.7.0b2') == '0.7.0b2'
+    assert updates.tag_version('Tubify-Experimental-0.7.1b3') == '0.7.1b3'
+    for bad in ('Tubify-0.7.1b1', 'Tubify-Experimental-0.7.1', 'tubify-0.7.1', 'Tubify-0.7.1/../x', 'Tubify-v0.7.1'):
+        assert updates.tag_version(bad) is None and updates.version_key(bad) is None
+    assert updates.version_key('Tubify-Experimental-0.7.1b1') < updates.version_key('Tubify-0.7.1') < updates.version_key('Tubify-Experimental-0.7.2b1')
+    assert updates.version_key('native-v0.7.0') < updates.version_key('Tubify-Experimental-0.7.1b1')
+    assert updates.release_name('Tubify-Experimental-0.7.1b1') == 'Tubify Experimental 0.7.1b1'
+    assert updates.release_name('Tubify-0.7.1') == 'Tubify 0.7.1'
+
+
+def test_channels_and_downloads_work_across_the_tag_change(tmp_path, monkeypatch):
+    listing = rows(('Tubify-0.7.1', False, False), ('native-v0.7.0', False, False), ('Tubify-Experimental-0.7.2b1', True, False),
+                   ('native-v0.7.0b4', True, False), ('Tubify-0.7.2b1', True, False))
+    assert maintenance.lookup_release(opener(listing))['tag'] == 'Tubify-0.7.1'
+    assert maintenance.lookup_release(opener(listing), 'experimental')['tag'] == 'Tubify-Experimental-0.7.2b1'
+    monkeypatch.setattr(updates.sys, 'platform', 'linux')
+    name = 'Tubify-0.7.1-linux-x86_64.pkg.tar.zst'
+    body = {'tag_name': 'Tubify-0.7.1', 'prerelease': False, 'assets': [{'name': name, 'size': len(DATA), 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest()}]}
+    urls = []
+    def fetch(request, timeout):
+        url = request if isinstance(request, str) else request.full_url
+        urls.append(url)
+        return io.BytesIO(DATA if url.endswith('.zst') else json.dumps(body).encode())
+    assert updates.download('Tubify-0.7.1', tmp_path, opener=fetch)['name'] == name
+    assert urls == ['https://api.github.com/repos/Sayarinu/Tubify/releases/tags/Tubify-0.7.1', updates.BASE + 'Tubify-0.7.1/' + name]
+
+
+def test_appcast_points_at_the_release_tag(tmp_path):
+    module = Path(__file__).resolve().parents[2] / 'scripts/native-appcast.py'
+    if not module.exists():
+        pytest.skip('release tooling is not part of this source tree')
+    spec = importlib.util.spec_from_file_location('appcast_tags', module)
+    code = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(code)
+    signature = base64.b64encode(b's' * 64).decode()
+    for version, tag in (('0.7.0', 'native-v0.7.0'), ('0.7.1', 'Tubify-0.7.1'), ('0.7.1b2', 'Tubify-Experimental-0.7.1b2')):
+        archive = tmp_path / f'Tubify-{version}-macos-arm64.dmg'
+        archive.write_bytes(DATA)
+        assert f'releases/download/{tag}/Tubify-{version}-macos-arm64.dmg' in code.appcast(version, archive, signature).decode()

@@ -71,3 +71,15 @@ def test_stamp_rejects_versions_outside_the_two_channels():
     for bad in ("0.7", "0.7.0-rc1", "0.7.0b", "0.7.0;rm"):
         with pytest.raises(SystemExit):
             release.stamp(bad)
+
+
+def test_release_tags_of_both_formats_drive_versions(monkeypatch):
+    tags = "native-v0.6.0\nnative-v0.7.0b4\nnative-v0.7.0\nTubify-0.7.1\nTubify-Experimental-0.7.2b1\nTubify-Experimental-0.7.2b2\nnot-a-release\n"
+    monkeypatch.setattr(release, "git", lambda *args: tags)
+    assert release.newest_stable_tag() == ((0, 7, 1), "Tubify-0.7.1")
+    assert release.previous_tag() == "Tubify-0.7.1"
+    assert sorted(release.experimental_builds((0, 7, 2))) == [1, 2] and release.experimental_builds((0, 7, 0)) == [4]
+    assert release.previous_experimental() == "Tubify-Experimental-0.7.2b2"
+    assert release.release_version({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/Tubify-0.7.3"})[0] == "0.7.3"
+    assert release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/Tubify-Experimental-0.7.2b3"})
+    assert not release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/random"})

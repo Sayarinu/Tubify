@@ -16,14 +16,32 @@ MAX_DOWNLOAD = 1024 * 1024 * 1024
 MAX_SIGNATURE = 4096
 # Installed by the Arch package: applies signed updates without a password prompt.
 ARCH_HELPER = '/usr/lib/youtube-music-native/apply-update'
-# Stable releases are native-vX.Y.Z; experimental prereleases are native-vX.Y.ZbN.
-TAG = re.compile(r'native-v(\d+)\.(\d+)\.(\d+)(?:b(\d+))?')
-VERSION = re.compile(r'(?:native-v)?(\d+)\.(\d+)\.(\d+)(?:b(\d+))?')
+# Release tags: Tubify-X.Y.Z (stable) and Tubify-Experimental-X.Y.ZbN (experimental).
+# Releases up to and including LEGACY_TAGS_THROUGH keep the original native-vVERSION tags: apps
+# from before the new tags only look for native-v, so 0.7.0 is the bridge they update through.
+VERSION = re.compile(r'(\d+)\.(\d+)\.(\d+)(?:b(\d+))?')
+LEGACY_TAG = re.compile(r'native-v(\d+\.\d+\.\d+(?:b\d+)?)')
+STABLE_TAG = re.compile(r'Tubify-(\d+\.\d+\.\d+)')
+EXPERIMENTAL_TAG = re.compile(r'Tubify-Experimental-(\d+\.\d+\.\d+b\d+)')
+LEGACY_TAGS_THROUGH = (0, 7, 0, 1, 0)
+
+
+def tag_version(tag):
+    """The version a release tag names, or None. Tubify- tags must agree with the version's channel."""
+    if not isinstance(tag, str):
+        return None
+    for pattern in (LEGACY_TAG, STABLE_TAG, EXPERIMENTAL_TAG):
+        match = pattern.fullmatch(tag)
+        if match:
+            return match.group(1)
+    return None
 
 
 def version_key(value):
-    """Sortable (X, Y, Z, stable?, N): 0.7.0 < 0.7.1b1 < 0.7.1b2 < 0.7.1; None if invalid."""
-    match = VERSION.fullmatch(value) if isinstance(value, str) else None
+    """Sortable (X, Y, Z, stable?, N): 0.7.0 < 0.7.1b1 < 0.7.1b2 < 0.7.1; None if invalid. Accepts versions and tags."""
+    if not isinstance(value, str):
+        return None
+    match = VERSION.fullmatch(tag_version(value) or value)
     if not match:
         return None
     major, minor, patch, build = match.groups()
@@ -35,12 +53,22 @@ def is_experimental(value):
     return bool(key and key[3] == 0)
 
 
+def release_tag(version):
+    """The tag a version is released under; the one rule shared by CI, the appcast and the app."""
+    key = version_key(version)
+    if not key or tag_version(version):
+        raise ValueError('Invalid Tubify version: ' + str(version))
+    if key <= LEGACY_TAGS_THROUGH:
+        return 'native-v' + version
+    return ('Tubify-Experimental-' if key[3] == 0 else 'Tubify-') + version
+
+
 def release_name(value):
     """What people see: "Tubify 0.7.0" for stable builds, "Tubify Experimental 0.7.1b3" for experimental ones."""
     key = version_key(value)
     if not key:
         return 'Tubify'
-    version = value.removeprefix('native-v')
+    version = tag_version(value) or value
     return ('Tubify Experimental ' if key[3] == 0 else 'Tubify ') + version
 
 
@@ -63,9 +91,9 @@ def asset_name(version, system=None):
 def select_asset(release, system=None):
     system = system or sys.platform
     tag = release.get('tag_name', '')
-    if not TAG.fullmatch(tag):
+    version = tag_version(tag)
+    if not version:
         raise ValueError('Invalid Tubify release')
-    version = tag.removeprefix('native-v')
     candidates = []
     for item in release.get('assets', []):
         name = item.get('name', '')
@@ -106,7 +134,7 @@ def supported():
 
 def download(tag, directory, progress=None, opener=urlopen):
     """Re-fetch release metadata so an offline cache can never authorize execution."""
-    if not TAG.fullmatch(tag):
+    if not tag_version(tag):
         raise ValueError('Invalid Tubify release')
     request = Request('https://api.github.com/repos/Sayarinu/Tubify/releases/tags/' + tag,
                       headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'Tubify-updater'})

@@ -55,7 +55,7 @@ def release_version(value):
 def channel_accepts(row, channel):
     """Stable sees only stable releases; experimental sees both and takes the newest."""
     tag = row.get("tag_name", "")
-    if row.get("draft") or not updates.TAG.fullmatch(tag) or bool(row.get("prerelease")) != updates.is_experimental(tag):
+    if row.get("draft") or not updates.tag_version(tag) or bool(row.get("prerelease")) != updates.is_experimental(tag):
         return False
     return channel == "experimental" or not updates.is_experimental(tag)
 
@@ -138,7 +138,7 @@ def perform(payload, opener=urlopen, progress=None):
                 if path.stat().st_size > 16384:
                     raise ValueError()
                 cached = json.loads(path.read_text(encoding="utf-8"))
-                if not updates.TAG.fullmatch(str(cached.get("tag", ""))) or not cache_fits(cached, channel):
+                if not updates.tag_version(str(cached.get("tag", ""))) or not cache_fits(cached, channel):
                     raise ValueError()
                 checked = datetime.fromisoformat(cached["checkedAt"]).isoformat(timespec="seconds")
                 return {"tag": cached["tag"], "checkedAt": checked, "stale": True}
@@ -411,7 +411,7 @@ class Maintenance(QObject):
             tag = result.get("tag", "")
             latest, current = release_version(tag), release_version(self.currentVersion)
             label = updates.release_name(tag)
-            if not latest or not updates.TAG.fullmatch(tag):
+            if not latest or not updates.tag_version(tag):
                 self._status = "Release information is invalid. Retry later."
             else:
                 self._url = REPOSITORY + "/releases/tag/" + tag
