@@ -55,6 +55,8 @@ package() {
     "$pkgdir/usr/share/licenses/$pkgname/Roboto-OFL.txt"
   install -Dm644 native/src/youtube_music_native/assets/lucide-LICENSE \
     "$pkgdir/usr/share/licenses/$pkgname/lucide-LICENSE"
+  install -Dm644 native/src/youtube_music_native/assets/lucide-NOTICE.txt \
+    "$pkgdir/usr/share/licenses/$pkgname/lucide-NOTICE.txt"
   install -Dm644 native/src/youtube_music_native/assets/THIRD_PARTY_NOTICES.md \
     "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_NOTICES.md"
 }

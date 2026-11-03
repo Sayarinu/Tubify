@@ -15,6 +15,7 @@ pacman -Qk youtube-music-native
 desktop-file-validate /usr/share/applications/youtube-music-native.desktop
 test -r /usr/share/licenses/youtube-music-native/LICENSE
 test -r /usr/share/licenses/youtube-music-native/Roboto-OFL.txt
+test -r /usr/share/licenses/youtube-music-native/lucide-NOTICE.txt
 runuser -u "$native_test_user" -- env -u PYTHONPATH youtube-music-native-check --help
 runuser -u "$native_test_user" -- env -u PYTHONPATH QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
   youtube-music-native --fixture --smoke-test --data-dir "$native_test_root/window"
