@@ -78,6 +78,29 @@ def main():
                     assert not dialog.property("opened") and not window.property("modalOpen")
                     assert window.activeFocusItem() == find("settingsButton")
 
+                # Any open dialog, menu or drawer blocks the shortcuts without being registered in Main.qml.
+                for name in ("accountDialog", "colorPickerDialog", "shortcutHelpDialog", "accountMenu", "navigationDrawer"):
+                    popup = find(name)
+                    if name == "navigationDrawer":
+                        # The drawer holds the navigation only while space is short.
+                        shell.setUiScale(150)
+                        window.resize(920, 620)
+                        shell.setQueueOpen(True)
+                        QTest.qWait(40)
+                        assert window.property("compactNavigation")
+                    QMetaObject.invokeMethod(popup, "open")
+                    # The drawer reports opened once its slide finishes.
+                    for _ in range(50):
+                        if popup.property("opened"):
+                            break
+                        QTest.qWait(20)
+                    assert popup.property("opened") and window.property("modalOpen") and not window.property("playbackShortcuts"), name
+                    QMetaObject.invokeMethod(popup, "close")
+                    QTest.qWait(400)
+                    assert not window.property("modalOpen"), name
+                shell.setQueueOpen(False)
+                shell.setUiScale(100)
+
                 # Content ordering and real keyboard interaction in the appearance page.
                 shell.setUiScale(100)
                 window.resize(1280, 820)

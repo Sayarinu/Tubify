@@ -73,7 +73,12 @@ def main():
                             bounds = bar.mapRectToScene(bar.boundingRect())
                             assert bounds.left() >= 0 and bounds.right() <= size[0] + 0.1
                             assert bounds.bottom() <= size[1] and bounds.height() > 0
-                            assert content.width() >= (480 if queue.isVisible() and lyrics.isVisible() else 320) - 0.1
+                            # With docks open the page keeps 480 px; it only gets less once a lone dock is down to its 280 px minimum.
+                            docks = [dock for dock in (queue, lyrics) if dock.isVisible()]
+                            if docks:
+                                assert content.width() >= 480 - 0.1 or (len(docks) == 1 and abs(docks[0].width() - 280) < 0.1), (scale, size, content.width())
+                            else:
+                                assert content.width() >= 320 - 0.1
                             if queue.isVisible():
                                 assert queue.width() >= 280
                             if lyrics.isVisible():

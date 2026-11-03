@@ -52,7 +52,8 @@ ApplicationWindow {
     readonly property bool docksVisible: (appState.queueOpen || appState.lyricsOpen)
     readonly property bool bothDocks: appState.queueOpen && appState.lyricsOpen
     readonly property bool tabbedDocks: bothDocks && uiRoot.width - navigationEdge.width < 1040
-    readonly property real dockBudget: Math.max(280, uiRoot.width - navigationEdge.width - (bothDocks && !tabbedDocks ? 480 : 320))
+    // Docks never take the last 480 px from the page; below that they stop at their 280 px minimum.
+    readonly property real dockBudget: Math.max(280, uiRoot.width - navigationEdge.width - 480)
     readonly property real dockExtra: appState.queueWidth + appState.lyricsWidth - 560
     readonly property real fittedExtra: Math.min(dockExtra, Math.max(0, dockBudget - 560))
     readonly property real fittedQueueWidth: bothDocks && !tabbedDocks
@@ -86,7 +87,7 @@ ApplicationWindow {
     property bool immersiveClosing: false
     function focusSearch() {
         appState.setExpanded(false)
-        Qt.callLater(function() { search.forceActiveFocus() })
+        Qt.callLater(header.focusSearch)
     }
     Connections {
         target: appState
@@ -138,7 +139,9 @@ ApplicationWindow {
         function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
     }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: settingsWindow.opened || linkPreview.opened || handoffDialog.opened || navigationDrawer.opened || accountMenu.opened || accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    // Open dialogs, menus and the navigation drawer take keyboard focus and sit in the overlay while shown,
+    // so any of them blocks the shortcuts without being listed here. Tooltips and search suggestions don't take focus.
+    readonly property bool modalOpen: !!Overlay.overlay && Overlay.overlay.children.some(item => item.visible && item.focus)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     // Content zoom is independent of the platform device-pixel ratio.
@@ -162,305 +165,55 @@ ApplicationWindow {
         padding: 0
         modal: true; focus: true
         onOpened: sidebar.forceActiveFocus()
-        onClosed: if (window.compactNavigation) navigationToggle.forceActiveFocus()
+        onClosed: if (window.compactNavigation) header.focusNavigationToggle()
         enter: Transition { enabled: !appState.reducedMotion }
         exit: Transition { enabled: !appState.reducedMotion }
         contentItem: Item { id: drawerContent }
     }
 
-    Rectangle {
+    NavigationSidebar {
         id: sidebar
-        objectName: "navigationRail"
         parent: window.compactNavigation ? drawerContent : uiRoot
-        focus: true
-        width: appState.expanded ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (appState.queueOpen || appState.lyricsOpen ? 280 : 0) - 320))
-        visible: !appState.expanded
+        wide: window.wideNavigation
+        width: appState.expanded ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (window.docksVisible ? 280 + 480 : 320)))
         anchors.top: parent.top
         anchors.bottom: window.compactNavigation ? parent.bottom : player.top
-        color: themeState.background
-        Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: themeState.border }
-        Item {
-            id: sidebarResizeHandle
-            objectName: "sidebarResizeHandle"
-            z: 10
-            visible: true
-            x: sidebar.width - width
-            width: 12
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            HoverHandler { id: sidebarResizeHover; cursorShape: Qt.SizeHorCursor }
-            Rectangle {
-                objectName: "sidebarResizeLine"
-                // Drawn over the sidebar's 1 px border (its right edge), not the middle of the grab area.
-                anchors.right: parent.right
-                width: 2
-                height: parent.height
-                color: themeState.accent
-                opacity: sidebarResizeHover.hovered || sidebarResizeMouse.pressed ? 0.9 : 0
-            }
-            MouseArea {
-                id: sidebarResizeMouse
-                anchors.fill: parent
-                cursorShape: Qt.SizeHorCursor
-                preventStealing: true
-                property real startWidth: 240
-                property real startX: 0
-                onPressed: function(mouse) {
-                    startWidth = sidebar.width
-                    startX = sidebarResizeMouse.mapToItem(null, mouse.x, mouse.y).x
-                }
-                onPositionChanged: function(mouse) {
-                    if (pressed) {
-                        var sceneX = sidebarResizeMouse.mapToItem(null, mouse.x, mouse.y).x
-                        appState.setSidebarWidth(startWidth + (sceneX - startX) / appState.uiScaleFactor)
-                    }
-                }
-                onReleased: appState.saveSidebarWidths()
-            }
-        }
-        Column {
-            id: navigation
-            x: 8; y: 8; width: sidebar.width - 16
-            Repeater {
-                model: [{label:"Home",icon:"home"}, {label:"Explore",icon:"explore"}, {label:"Library",icon:"library"}, {label:"Downloads",icon:"download"}]
-                delegate: Button {
-                    id: nav
-                    required property var modelData
-                    objectName: "navigationButton-" + modelData.label
-                    readonly property bool selected: appState.page === text
-                    hoverEnabled: true
-                    width: navigation.width
-                    height: 48
-                    padding: 0
-                    leftInset: 0; rightInset: 0; topInset: 0; bottomInset: 0
-                    text: modelData.label
-                    Accessible.name: text
-                    onClicked: { if (!browseState.atTabRoot(text)) appState.navigate(text); navigationDrawer.close() }
-                    background: Rectangle {
-                        objectName: "navigationBackground-" + nav.text
-                        anchors.fill: parent
-                        radius: 8
-                        color: nav.selected ? themeState.selected : nav.hovered ? themeState.hover : "transparent"
-                        border.width: nav.visualFocus ? 2 : 0
-                        border.color: themeState.accent
-                        Rectangle { objectName: "navigationMarker-" + nav.text; x: 4; anchors.verticalCenter: parent.verticalCenter; width: 3; height: 24; radius: 2; color: themeState.accent; visible: nav.selected }
-                    }
-                    contentItem: Row {
-                        leftPadding: 16; spacing: 20
-                        Symbol { anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon; color: nav.selected ? themeState.accent : themeState.secondary }
-                        Text { anchors.verticalCenter: parent.verticalCenter; visible: window.wideNavigation; text: nav.text; color: themeState.foreground; font.pixelSize: 16 }
-                    }
-                    ToolTip.text: text
-                    ToolTip.visible: !window.wideNavigation && hovered
-                }
-            }
-        }
-        Rectangle { objectName: "navigationDivider"; x: 8; y: navigation.y + navigation.height + 12; width: sidebar.width - 16; height: 1; color: themeState.border }
-        Button {
-            id: newPlaylist
-            objectName: "newPlaylistButton"
-            x: 8; y: navigation.y + navigation.height + 24
-            width: sidebar.width - 16; height: 40
-            text: "New Playlist"
-            Accessible.name: text
-            ToolTip.text: text
-            ToolTip.visible: hovered
-            contentItem: Item {
-                Row {
-                    anchors.centerIn: parent
-                    spacing: Theme.spacingSmall
-                    Symbol { anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; name: "plus"; color: themeState.foreground }
-                    Text { anchors.verticalCenter: parent.verticalCenter; visible: window.wideNavigation; text: newPlaylist.text; color: themeState.foreground; font.pixelSize: Theme.textBody }
-                }
-            }
-            background: Rectangle { radius: height / 2; color: newPlaylist.hovered ? themeState.hover : themeState.surface; border.width: newPlaylist.visualFocus ? 2 : 0; border.color: themeState.foreground }
-            onClicked: appState.requestAction("newPlaylist")
-        }
-        ListView {
-            objectName: "sidebarPlaylists"
-            anchors.top: newPlaylist.bottom
-            anchors.topMargin: 12
-            anchors.bottom: parent.bottom
-            // Inset like the navigation items so hover highlights never cover the sidebar border.
-            x: 8; width: parent.width - 16
-            clip: true
-            model: appState.playlists
-            delegate: ItemDelegate {
-                required property var modelData
-                width: ListView.view.width
-                height: 56
-                padding: 0
-                Accessible.name: modelData.title
-                ToolTip.text: modelData.title
-                ToolTip.visible: hovered && !window.wideNavigation
-                contentItem: Item {
-                    Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 8; source: modelData.thumbnail || ""; mediaKey: "playlist:" + modelData.id; accent: themeState.selected }
-                    Column {
-                        x: 60; anchors.verticalCenter: parent.verticalCenter; width: parent.width - 72; spacing: 4
-                        visible: window.wideNavigation
-                        Text { width: parent.width; text: modelData.title; textFormat: Text.PlainText; color: themeState.foreground; font.pixelSize: 14; elide: Text.ElideRight }
-                        Text { width: parent.width; text: modelData.owner || ""; textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 12; elide: Text.ElideRight }
-                    }
-                }
-                background: Rectangle { radius: 8; color: parent.hovered ? themeState.hover : "transparent"; border.color: parent.visualFocus ? themeState.accent : "transparent" }
-                onClicked: { appState.requestAction("playlist:" + modelData.id); navigationDrawer.close() }
-            }
-        }
+        onNavigated: navigationDrawer.close()
     }
 
-    Item {
+    MainHeader {
         id: header
-        objectName: "mainHeader"
         anchors.left: navigationEdge.right
         anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
-        height: appState.expanded ? 0 : 64
-        visible: !appState.expanded
-        IconButton { id: navigationToggle; objectName: "navigationToggle"; visible: window.compactNavigation; x: 8; y: 10; width: 36; height: 44; iconName: "menu"; tip: "Open Navigation"; Keys.onShortcutOverride: function(event) { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return) event.accepted = true }; Keys.onReturnPressed: navigationDrawer.open(); onClicked: navigationDrawer.open() }
-        IconButton { x: window.compactNavigation ? 44 : header.width < 480 ? 8 : 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
-        ThemedTextField {
-            id: search
-            objectName: "searchField"
-            x: window.compactNavigation ? 92 : header.width < 480 ? 56 : 96
-            y: 11
-            width: Math.max(80, Math.min(480, (updateButton.visible ? updateButton.x : historyButton.visible ? historyButton.x : settingsButton.x) - x - 12))
-            height: 42
-            leftPadding: header.width < 400 ? 34 : 52
-            rightPadding: text.length > 0 ? 48 : 16
-            radius: Theme.radiusMedium
-            placeholderText: header.width < 400 ? "Search" : "Search songs, albums, artists"
-            font.pixelSize: 16
-            Accessible.name: "Search YouTube Music"
-            Symbol { x: header.width < 400 ? 8 : 16; anchors.verticalCenter: parent.verticalCenter; name: "search"; width: 20; height: 20; color: themeState.secondary }
-            IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; visible: search.text.length > 0; iconName: "close"; tip: "Clear Search"; onClicked: { search.clear(); searchState.clearSuggestions(); search.forceActiveFocus() } }
-            onAccepted: {
-                var chosen = suggestions.currentIndex >= 0 ? searchState.suggestions[suggestions.currentIndex] : search.text
-                search.text = chosen
-                appState.search(chosen)
-            }
-            onTextEdited: { suggestions.currentIndex = -1; searchState.suggest(text) }
-            Keys.onDownPressed: suggestions.currentIndex = Math.min(suggestions.count - 1, suggestions.currentIndex + 1)
-            Keys.onUpPressed: suggestions.currentIndex = Math.max(-1, suggestions.currentIndex - 1)
-            Keys.onEscapePressed: searchState.clearSuggestions()
-            Popup {
-                id: suggestionPopup
-                y: search.height + 4; width: search.width
-                height: Math.min(360, searchState.suggestions.length * 44 + 16)
-                padding: 8; focus: false
-                visible: search.activeFocus && searchState.suggestions.length > 0
-                background: Rectangle { color: themeState.hover; radius: 8 }
-                contentItem: ListView {
-                    id: suggestions
-                    clip: true; currentIndex: -1; model: searchState.suggestions
-                    delegate: ItemDelegate {
-                        required property string modelData
-                        required property int index
-                        width: suggestions.width; height: 44
-                        highlighted: index === suggestions.currentIndex
-                        background: Rectangle { color: parent.highlighted ? themeState.selected : parent.hovered ? themeState.hover : "transparent"; radius: 4 }
-                        contentItem: Text { text: modelData; textFormat: Text.PlainText; color: themeState.foreground; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; font.pixelSize: 15 }
-                        onClicked: { search.text = modelData; appState.search(modelData) }
-                    }
-                }
-            }
-        }
-        IconButton {
-            id: profileButton
-            objectName: "profileButton"
-            anchors.right: parent.right
-            anchors.rightMargin: header.width < 480 ? 8 : 32
-            y: 10
-            width: 44; height: 44
-            iconName: "profile"
-            tip: accountState.profile.name || "Account"
-            onClicked: {
-                if (accountState.connected) accountMenu.popup(profileButton, profileButton.width - accountMenu.implicitWidth, profileButton.height, null)
-                else accountDialog.open()
-            }
-            contentItem: Item {
-                Avatar {
-                    anchors.centerIn: parent
-                    width: 28; height: 28
-                    source: accountState.profile.avatar || ""
-                }
-            }
-        }
-        IconButton { id: settingsButton; objectName: "settingsButton"; anchors.right: profileButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "settings"; tip: "Settings"; onClicked: settingsWindow.open() }
-        IconButton { id: historyButton; objectName: "historyButton"; visible: header.width >= 640; anchors.right: settingsButton.left; anchors.rightMargin: 12; y: 10; width: 44; height: 44; iconName: "history"; tip: "Listening History"; onClicked: libraryState.history() }
-        IconButton {
-            id: updateButton
-            objectName: "updateButton"
-            // Shown only while a newer stable release is waiting or downloading.
-            visible: maintenanceState.updateAvailable || maintenanceState.downloading
-            anchors.right: historyButton.visible ? historyButton.left : settingsButton.left; anchors.rightMargin: 12
-            y: 10; width: 44; height: 44
-            iconName: "update"; iconColor: themeState.accent
-            tip: maintenanceState.downloading ? "Downloading update " + maintenanceState.progress + "%" : maintenanceState.latestName + " is available"
-            Accessible.name: "Update available"
-            onClicked: updateDialog.open()
-            Rectangle {
-                objectName: "updateBadge"
-                width: 10; height: 10; radius: 5
-                x: parent.width - width - 8; y: 8
-                color: themeState.accent
-                border.width: 2; border.color: themeState.background
-                SequentialAnimation on scale {
-                    running: updateButton.visible && !appState.reducedMotion
-                    loops: 3
-                    NumberAnimation { from: 1; to: 1.5; duration: 400; easing.type: Easing.OutQuad }
-                    NumberAnimation { from: 1.5; to: 1; duration: 400; easing.type: Easing.InQuad }
-                }
-            }
-        }
+        compactNavigation: window.compactNavigation
+        onNavigationRequested: navigationDrawer.open()
+        onSettingsRequested: settingsDialog.open()
+        onAccountRequested: accountDialog.open()
+        onUpdateRequested: updateDialog.open()
     }
 
-    ThemedMenu {
-        id: accountMenu
-        objectName: "accountMenu"
-        implicitWidth: 252
-        MenuItem {
-            enabled: false
-            implicitHeight: 42
-            contentItem: Item {
-                Text {
-                    anchors.fill: parent
-                    verticalAlignment: Text.AlignVCenter
-                    text: accountState.profile.name || "YouTube Music Account"
-                    color: themeState.foreground
-                    font.pixelSize: 14
-                    font.bold: true
-                    elide: Text.ElideRight
-                }
-            }
-            background: Rectangle { color: "transparent" }
-        }
-        ThemedMenuSeparator {}
-        ContextMenuItem { text: "Connection Settings"; onTriggered: accountDialog.open() }
-        ThemedMenuSeparator { visible: accountState.connected; height: visible ? implicitHeight : 0 }
-        ContextMenuItem { text: "Sign Out"; visible: accountState.connected; height: visible ? implicitHeight : 0; onTriggered: accountState.signOut() }
-    }
-
-    PlaybackSettings { id: playbackSettings; host: settingsWindow }
-    UpdateSettings { id: updateSettings; host: settingsWindow }
-    TroubleshootingSettings { id: troubleshootingSettings; host: settingsWindow }
+    PlaybackSettings { id: playbackSettings; host: settingsDialog }
+    UpdateSettings { id: updateSettings; host: settingsDialog }
+    TroubleshootingSettings { id: troubleshootingSettings; host: settingsDialog }
     UpdateDialog { id: updateDialog }
-    DesktopSettings { id: desktopSettings; host: settingsWindow }
-    DiscordSettings { id: discordSettings; host: settingsWindow }
-    CastSettings { id: castSettings; host: settingsWindow }
+    DesktopSettings { id: desktopSettings; host: settingsDialog }
+    DiscordSettings { id: discordSettings; host: settingsDialog }
+    CastSettings { id: castSettings; host: settingsDialog }
     Loader { active: trayState.enabled; sourceComponent: TrayPlayer { palette: window.palette } }
 
     SettingsDialog {
-        id: settingsWindow
-        currentPage: settingsDialog
+        id: settingsDialog
+        currentPage: appearanceSettings
         sections: [
-            { title: "General", pages: [settingsDialog, playbackSettings, lyricsSettings] },
+            { title: "General", pages: [appearanceSettings, playbackSettings, lyricsSettings] },
             { title: "Application", pages: [desktopSettings] },
             { title: "Connections", pages: [discordSettings, lastFmSettings, castSettings] },
             { title: "Support", pages: [updateSettings, troubleshootingSettings] }
         ]
-        onClosed: settingsButton.forceActiveFocus()
+        onClosed: header.focusSettingsButton()
     }
-    LyricsSettings { id: lyricsSettings; host: settingsWindow }
-    LastFmSettings { id: lastFmSettings; host: settingsWindow }
+    LyricsSettings { id: lyricsSettings; host: settingsDialog }
+    LastFmSettings { id: lastFmSettings; host: settingsDialog }
     LinkPreview { id: linkPreview }
     HandoffDialog { id: handoffDialog }
     Connections {
@@ -645,557 +398,10 @@ ApplicationWindow {
         Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: browseState.queueMessage || actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.pixelSize: 14 }
     }
 
-    ThemedDialog {
-        id: accountDialog
-        objectName: "accountDialog"
-        width: Math.min(uiRoot.width - 64, 440)
-        title: "Connection Settings"
-        contentItem: ColumnLayout {
-            spacing: 14
-            Label { Layout.fillWidth: true; text: "Current User:"; horizontalAlignment: Text.AlignHCenter; color: themeState.secondary; font.pixelSize: 13 }
-            Label { Layout.fillWidth: true; text: accountState.profile.name || "Not Signed In"; horizontalAlignment: Text.AlignHCenter; color: themeState.foreground; font.pixelSize: 21; font.bold: true; elide: Text.ElideRight }
-            ThemeActionButton {
-                objectName: "browserSignIn"
-                Layout.fillWidth: true; Layout.preferredHeight: 44
-                primary: true
-                font.pixelSize: Theme.textBody; font.bold: true
-                text: accountState.signingIn ? "Waiting for Browser Sign-In…" : "Sign in via Browser"
-                visible: accountState.signInAvailable && !accountState.connected; enabled: !accountState.busy && !accountState.signingIn
-                onClicked: accountState.signIn()
-            }
-            ThemeActionButton {
-                Layout.alignment: Qt.AlignHCenter
-                flat: true
-                text: "Cancel"; visible: accountState.signingIn && !accountState.connected
-                onClicked: accountState.cancelSignIn()
-            }
-            ThemeActionButton {
-                Layout.fillWidth: true; Layout.preferredHeight: 44
-                font.pixelSize: Theme.textBody
-                text: "Choose Browser Session File"
-                enabled: !accountState.busy && !accountState.fixtureMode
-                onClicked: sessionPicker.open()
-            }
-            BusyIndicator { Layout.alignment: Qt.AlignHCenter; running: accountState.busy || accountState.signingIn; visible: running }
-            Label { Layout.fillWidth: true; text: accountState.message; textFormat: Text.PlainText; visible: text.length > 0 && !accountState.connected; wrapMode: Text.Wrap; color: themeState.secondary }
-            ThemeActionButton {
-                Layout.fillWidth: true
-                text: "Sign Out"; visible: accountState.connected
-                onClicked: { accountState.signOut(); accountDialog.close() }
-            }
-            ThemeActionButton {
-                Layout.fillWidth: true
-                flat: true
-                text: "Export Instructions"
-                onClicked: Qt.openUrlExternally("https://ytmusicapi.readthedocs.io/en/stable/setup/browser.html")
-            }
-        }
-    }
-    SettingsPage {
-        id: settingsDialog
-        host: settingsWindow
-        title: "Appearance"
-        ownHeading: true
-        objectName: "appearanceSettingsDialog"
-        property string activeColorRole: ""
-        property bool editingColors: false
-        contentItem: ColumnLayout {
-            spacing: 12
-            RowLayout {
-                Layout.fillWidth: true
-                Label {
-                    Layout.fillWidth: true
-                    text: settingsDialog.editingColors ? "Customize " + themeState.activeThemeName : "Appearance"
-                    color: themeState.foreground; font.pixelSize: 16; font.bold: true
-                }
-                ThemeActionButton {
-                    id: addThemeButton
-                    objectName: "addThemeButton"
-                    visible: !settingsDialog.editingColors
-                    text: "Add Theme"
-                    primary: true
-                    onClicked: addThemeMenu.popup(addThemeButton, addThemeButton.width - addThemeMenu.implicitWidth, addThemeButton.height, null)
-                }
-                ThemeActionButton {
-                    visible: settingsDialog.editingColors
-                    text: "Back to Themes"
-                    onClicked: settingsDialog.editingColors = false
-                }
-            }
-            StackLayout {
-                Layout.fillWidth: true; Layout.fillHeight: true
-                currentIndex: settingsDialog.editingColors ? 1 : 0
-                Item {
-                    ColumnLayout {
-                        anchors.fill: parent; spacing: 8
-                        ScrollView {
-                            id: themeScroll
-                            objectName: "themeScroll"
-                            Layout.fillWidth: true; Layout.fillHeight: true
-                            clip: true
-                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                            ColumnLayout {
-                                width: themeScroll.availableWidth
-                                spacing: 6
-                                Label { text: "Dark Themes"; color: themeState.secondary; font.pixelSize: 12; font.bold: true }
-                                GridView {
-                                    id: darkThemeGrid
-                                    objectName: "darkThemeGrid"
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: Math.ceil(themeState.darkThemes.length / columns) * 50
-                                    property int columns: width < 480 ? 1 : 2
-                                    clip: true; interactive: false; cellWidth: width / columns; cellHeight: 50
-                                    model: themeState.darkThemes
-                                    delegate: themeCardDelegate
-                                }
-                                Label { text: "Light Themes"; color: themeState.secondary; font.pixelSize: 12; font.bold: true }
-                                GridView {
-                                    id: lightThemeGrid
-                                    objectName: "lightThemeGrid"
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: Math.max(50, Math.ceil(themeState.lightThemes.length / columns) * 50)
-                                    property int columns: width < 480 ? 1 : 2
-                                    clip: true; interactive: false; cellWidth: width / columns; cellHeight: 50
-                                    model: themeState.lightThemes
-                                    delegate: themeCardDelegate
-                                }
-                                Flow {
-                                    Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8
-                                    ThemeActionButton { objectName: "themeEditColorsButton"; text: "Edit Colors"; enabled: themeState.activeThemeIsCustom; disabledReason: "Create a custom theme before editing colors."; onClicked: settingsDialog.editingColors = true }
-                                    ThemeActionButton { objectName: "themeRenameButton"; text: "Rename"; enabled: themeState.activeThemeIsCustom; disabledReason: "Built-in themes cannot be renamed. Create a custom theme first."; onClicked: { themeNameDialog.renameMode = true; themeNameField.text = themeState.activeThemeName; themeNameDialog.open() } }
-                                    ThemeActionButton { objectName: "themeDeleteButton"; text: "Delete"; enabled: themeState.activeThemeIsCustom; disabledReason: "Built-in themes cannot be deleted. Create a custom theme first."; onClicked: deleteThemeDialog.open() }
-                                    ThemeActionButton { objectName: "themeExportButton"; text: "Export Current Theme"; enabled: themeState.activeThemeIsCustom; disabledReason: "Only custom themes can be exported. Create a custom theme first."; onClicked: themeExportDialog.open() }
-                                }
-                                Label { text: "Display & Accessibility"; color: themeState.secondary; font.pixelSize: 12; font.bold: true; Layout.topMargin: 16 }
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    Label { text: "Content Size"; color: themeState.foreground }
-                                    Item { Layout.fillWidth: true }
-                                    SpinBox {
-                                        objectName: "contentScaleControl"
-                                        from: 80; to: 150; stepSize: 5; value: appState.uiScale
-                                        editable: false
-                                        Accessible.name: "Content size in percent"
-                                        textFromValue: function(value) { return value + "%" }
-                                        onValueModified: appState.setUiScale(value)
-                                    }
-                                    ThemeActionButton { text: "Reset"; enabled: appState.uiScale !== 100; onClicked: appState.setUiScale(100) }
-                                }
-                                SettingsCheckBox { objectName: "reducedMotionControl"; text: "Reduce Motion"; checked: appState.reducedMotion; onToggled: appState.setReducedMotion(checked) }
-                                SettingsCheckBox { objectName: "artworkBackgroundControl"; text: "Artwork Backgrounds"; checked: appState.artworkBackground; onToggled: appState.setArtworkBackground(checked) }
-                                SettingsCheckBox { objectName: "artworkBlurControl"; text: "Blur Artwork Backgrounds"; checked: appState.artworkBlur; enabled: appState.artworkBackground; onToggled: appState.setArtworkBlur(checked) }
-
-                            }
-                        }
-                        Label {
-                            Layout.fillWidth: true
-                            visible: !settingsDialog.editingColors && themeState.message.length > 0
-                            text: themeState.message
-                            color: themeState.foreground
-                            font.pixelSize: 12
-                            elide: Text.ElideRight
-                        }
-
-                    }
-                }
-                Item {
-                    ColumnLayout {
-                        anchors.fill: parent; spacing: 8
-                        Label { Layout.fillWidth: true; text: "Adjust every color in this custom theme."; color: themeState.secondary; font.pixelSize: 12; wrapMode: Text.Wrap }
-                        GridView {
-                            id: colorRoles
-                            objectName: "colorRoles"
-                            Layout.fillWidth: true; Layout.fillHeight: true
-                            property int columns: width < 480 ? 1 : 2
-                            clip: true; cellWidth: width / columns; cellHeight: 52
-                            model: themeState.palette
-                            delegate: RowLayout {
-                                required property var modelData
-                                width: colorRoles.cellWidth - 8; height: colorRoles.cellHeight - 4; spacing: 7
-                                Button {
-                                    Layout.preferredWidth: 28; Layout.preferredHeight: 28; padding: 0
-                                    ToolTip.text: "Choose Color"; ToolTip.visible: hovered
-                                    background: Rectangle { radius: 8; color: modelData.value; border.color: themeState.border; border.width: 1 }
-                                    onClicked: {
-                                        settingsDialog.activeColorRole = modelData.key
-                                        palettePicker.setDraft(modelData.value)
-                                        palettePicker.open()
-                                    }
-                                }
-                                Label { Layout.fillWidth: true; text: modelData.label; color: themeState.foreground; elide: Text.ElideRight; font.pixelSize: 11 }
-                                ThemedTextField {
-                                    Layout.preferredWidth: 82
-                                    implicitHeight: 32
-                                    leftPadding: 4; rightPadding: 4
-                                    text: modelData.value
-                                    maximumLength: 7
-                                    font.pixelSize: 11; horizontalAlignment: TextInput.AlignHCenter
-                                    Accessible.name: modelData.label + " hex color"
-                                    onEditingFinished: themeState.setColor(modelData.key, text)
-                                }
-                            }
-                        }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Label { Layout.fillWidth: true; text: themeState.message; textFormat: Text.PlainText; visible: text.length > 0; color: themeState.secondary; font.pixelSize: 11; wrapMode: Text.Wrap; maximumLineCount: 2 }
-                            ThemeActionButton { text: "View Config"; onClicked: themeState.openConfigFile() }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Component {
-        id: themeCardDelegate
-        Button {
-            id: themeCard
-            required property var modelData
-            objectName: "themeCard-" + modelData.id
-            width: GridView.view.cellWidth - 8; height: GridView.view.cellHeight - 6
-            padding: 0
-            checkable: true
-            autoExclusive: true
-            checked: modelData.active
-            Accessible.name: modelData.name
-            onClicked: themeState.selectTheme(modelData.id)
-            background: Rectangle {
-                radius: 9
-                color: themeCard.modelData.active ? themeState.selected : themeCard.hovered ? themeState.hover : themeState.background
-                border.color: themeCard.visualFocus || themeCard.modelData.active ? themeState.accent : themeState.border
-                border.width: themeCard.visualFocus || themeCard.modelData.active ? 2 : 1
-            }
-            contentItem: RowLayout {
-                anchors.fill: parent; anchors.margins: 9; spacing: 9
-                Row {
-                    spacing: -5
-                    Repeater {
-                        model: modelData.swatches
-                        delegate: Rectangle {
-                            required property string modelData
-                            width: 22; height: 22; radius: 11
-                            color: modelData; border.color: themeState.foreground; border.width: 1
-                        }
-                    }
-                }
-                ColumnLayout {
-                    Layout.fillWidth: true; spacing: 1
-                    Text { Layout.fillWidth: true; text: modelData.name; color: themeState.foreground; font.pixelSize: 12; font.bold: true; elide: Text.ElideRight }
-                    Text { text: modelData.builtin ? "Built-in" : "Custom"; color: themeState.secondary; font.pixelSize: 10 }
-                }
-                Rectangle {
-                    visible: modelData.active
-                    width: 22; height: 22; radius: 11; color: themeState.accent
-                    Symbol { anchors.centerIn: parent; name: "check"; width: 16; height: 16; color: themeState.onAccent }
-                }
-            }
-        }
-    }
-    ThemedMenu {
-        id: addThemeMenu
-        objectName: "addThemeMenu"
-        implicitWidth: 230
-        ContextMenuItem { text: "Create from Current"; onTriggered: { themeNameDialog.renameMode = false; themeNameField.text = ""; themeNameDialog.open() } }
-        ContextMenuItem { text: "Import Theme…"; onTriggered: themeImportDialog.open() }
-    }
-    ThemedDialog {
-        id: themeNameDialog
-        width: 390
-        title: renameMode ? "Rename Theme" : "Create Custom Theme"
-        property bool renameMode: false
-        contentItem: ColumnLayout {
-            spacing: 10
-            Label { Layout.fillWidth: true; text: themeNameDialog.renameMode ? "Choose a new name for this custom theme." : "Your new theme starts with the current colors."; color: themeState.foreground; wrapMode: Text.Wrap }
-            ThemedTextField { id: themeNameField; objectName: "themeNameField"; Layout.fillWidth: true; placeholderText: "Theme name"; maximumLength: 60; onAccepted: themeNameSave.clicked() }
-            RowLayout {
-                Layout.fillWidth: true
-                Item { Layout.fillWidth: true }
-                ThemeActionButton { text: "Cancel"; onClicked: themeNameDialog.close() }
-                ThemeActionButton {
-                    id: themeNameSave; text: themeNameDialog.renameMode ? "Save" : "Create"; primary: true
-                    onClicked: {
-                        var ok = themeNameDialog.renameMode
-                            ? themeState.renameCustomTheme(themeState.activeThemeId, themeNameField.text)
-                            : themeState.createCustomTheme(themeNameField.text)
-                        if (ok) { themeNameDialog.close(); settingsDialog.editingColors = true }
-                    }
-                }
-            }
-        }
-    }
-    ThemedDialog {
-        id: deleteThemeDialog
-        width: 390
-        title: "Delete Custom Theme?"
-        contentItem: ColumnLayout {
-            spacing: 10
-            Label { Layout.fillWidth: true; text: "Delete “" + themeState.activeThemeName + "”? Classic will become active if this is the selected theme."; color: themeState.foreground; wrapMode: Text.Wrap }
-            RowLayout {
-                Layout.fillWidth: true
-                Item { Layout.fillWidth: true }
-                ThemeActionButton { text: "Cancel"; onClicked: deleteThemeDialog.close() }
-                ThemeActionButton { text: "Delete"; primary: true; onClicked: { themeState.deleteCustomTheme(themeState.activeThemeId); deleteThemeDialog.close() } }
-            }
-        }
-    }
-    ThemedDialog {
-        id: importThemeDialog
-        width: 420
-        title: "Import Theme"
-        property bool replaceCustom: false
-        contentItem: ColumnLayout {
-            spacing: 10
-            Label { Layout.fillWidth: true; text: importThemeDialog.replaceCustom ? "A custom theme already uses this name. Save to replace it, or choose another name." : "Name this imported custom theme. Built-in themes are protected and cannot be replaced."; color: themeState.foreground; wrapMode: Text.Wrap }
-            ThemedTextField { id: importThemeName; Layout.fillWidth: true; placeholderText: "Theme name"; maximumLength: 60 }
-            Label { Layout.fillWidth: true; text: themeState.message; visible: text.length > 0; color: themeState.error; wrapMode: Text.Wrap }
-            RowLayout {
-                Layout.fillWidth: true; Item { Layout.fillWidth: true }
-                ThemeActionButton { text: "Cancel"; onClicked: importThemeDialog.close() }
-                ThemeActionButton {
-                    text: importThemeDialog.replaceCustom ? "Replace" : "Import"; primary: true
-                    onClicked: {
-                        if (themeState.completeImport(importThemeName.text, importThemeDialog.replaceCustom)) {
-                            importThemeDialog.close(); settingsDialog.editingColors = false
-                        }
-                    }
-                }
-            }
-        }
-    }
-    FileDialog {
-        id: themeImportDialog
-        title: "Import a Theme"; fileMode: FileDialog.OpenFile
-        nameFilters: ["Theme files (*.json)", "All files (*)"]
-        onAccepted: {
-            var result = themeState.inspectImport(selectedFile.toString())
-            if (result.ok) {
-                importThemeDialog.replaceCustom = !!result.conflict && !result.builtIn
-                importThemeName.text = result.name
-                importThemeDialog.open()
-            }
-        }
-    }
-    FileDialog {
-        id: themeExportDialog
-        title: "Export Custom Theme"; fileMode: FileDialog.SaveFile
-        nameFilters: ["Theme files (*.json)"]
-        defaultSuffix: "json"
-        onAccepted: themeState.exportTheme(selectedFile.toString())
-    }
-    ThemedDialog {
-        id: palettePicker
-        objectName: "colorPickerDialog"
-        width: Math.min(uiRoot.width - 48, 430)
-        height: Math.min(implicitHeight, uiRoot.height - 48)
-        title: "Choose a Color"
-        headerAction: Component {
-            IconButton {
-                iconName: "pipette"; tip: "Pick a Color from the Screen"; iconSize: 19; implicitWidth: 34; implicitHeight: 34
-                onClicked: { palettePicker.close(); settingsDialog.close(); screenPickerOverlay.show() }
-            }
-        }
-        property string draftHex: "#A78BFA"
-        property color previewColor: "#A78BFA"
-        property real hue: 0.72
-        property real saturation: 0.42
-        property real value: 0.98
-        property string statusMessage: ""
-        function setDraft(hex) {
-            draftHex = hex.toUpperCase()
-            statusMessage = ""
-            if (!/^#[0-9A-F]{6}$/.test(draftHex)) return
-            var red = parseInt(draftHex.slice(1, 3), 16) / 255
-            var green = parseInt(draftHex.slice(3, 5), 16) / 255
-            var blue = parseInt(draftHex.slice(5, 7), 16) / 255
-            var high = Math.max(red, green, blue)
-            var low = Math.min(red, green, blue)
-            var delta = high - low
-            value = high
-            saturation = high === 0 ? 0 : delta / high
-            if (delta === 0) hue = 0
-            else if (high === red) hue = ((green - blue) / delta + (green < blue ? 6 : 0)) / 6
-            else if (high === green) hue = ((blue - red) / delta + 2) / 6
-            else hue = ((red - green) / delta + 4) / 6
-            previewColor = draftHex
-        }
-        function updateFromField() {
-            previewColor = Qt.hsva(hue, saturation, value, 1)
-            draftHex = previewColor.toString().toUpperCase()
-        }
-        function applyColor() {
-            if (/^#[0-9A-Fa-f]{6}$/.test(draftHex)) {
-                themeState.setColor(settingsDialog.activeColorRole, draftHex)
-                close()
-            }
-        }
-        contentItem: ScrollView {
-            id: colorPickerScroll
-            clip: true
-            implicitHeight: colorPickerContent.implicitHeight
-            ColumnLayout {
-                id: colorPickerContent
-                width: colorPickerScroll.availableWidth
-            spacing: 14
-            RowLayout {
-                Layout.fillWidth: true; spacing: 12
-                Rectangle { Layout.preferredWidth: 38; Layout.preferredHeight: 38; radius: 12; color: palettePicker.previewColor; border.color: themeState.border; border.width: 1 }
-                ThemedTextField {
-                    Layout.fillWidth: true
-                    text: palettePicker.draftHex
-                    maximumLength: 7
-                    horizontalAlignment: TextInput.AlignHCenter
-                    Accessible.name: "Hex color"
-                    onTextEdited: {
-                        if (/^#[0-9A-Fa-f]{6}$/.test(text)) palettePicker.setDraft(text)
-                    }
-                    onAccepted: palettePicker.applyColor()
-                }
-            }
-            Rectangle {
-                id: saturationValueField
-                Layout.fillWidth: true; Layout.preferredHeight: 156
-                radius: 10; clip: true
-                color: Qt.hsva(palettePicker.hue, 1, 1, 1)
-                Rectangle {
-                    anchors.fill: parent
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0; color: "white" }
-                        GradientStop { position: 1; color: "transparent" }
-                    }
-                }
-                Rectangle {
-                    anchors.fill: parent
-                    gradient: Gradient {
-                        GradientStop { position: 0; color: "transparent" }
-                        GradientStop { position: 1; color: "black" }
-                    }
-                }
-                Rectangle {
-                    x: palettePicker.saturation * (parent.width - width)
-                    y: (1 - palettePicker.value) * (parent.height - height)
-                    width: 14; height: 14; radius: 7
-                    color: "transparent"; border.color: "white"; border.width: 2
-                    Rectangle { anchors.centerIn: parent; width: 4; height: 4; radius: 2; color: "transparent"; border.color: "#55000000"; border.width: 1 }
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.CrossCursor
-                    function selectPoint(mouse) {
-                        palettePicker.saturation = Math.max(0, Math.min(1, mouse.x / width))
-                        palettePicker.value = 1 - Math.max(0, Math.min(1, mouse.y / height))
-                        palettePicker.updateFromField()
-                    }
-                    onPressed: function(mouse) { selectPoint(mouse) }
-                    onPositionChanged: function(mouse) { if (pressed) selectPoint(mouse) }
-                }
-            }
-            Slider {
-                id: hueSlider
-                Layout.fillWidth: true; Layout.preferredHeight: 26
-                from: 0; to: 1; value: palettePicker.hue
-                onMoved: { palettePicker.hue = value; palettePicker.updateFromField() }
-                background: Rectangle {
-                    x: hueSlider.leftPadding; y: hueSlider.topPadding + (hueSlider.availableHeight - height) / 2
-                    width: hueSlider.availableWidth; height: 10; radius: 5
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0; color: "#ff0000" }
-                        GradientStop { position: 0.17; color: "#ffff00" }
-                        GradientStop { position: 0.33; color: "#00ff00" }
-                        GradientStop { position: 0.5; color: "#00ffff" }
-                        GradientStop { position: 0.67; color: "#0000ff" }
-                        GradientStop { position: 0.83; color: "#ff00ff" }
-                        GradientStop { position: 1; color: "#ff0000" }
-                    }
-                }
-                handle: Rectangle {
-                    x: hueSlider.leftPadding + hueSlider.visualPosition * (hueSlider.availableWidth - width)
-                    y: hueSlider.topPadding + (hueSlider.availableHeight - height) / 2
-                    width: 18; height: 18; radius: 9; color: "white"
-                    border.color: themeState.border; border.width: 2
-                }
-            }
-            Label { text: "Palette"; color: themeState.secondary; font.pixelSize: 13 }
-            GridView {
-                id: presetColors
-                Layout.fillWidth: true; Layout.preferredHeight: 160
-                clip: true; cellWidth: width / 8; cellHeight: 40
-                model: ["#EF4444", "#F97316", "#F59E0B", "#EAB308", "#84CC16", "#22C55E", "#10B981", "#14B8A6", "#06B6D4", "#0EA5E9", "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7", "#D946EF", "#EC4899", "#F43F5E", "#FB7185", "#FDBA74", "#FDE047", "#BEF264", "#86EFAC", "#5EEAD4", "#67E8F9", "#7DD3FC", "#93C5FD", "#A5B4FC", "#C4B5FD", "#D8B4FE", "#F0ABFC", "#F9A8D4", "#FDA4AF"]
-                delegate: Button {
-                    required property string modelData
-                    width: 32; height: 32; padding: 2
-                    Accessible.name: modelData
-                    background: Rectangle { anchors.centerIn: parent; width: 27; height: 27; radius: 14; color: modelData; border.color: palettePicker.draftHex.toUpperCase() === modelData ? themeState.foreground : themeState.border; border.width: palettePicker.draftHex.toUpperCase() === modelData ? 2 : 1 }
-                    onClicked: palettePicker.setDraft(modelData)
-                }
-            }
-            Label { Layout.fillWidth: true; text: palettePicker.statusMessage; visible: text.length > 0; color: themeState.secondary; font.pixelSize: 12; wrapMode: Text.Wrap }
-            RowLayout {
-                Layout.fillWidth: true
-                Item { Layout.fillWidth: true }
-                ThemeActionButton { text: "Cancel"; onClicked: palettePicker.close() }
-                ThemeActionButton {
-                    text: "Apply"; primary: true
-                    enabled: /^#[0-9A-Fa-f]{6}$/.test(palettePicker.draftHex)
-                    onClicked: palettePicker.applyColor()
-                }
-            }
-        }
-        }
-    }
-    Window {
-        id: screenPickerOverlay
-        objectName: "screenPickerOverlay"
-        visible: false
-        flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
-        color: "#01000000"
-        modality: Qt.ApplicationModal
-        x: colorSampler.virtualGeometry.x
-        y: colorSampler.virtualGeometry.y
-        width: colorSampler.virtualGeometry.width
-        height: colorSampler.virtualGeometry.height
-        Item {
-            anchors.fill: parent
-            focus: true
-            Keys.onEscapePressed: { screenPickerOverlay.hide(); settingsDialog.open(); palettePicker.open() }
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.CrossCursor
-                onClicked: function(mouse) {
-                    colorSampler.sampleAt(Math.round(screenPickerOverlay.x + mouse.x), Math.round(screenPickerOverlay.y + mouse.y))
-                    screenPickerOverlay.hide()
-                }
-            }
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top; anchors.topMargin: 28
-                width: samplingHint.implicitWidth + 36; height: 44; radius: 22
-                color: themeState.surface; border.color: themeState.border; border.width: 1
-                Text { id: samplingHint; anchors.centerIn: parent; text: "Click anywhere to sample a color · Esc to cancel"; color: themeState.foreground; font.pixelSize: 14 }
-            }
-        }
-    }
-    Connections {
-        target: colorSampler
-        function onColorPicked(color) {
-            palettePicker.setDraft(color)
-            settingsDialog.open()
-            palettePicker.open()
-        }
-        function onPickFailed(message) {
-            palettePicker.statusMessage = message
-            settingsDialog.open()
-            palettePicker.open()
-        }
-    }
-    FileDialog {
-        id: sessionPicker
-        title: "Choose a YouTube Music Session Export"
-        nameFilters: ["JSON session files (*.json)", "All files (*)"]
-        onAccepted: accountState.importFile(selectedFile)
-    }
+    AccountDialog { id: accountDialog }
+    AppearanceSettings { id: appearanceSettings; host: settingsDialog; dialogParent: uiRoot }
     Connections { target: appState; function onAccountDialogRequested() { accountDialog.open() } }
-    Connections { target: appState; function onPageChanged() { if (appState.page === "Search") search.text = appState.query } }
+    Connections { target: appState; function onPageChanged() { if (appState.page === "Search") header.showQuery(appState.query) } }
     MediaMenu { id: mediaMenu }
     PlaylistDialogs { id: playlistDialogs; anchors.fill: parent }
     Connections { target: appState; function onMenuRequested(media, context) { if (trayState.popupActive) return; mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
