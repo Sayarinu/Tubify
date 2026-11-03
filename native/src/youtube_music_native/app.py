@@ -32,6 +32,7 @@ from .link_instance import LinkInstance
 from .lyric_view import LyricView
 from .desktop import Desktop
 from .discord_presence import DiscordPresence
+from .handoff import Handoff
 from .tray import TrayPlayer
 from .lifecycle import Lifecycle
 from .startup import StartupRegistration
@@ -68,6 +69,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("linkState", controller.linkState)
     if hasattr(controller, "lastFm"):
         engine.rootContext().setContextProperty("lastFmState", controller.lastFm)
+    if hasattr(controller, "handoffState"):
+        engine.rootContext().setContextProperty("handoffState", controller.handoffState)
     if theme:
         engine.rootContext().setContextProperty("themeState", theme)
     if color_sampler:
@@ -226,6 +229,7 @@ def main(argv=None):
     browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller, downloads=downloads, pages=pages)
     controller.linkState = DeepLinks(browse, account, downloads, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     on_quit(controller.linkState.close)
+    controller.handoffState = Handoff(player, parent=controller)
     search = Search(controller, account, catalog, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     actions = Actions(account, cache / "metadata.sqlite3", fixture=args.fixture, parent=controller)
     actions.applied.connect(browse.applyAction)

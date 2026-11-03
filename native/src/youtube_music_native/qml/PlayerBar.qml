@@ -201,7 +201,7 @@ Rectangle {
         id: tools
         anchors.right: parent.right; anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
-        IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "more"; tip: "Current Song Options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {}) }
+        IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "more"; tip: "Current Song Options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {nowPlaying: true}) }
         IconButton {
             id: sleepButton
             objectName: "sleepTimerButton"

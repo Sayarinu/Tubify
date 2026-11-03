@@ -14,6 +14,8 @@ from urllib.parse import urlsplit
 from PySide6.QtCore import QObject, Property, QSettings, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
 
+from .deep_links import share_url
+
 # Public YouTube artwork hosts Discord may fetch directly.
 IMAGE_HOSTS = {"i.ytimg.com", "img.youtube.com", "yt3.ggpht.com", "yt3.googleusercontent.com", "lh3.googleusercontent.com"}
 
@@ -62,8 +64,9 @@ def activity_for(player, buttons=False, now=None):
     if all(isinstance(value, (float, int)) and math.isfinite(value) for value in (duration, position)) and duration > 0:
         activity["timestamps"] = {"start": int(now - max(0., position)), "end": int(now + max(0., duration - position))}
     video = track.get("videoId") or track.get("id")
-    if buttons and isinstance(video, str) and re.fullmatch(r"[A-Za-z0-9_-]{11}", video):
-        activity["buttons"] = [{"label": "Listen on YouTube Music", "url": "https://music.youtube.com/watch?v=" + video}]
+    url = share_url(video)
+    if buttons and url:
+        activity["buttons"] = [{"label": "Listen on YouTube Music", "url": url}]
     return activity
 
 

@@ -314,6 +314,9 @@ class Playback(QObject):
         self._context = {key: str(value) for key, value in (context or {}).items() if key in {"kind", "playlistId"} and value}
         self._context_radio_failed = False
 
+    def current_context(self):
+        return dict(self._context)
+
     def setAutoplay(self, enabled):
         if bool(enabled) != self._autoplay:
             self._autoplay = bool(enabled)

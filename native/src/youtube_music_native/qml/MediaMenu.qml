@@ -14,6 +14,7 @@ ThemedMenu {
     ContextMenuItem { text: "Play"; onTriggered: { if (root.context.queueKey) playerState.selectKey(root.context.queueKey); else browseState.play(root.media) } }
     ContextMenuItem { text: "Play Next"; visible: root.queueable; height: visible ? implicitHeight : 0; onTriggered: browseState.enqueue(root.media, true) }
     ContextMenuItem { text: "Add to Queue"; visible: root.queueable; height: visible ? implicitHeight : 0; onTriggered: browseState.enqueue(root.media, false) }
+    ContextMenuItem { objectName: "continueOnPhone"; text: "Continue on Phone"; visible: !!root.context.nowPlaying && typeof handoffState !== "undefined"; height: visible ? implicitHeight : 0; onTriggered: handoffState.open() }
     ContextMenuItem { text: "Start Radio"; visible: root.song; height: visible ? implicitHeight : 0; onTriggered: browseState.startRadioForSong(root.media.videoId || root.media.id) }
     ThemedMenuSeparator { visible: root.song; height: visible ? implicitHeight : 0 }
     ContextMenuItem { text: root.media.rating === "LIKE" ? "Remove Like" : "Like"; visible: root.song; height: visible ? implicitHeight : 0; enabled: root.canEdit; onTriggered: libraryState.rate(root.media, "LIKE") }

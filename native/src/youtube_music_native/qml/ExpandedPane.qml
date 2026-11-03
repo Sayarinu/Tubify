@@ -87,7 +87,7 @@ Item {
                 padding: 4
                 Accessible.name: (root.track.title || "Current song") + " options"
                 enabled: playerState.hasTrack
-                onClicked: appState.showMenu(root.track, {})
+                onClicked: appState.showMenu(root.track, {nowPlaying: true})
                 contentItem: Text {
                     text: root.track.title || "Nothing Playing"
                     textFormat: Text.PlainText

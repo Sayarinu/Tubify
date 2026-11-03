@@ -42,6 +42,7 @@ The Linux package doesn't bundle these. pacman installs Qt, mpv, FFmpeg, Deno an
 | websockets | Network transport used by yt-dlp | BSD-3-Clause | https://github.com/python-websockets/websockets |
 | Brotli | Compressed HTTP responses | MIT | https://github.com/google/brotli |
 | more-itertools | Utility functions | MIT | https://github.com/more-itertools/more-itertools |
+| QR Code generator library (Project Nayuki), included as `qrcodegen.py` with its MIT notice | QR codes for Continue on Phone | MIT | https://github.com/nayuki/QR-Code-generator |
 
 ## Fonts and icons
 

@@ -139,7 +139,7 @@ ApplicationWindow {
         function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
     }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: settingsWindow.opened || linkPreview.opened || navigationDrawer.opened || accountMenu.opened || accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: settingsWindow.opened || linkPreview.opened || handoffDialog.opened || navigationDrawer.opened || accountMenu.opened || accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     // Content zoom is independent of the platform device-pixel ratio.
@@ -459,6 +459,11 @@ ApplicationWindow {
     LyricsSettings { id: lyricsSettings; host: settingsWindow }
     LastFmSettings { id: lastFmSettings; host: settingsWindow }
     LinkPreview { id: linkPreview }
+    HandoffDialog { id: handoffDialog }
+    Connections {
+        target: typeof handoffState !== "undefined" ? handoffState : null
+        function onRequested() { handoffDialog.open() }
+    }
     Connections {
         target: typeof linkState !== "undefined" ? linkState : null
         function onPreviewRequested() { linkPreview.open() }
