@@ -16,7 +16,8 @@ PAGES = {
     "appearanceSettingsDialog": "Appearance", "playbackSettings": "Playback",
     "lyricsSettingsDialog": "Lyrics", "desktopSettings": "Desktop",
     "discordSettingsDialog": "Discord Presence",
-    "lastFmSettingsDialog": "Last.fm", "updateSettings": "Updates", "troubleshootingSettings": "Troubleshooting",
+    "lastFmSettingsDialog": "Last.fm", "castSettingsDialog": "Cast from Phone",
+    "updateSettings": "Updates", "troubleshootingSettings": "Troubleshooting",
 }
 
 
@@ -117,6 +118,17 @@ def main():
                 QMetaObject.invokeMethod(dialog, "close")
                 QTest.qWait(30)
                 assert find("lastFmApiKey").property("text") == find("lastFmSecret").property("text") == ""
+
+                # Cast from Phone starts off and never opens network sockets in the fixture.
+                cast = shell.castState
+                QMetaObject.invokeMethod(find("castSettingsDialog"), "open")
+                QTest.qWait(30)
+                assert not cast.enabled and cast.status == "Off" and cast.dial is None and cast.lounge is None
+                click(find("castEnabledOption"))
+                assert cast.enabled and "fixture" in cast.status and cast.dial is None and cast.lounge is None
+                assert find("castStatus").property("text") == cast.status
+                click(find("castEnabledOption"))
+                assert not cast.enabled and cast.status == "Off"
 
                 # Tab navigation is contained in the modal, including both navigation and content.
                 QMetaObject.invokeMethod(find("discordSettingsDialog"), "open")

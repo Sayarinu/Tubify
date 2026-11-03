@@ -443,6 +443,7 @@ ApplicationWindow {
     UpdateDialog { id: updateDialog }
     DesktopSettings { id: desktopSettings; host: settingsWindow }
     DiscordSettings { id: discordSettings; host: settingsWindow }
+    CastSettings { id: castSettings; host: settingsWindow }
     Loader { active: trayState.enabled; sourceComponent: TrayPlayer { palette: window.palette } }
 
     SettingsDialog {
@@ -451,7 +452,7 @@ ApplicationWindow {
         sections: [
             { title: "General", pages: [settingsDialog, playbackSettings, lyricsSettings] },
             { title: "Application", pages: [desktopSettings] },
-            { title: "Connections", pages: [discordSettings, lastFmSettings] },
+            { title: "Connections", pages: [discordSettings, lastFmSettings, castSettings] },
             { title: "Support", pages: [updateSettings, troubleshootingSettings] }
         ]
         onClosed: settingsButton.forceActiveFocus()

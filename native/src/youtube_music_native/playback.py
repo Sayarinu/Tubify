@@ -323,12 +323,12 @@ class Playback(QObject):
             self.changed.emit()
 
     @Slot("QVariantList", int)
-    def playTracks(self, tracks, index=0, source_label=""):
+    def playTracks(self, tracks, index=0, source_label="", position=0.):
         self._transport_revision += 1
         self._context = {}
         self.queue.replace([dict(track) for track in tracks], index, source_label)
         self._failures, self._consecutive_failures = set(), 0
-        self._start()
+        self._start(max(0., float(position)))
 
     @Slot("QVariantMap")
     def play(self, track):
