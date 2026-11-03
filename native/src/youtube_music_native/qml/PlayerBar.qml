@@ -11,6 +11,7 @@ Rectangle {
     radius: 12
     color: themeState.surface
     border.color: themeState.border
+    readonly property bool sleepMenuOpen: sleepMenu.opened
     property bool compact: width < 1100
     readonly property bool dense: width < 850
     Connections {

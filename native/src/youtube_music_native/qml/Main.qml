@@ -140,8 +140,10 @@ ApplicationWindow {
     }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
     // Open dialogs, menus and the navigation drawer take keyboard focus and sit in the overlay while shown,
-    // so any of them blocks the shortcuts without being listed here. Tooltips and search suggestions don't take focus.
-    readonly property bool modalOpen: !!Overlay.overlay && Overlay.overlay.children.some(item => item.visible && item.focus)
+    // so any of them blocks the shortcuts without being listed here. Tooltips and search suggestions don't take focus,
+    // and the player bar's sleep timer popover is meant to leave the shortcuts working.
+    readonly property int focusedPopups: Overlay.overlay ? Overlay.overlay.children.filter(item => item.visible && item.focus).length : 0
+    readonly property bool modalOpen: focusedPopups > (player.sleepMenuOpen ? 1 : 0)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     // Content zoom is independent of the platform device-pixel ratio.

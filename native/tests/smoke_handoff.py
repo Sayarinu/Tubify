@@ -65,6 +65,7 @@ def main():
                 shell.handoffState.open()
                 QTest.qWait(100)
                 assert dialog.property("opened") and find("handoffPause").property("checked")
+                assert window.property("modalOpen") and not window.property("playbackShortcuts")
                 QMetaObject.invokeMethod(dialog, "reject")
                 QTest.qWait(100)
                 assert not player.wantsPlayback
