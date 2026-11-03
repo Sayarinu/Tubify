@@ -10,8 +10,23 @@ SCHEME = "ytmusic-native"
 HOSTS = {"music.youtube.com", "www.youtube.com", "youtube.com", "m.youtube.com", "youtu.be"}
 
 
+PATTERNS = {"song": r"[A-Za-z0-9_-]{11}", "playlist": r"[A-Za-z0-9_-]{2,200}", "artist": r"UC[A-Za-z0-9_-]{22}", "album": r"MPRE[A-Za-z0-9_-]{1,196}"}
+
+
 class LinkError(ValueError):
     pass
+
+
+def share_url(video_id, playlist_id="", seconds=0):
+    """A music.youtube.com link to a song, optionally inside a playlist and from a position; "" when the song ID is invalid."""
+    if not isinstance(video_id, str) or not re.fullmatch(PATTERNS["song"], video_id):
+        return ""
+    query = {"v": video_id}
+    if isinstance(playlist_id, str) and re.fullmatch(PATTERNS["playlist"], playlist_id):
+        query["list"] = playlist_id
+    if isinstance(seconds, (int, float)) and seconds >= 1 and seconds < 86400:
+        query["t"] = int(seconds)
+    return "https://music.youtube.com/watch?" + urlencode(query)
 
 
 def parse_link(value):
@@ -46,7 +61,7 @@ def parse_link(value):
             kind = "artist" if identifier.startswith("UC") else "album" if identifier.startswith("MPRE") and parts.path.startswith("/browse/") else ""
         else:
             raise ValueError()
-        pattern = {"song": r"[A-Za-z0-9_-]{11}", "playlist": r"[A-Za-z0-9_-]{2,200}", "artist": r"UC[A-Za-z0-9_-]{22}", "album": r"MPRE[A-Za-z0-9_-]{1,196}"}.get(kind)
+        pattern = PATTERNS.get(kind)
         if not pattern or not re.fullmatch(pattern, identifier):
             raise ValueError()
     except (ValueError, TypeError, KeyError):

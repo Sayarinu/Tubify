@@ -31,11 +31,12 @@ from .deep_links import DeepLinks, LinkError
 from .link_instance import LinkInstance
 from .lyric_view import LyricView
 from .desktop import Desktop
+from .cast_receiver import CastReceiver
 from .discord_presence import DiscordPresence
+from .handoff import Handoff
 from .tray import TrayPlayer
 from .lifecycle import Lifecycle
 from .startup import StartupRegistration
-from .shortcuts import GlobalShortcuts
 from .theme import ThemeState
 from .color_picker import ColorSampler
 from .maintenance import Maintenance
@@ -59,8 +60,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("maintenanceState", controller.maintenanceState)
     if hasattr(controller, "discordState"):
         engine.rootContext().setContextProperty("discordState", controller.discordState)
-    if hasattr(controller, "shortcutState"):
-        engine.rootContext().setContextProperty("shortcutState", controller.shortcutState)
+    if hasattr(controller, "castState"):
+        engine.rootContext().setContextProperty("castState", controller.castState)
     if hasattr(controller, "trayState"):
         engine.rootContext().setContextProperty("trayState", controller.trayState)
     if hasattr(controller, "lifecycleState"):
@@ -71,6 +72,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("linkState", controller.linkState)
     if hasattr(controller, "lastFm"):
         engine.rootContext().setContextProperty("lastFmState", controller.lastFm)
+    if hasattr(controller, "handoffState"):
+        engine.rootContext().setContextProperty("handoffState", controller.handoffState)
     if theme:
         engine.rootContext().setContextProperty("themeState", theme)
     if color_sampler:
@@ -229,11 +232,13 @@ def main(argv=None):
     browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller, downloads=downloads, pages=pages)
     controller.linkState = DeepLinks(browse, account, downloads, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     on_quit(controller.linkState.close)
+    controller.handoffState = Handoff(player, parent=controller)
+    controller.castState = CastReceiver(player, controller, data / "settings.ini", account.worker, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
+    on_quit(controller.castState.close)
     search = Search(controller, account, catalog, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     actions = Actions(account, cache / "metadata.sqlite3", fixture=args.fixture, parent=controller)
     actions.applied.connect(browse.applyAction)
     library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
-    controller.shortcutState = GlobalShortcuts(controller, player, library, account, actions, data / "settings.ini", parent=controller)
     controller.lastFm = LastFm(player, data / "settings.ini", media_data, parent=controller, fixture=args.fixture)
     listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
     lyrics = LyricView(account, player, media_data, fixture=args.fixture, parent=controller, settings_path=data / "settings.ini")
@@ -242,7 +247,6 @@ def main(argv=None):
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
-    on_quit(controller.shortcutState.close)
     on_quit(controller.lastFm.close)
     on_quit(account.close)
     on_quit(player.close)
@@ -274,7 +278,6 @@ def main(argv=None):
         controller.restoreWindow(window, [screen.availableGeometry() for screen in app.screens()])
     controller.trayState.start(window)
     controller.lifecycleState.start(window)
-    controller.shortcutState.start(window)
     def show_for_link():
         window.showNormal() if window.visibility() == QWindow.Visibility.Minimized else window.show()
         window.raise_()

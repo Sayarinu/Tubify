@@ -1,5 +1,6 @@
 # PyInstaller spec for the Tubify macOS app bundle (Apple Silicon).
 # Build with scripts/build-native-macos.sh; it supplies TUBIFY_ICON and Homebrew helper paths.
+import importlib.util
 import os
 from pathlib import Path
 import shutil
@@ -10,6 +11,11 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy
 ROOT = Path(SPECPATH).resolve().parents[1]
 NATIVE = ROOT / "native"
 VERSION = tomllib.loads((NATIVE / "pyproject.toml").read_text())["project"]["version"]
+# Sparkle's feed lives in this build's own release; the tag comes from the app's shared rule.
+_updates_spec = importlib.util.spec_from_file_location("tubify_updates", NATIVE / "src/youtube_music_native/updates.py")
+_updates = importlib.util.module_from_spec(_updates_spec)
+_updates_spec.loader.exec_module(_updates)
+release_tag = _updates.release_tag
 BREW = Path(os.environ.get("HOMEBREW_PREFIX", "/opt/homebrew"))
 
 
@@ -57,17 +63,20 @@ app = BUNDLE(
     info_plist={
         "CFBundleDisplayName": "Tubify",
         "SUPublicEDKey": (ROOT / "packaging/macos-native/sparkle-public-key.txt").read_text().strip(),
-        "SUFeedURL": "https://github.com/Sayarinu/Tubify/releases/download/native-v" + VERSION + "/appcast.xml",
+        "SUFeedURL": "https://github.com/Sayarinu/Tubify/releases/download/" + release_tag(VERSION) + "/appcast.xml",
         "SUEnableAutomaticChecks": False,
         "SUAutomaticallyUpdate": False,
         "SUAllowsAutomaticUpdates": False,
         "SUEnableSystemProfiling": False,
         "SUVerifyUpdateBeforeExtraction": True,
-        "CFBundleShortVersionString": VERSION,
+        # Finder shows X.Y.Z; Sparkle compares CFBundleVersion, where X.Y.ZbN sorts before X.Y.Z.
+        "CFBundleShortVersionString": VERSION.split("b")[0],
         "CFBundleVersion": VERSION,
         "LSMinimumSystemVersion": "12.0",
         "LSApplicationCategoryType": "public.app-category.music",
         "NSHighResolutionCapable": True,
         "CFBundleURLTypes": [{"CFBundleURLName": "com.carter.youtube-music.native", "CFBundleURLSchemes": ["ytmusic-native"]}],
+        # Cast from Phone (off by default) answers SSDP/DIAL discovery on the local network.
+        "NSLocalNetworkUsageDescription": "Tubify uses your local network so the YouTube Music app on your phone can cast to it, when you turn on Cast from Phone.",
     },
 )

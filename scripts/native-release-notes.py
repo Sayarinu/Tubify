@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write short, readable release notes for a Tubify release.
 
-The notes describe what changed since the previous native-v release, using the
+The notes describe what changed since the previous release, using the
 titles of the pull requests merged since then. PRs labelled Feature or Major
 Release are listed under "New", everything else under "Improvements and
 fixes". A download table follows a "---" line; the in-app update popup shows
@@ -52,7 +52,7 @@ def changes(commits, pulls_for):
 
 
 def downloads(version, repository):
-    base = f"https://github.com/{repository}/releases/download/native-v{version}/"
+    base = f"https://github.com/{repository}/releases/download/{versioning.updates.release_tag(version)}/"
     files = (("Windows", f"Tubify-{version}-windows-x64-setup.exe", "Windows 10 or 11, 64-bit"),
              ("macOS", f"Tubify-{version}-macos-arm64.dmg", "macOS 12 or later, Apple silicon"),
              ("Linux", f"Tubify-{version}-linux-x86_64.pkg.tar.zst", "x86_64 Linux with pacman (sudo pacman -U the file)"))

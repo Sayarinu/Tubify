@@ -98,7 +98,9 @@ pacman installs everything Tubify needs. In-app updates install without a passwo
 
 ## Updates
 
-Tubify checks for new releases automatically. When one is available, an update icon with a dot appears in the top right. Click it to see what's new and choose **Update & Restart**. You can turn off automatic checks in **Settings → Updates & Troubleshooting**.
+Tubify checks for new releases automatically. When one is available, an update icon with a dot appears in the top right. Click it to see what's new and choose **Update & Restart**. You can turn off automatic checks in **Settings → Updates**.
+
+Want new features early? Set **Update Channel** to **Experimental** in the same place. Experimental builds are published as [prereleases](https://github.com/Sayarinu/Tubify/releases) and may have rough edges. Switch back to **Stable** at any time to return to the latest full release.
 
 ## FAQ
 
@@ -109,7 +111,7 @@ No. Tubify works with any Google account that can use YouTube Music.
 Tubify reuses your browser's existing sign-in and keeps the session in your system's secure storage: Windows Credential Manager, the macOS Keychain or your Linux keyring. Your music data goes only to YouTube, and to Discord, Last.fm or lyrics services if you turn those on. Diagnostics are saved locally and never uploaded.
 
 **Something doesn't look right. What can I do?**
-Settings → Updates & Troubleshooting can save a privacy-safe diagnostics report. Please include it when you [open an issue](https://github.com/Sayarinu/Tubify/issues).
+Settings → Troubleshooting can save a privacy-safe diagnostics report. Please include it when you [open an issue](https://github.com/Sayarinu/Tubify/issues).
 
 **Can I build it myself?**
 Yes. See [Building from source](docs/building.md).
@@ -122,7 +124,7 @@ Bug reports, ideas and pull requests are welcome. Please open an [issue](https:/
 
 Tubify is free and open-source software under the [MIT License](LICENSE).
 
-Tubify releases also include third-party components, such as Qt, mpv, FFmpeg and yt-dlp, each under its own license. Some, like the bundled mpv and FFmpeg builds, are GPL. See [Third-party notices](native/src/youtube_music_native/assets/THIRD_PARTY_NOTICES.md); the app also shows these under **Settings → Updates & Troubleshooting → Open-Source Licenses**.
+Tubify releases also include third-party components, such as Qt, mpv, FFmpeg and yt-dlp, each under its own license. Some, like the bundled mpv and FFmpeg builds, are GPL. See [Third-party notices](native/src/youtube_music_native/assets/THIRD_PARTY_NOTICES.md); the app also shows these under **Settings → Updates → Open-Source Licenses**.
 
 ## Disclaimer
 

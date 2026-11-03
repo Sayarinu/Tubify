@@ -139,7 +139,7 @@ ApplicationWindow {
         function onHeightChanged() { Qt.callLater(window.revealActiveScrollFocus) }
     }
     property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
-    property bool modalOpen: settingsWindow.opened || linkPreview.opened || navigationDrawer.opened || accountMenu.opened || accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
+    property bool modalOpen: settingsWindow.opened || linkPreview.opened || handoffDialog.opened || navigationDrawer.opened || accountMenu.opened || accountDialog.opened || playlistDialogs.opened || shortcutHelp.opened || !!(pages.item && pages.item.objectName === "downloadsPane" && pages.item.blockingShortcuts)
     property bool playbackShortcuts: !editingText && !modalOpen && !mediaMenu.opened
 
     // Content zoom is independent of the platform device-pixel ratio.
@@ -392,7 +392,7 @@ ApplicationWindow {
             anchors.right: historyButton.visible ? historyButton.left : settingsButton.left; anchors.rightMargin: 12
             y: 10; width: 44; height: 44
             iconName: "update"; iconColor: themeState.accent
-            tip: maintenanceState.downloading ? "Downloading update " + maintenanceState.progress + "%" : "Tubify " + maintenanceState.latestVersion + " is available"
+            tip: maintenanceState.downloading ? "Downloading update " + maintenanceState.progress + "%" : maintenanceState.latestName + " is available"
             Accessible.name: "Update available"
             onClicked: updateDialog.open()
             Rectangle {
@@ -438,11 +438,12 @@ ApplicationWindow {
     }
 
     PlaybackSettings { id: playbackSettings; host: settingsWindow }
-    MaintenanceSettings { id: maintenanceSettings; host: settingsWindow }
+    UpdateSettings { id: updateSettings; host: settingsWindow }
+    TroubleshootingSettings { id: troubleshootingSettings; host: settingsWindow }
     UpdateDialog { id: updateDialog }
     DesktopSettings { id: desktopSettings; host: settingsWindow }
-    ShortcutSettings { id: shortcutSettings; host: settingsWindow }
     DiscordSettings { id: discordSettings; host: settingsWindow }
+    CastSettings { id: castSettings; host: settingsWindow }
     Loader { active: trayState.enabled; sourceComponent: TrayPlayer { palette: window.palette } }
 
     SettingsDialog {
@@ -450,15 +451,20 @@ ApplicationWindow {
         currentPage: settingsDialog
         sections: [
             { title: "General", pages: [settingsDialog, playbackSettings, lyricsSettings] },
-            { title: "Application", pages: [desktopSettings, shortcutSettings] },
-            { title: "Connections", pages: [discordSettings, lastFmSettings] },
-            { title: "Support", pages: [maintenanceSettings] }
+            { title: "Application", pages: [desktopSettings] },
+            { title: "Connections", pages: [discordSettings, lastFmSettings, castSettings] },
+            { title: "Support", pages: [updateSettings, troubleshootingSettings] }
         ]
         onClosed: settingsButton.forceActiveFocus()
     }
     LyricsSettings { id: lyricsSettings; host: settingsWindow }
     LastFmSettings { id: lastFmSettings; host: settingsWindow }
     LinkPreview { id: linkPreview }
+    HandoffDialog { id: handoffDialog }
+    Connections {
+        target: typeof handoffState !== "undefined" ? handoffState : null
+        function onRequested() { handoffDialog.open() }
+    }
     Connections {
         target: typeof linkState !== "undefined" ? linkState : null
         function onPreviewRequested() { linkPreview.open() }

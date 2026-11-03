@@ -25,7 +25,7 @@ def main():
                     window.resize(920, 620)
                     service = shell.maintenanceState
                     assert service._worker is None and service.status == "Not checked"
-                    dialog = window.findChild(QObject, "maintenanceSettings")
+                    dialog = window.findChild(QObject, "troubleshootingSettings")
                     service._available = True
                     service.changed.emit()
                     QTest.qWait(20)

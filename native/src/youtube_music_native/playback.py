@@ -314,18 +314,21 @@ class Playback(QObject):
         self._context = {key: str(value) for key, value in (context or {}).items() if key in {"kind", "playlistId"} and value}
         self._context_radio_failed = False
 
+    def current_context(self):
+        return dict(self._context)
+
     def setAutoplay(self, enabled):
         if bool(enabled) != self._autoplay:
             self._autoplay = bool(enabled)
             self.changed.emit()
 
     @Slot("QVariantList", int)
-    def playTracks(self, tracks, index=0, source_label=""):
+    def playTracks(self, tracks, index=0, source_label="", position=0.):
         self._transport_revision += 1
         self._context = {}
         self.queue.replace([dict(track) for track in tracks], index, source_label)
         self._failures, self._consecutive_failures = set(), 0
-        self._start()
+        self._start(max(0., float(position)))
 
     @Slot("QVariantMap")
     def play(self, track):
