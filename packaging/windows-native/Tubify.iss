@@ -22,6 +22,7 @@ OutputDir=.
 OutputBaseFilename=Tubify-{#AppVersion}-windows-x64-setup
 Compression=lzma2
 SolidCompression=yes
+LZMANumBlockThreads=4
 WizardStyle=modern
 CloseApplications=yes
 RestartApplications=no

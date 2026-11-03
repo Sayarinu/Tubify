@@ -127,8 +127,7 @@ def test_windows_media_controls_publish_track_state_and_forward_commands():
 def test_windows_metadata_handles_empty_track_and_runtime_paths_are_platform_scoped(tmp_path):
     assert metadata({"Metadata": {}, "Position": 0})["track"] == ""
     bundle = tmp_path / "Tubify"
-    (bundle / "mpv").mkdir(parents=True)
-    (bundle / "helpers").mkdir()
+    (bundle / "helpers").mkdir(parents=True)
     environment = {"PATH": r"C:\Windows\System32"}
     opened = []
     prepare_runtime(environment, platform="linux", bundle=bundle, add_dll_directory=opened.append)
@@ -137,8 +136,8 @@ def test_windows_metadata_handles_empty_track_and_runtime_paths_are_platform_sco
     prepare_runtime(environment, platform="win32", bundle=bundle, add_dll_directory=opened.append)
     prepare_runtime(environment, platform="win32", bundle=bundle, add_dll_directory=opened.append)
     paths = environment["PATH"].split(";")
-    assert paths[:2] == [str(bundle / "helpers"), str(bundle / "mpv")]
-    assert opened == [str(bundle / "mpv"), str(bundle / "helpers")]
+    assert paths[0] == str(bundle / "helpers") and str(bundle / "mpv") not in paths
+    assert opened == [str(bundle / "helpers")]
 
 
 def test_windows_sign_in_failure_explains_locked_chromium_cookies():
