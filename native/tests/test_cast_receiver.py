@@ -3,6 +3,7 @@ import json
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
 from youtube_music_native.cast_receiver import CastReceiver, cast_ids, clean_name
+from youtube_music_native.playback import Playback
 
 
 class Player(QObject):
@@ -261,3 +262,9 @@ def test_names_and_ids_are_sanitised():
     assert cast_ids({"videoIds": ",".join(["aaaaaaaaaaa"] * 600)}) == ["aaaaaaaaaaa"] * 500
     assert cast_ids({"videoIds": "", "videoId": "bbbbbbbbbbb"}) == ["bbbbbbbbbbb"]
     assert cast_ids({"videoIds": "../../etc"}) == []
+
+
+def test_fake_player_only_offers_what_real_playback_has():
+    # The receiver is tested against this fake, so a member missing from Playback would only fail at runtime.
+    fake_members = {name for name in vars(Player) if not name.startswith("_")} - {"staticMetaObject"}
+    assert {name for name in fake_members if not hasattr(Playback, name)} == set()

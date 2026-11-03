@@ -139,6 +139,11 @@ class Playback(QObject):
     def currentTrack(self):
         return self.queue.current["track"] if self.queue.current else {}
 
+    @Property("QVariantMap", notify=changed)
+    def upcomingTrack(self):
+        upcoming = self.queue.peek(automatic=True)
+        return upcoming["track"] if upcoming else {}
+
     @Property("QVariantList", notify=changed)
     def upcomingTracks(self):
         return [entry["track"] for entry in self.queue.upcoming(2)]
