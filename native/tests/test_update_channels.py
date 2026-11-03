@@ -137,13 +137,30 @@ def test_mac_switching_back_points_to_the_download(tmp_path, monkeypatch):
     item.close()
 
 
-def test_stale_cache_is_only_used_for_the_same_channel(tmp_path):
+def test_stale_cache_never_shows_experimental_builds_on_stable(tmp_path):
     cache = tmp_path / 'release.json'
     cache.write_text(json.dumps({'tag': 'native-v0.7.0b1', 'channel': 'experimental', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
     def offline(request, timeout):
         raise OSError('offline')
     assert maintenance.perform({'action': 'release', 'cache_path': str(cache), 'channel': 'experimental'}, offline)['stale']
     assert 'error' in maintenance.perform({'action': 'release', 'cache_path': str(cache), 'channel': 'stable'}, offline)
+    # Stable lookups, including caches from before channels existed, also answer for experimental.
+    for cached in ({'tag': 'native-v0.6.0', 'channel': 'stable'}, {'tag': 'native-v0.6.0'}):
+        cache.write_text(json.dumps({**cached, 'checkedAt': '2026-01-01T00:00:00+00:00'}))
+        for channel in ('stable', 'experimental'):
+            assert maintenance.perform({'action': 'release', 'cache_path': str(cache), 'channel': channel}, offline)['stale']
+
+
+def test_a_known_update_survives_upgrading_to_an_experimental_build(tmp_path, monkeypatch):
+    item = service(tmp_path, monkeypatch, '0.7.0b1')
+    cache = tmp_path / 'cache/release.json'
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps({'tag': 'native-v99.0.0', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
+    assert item.channel == 'experimental' and item._known_newer()
+    cache.write_text(json.dumps({'tag': 'native-v99.0.0b1', 'channel': 'experimental', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
+    item.setChannel('stable')
+    assert not item._known_newer()
+    item.close()
 
 
 def test_appcast_accepts_experimental_versions(tmp_path):

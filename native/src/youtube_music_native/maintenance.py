@@ -60,6 +60,12 @@ def channel_accepts(row, channel):
     return channel == "experimental" or not updates.is_experimental(tag)
 
 
+def cache_fits(cached, channel):
+    """A cached lookup still answers for ``channel``: experimental also sees stable releases,
+    and caches written before channels existed were stable lookups."""
+    return cached.get("channel", "stable") in (CHANNELS if channel == "experimental" else ("stable",))
+
+
 def lookup_release(opener=urlopen, channel="stable"):
     """Bound listing size and reject partial scans instead of claiming up-to-date."""
     candidates = []
@@ -132,7 +138,7 @@ def perform(payload, opener=urlopen, progress=None):
                 if path.stat().st_size > 16384:
                     raise ValueError()
                 cached = json.loads(path.read_text(encoding="utf-8"))
-                if not updates.TAG.fullmatch(str(cached.get("tag", ""))) or cached.get("channel", "stable") != channel:
+                if not updates.TAG.fullmatch(str(cached.get("tag", ""))) or not cache_fits(cached, channel):
                     raise ValueError()
                 checked = datetime.fromisoformat(cached["checkedAt"]).isoformat(timespec="seconds")
                 return {"tag": cached["tag"], "checkedAt": checked, "stale": True}
@@ -273,7 +279,7 @@ class Maintenance(QObject):
             if Path(self._cache).stat().st_size > 16384:
                 return False
             cached = json.loads(Path(self._cache).read_text(encoding="utf-8"))
-            if cached.get("channel", "stable") != self._channel:
+            if not cache_fits(cached, self._channel):
                 return False
             latest, current = release_version(cached.get("tag")), release_version(self.currentVersion)
             return bool(latest and current and latest > current)
