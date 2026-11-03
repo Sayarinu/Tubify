@@ -7,6 +7,7 @@ on:
       - 'packaging/macos-native/**'
       - 'packaging/windows-native/**'
       - 'packaging/arch-native/**'
+      - 'packaging/bundle_contents.py'
       - 'scripts/build-native-arch-package.sh'
       - 'scripts/check-native-arch-package.sh'
       - '.github/workflows/native-arch-build.yml'
@@ -26,10 +27,16 @@ on:
 permissions:
   contents: read
 
+env:
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
+  HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+
 # Stable (main) and experimental releases run one at a time so each bumps the version the previous one published.
 concurrency:
   group: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/experimental') && 'native-main-release' || format('native-{0}', github.run_id) }}
-  cancel-in-progress: false
+  # A new push to a pull request replaces its older checks; releases always run to the end.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   version:
@@ -165,6 +172,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: native/pyproject.toml
       - name: Test signing-key validation
         run: python3 native/tests/check_signing_key.py
       - name: Validate configured update signing key
@@ -204,6 +214,8 @@ jobs:
             dist/native/Tubify-*-macos-arm64.dmg
             dist/native/appcast.xml
           if-no-files-found: error
+          # Installers are already compressed.
+          compression-level: 0
 
   windows-app:
     name: Windows app installer (x64)
@@ -212,6 +224,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: native/pyproject.toml
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -268,6 +283,8 @@ jobs:
           name: tubify-windows-x64-installer
           path: dist/native/Tubify-*-windows-x64-setup.exe
           if-no-files-found: error
+          # Installers are already compressed.
+          compression-level: 0
 
   release-assets:
     name: Assemble and verify all release downloads
@@ -328,6 +345,8 @@ jobs:
           name: verified-release-downloads
           path: release/*
           if-no-files-found: error
+          # Installers are already compressed.
+          compression-level: 0
 
   release:
     name: Publish versioned release
