@@ -69,7 +69,8 @@ class Playback(QObject):
         self._side_request, self._side_video = None, None
         self._prepared, self._local_ids, self._prefetch_failures = {}, {}, {}
         self._warm_target, self._warm_times = "", deque()
-        self._retry, self._failures = False, set()
+        # Whether the current song already had its one fresh-source retry after a playback failure.
+        self._retried_source, self._failures = False, set()
         self._entries, self._entries_signature, self._entries_revision = [], None, 0
         self._start_position, self._want_paused = 0., False
         self._autoplay = True
@@ -81,7 +82,8 @@ class Playback(QObject):
         self._transport_revision, self._stopped, self._device_wait = 0, False, False
         self._source_expires, self._last_progress = 0., time.monotonic()
         self._stall_recoveries, self._consecutive_failures = 0, 0
-        self._local_counter = 0
+        # Requests answered from a prefetched URL get negative identifiers, never a worker's.
+        self._local_request_id = 0
         # What the queue was started from, so autoplay can continue with a matching radio.
         self._context, self._radio_prefetch, self._context_radio_failed = {}, False, False
         self.autoplay_store = None
@@ -417,7 +419,7 @@ class Playback(QObject):
         if self.audio:
             self.audio.stop()
         if not force:
-            self._retry = False
+            self._retried_source = False
         if not self.hasTrack:
             self._queue_changed()
             return
@@ -436,8 +438,8 @@ class Playback(QObject):
                 self._request = adopt
             elif not force and not damaged and not video and self._usable(prepared, video_id):
                 # A prefetched signed URL plays immediately without a worker round trip.
-                self._local_counter -= 1
-                self._request = identifier = self._local_counter
+                self._local_request_id -= 1
+                self._request = identifier = self._local_request_id
                 QTimer.singleShot(0, lambda: self._resolved(identifier, prepared))
             else:
                 self._request_worker = self._click_lane()
@@ -635,7 +637,7 @@ class Playback(QObject):
                 self._last_progress = time.monotonic()
                 if position > self._start_position + 2:
                     # The song really plays, so earlier failures were not systemic.
-                    self._consecutive_failures, self._retry = 0, False
+                    self._consecutive_failures, self._retried_source = 0, False
             self._position = position
             self.positionChanged.emit()
         if self._loaded and isinstance(values.get("duration"), (int, float)) and values["duration"] > 0:
@@ -657,8 +659,8 @@ class Playback(QObject):
             return
         self._loaded = False
         if failed:
-            if not self._retry:
-                self._retry = True
+            if not self._retried_source:
+                self._retried_source = True
                 self._start(self._position, paused=self._want_paused, force=True, damaged=self._source_kind == "local")
             elif self._want_paused:
                 self._playing, self._busy = False, False
