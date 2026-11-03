@@ -94,6 +94,13 @@ def main():
         def settle():
             QTest.qWait(80)
 
+        def settle_docks():
+            # A closed dock stays drawn while it slides out.
+            for _ in range(100):
+                if not any(find(name).property("leaving") for name in ("queueSidebar", "lyricsSidebar")):
+                    return
+                QTest.qWait(10)
+
         def find(name):
             return window.findChild(QObject, name)
 
@@ -122,6 +129,7 @@ def main():
                         shell.setQueueOpen(queue_open)
                         shell.setLyricsOpen(lyrics_open)
                         settle()
+                        settle_docks()
                         browsing.setProperty("contentY", 100)
                         browsing.forceActiveFocus()
                         old_scroll = browsing.property("contentY")

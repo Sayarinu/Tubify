@@ -58,10 +58,15 @@ Item {
                 delegate: ItemDelegate {
                     id: entry
                     required property var modelData
-                    width: ListView.view.width; height: visible ? 40 : 0; visible: !find.text || modelData.title.toLowerCase().indexOf(find.text.toLowerCase()) >= 0
-                    leftPadding: 12; rightPadding: 12
+                    objectName: "playlistChoice-" + modelData.id
+                    width: ListView.view.width; height: visible ? 52 : 0; visible: !find.text || modelData.title.toLowerCase().indexOf(find.text.toLowerCase()) >= 0
+                    leftPadding: 8; rightPadding: 12
                     enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode)
-                    contentItem: Text { text: entry.modelData.title; textFormat: Text.PlainText; color: entry.enabled ? themeState.foreground : themeState.muted; font.family: Theme.bodyFont; font.pixelSize: 14; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                    contentItem: Item {
+                        // Same cached cover as the sidebar playlist list.
+                        Cover { objectName: "playlistChoiceCover"; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 6; opacity: entry.enabled ? 1 : 0.5; source: entry.modelData.thumbnail || ""; mediaKey: "playlist:" + entry.modelData.id; accent: themeState.selected }
+                        Text { x: 52; width: parent.width - x; height: parent.height; text: entry.modelData.title; textFormat: Text.PlainText; color: entry.enabled ? themeState.foreground : themeState.muted; font.family: Theme.bodyFont; font.pixelSize: 14; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                    }
                     background: Rectangle { radius: 8; color: entry.down || entry.hovered || entry.highlighted ? themeState.hover : "transparent"; border.width: entry.visualFocus ? 1 : 0; border.color: themeState.accent }
                     onClicked: libraryState.add(modelData.id, root.target)
                 }

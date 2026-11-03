@@ -35,6 +35,8 @@ def main():
                 lyric = window.findChild(QObject, "lyricsSidebar")
                 bar = window.findChild(QObject, "playerBar")
                 baseline = (player.position, player.playing, player.currentTrack, shell.page)
+                # The layout matrix checks where docks land, so it runs without the open/close slide; the slide is checked below.
+                shell.setReducedMotion(True)
                 shell.setQueueOpen(False)
                 shell.setLyricsOpen(False)
                 assert not lyrics._active
@@ -93,6 +95,50 @@ def main():
                 QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=point + QPointF(50, 0).toPoint())
                 QTest.qWait(40)
                 assert shell.lyricsWidth < 500
+
+                # Opening a dock slides it in from the right edge; closing slides it out while the page takes its space.
+                def offset(dock):
+                    return dock.mapToScene(QPointF()).x() - dock.x()
+
+                def wait(condition):
+                    for _ in range(100):
+                        if condition():
+                            return
+                        QTest.qWait(10)
+                    assert condition()
+
+                shell.setQueueOpen(False)
+                shell.setLyricsOpen(False)
+                shell.setReducedMotion(False)
+                shell.setQueueOpen(True)
+                # The slide starts synchronously from off the right edge, faded out.
+                assert queue.isVisible() and queue.isEnabled() and offset(queue) > queue.width() - 1 and queue.property("opacity") < 0.1
+                assert content.x() + content.width() == queue.x()
+                wait(lambda: abs(offset(queue)) < 0.5 and queue.property("opacity") == 1)
+                shell.setQueueOpen(False)
+                assert queue.isVisible() and queue.property("leaving") and not queue.isEnabled()
+                assert content.x() + content.width() == window.findChild(QObject, "scaledContent").width()
+                wait(lambda: offset(queue) > 1)
+                assert queue.property("leaving") and queue.property("opacity") == 1
+                # Reopening mid-close reverses from where the dock is.
+                closing_offset = offset(queue)
+                shell.setQueueOpen(True)
+                assert queue.isEnabled() and not queue.property("leaving") and 0 < offset(queue) <= closing_offset + 0.5
+                wait(lambda: abs(offset(queue)) < 0.5)
+                shell.setQueueOpen(False)
+                wait(lambda: not queue.isVisible())
+                # Switching tabs in a narrow window swaps the docks at once.
+                window.resize(920, 620)
+                shell.setLyricsOpen(True)
+                shell.setQueueOpen(True)
+                wait(lambda: not lyric.property("leaving") and abs(offset(queue)) < 0.5)
+                shell.setActiveDock("Lyrics")
+                assert lyric.isVisible() and abs(offset(lyric)) < 0.5 and lyric.property("opacity") == 1
+                assert not queue.isVisible()
+                # Reduced motion shows and hides docks without sliding.
+                shell.setReducedMotion(True)
+                shell.setLyricsOpen(False)
+                assert not lyric.isVisible() and queue.isVisible() and abs(offset(queue)) < 0.5
                 assert (player.position, player.playing, player.currentTrack, shell.page) == baseline
                 assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                 passed.append(True)

@@ -67,7 +67,9 @@ ApplicationWindow {
     readonly property bool lyricsActive: showLyricsDock
     function restoreDockFocus() {
         Qt.callLater(function() {
-            if (window.activeFocusItem && !window.activeFocusItem.visible) {
+            // A dock sliding out is disabled at once, which drops its focus to the window root.
+            var focused = window.activeFocusItem
+            if (focused && (!focused.visible || !focused.enabled || !focused.parent)) {
                 if (showLyricsDock) lyricsHeader.focusControl()
                 else if (showQueueDock) queueHeader.focusControl()
                 else player.focusDockToggle(appState.activeDock)
@@ -560,21 +562,18 @@ ApplicationWindow {
                 if (!entering) window.immersiveClosing = !appState.reducedMotion
                 if (appState.reducedMotion) {
                     immersiveShift.y = 0
-                    opacity = 1
                     return
                 }
                 // A fresh open starts below the content; reopening mid-close reverses from where it is.
-                if (entering && !active) { immersiveShift.y = content.height; opacity = 0.6 }
+                if (entering && !active) immersiveShift.y = content.height
                 opening = entering
                 immersiveTarget.to = entering ? 0 : closingArea.height
                 immersiveSlide.start()
             }
+            // The pane stays opaque: it still spans the sidebar while closing, so any fade would show its artwork over the page.
             SequentialAnimation {
                 id: immersiveSlide
-                ParallelAnimation {
-                    NumberAnimation { id: immersiveTarget; target: immersiveShift; property: "y"; duration: Theme.motionSlow; easing.type: immersive.opening ? Easing.OutCubic : Easing.InCubic }
-                    NumberAnimation { id: immersiveFade; target: immersive; property: "opacity"; to: immersive.opening ? 1 : 0.6; duration: Theme.motionSlow; easing.type: immersive.opening ? Easing.OutCubic : Easing.InCubic }
-                }
+                NumberAnimation { id: immersiveTarget; target: immersiveShift; property: "y"; duration: Theme.motionSlow; easing.type: immersive.opening ? Easing.OutCubic : Easing.InCubic }
                 // Stopping to reverse skips this, so only a finished close unloads the pane.
                 ScriptAction { script: if (!appState.expanded) window.immersiveClosing = false }
             }
@@ -582,15 +581,15 @@ ApplicationWindow {
 
     }
 
-    Rectangle {
+    DockPanel {
         id: lyricsSidebar
         objectName: "lyricsSidebar"
+        dock: "Lyrics"
+        shown: showLyricsDock
         anchors.top: parent.top
         anchors.right: showQueueDock ? queueSidebar.left : parent.right
         anchors.bottom: player.top
         width: fittedLyricsWidth
-        visible: showLyricsDock
-        color: themeState.background
         Rectangle { width: 1; height: parent.height; color: themeState.border }
         DockHeader { id: lyricsHeader; title: "Lyrics"; tabbed: window.tabbedDocks; onCloseRequested: appState.setLyricsOpen(false) }
         LyricsPane { anchors.fill: parent; anchors.topMargin: 48; anchors.leftMargin: 16; anchors.rightMargin: 16 }
@@ -602,15 +601,15 @@ ApplicationWindow {
         }
     }
 
-    Rectangle {
+    DockPanel {
         id: queueSidebar
         objectName: "queueSidebar"
+        dock: "Queue"
+        shown: showQueueDock
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.bottom: player.top
         width: fittedQueueWidth
-        visible: showQueueDock
-        color: themeState.background
         Rectangle { width: 1; height: parent.height; color: themeState.border }
         DockHeader { id: queueHeader; title: "Queue"; tabbed: window.tabbedDocks; onCloseRequested: appState.setQueueOpen(false) }
         QueuePane { anchors.fill: parent; anchors.topMargin: 48; showCloseButton: false }

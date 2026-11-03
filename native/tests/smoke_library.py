@@ -5,7 +5,7 @@ import tempfile
 import traceback
 
 from PySide6.QtCore import QObject, QMetaObject, QTimer, Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QColor, QGuiApplication, QImage
 from PySide6.QtTest import QTest
 
 from youtube_music_native import app
@@ -64,6 +64,30 @@ def main():
                 chooser = window.findChild(QObject, "playlistChooser")
                 assert chooser.property("opened") and chooser.property("background").property("radius") == 16
                 assert window.findChild(QObject, "playlistChooserFind").property("activeFocus")
+                # Each choice shows its playlist cover beside the title.
+                cover_path = Path(tempfile.mkdtemp(prefix="youtube-music-chooser-")) / "cover.png"
+                image = QImage(40, 40, QImage.Format.Format_RGB32)
+                image.fill(QColor("#33aa66"))
+                assert image.save(str(cover_path))
+                library._choices = [{"id": "PLfixture", "title": "Fixture playlist", "owned": True, "thumbnail": cover_path.as_uri()}]
+                library.changed.emit()
+                QTest.qWait(30)
+
+                def visual(item, name):
+                    if item.objectName() == name:
+                        return item
+                    for child in item.childItems():
+                        found = visual(child, name)
+                        if found:
+                            return found
+
+                choice = visual(chooser.property("contentItem"), "playlistChoice-PLfixture")
+                cover = visual(choice, "playlistChoiceCover")
+                for _ in range(100):
+                    if cover.property("ready"):
+                        break
+                    QTest.qWait(10)
+                assert cover.property("ready") and visual(cover, "coverArtwork").property("source").toString() == cover_path.as_uri()
                 QMetaObject.invokeMethod(chooser, "close")
                 assert not engine.property("qmlWarnings")
                 passed.append(True)
