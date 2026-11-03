@@ -118,10 +118,6 @@ class CatalogView(QObject):
     def sortDescending(self):
         return self._effective_sort()[1]
 
-    @Property(bool, notify=changed)
-    def sortable(self):
-        return self._route in SORTABLE_ROUTES
-
     def _scope(self):
         return f"{self._route}:{self._params.get('id', '')}" if self._route in SORTABLE_ROUTES else None
 

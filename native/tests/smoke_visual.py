@@ -693,7 +693,7 @@ def main():
                     state["index"] += 1
                     state["audio_position"] = max(state["audio_position"], player.position)
                     if time.monotonic() - state["started"] >= args.soak_seconds:
-                        assert player.sourceKind == "local" and state["audio_position"] > 2
+                        assert player._source_kind == "local" and state["audio_position"] > 2
                         timer.stop()
                         finish(True)
                 except Exception:

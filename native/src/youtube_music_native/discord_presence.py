@@ -3,7 +3,7 @@
 import json
 import math
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 import re
 import struct
 import sys

@@ -137,11 +137,6 @@ class Playback(QObject):
     def currentTrack(self):
         return self.queue.current["track"] if self.queue.current else {}
 
-    @Property("QVariantMap", notify=changed)
-    def upcomingTrack(self):
-        upcoming = self.queue.peek(automatic=True)
-        return upcoming["track"] if upcoming else {}
-
     @Property("QVariantList", notify=changed)
     def upcomingTracks(self):
         return [entry["track"] for entry in self.queue.upcoming(2)]
@@ -198,10 +193,6 @@ class Playback(QObject):
     @Property(str, notify=changed)
     def message(self):
         return self._message
-
-    @Property(str, notify=changed)
-    def sourceKind(self):
-        return self._source_kind
 
     @Property(float, notify=positionChanged)
     def position(self):
@@ -365,13 +356,6 @@ class Playback(QObject):
         index = self._key_index(key)
         if index >= 0:
             self.select(index)
-
-    @Slot(str)
-    def selectHistoryKey(self, key):
-        self._transport_revision += 1
-        if self.queue.select_history(key):
-            self._failures, self._consecutive_failures = set(), 0
-            self._start()
 
     @Slot(str)
     def removeKey(self, key):

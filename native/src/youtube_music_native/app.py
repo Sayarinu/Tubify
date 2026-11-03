@@ -240,7 +240,7 @@ def main(argv=None):
     actions.applied.connect(browse.applyAction)
     library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     controller.lastFm = LastFm(player, data / "settings.ini", media_data, parent=controller, fixture=args.fixture)
-    listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
+    Listening(account, player, cache / "metadata.sqlite3", parent=controller)  # kept alive by its Qt parent
     lyrics = LyricView(account, player, media_data, fixture=args.fixture, parent=controller, settings_path=data / "settings.ini")
     lyrics.openRequested.connect(lambda: controller.setLyricsOpen(True))
     player.trackStarted.connect(lyrics.playbackStarted)

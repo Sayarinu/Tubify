@@ -43,7 +43,6 @@ class ShellController(QObject):
         self._artwork_blur = self.settings.value("artworkBlur", True, type=bool)
         self._page = "Home"
         self._query = ""
-        self._sidebar = self.settings.value("sidebarExpanded", False, type=bool)
         self._sidebar_width = max(180, min(420, self._integer_setting("sidebarWidth", 240)))
         self._queue_width = max(280, min(520, self._integer_setting("queueWidth", 360)))
         self._volume = max(0, min(100, self._integer_setting("volume", 70)))
@@ -143,10 +142,6 @@ class ShellController(QObject):
     def query(self):
         return self._query
 
-    @Property(bool, notify=sidebarChanged)
-    def sidebarExpanded(self):
-        return self._sidebar
-
     @Property(int, notify=sidebarChanged)
     def sidebarWidth(self):
         return self._sidebar_width
@@ -215,11 +210,6 @@ class ShellController(QObject):
         self._query = query
         self.navigate("Search")
         self.searchRequested.emit(query)
-
-    @Slot()
-    def toggleSidebar(self):
-        self._sidebar = not self._sidebar
-        self.sidebarChanged.emit()
 
     @Slot(float)
     def setSidebarWidth(self, value):
@@ -337,7 +327,6 @@ class ShellController(QObject):
     def saveWindow(self, width, height):
         self.settings.setValue("width", max(920, min(7680, width)))
         self.settings.setValue("height", max(620, min(4320, height)))
-        self.settings.setValue("sidebarExpanded", self._sidebar)
         self.settings.setValue("sidebarWidth", self._sidebar_width)
         self.settings.setValue("queueWidth", self._queue_width)
         self.settings.setValue("lyricsWidth", self._lyrics_width)

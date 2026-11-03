@@ -140,7 +140,7 @@ def test_queued_collections_finish_in_one_transfer_process(tmp_path):
     view.transfer.request = lambda operation, payload=None: (requests.append(operation), original(operation, payload))[1]
 
     def changed():
-        if len(view.collections) == 2 and all(entry["state"] == "complete" for entry in view.collections) and not view.activeCollection:
+        if len(view.collections) == 2 and all(entry["state"] == "complete" for entry in view.collections) and not view._active:
             loop.quit()
 
     view.changed.connect(changed)
