@@ -72,6 +72,8 @@ app="$native_build_root/dist/Tubify.app"
 ln -sf libmpv.2.dylib "$app/Contents/Frameworks/libmpv.dylib"
 ditto "$sparkle/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
 cp "$sparkle/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
+"$native_python" packaging/bundle_contents.py "$app" --max-files 1200 --max-mb 750
+
 # Local builds are ad-hoc signed; Gatekeeper accepts them on the machine that built them.
 codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict "$app"
