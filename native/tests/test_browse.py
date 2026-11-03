@@ -234,3 +234,72 @@ def test_artist_top_songs_show_all_opens_the_songs_playlist_and_albums_keep_thei
     assert worker.requests[-1][1]["route"] == "playlist" and worker.requests[-1][1]["params"]["id"] == "OLAKsongs"
     browse.openSection({"title": "Albums", "browseId": "UCartist", "params": "albums", "items": []})
     assert worker.requests[-1][1]["route"] == "artist_albums" and worker.requests[-1][1]["params"]["params"] == "albums"
+
+
+class PagesWorker(Worker):
+    def __init__(self):
+        super().__init__()
+        self.resets = 0
+
+    def reset(self):
+        self.resets += 1
+
+
+class Downloads(QObject):
+    collectionFound = Signal(int, dict)
+    collectionReady = Signal(dict)
+    playRequested = Signal(dict, bool)
+
+    def __init__(self, keys):
+        super().__init__()
+        self.keys, self.lookups = keys, []
+
+    def known(self, kind, identifier):
+        return None if self.keys is None else kind + ":" + identifier in self.keys
+
+    def lookup(self, kind, identifier):
+        self.lookups.append((kind, identifier))
+        return len(self.lookups)
+
+    def cancelLookup(self, request):
+        pass
+
+
+def test_rest_of_playlist_loads_once_on_its_own_lane_and_new_click_stops_it(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    pages = PagesWorker()
+    browse = Browse(browse.shell, account, view, browse.player, tmp_path / "metadata.sqlite3", pages=pages)
+    browse.play({"kind": "playlist", "id": "PLlong"})
+    first = len(worker.requests)
+    assert worker.requests[-1][1]["offset"] == 0
+    worker.succeeded.emit(first, {"items": [{"kind": "song", "title": "First"}], "cursor": 40})
+    # One request for everything after the first page, not one per 40 tracks.
+    assert pages.requests == [("catalog", {**pages.requests[0][1], "offset": 40, "page_size": 100000})]
+    # A provider-worker answer that reuses the same number is not the rest of the playlist.
+    worker.succeeded.emit(1, {"items": [{"kind": "song", "title": "Wrong lane"}]})
+    assert not queued
+    browse.play({"kind": "playlist", "id": "PLother"})
+    assert pages.resets == 1
+    pages.succeeded.emit(1, {"items": [{"kind": "song", "title": "Old tail"}], "cursor": None})
+    assert not queued
+
+
+def test_rest_of_playlist_appends_after_the_first_page(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    pages = PagesWorker()
+    browse = Browse(browse.shell, account, view, browse.player, tmp_path / "metadata.sqlite3", pages=pages)
+    browse.play({"kind": "playlist", "id": "PLlong"})
+    worker.succeeded.emit(len(worker.requests), {"items": [{"kind": "song", "title": "First"}], "cursor": 40})
+    pages.succeeded.emit(1, {"items": [{"kind": "song", "title": "Rest"}, {"kind": "video", "title": "Skip"}], "cursor": None})
+    assert [track["title"] for track in queued[0]] == ["Rest"] and pages.resets == 0
+
+
+def test_play_skips_the_downloads_lookup_for_collections_never_downloaded(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    for keys, looked_up in ((set(), False), ({"playlist:PLsaved"}, True), (None, True)):
+        downloads = Downloads(keys)
+        browse = Browse(browse.shell, account, view, browse.player, tmp_path / "metadata.sqlite3", downloads=downloads)
+        before = len(worker.requests)
+        browse.play({"kind": "playlist", "id": "PLsaved"})
+        assert bool(downloads.lookups) is looked_up
+        assert (len(worker.requests) > before) is not looked_up

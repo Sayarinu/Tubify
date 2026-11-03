@@ -15,9 +15,11 @@ Item {
     property bool dropToManual: false
     property point dragPosition: Qt.point(0, 0)
     property point lastHandlePosition: Qt.point(0, 0)
-    property var currentEntry: playerState.entries.find(entry => entry.current) || ({})
-    property var queueEntries: playerState.entries.filter(entry => entry.group === "Next in queue")
-    property var nextEntries: playerState.entries.filter(entry => !entry.current && entry.group !== "Next in queue")
+    // Read the queue once per change; each read converts every row from Python.
+    property var allEntries: playerState.entries
+    property var currentEntry: allEntries.find(entry => entry.current) || ({})
+    property var queueEntries: allEntries.filter(entry => entry.group === "Next in queue")
+    property var nextEntries: allEntries.filter(entry => !entry.current && entry.group !== "Next in queue")
     property var rows: [{rowType: "manualHeading"}].concat(queueEntries, [{rowType: "drop"}, {rowType: "sourceHeading"}], nextEntries.length ? nextEntries : [{rowType: "empty"}])
 
     function clearDrop() {

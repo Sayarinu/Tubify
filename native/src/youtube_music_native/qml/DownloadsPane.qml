@@ -57,6 +57,18 @@ Item {
                 Text { width: parent.width; text: root.bytesLabel(downloadsState.usedBytes) + " downloaded · " + root.bytesLabel(downloadsState.freeBytes) + " free"; color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: 14 }
             }
             IconButton { anchors.right: parent.right; y: 138; iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
+            Button {
+                id: downloadAll
+                objectName: "downloadAllPlaylists"
+                anchors.right: parent.right; y: 84; height: 36; leftPadding: 14; rightPadding: 14
+                // Shorter beside the filters when docks leave the pane narrow.
+                text: parent.width < 640 ? "Download All" : "Download All Playlists"
+                Accessible.name: "Download All Playlists"
+                enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
+                palette.buttonText: themeState.foreground
+                background: Rectangle { radius: height / 2; color: downloadAll.hovered ? themeState.hover : themeState.surface; border.width: downloadAll.visualFocus ? 2 : 0; border.color: themeState.accent }
+                onClicked: downloadsState.downloadAll(appState.playlists)
+            }
         }
         delegate: ItemDelegate {
             id: entry

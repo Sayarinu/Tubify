@@ -268,6 +268,9 @@ jobs:
     needs: [version, shared-code, windows-app, macos-app, arch-app]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          path: source
       - uses: actions/download-artifact@v4
         with:
           name: tubify-windows-x64-installer
@@ -285,17 +288,31 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ needs.version.outputs.version }}
+          # Releases sign the Linux package so the Arch update helper can install it without a password.
+          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ (startsWith(github.ref, 'refs/tags/native-v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
         run: |
           set -euo pipefail
           shopt -s failglob
           # The pacman package keeps its internal name; it is published as the Tubify Linux download.
-          mv youtube-music-native-*-x86_64.pkg.tar.zst "Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
+          package="Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
+          mv youtube-music-native-*-x86_64.pkg.tar.zst "$package"
           # Releases carry only the desktop app builds; the source package is only used to test upgrades in CI.
           rm -f youtube-music-native-*.src.tar.gz
           assets=( *.exe *.dmg *.pkg.tar.zst )
           if [[ "$GITHUB_REF" == refs/tags/native-v* || ( "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ) ]]; then
             test -s appcast.xml
             assets+=(appcast.xml)
+            if [[ -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
+              echo "Stable releases require the update signing secret."
+              exit 1
+            fi
+            python3 -m venv "$RUNNER_TEMP/signing"
+            "$RUNNER_TEMP/signing/bin/pip" install --quiet 'pycryptodomex>=3.20,<4'
+            # Signs with the release key and verifies against the public key the package installs.
+            "$RUNNER_TEMP/signing/bin/python" -I ../source/native/src/youtube_music_native/package_signature.py \
+              "$package" ../source/packaging/macos-native/sparkle-public-key.txt
+            test -s "$package.sig"
+            assets+=("$package.sig")
           fi
           sha256sum "${assets[@]}" > SHA256SUMS
           sha256sum --check SHA256SUMS
@@ -337,7 +354,7 @@ jobs:
           cd release
           sha256sum --check SHA256SUMS
           shopt -s failglob
-          assets=( *.exe *.dmg *.pkg.tar.zst SHA256SUMS appcast.xml )
+          assets=( *.exe *.dmg *.pkg.tar.zst *.pkg.tar.zst.sig SHA256SUMS appcast.xml )
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
               echo "This build is already published."

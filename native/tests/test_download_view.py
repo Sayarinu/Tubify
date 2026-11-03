@@ -118,3 +118,51 @@ def test_refresh_if_stale_requests_status_only_when_stale(tmp_path):
     view._failed(9, {"message": "Failed"})
     view.refreshIfStale()
     assert sent == ["status"] * 4
+
+
+def test_queued_collections_finish_in_one_transfer_process(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    store = DownloadStore(tmp_path)
+    folder = store.root / "audio"
+    folder.mkdir()
+    for video_id in IDS[:2]:
+        audio = folder / (video_id + ".wav")
+        write_wave(audio)
+        store.media.publish(video_id, audio)
+    store.schedule(body("PLfirst", IDS[:1]))
+    store.schedule(body("PLsecond", IDS[1:2]))
+    store.close()
+    view = DownloadView(tmp_path)
+    loop = QEventLoop()
+    processes, requests = set(), []
+    view.transfer.process.started.connect(lambda: processes.add(view.transfer.process.processId()))
+    original = view.transfer.request
+    view.transfer.request = lambda operation, payload=None: (requests.append(operation), original(operation, payload))[1]
+
+    def changed():
+        if len(view.collections) == 2 and all(entry["state"] == "complete" for entry in view.collections) and not view.activeCollection:
+            loop.quit()
+
+    view.changed.connect(changed)
+    view.setAccountAvailable(True)
+    QTimer.singleShot(15000, loop.quit)
+    loop.exec()
+    view.close()
+    assert [entry["state"] for entry in view.collections] == ["complete", "complete"], view.message
+    assert requests == ["downloads_run"] and len(processes) == 1
+
+
+def test_download_all_sends_every_playlist_in_one_planning_request(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    view = DownloadView(tmp_path)
+    sent, refreshed = [], []
+    view.planner.request = lambda operation, payload: sent.append((operation, payload)) or 41
+    view.refresh = lambda: refreshed.append(True)
+    view.downloadAll([{"id": "PLone", "title": "One", "owner": "Private"}, {"title": "No id"}, {"id": "PLtwo"}])
+    assert [operation for operation, _ in sent] == ["downloads_schedule_all"]
+    assert [media["id"] for media in sent[0][1]["playlists"]] == ["PLone", "PLtwo"] and "owner" not in sent[0][1]["playlists"][0]
+    view._planned_one(41, {"scheduled": 1, "failed": 0})
+    assert refreshed
+    view._scheduled(41, {"scheduled": 1, "failed": 1})
+    assert view._notice == "1 playlist could not be prepared. Download it from its menu to retry."
+    view.close()

@@ -19,8 +19,10 @@ class DownloadView(QObject):
         super().__init__(parent)
         self.data_dir, self.fixture = str(Path(data_dir)), fixture
         self.control = None if fixture else Worker(self, idle_ms=30000)
-        self.planner = None if fixture else Worker(self, idle_ms=1000)
-        self.transfer = None if fixture else Worker(self, idle_ms=1000)
+        # Planning and transfers stay up between collections: a whole library queued at
+        # once used to relaunch the app as a new worker process for every playlist.
+        self.planner = None if fixture else Worker(self, idle_ms=30000)
+        self.transfer = None if fixture else Worker(self, idle_ms=30000)
         self._planning = set()
         self._collections, self._pending, self._stopped = [], {}, []
         self._track_states, self._track_progress, self._open_request = {}, {}, None
@@ -31,6 +33,8 @@ class DownloadView(QObject):
         self._fixture_bodies = {}
         self._active, self._transfer_request, self._next = None, None, None
         self._bytes, self._free, self._message = 0, 0, ""
+        # A planning outcome kept until the next download request replaces it.
+        self._notice = ""
         self._minimum_request, self._status_pending = 0, False
         self._allow_network, self._resetting, self._closed = False, False, False
         # Collections shown from memory until something may have changed them.
@@ -51,6 +55,7 @@ class DownloadView(QObject):
             self.control.failed.connect(self._failed)
             self.planner.succeeded.connect(self._scheduled)
             self.planner.failed.connect(self._schedule_failed)
+            self.planner.progress.connect(self._planned_one)
             self.transfer.succeeded.connect(self._transferred)
             self.transfer.failed.connect(self._transfer_failed)
             self.transfer.progress.connect(self._progress)
@@ -179,14 +184,44 @@ class DownloadView(QObject):
             self._message = "Download preview"
             self.changed.emit()
             return
-        self._message = "Preparing download…"
+        self._message, self._notice = "Preparing download…", ""
         self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media)}))
         self.changed.emit()
+
+    @Slot("QVariantList")
+    def downloadAll(self, playlists):
+        if self.fixture:
+            self._message = "Download preview"
+            self.changed.emit()
+            return
+        values = [{"kind": "playlist", "id": media.get("id", ""), "title": media.get("title", ""), "thumbnail": media.get("thumbnail", "")}
+                  for media in playlists if isinstance(media, dict) and media.get("id")]
+        if not values:
+            return
+        self._message, self._notice = "Preparing downloads for every playlist…", ""
+        self._planning.add(self.planner.request("downloads_schedule_all", {"data_dir": self.data_dir, "playlists": values}))
+        self.changed.emit()
+
+    def _planned_one(self, identifier, progress):
+        # Start downloading the first playlists while the rest are still being listed.
+        if identifier in self._planning and progress.get("scheduled") and not self._active:
+            self.refresh()
+
+    def _clear_notice(self):
+        if self._notice:
+            self._notice = ""
+            if not self._planning:
+                self._message = ""
+            self.changed.emit()
 
     def _scheduled(self, identifier, result):
         if identifier not in self._planning:
             return
         self._planning.remove(identifier)
+        if result.get("failed"):
+            count = result["failed"]
+            self._notice = f"{count} playlist{'s' if count != 1 else ''} could not be prepared. Download {'them' if count != 1 else 'it'} from {'their menus' if count != 1 else 'its menu'} to retry."
+            QTimer.singleShot(10000, self._clear_notice)
         self._send("status", authoritative=True)
 
     def _schedule_failed(self, identifier, error):
@@ -224,6 +259,13 @@ class DownloadView(QObject):
 
     def lookup(self, kind, identifier):
         return self._send("lookup", {"kind": kind, "id": identifier})
+
+    def known(self, kind, identifier):
+        """Whether the downloads list holds this collection; None until it has loaded."""
+        if not self._initialized:
+            return None
+        key = kind + ":" + identifier
+        return any(entry.get("key") == key for entry in self._collections)
 
     def cancelLookup(self, request):
         if self.control and request is not None:
@@ -292,7 +334,7 @@ class DownloadView(QObject):
             return
         if identifier < self._minimum_request or operation is None:
             return
-        self._message = "Preparing download…" if self._planning else ""
+        self._message = "Preparing download…" if self._planning else self._notice
         self._stale = False
         self._collections = result.get("collections", [])
         self._track_states = result.get("trackStates", {})
@@ -315,6 +357,12 @@ class DownloadView(QObject):
     def _progress(self, identifier, progress):
         if identifier != self._transfer_request:
             return
+        collection = progress.get("collection")
+        if collection and collection != self._active:
+            # The transfer worker moved on to the next queued collection by itself.
+            self._active = collection
+            self._track_progress = {}
+            self.refresh()
         for collection in self._collections:
             if collection["key"] == self._active:
                 collection["state"] = "downloading"

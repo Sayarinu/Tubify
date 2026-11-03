@@ -89,3 +89,15 @@ def test_video_only_media_cannot_be_published_as_downloaded_audio(monkeypatch, t
     monkeypatch.setattr(compat.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout=json.dumps(result)))
     with pytest.raises(compat.ProbeError):
         compat.validate_media(tmp_path / "video.mp4")
+
+
+def test_media_validation_never_opens_a_console_window_on_windows(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(compat.os, "name", "nt")
+    monkeypatch.setattr(compat.subprocess, "CREATE_NO_WINDOW", 0x08000000, raising=False)
+    monkeypatch.setattr(compat.subprocess, "run", lambda command, **kwargs: calls.append(kwargs) or SimpleNamespace(
+        stdout='{"format": {"duration": "1"}, "streams": [{"codec_type": "audio"}]}'))
+    compat.validate_media(tmp_path / "audio.opus")
+    assert calls[0]["creationflags"] == 0x08000000
+    monkeypatch.setattr(compat.os, "name", "posix")
+    assert compat.hidden_window() == {}

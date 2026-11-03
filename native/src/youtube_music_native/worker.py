@@ -63,9 +63,18 @@ def handle(service, request, resources=None, progress=None):
         elif operation == "downloads_schedule":
             identifier = downloads.schedule(payload["media"])
             return {**downloads.store.status(), "scheduled": identifier}
+        elif operation == "downloads_schedule_all":
+            playlists = payload.get("playlists")
+            if not isinstance(playlists, list) or len(playlists) > 10000:
+                raise DownloadError("Choose playlists to download.")
+            downloads.notify = progress or (lambda value: None)
+            try:
+                return {**downloads.store.status(), **downloads.schedule_all(playlists)}
+            finally:
+                downloads.notify = lambda value: None
         elif operation == "downloads_run":
             downloads.notify = progress or (lambda value: None)
-            return downloads.run(payload["id"])
+            return downloads.run_queue(payload["id"])
         elif operation == "downloads_cancel":
             downloads.store.cancel(payload["id"])
         elif operation == "downloads_retry":

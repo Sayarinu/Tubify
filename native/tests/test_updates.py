@@ -206,3 +206,64 @@ def test_linux_updates_find_the_tubify_named_package_and_the_legacy_name():
             {'name': name, 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest(), 'size': len(DATA)},
             {'name': 'Tubify-0.2.1-linux-source.tar.gz', 'digest': 'sha256:' + '0' * 64, 'size': 10}]}
         assert updates.select_asset(row, 'linux')['name'] == name
+
+
+SIGNATURE = b'c2lnbmF0dXJl\n'
+
+
+def signed_release():
+    row = release('linux')
+    row['assets'].append({'name': row['assets'][0]['name'] + '.sig', 'size': len(SIGNATURE), 'digest': 'sha256:'+hashlib.sha256(SIGNATURE).hexdigest()})
+    return row
+
+
+def test_linux_release_downloads_its_signature_beside_the_package(tmp_path, monkeypatch):
+    monkeypatch.setattr(updates.sys, 'platform', 'linux')
+    assert 'signature' not in updates.select_asset(release('linux'), 'linux')
+    calls = []
+    def opener(url, **kwargs):
+        calls.append(url)
+        return io.BytesIO(json.dumps(signed_release()).encode() if len(calls) == 1 else SIGNATURE if url.endswith('.sig') else DATA)
+    result = updates.download('native-v0.2.0', tmp_path, opener=opener)
+    assert Path(result['signature_path']).read_bytes() == SIGNATURE and Path(result['path']).read_bytes() == DATA
+    # A changed signature download leaves nothing that could be installed.
+    for item in tmp_path.iterdir():
+        item.unlink()
+    calls.clear()
+    def tampered(url, **kwargs):
+        calls.append(url)
+        return io.BytesIO(json.dumps(signed_release()).encode() if len(calls) == 1 else b'c2lnbmF0dXJF\n' if url.endswith('.sig') else DATA)
+    with pytest.raises(ValueError):
+        updates.download('native-v0.2.0', tmp_path, opener=tampered)
+    assert not list(tmp_path.iterdir())
+
+
+def test_arch_signed_update_uses_the_passwordless_helper_when_installed(tmp_path, monkeypatch):
+    package = tmp_path/'package.pkg.tar.zst'
+    package.write_bytes(DATA)
+    signature = tmp_path/'package.pkg.tar.zst.sig'
+    signature.write_bytes(SIGNATURE)
+    helper = tmp_path/'apply-update'
+    monkeypatch.setattr(updates.os, 'kill', lambda pid, signal: (_ for _ in ()).throw(ProcessLookupError()))
+    calls = []
+    monkeypatch.setattr(updates.subprocess, 'run', lambda argv: calls.append(argv) or SimpleNamespace(returncode=0))
+    monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: None)
+    monkeypatch.setattr(updates, 'ARCH_HELPER', str(helper))
+    # Installs from before the helper existed still update, with the old password prompt.
+    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest(), signature) == 0
+    assert calls[-1][2] == '/usr/bin/pacman'
+    helper.write_text('')
+    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest(), signature) == 0
+    assert calls[-1] == ['/usr/bin/pkexec', '--disable-internal-agent', str(helper), str(package), str(signature)]
+    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest()) == 0
+    assert calls[-1][2] == '/usr/bin/pacman'
+
+
+def test_linux_installer_helper_receives_the_signature(tmp_path, monkeypatch):
+    package = tmp_path/'package.pkg.tar.zst'
+    package.write_bytes(DATA)
+    launched = []
+    monkeypatch.setattr(updates.sys, 'platform', 'linux')
+    monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: launched.append(argv))
+    updates.launch_installer({'path': str(package), 'sha256': hashlib.sha256(DATA).hexdigest(), 'signature_path': str(tmp_path/'package.sig')}, 123)
+    assert launched[0][-4:] == ['123', str(package), hashlib.sha256(DATA).hexdigest(), str(tmp_path/'package.sig')]

@@ -65,6 +65,9 @@ VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
 
 class Playback(QObject):
     changed = Signal()
+    # The queue list has its own signal: rebuilding and handing QML thousands of rows
+    # on every pause, buffer or position change made long playlists slow to start.
+    entriesChanged = Signal()
     audioOptionsChanged = Signal()
     positionChanged = Signal()
     manualQueueCleared = Signal()
@@ -94,6 +97,7 @@ class Playback(QObject):
         self._prepared, self._local_ids, self._prefetch_failures = {}, {}, {}
         self._warm_target, self._warm_times = "", deque()
         self._retry, self._failures = False, set()
+        self._entries, self._entries_signature, self._entries_revision = [], None, 0
         self._start_position, self._want_paused = 0., False
         self._autoplay = True
         self._nonlinear_volume, self._skip_disliked = False, False
@@ -140,6 +144,7 @@ class Playback(QObject):
         if radio_worker:
             radio_worker.succeeded.connect(self._radio_result)
             radio_worker.failed.connect(self._radio_failed)
+        self.changed.connect(self._check_entries)
         self.save_timer = QTimer(self)
         self.save_timer.setInterval(10000)
         self.save_timer.timeout.connect(self.save)
@@ -172,12 +177,26 @@ class Playback(QObject):
     def nextGroup(self):
         return "Next From " + self.queue.source_label if self.queue.source_label else "Next Up"
 
-    @Property("QVariantList", notify=changed)
+    def _entry_groups(self):
+        return (("Now playing", [self.queue.current] if self.queue.current else []),
+                ("Next in queue", self.queue.manual), (self.nextGroup, self.queue.remaining))
+
+    def _signature(self, groups):
+        return (self._entries_revision,) + tuple((group, tuple(entry["key"] for entry in entries)) for group, entries in groups)
+
+    @Property("QVariantList", notify=entriesChanged)
     def entries(self):
-        groups = (("Now playing", [self.queue.current] if self.queue.current else []),
-                  ("Next in queue", self.queue.manual), (self.nextGroup, self.queue.remaining))
-        return [{**entry["track"], "key": entry["key"], "current": group == "Now playing", "group": group,
-                 "movable": group != "Now playing"} for group, entries in groups for entry in entries]
+        groups = self._entry_groups()
+        signature = self._signature(groups)
+        if signature != self._entries_signature:
+            self._entries_signature = signature
+            self._entries = [{**entry["track"], "key": entry["key"], "current": group == "Now playing", "group": group,
+                              "movable": group != "Now playing"} for group, entries in groups for entry in entries]
+        return self._entries
+
+    def _check_entries(self):
+        if self._signature(self._entry_groups()) != self._entries_signature:
+            self.entriesChanged.emit()
 
     @Property(int, notify=changed)
     def manualCount(self):
@@ -316,6 +335,7 @@ class Playback(QObject):
         for entry in self.queue.all_entries:
             if entry["track"].get("videoId") == identifier:
                 entry["track"].update(values)
+        self._entries_revision += 1
         self._queue_changed()
 
     @Slot("QVariantList")
@@ -664,6 +684,8 @@ class Playback(QObject):
                 # Remember the length of songs whose metadata had none, so a restart
                 # restores the seek bar before the stream loads again.
                 self.queue.current["track"]["duration"] = round(self._duration)
+                self._entries_revision += 1
+                self._check_entries()
             self.positionChanged.emit()
         if "paused-for-cache" in values and self._loaded:
             self._busy = bool(values["paused-for-cache"])

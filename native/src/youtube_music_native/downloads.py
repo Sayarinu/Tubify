@@ -254,9 +254,13 @@ class DownloadStore:
             count = sum(ready[track["videoId"]] for track in body["items"])
             damaged = state == "complete" and count < total
             collections.append({"key": identifier, "id": body["id"], "kind": body["kind"], "title": body["title"], "thumbnail": body.get("localThumbnail") or body.get("thumbnail", ""), "state": "damaged" if damaged else state, "ready": count, "total": total, "progress": (completed + fraction) / max(1, total), "error": error})
-        next_row = self.db.execute("SELECT collection_id FROM download_jobs WHERE state='queued' ORDER BY created LIMIT 1").fetchone()
+        next_row = self.next_queued()
         used = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready'").fetchone()[0]
         return {"collections": collections, "trackStates": track_states, "trackProgress": track_progress, "artwork": artwork, "next": next_row[0] if next_row else None, "bytes": used, "freeBytes": shutil.disk_usage(self.root).free}
+
+    def next_queued(self, exclude=()):
+        rows = self.db.execute("SELECT collection_id FROM download_jobs WHERE state='queued' ORDER BY created").fetchall()
+        return next((row for row in rows if row[0] not in exclude), None)
 
     def _artwork_uri(self, value):
         from PySide6.QtCore import QUrl
@@ -334,6 +338,47 @@ class Downloads:
         body = {"kind": kind, "id": identifier, "title": title, "thumbnail": art if art.startswith("https://") else "", "items": tracks}
         apply_artwork(body, artwork)
         return self.store.schedule(body)
+
+    def schedule_all(self, playlists):
+        """Queue every playlist that is not already queued or downloaded, in one request."""
+        scheduled, failed = 0, 0
+        for media in playlists:
+            if not isinstance(media, dict):
+                continue
+            key = "playlist:" + text(media.get("id"))
+            if self.store.state(key) in {"queued", "downloading", "complete", "partial"}:
+                continue
+            try:
+                self.schedule({**media, "kind": "playlist"})
+                scheduled += 1
+            except Exception:
+                # One unavailable or empty playlist must not stop the rest of the library.
+                failed += 1
+            # Lets the view start transfers as soon as each playlist is queued.
+            self.notify({"scheduled": scheduled, "failed": failed})
+        return {"scheduled": scheduled, "failed": failed}
+
+    def run_queue(self, identifier):
+        """Download this collection, then every queued one after it, in this one process.
+
+        Starting a new worker process for each collection made a long queue (such as a
+        whole library) relaunch the app over and over, which slowed the machine down.
+        """
+        attempted = set()
+        while identifier is not None:
+            attempted.add(identifier)
+            try:
+                self.run(identifier)
+            except DownloadCancelled:
+                pass
+            except DownloadError as error:
+                # The failure is recorded on that collection and the rest of the queue
+                # continues, unless the cause (account, disk, lock) would fail them all.
+                if str(error).startswith(("Reconnect", "The disk is full", "Another download")):
+                    raise
+            row = self.store.next_queued(attempted)
+            identifier = row[0] if row else None
+        return self.store.status()
 
     def run(self, identifier):
         from PySide6.QtCore import QLockFile

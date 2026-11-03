@@ -13,6 +13,16 @@ from urllib.request import Request, urlopen
 
 BASE = 'https://github.com/Sayarinu/Tubify/releases/download/'
 MAX_DOWNLOAD = 1024 * 1024 * 1024
+MAX_SIGNATURE = 4096
+# Installed by the Arch package: applies signed updates without a password prompt.
+ARCH_HELPER = '/usr/lib/youtube-music-native/apply-update'
+
+
+def integrity(item, limit):
+    digest, size = item.get('digest', ''), item.get('size', 0)
+    if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest) or type(size) is not int or not 0 < size <= limit:
+        raise ValueError('Release is missing integrity metadata')
+    return {'name': item['name'], 'sha256': digest[7:], 'size': size}
 
 
 def asset_name(version, system=None):
@@ -39,13 +49,16 @@ def select_asset(release, system=None):
             match = name == f'Tubify-{version}-linux-x86_64.pkg.tar.zst' or bool(
                 re.fullmatch(r'youtube-music-native-' + re.escape(version) + r'-\d+-x86_64\.pkg\.tar\.zst', name))
         if match:
-            digest, size = item.get('digest', ''), item.get('size', 0)
-            if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest) or type(size) is not int or not 0 < size <= MAX_DOWNLOAD:
-                raise ValueError('Release is missing integrity metadata')
-            candidates.append({'tag': tag, 'name': name, 'sha256': digest[7:], 'size': size})
+            candidates.append({'tag': tag, **integrity(item, MAX_DOWNLOAD)})
     if len(candidates) != 1:
         raise ValueError('Release does not contain one matching installer')
-    return candidates[0]
+    asset = candidates[0]
+    if system == 'linux':
+        # Releases before signed Linux packages have no signature; they install with a password.
+        signatures = [item for item in release.get('assets', []) if item.get('name') == asset['name'] + '.sig']
+        if len(signatures) == 1:
+            asset['signature'] = integrity(signatures[0], MAX_SIGNATURE)
+    return asset
 
 
 def supported():
@@ -81,6 +94,18 @@ def download(tag, directory, progress=None, opener=urlopen):
     asset = select_asset(release)
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    target = fetch(tag, asset, directory, progress, opener)
+    result = {**asset, 'path': str(target)}
+    if 'signature' in asset:
+        try:
+            result['signature_path'] = str(fetch(tag, asset['signature'], directory, None, opener))
+        except BaseException:
+            target.unlink(missing_ok=True)
+            raise
+    return result
+
+
+def fetch(tag, asset, directory, progress, opener):
     target = directory / asset['name']
     partial = target.with_suffix(target.suffix + '.part')
     digest, count = hashlib.sha256(), 0
@@ -97,7 +122,7 @@ def download(tag, directory, progress=None, opener=urlopen):
         if count != asset['size'] or digest.hexdigest() != asset['sha256']:
             raise ValueError('Download integrity check failed')
         partial.replace(target)
-        return {**asset, 'path': str(target)}
+        return target
     finally:
         partial.unlink(missing_ok=True)
 
@@ -114,14 +139,15 @@ def launch_installer(asset, parent_pid):
         # Copy before package replacement: the helper survives GUI/worker shutdown.
         helper = path.parent / 'install.py'
         shutil.copyfile(__file__, helper)
-        subprocess.Popen([sys.executable, '-I', str(helper), str(parent_pid), str(path), asset['sha256']],
+        signature = [asset['signature_path']] if asset.get('signature_path') else []
+        subprocess.Popen([sys.executable, '-I', str(helper), str(parent_pid), str(path), asset['sha256'], *signature],
                          start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         raise ValueError('Use the macOS updater')
 
 
-def install_arch(parent, package, digest):
+def install_arch(parent, package, digest, signature=None):
     for _ in range(120):
         try:
             os.kill(parent, 0)
@@ -136,7 +162,12 @@ def install_arch(parent, package, digest):
         with path.open('rb') as handle:
             if hashlib.file_digest(handle, 'sha256').hexdigest() != digest:
                 raise ValueError('Installer changed')
-        result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/pacman', '-U', '--noconfirm', str(path)]).returncode
+        if signature and Path(ARCH_HELPER).is_file():
+            # The helper checks the release signature as root, so polkit allows it without a password.
+            command = [ARCH_HELPER, str(path), str(signature)]
+        else:
+            command = ['/usr/bin/pacman', '-U', '--noconfirm', str(path)]
+        result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', *command]).returncode
     except (OSError, ValueError):
         pass
     finally:
@@ -146,4 +177,4 @@ def install_arch(parent, package, digest):
 
 
 if __name__ == '__main__':
-    raise SystemExit(install_arch(int(sys.argv[1]), sys.argv[2], sys.argv[3]))
+    raise SystemExit(install_arch(int(sys.argv[1]), sys.argv[2], sys.argv[3], *sys.argv[4:5]))

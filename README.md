@@ -84,7 +84,7 @@ Open the disk image and drag **Tubify** to **Applications**. Tubify isn't notari
 sudo pacman -U Tubify-<version>-linux-x86_64.pkg.tar.zst
 ```
 
-pacman installs everything Tubify needs. In-app updates ask for your password through the system's authentication dialog.
+pacman installs everything Tubify needs. In-app updates install without a password for administrators (members of `wheel`) signed in at the machine. Tubify checks that each update is a newer release signed with its release key before installing it. Other accounts are asked for an administrator password. The first update from a version without this feature asks for your password one last time.
 
 </details>
 

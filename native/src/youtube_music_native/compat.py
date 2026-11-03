@@ -20,6 +20,13 @@ class ProbeError(RuntimeError):
     pass
 
 
+def hidden_window():
+    """Keyword arguments that stop a console program flashing a window on Windows."""
+    if os.name == "nt":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
 FAILURE_MESSAGES = {
     "prerequisites": "Check libmpv, FFmpeg, the JavaScript runtime and Linux network-namespace support.",
     "account": "Reconnect the session and make sure the account has a saved library song.",
@@ -57,7 +64,7 @@ def play_source(source, headers=None, offline=False):
     result = subprocess.run(
         player_command(offline),
         input=json.dumps({"source": str(source), "headers": headers or []}),
-        capture_output=True, text=True, timeout=50,
+        capture_output=True, text=True, timeout=50, **hidden_window(),
     )
     if result.returncode != 0:
         raise ProbeError("Playback did not reach one second.")
@@ -134,7 +141,7 @@ def extractor_options(directory):
 def validate_media(path):
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", str(path)],
-        capture_output=True, text=True, timeout=30, check=True,
+        capture_output=True, text=True, timeout=30, check=True, **hidden_window(),
     )
     try:
         media = json.loads(result.stdout)

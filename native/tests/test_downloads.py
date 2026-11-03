@@ -225,3 +225,62 @@ def test_download_saves_largest_original_and_variants_for_offline_covers(service
     assert snapshot["items"][0]["thumbnail"].startswith("file:")
     assert fetched and set(fetched) == {variants[-1]["url"]}
     assert factory.calls == [IDS[0]]
+
+
+def test_run_queue_downloads_every_queued_collection_in_one_call(service):
+    service, factory = service
+    notified = []
+    service.notify = notified.append
+    first = service.store.schedule(body("PLfirst", IDS[:1]))
+    broken = service.store.schedule(body("PLbroken", IDS[1:2]))
+    last = service.store.schedule(body("PLlast", IDS[2:]))
+
+    class Failing(Extractor):
+        def extract_info(self, url, download):
+            if url.endswith(IDS[1]):
+                self.owner.calls.append(IDS[1])
+                raise RuntimeError("provider detail")
+            return super().extract_info(url, download)
+
+    service.extractor_factory = lambda options: Failing(options, factory)
+    service.run_queue(first)
+    states = {entry["key"]: entry["state"] for entry in service.store.status()["collections"]}
+    # One failing collection is marked and the queue carries on to the next one.
+    assert states == {first: "complete", broken: "failed", last: "complete"}
+    assert factory.calls == IDS
+    # Progress names each collection as it starts, so the view can follow the queue.
+    assert list(dict.fromkeys(value["collection"] for value in notified)) == [first, broken, last]
+
+
+def test_run_queue_stops_when_the_disk_is_full(service):
+    service, factory = service
+    first = service.store.schedule(body("PLfirst", IDS[:1]))
+    second = service.store.schedule(body("PLsecond", IDS[1:2]))
+    factory.error = OSError(errno.ENOSPC, "private provider detail")
+    with pytest.raises(DownloadError, match="disk is full"):
+        service.run_queue(first)
+    assert service.store.state(second) == "queued" and factory.calls == [IDS[0]]
+
+
+def test_schedule_all_queues_new_playlists_once_and_skips_failures(service):
+    service, factory = service
+    done = service.store.schedule(body("PLdone", IDS[:1]))
+    service.run(done)
+    requested = []
+
+    def get_playlist(identifier, limit=None):
+        requested.append(identifier)
+        if identifier == "PLbroken":
+            raise KeyError("private provider detail")
+        return {"title": "Fixture " + identifier, "thumbnails": [], "tracks": [{"videoId": IDS[1], "title": "Song", "duration_seconds": 1}]}
+
+    service.auth.catalog = lambda: SimpleNamespace(get_playlist=get_playlist)
+    notified = []
+    service.notify = notified.append
+    playlists = [{"id": "PLdone"}, {"id": "PLnew", "title": "New"}, {"id": "PLbroken"}, "invalid"]
+    assert service.schedule_all(playlists) == {"scheduled": 1, "failed": 1}
+    assert requested == ["PLnew", "PLbroken"] and notified[-1] == {"scheduled": 1, "failed": 1}
+    assert service.store.state("playlist:PLnew") == "queued"
+    # Running it again does not plan the queued playlist a second time.
+    requested.clear()
+    assert service.schedule_all(playlists) == {"scheduled": 0, "failed": 1} and requested == ["PLbroken"]

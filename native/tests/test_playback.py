@@ -966,3 +966,22 @@ def test_upcoming_lists_manual_then_source_and_wraps_on_repeat():
     assert [entry["track"]["videoId"] for entry in queue.upcoming(3)] == [QUEUE[5]["videoId"], QUEUE[2]["videoId"], QUEUE[0]["videoId"]]
     queue.repeat = "one"
     assert [entry["track"]["videoId"] for entry in queue.upcoming(3)] == [QUEUE[1]["videoId"]]
+
+
+def test_queue_rows_notify_only_when_the_queue_changes(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    notified = []
+    player.entriesChanged.connect(lambda: notified.append(True))
+    player.playTracks(TRACKS)
+    rows = player.entries
+    assert notified and [row["title"] for row in rows] == ["First", "Next"]
+    notified.clear()
+    player.changed.emit()
+    assert not notified and player.entries is rows
+    player.updateTrack("lmnopqrstuv", {"title": "Renamed"})
+    assert notified and player.entries[-1]["title"] == "Renamed"
+    notified.clear()
+    player.appendContext([{"videoId": "wxyzabcdefg", "title": "Last"}])
+    assert notified and player.entries[-1]["title"] == "Last"
+    player.close()

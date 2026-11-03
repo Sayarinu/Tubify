@@ -222,7 +222,11 @@ def main(argv=None):
     player.trackStarted.connect(lambda track: downloads.refresh())
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
     account.sessionChanged.connect(downloads.resetSession)
-    browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller, downloads=downloads)
+    # Kept for a few minutes so playing several long playlists in a row stays warm.
+    pages = None if args.fixture else Worker(controller, idle_ms=3 * 60 * 1000)
+    if pages:
+        on_quit(pages.close)
+    browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller, downloads=downloads, pages=pages)
     controller.linkState = DeepLinks(browse, account, downloads, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     on_quit(controller.linkState.close)
     search = Search(controller, account, catalog, cache / "metadata.sqlite3", fixture=fixture, parent=controller)

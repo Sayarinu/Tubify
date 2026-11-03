@@ -10,6 +10,9 @@ from .queue_additions import QueueAdditions
 
 
 PLAYLIST_RETRY_MS = (2000, 5000, 15000, 30000, 60000)
+# The rest of a collection after its first page, fetched in one request rather than
+# re-reading the playlist from the start for every 40-track page.
+REST_PAGE_SIZE = 100000
 
 
 def play_context(route, params, data):
@@ -33,11 +36,15 @@ def without_position(item):
 class Browse(QObject):
     changed = Signal()
 
-    def __init__(self, shell, account, view, player, cache_path, fixture=None, parent=None, downloads=None):
+    def __init__(self, shell, account, view, player, cache_path, fixture=None, parent=None, downloads=None, pages=None):
         super().__init__(parent)
         self.shell, self.account, self.view, self.player = shell, account, view, player
         self.worker, self.cache_path, self.fixture = account.worker, str(cache_path), fixture
+        # The rest of a playing collection loads on its own lane, so a long playlist
+        # never holds up the next click, search or sidebar behind the shared worker.
+        self.pages = pages if pages is not None else self.worker
         self._play_request, self._play_route, self._play_params = None, "", {}
+        self._rest_request = None
         self._play_title = ""
         self._artist_request, self._artist_name = None, ""
         self._metadata_request, self._metadata_video_id, self._metadata_fallback_query = None, "", ""
@@ -75,6 +82,10 @@ class Browse(QObject):
         if self.worker:
             self.worker.succeeded.connect(self._result)
             self.worker.failed.connect(self._failed)
+        if self.pages is not None and self.pages is not self.worker:
+            self.pages.succeeded.connect(self._rest_result)
+            self.pages.failed.connect(self._rest_failed)
+            account.sessionChanged.connect(self._cancel_rest)
         if fixture:
             QTimer.singleShot(0, lambda: self.navigate("Home"))
         elif getattr(account, "profile", None):
@@ -104,8 +115,19 @@ class Browse(QObject):
         if self.worker and self._play_request is not None:
             self.worker.cancelQueued(self._play_request)
         self._play_request = None
+        self._cancel_rest()
         self._message = ""
         self.changed.emit()
+
+    def _cancel_rest(self):
+        request, self._rest_request = self._rest_request, None
+        if request is None or self.pages is None:
+            return
+        if self.pages is self.worker:
+            self.worker.cancelQueued(request)
+        else:
+            # Stop the old playlist's download instead of letting the next one wait for it.
+            self.pages.reset()
 
     def _cancel_mood(self):
         if self.worker and self._mood_request is not None:
@@ -313,7 +335,10 @@ class Browse(QObject):
                 self.player.playShuffledTracks(tracks, source_label=self._play_title) if shuffle else self.player.playTracks(tracks, source_label=self._play_title)
         elif kind in {"album", "playlist"}:
             self._play_route, self._play_params = kind, {"id": media.get("id", "")}
-            if self.downloads:
+            known = getattr(self.downloads, "known", None)
+            # Only collections the downloads list already holds need the local lookup;
+            # everything else goes straight to the provider without a worker round trip.
+            if self.downloads and (known is None or known(kind, media.get("id", "")) is not False):
                 self._download_request = self.downloads.lookup(kind, media.get("id", ""))
             else:
                 self._request_play_page()
@@ -338,10 +363,26 @@ class Browse(QObject):
             else:
                 self._request_play_page()
 
-    def _request_play_page(self, offset=0):
+    def _request_play_page(self):
         params = {**self._play_params, **({"allTracks": True} if self._play_route == "album" else {})}
-        self._play_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": self._play_route, "params": params, "offset": offset})
-        self._play_offset = offset
+        self._play_request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": self._play_route, "params": params, "offset": 0})
+
+    def _request_rest(self, offset):
+        self._cancel_rest()
+        self._rest_request = self.pages.request("catalog", {"cache_path": self.cache_path, "route": self._play_route, "params": dict(self._play_params), "offset": offset, "page_size": REST_PAGE_SIZE})
+
+    def _rest_result(self, identifier, result):
+        if identifier != self._rest_request:
+            return
+        self._rest_request = None
+        tracks = [track for track in result.get("items", []) if track.get("kind") == "song"]
+        if tracks:
+            self.player.appendContext(tracks)
+
+    def _rest_failed(self, identifier, error):
+        if identifier == self._rest_request:
+            # The playing first page stays; only the rest of the collection is missing.
+            self._rest_request = None
 
     def _lookup_track_metadata(self, media):
         track_id = media.get("videoId") or media.get("id", "")
@@ -412,14 +453,14 @@ class Browse(QObject):
         elif identifier == self._play_request:
             self._play_request = None
             tracks = [track for track in result.get("items", []) if track.get("kind") == "song"]
-            if self._play_offset:
-                self.player.appendContext(tracks)
-            elif tracks:
+            if tracks:
                 title = result.get("title") or self._play_title
                 self.player.playShuffledTracks(tracks, source_label=title) if self._play_shuffle else self.player.playTracks(tracks, source_label=title)
                 self._set_context(play_context(self._play_route, self._play_params, result))
             if result.get("cursor") is not None:
-                self._request_play_page(result["cursor"])
+                self._request_rest(result["cursor"])
+        elif self.pages is self.worker and identifier == self._rest_request:
+            self._rest_result(identifier, result)
         elif identifier == self._mood_request:
             self._mood_request = None
             groups = result.get("groups", {})
@@ -446,6 +487,8 @@ class Browse(QObject):
             self._play_request = None
             self._message = error.get("message", "This collection could not be played. Retry.")
             self.changed.emit()
+        if self.pages is self.worker:
+            self._rest_failed(identifier, error)
         if identifier == self._mood_request:
             self._mood_request = None
             self.view.load("moods", {})
@@ -554,7 +597,7 @@ class Browse(QObject):
         cursor = self.view.data.get("cursor")
         if cursor is not None and self.view.route in {"album", "playlist"}:
             self._play_route, self._play_params = self.view.route, self.view.parameters
-            self._request_play_page(cursor)
+            self._request_rest(cursor)
 
     @Slot("QVariantMap")
     def showShelf(self, section):
