@@ -16,8 +16,7 @@ PAGES = {
     "appearanceSettingsDialog": "Appearance", "playbackSettings": "Playback",
     "lyricsSettingsDialog": "Lyrics", "desktopSettings": "Desktop",
     "shortcutSettings": "Global Shortcuts", "discordSettingsDialog": "Discord Presence",
-    "lastFmSettingsDialog": "Last.fm", "apiSettings": "Local API",
-    "obsSettings": "OBS Now Playing", "maintenanceSettings": "Updates & Troubleshooting",
+    "lastFmSettingsDialog": "Last.fm", "maintenanceSettings": "Updates & Troubleshooting",
 }
 
 

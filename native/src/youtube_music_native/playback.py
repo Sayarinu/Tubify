@@ -88,7 +88,9 @@ class Playback(QObject):
         self._request, self._radio_request = None, None
         self._request_worker, self._request_started, self._request_force = None, 0., False
         self._prepare_request = None
-        self._preparing_video = None
+        self._preparing_video, self._preparing_warm = None, False
+        # A hovered song resolved on the idle click worker while a queue prefetch is busy.
+        self._side_request, self._side_video = None, None
         self._prepared, self._local_ids, self._prefetch_failures = {}, {}, {}
         self._warm_target, self._warm_times = "", deque()
         self._retry, self._failures = False, set()
@@ -415,6 +417,10 @@ class Playback(QObject):
                 self._prepare_request, self._preparing_video = None, None
             # A separate prefetch worker keeps going: its answer is cached, and if it is
             # for this song it may start playback before the click's own resolve does.
+            if self._side_request is not None and self._side_video == video_id and not force and not video:
+                # The hovered song is already resolving on the click worker.
+                adopt = self._side_request
+                self._side_request, self._side_video = None, None
         if self.radio_worker and self._radio_request is not None:
             self.radio_worker.cancelQueued(self._radio_request)
         self._radio_request = None
@@ -454,8 +460,34 @@ class Playback(QObject):
                 self._request = identifier = self._local_counter
                 QTimer.singleShot(0, lambda: self._resolved(identifier, prepared))
             else:
-                self._request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "force": force, "damaged": damaged, "prepared": prepared, "available": self.currentTrack.get("available", True), "video": video})
+                self._request_worker = self._click_lane()
+                self._request = self._request_worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "force": force, "damaged": damaged, "prepared": prepared, "available": self.currentTrack.get("available", True), "video": video})
         self._queue_changed()
+
+    def _two_lanes(self):
+        return self.prefetch_worker is not None and self.prefetch_worker is not self.worker
+
+    @staticmethod
+    def _lane_ready(worker):
+        ready = getattr(worker, "ready", None)
+        return bool(ready and ready())
+
+    def _click_lane(self):
+        """The click worker, unless an earlier resolve still occupies it and the prefetch worker is free."""
+        if self._two_lanes() and not self._lane_ready(self.worker) and self._lane_ready(self.prefetch_worker):
+            # The earlier resolve finishes in the background and its answer is cached.
+            return self.prefetch_worker
+        return self.worker
+
+    @Slot()
+    def keepWarm(self):
+        """Keep the resolve workers from idling out while someone listens or browses."""
+        if self._fixture or self._closed:
+            return
+        for worker in (self.worker, self.prefetch_worker) if self._two_lanes() else (self.worker,):
+            keep = getattr(worker, "keepWarm", None)
+            if keep:
+                keep()
 
     def _drop_request(self, force):
         """Stop waiting for the previous click without restarting a healthy worker."""
@@ -492,7 +524,11 @@ class Playback(QObject):
     def _resolved(self, identifier, source, worker=None):
         worker = worker or self.worker
         if worker is self.prefetch_worker and identifier == self._prepare_request:
-            self._prepare_request, self._preparing_video = None, None
+            self._prepare_request, self._preparing_video, self._preparing_warm = None, None, False
+            self._prefetched(source)
+            return
+        if self._side_request is not None and worker is self.worker and identifier == self._side_request:
+            self._side_request, self._side_video = None, None
             self._prefetched(source)
             return
         if identifier != self._request or worker is not self._request_worker:
@@ -506,12 +542,12 @@ class Playback(QObject):
         if source.get("videoId") == self._warm_target:
             self._warm_target = ""
         video_id = self.currentTrack.get("videoId", "") if self.hasTrack else ""
-        if (self._request is not None and self._request > 0 and self._request_worker is self.worker
-                and self.prefetch_worker is not self.worker and not self._request_video and not self._request_force
+        if (self._request is not None and self._request > 0 and self._request_worker is not None
+                and self._two_lanes() and not self._request_video and not self._request_force
                 and self._usable(source, video_id)):
             # The prefetch for the clicked song answered first; the click's own resolve
             # still finishes in the background and is cached.
-            self.worker.cancelQueued(self._request)
+            self._request_worker.cancelQueued(self._request)
             self._play_source(source)
         else:
             self._prepare_next()
@@ -532,6 +568,9 @@ class Playback(QObject):
             self.audio.load(source, self._start_position, self._want_paused)
             self._loaded, self._playing = True, not self._want_paused
             self.trackStarted.emit(self.currentTrack)
+            # Advances come from prefetches; without this the click worker idles out
+            # during passive listening and the next click pays a cold start.
+            self.keepWarm()
             if self._start_position:
                 self.seeked.emit(self._start_position)
             self._prepare_next()
@@ -574,12 +613,13 @@ class Playback(QObject):
         worker = worker or self.worker
         if worker is self.prefetch_worker and identifier == self._prepare_request:
             failed = self._preparing_video
-            self._prepare_request, self._preparing_video = None, None
-            if failed:
-                self._prefetch_failures[failed] = time.monotonic()
-                if failed == self._warm_target:
-                    self._warm_target = ""
-            self._prepare_next()
+            self._prepare_request, self._preparing_video, self._preparing_warm = None, None, False
+            self._prefetch_failed(failed)
+            return
+        if self._side_request is not None and worker is self.worker and identifier == self._side_request:
+            failed = self._side_video
+            self._side_request, self._side_video = None, None
+            self._prefetch_failed(failed)
             return
         if identifier != self._request or worker is not self._request_worker:
             return
@@ -597,6 +637,13 @@ class Playback(QObject):
         self.changed.emit()
         if not self._want_paused:
             QTimer.singleShot(0, self._skip_failed)
+
+    def _prefetch_failed(self, failed):
+        if failed:
+            self._prefetch_failures[failed] = time.monotonic()
+            if failed == self._warm_target:
+                self._warm_target = ""
+        self._prepare_next()
 
     @Slot(dict)
     def _audio_update(self, values):
@@ -747,6 +794,7 @@ class Playback(QObject):
             self.radio_worker.cancelQueued(self._radio_request)
         self._request, self._prepare_request, self._radio_request = None, None, None
         self._request_worker, self._preparing_video, self._busy = None, None, False
+        self._side_request, self._side_video, self._preparing_warm = None, None, False
         self._playing, self._loaded = False, False
         self._radio_prefetch = False
         self._device_wait = False
@@ -1021,16 +1069,31 @@ class Playback(QObject):
             return
         wanted = self._prefetch_wanted()
         if self._prepare_request is not None:
-            if self._preparing_video in wanted:
+            if self._two_lanes():
+                # One prefetch at a time; the next starts when this answer arrives. A
+                # hovered song does not wait behind a queue prefetch, though.
+                self._warm_aside(wanted)
                 return
-            if self.prefetch_worker is not self.worker:
-                # One prefetch at a time; the next starts when this answer arrives.
+            if self._preparing_video in wanted:
                 return
             self.worker.cancel(self._prepare_request)
             self._prepare_request, self._preparing_video = None, None
         if wanted:
             self._preparing_video = wanted[0]
+            self._preparing_warm = wanted[0] == self._warm_target
             self._prepare_request = self.prefetch_worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": wanted[0]})
+
+    def _warm_aside(self, wanted):
+        """Resolve a hovered song on the idle click worker while a queue prefetch is busy.
+
+        Only one at a time, only while no click is pending, and only instead of, never as
+        well as, the prefetch worker resolving it, so request volume stays the same.
+        """
+        target = self._warm_target
+        if (target and wanted and wanted[0] == target and target != self._preparing_video and not self._preparing_warm
+                and self._side_request is None and self._request is None and self._lane_ready(self.worker)):
+            self._side_video = target
+            self._side_request = self.worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": target})
 
     def _prefetch_wanted(self):
         """Songs worth resolving ahead: a hovered song first, then the next few in the queue."""
@@ -1048,7 +1111,8 @@ class Playback(QObject):
         for video_id in candidates:
             if (isinstance(video_id, str) and VIDEO_ID.fullmatch(video_id) and video_id not in wanted
                     and not self._fresh(self._prepared.get(video_id), video_id) and video_id not in self._local_ids
-                    and video_id not in self._prefetch_failures and not (video_id == current and self._request is not None)):
+                    and video_id not in self._prefetch_failures and video_id != self._side_video
+                    and not (video_id == current and self._request is not None)):
                 wanted.append(video_id)
         # A shared worker also serves clicks, so it only ever looks one song ahead.
         return wanted if self.prefetch_worker is not self.worker else wanted[:1]
@@ -1058,11 +1122,13 @@ class Playback(QObject):
         """Resolve a hovered or focused song ahead of a likely click; cheap and rate limited."""
         media = media or {}
         video_id = media.get("videoId", "")
+        # Browsing means a click may follow: bring back a click worker that idled out.
+        self.keepWarm()
         if (self._fixture or self._closed or not self.prefetch_worker or not isinstance(video_id, str) or not VIDEO_ID.fullmatch(video_id)
                 or media.get("available", True) is False or media.get("downloadState") == "ready"
                 or media.get("kind", "song") not in {"song", "video", ""}
                 or video_id in self._local_ids or self._fresh(self._prepared.get(video_id), video_id)
-                or video_id in (self._warm_target, self._preparing_video) or video_id in self._prefetch_failures
+                or video_id in (self._warm_target, self._preparing_video, self._side_video) or video_id in self._prefetch_failures
                 or self.hasTrack and video_id == self.currentTrack.get("videoId") and (self._loaded or self._busy)):
             return False
         now = time.monotonic()
@@ -1089,6 +1155,7 @@ class Playback(QObject):
     def resetSession(self):
         self._request, self._prepare_request, self._radio_request = None, None, None
         self._request_worker, self._preparing_video, self._busy = None, None, False
+        self._side_request, self._side_video, self._preparing_warm = None, None, False
         # Signed URLs belong to the old account; drop every cached one.
         self._prepared, self._local_ids, self._prefetch_failures, self._warm_target = {}, {}, {}, ""
         if self.worker:

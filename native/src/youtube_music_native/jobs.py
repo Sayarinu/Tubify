@@ -63,6 +63,24 @@ class Worker(QObject):
             self._enqueue_warmup()
             self._pump()
 
+    def keepWarm(self):
+        """Hold a warm process back from idling out, or bring back one that already has."""
+        if self._closed or not self._warmup:
+            return
+        if self._hibernating:
+            # An idle stop already under way comes straight back warm once the process exits.
+            self._idle_stop = False
+        elif self.process.state() == QProcess.ProcessState.Running:
+            if self._idle_ms and not self._active and not self._queue:
+                self.idle_timer.start()
+        else:
+            self.prestart()
+
+    def ready(self):
+        """True when a running process has nothing to do, so a request starts at once."""
+        return (not self._closed and not self._hibernating and not self._active and not self._queue
+                and self.process.state() == QProcess.ProcessState.Running)
+
     def _enqueue_warmup(self):
         self._counter += 1
         self._internal.add(self._counter)

@@ -47,10 +47,8 @@ Your library, playlists and recommendations in a real desktop app with offline d
 - 12 built-in themes (including Catppuccin, Dracula, Nord, Gruvbox, Tokyo Night, Rosé Pine and Solarized), plus a custom theme editor with import and export.
 - An artwork-led full-screen player, smooth transitions, adjustable interface scale and a Reduce Motion option.
 
-### Connections and creator tools
+### Connections
 - **Discord** Rich Presence and **Last.fm** scrobbling.
-- **OBS overlay**: a now-playing widget for streams, in seven layouts.
-- **Local API** to control playback from your own scripts and remotes.
 
 ### Always up to date
 - Tubify checks for new releases and shows an **update icon** in the top right when one is ready. One click installs it and relaunches the app, keeping your settings, queue and downloads.

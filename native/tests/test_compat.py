@@ -22,6 +22,27 @@ def test_signed_sources_are_sent_through_stdin_and_child_output_is_not_forwarded
     assert json.loads(options["input"]) == {"source": source, "headers": ["Authorization: private"]}
 
 
+def test_node_solves_challenges_ahead_of_deno_when_both_are_installed(monkeypatch, tmp_path):
+    pytest.importorskip("yt_dlp")
+    from yt_dlp.extractor.youtube.jsc._builtin.deno import DenoJCP
+    from yt_dlp.extractor.youtube.jsc._builtin.node import NodeJCP
+    from yt_dlp.extractor.youtube.jsc._registry import _jsc_preferences
+
+    monkeypatch.setattr(compat.shutil, "which", lambda name: "/opt/runtimes/" + name)
+    options = compat.extractor_options(tmp_path)
+    assert list(options["js_runtimes"]) == ["node", "deno"]
+    registered = len(_jsc_preferences.value)
+    compat.extractor_options(tmp_path)
+    assert len(_jsc_preferences.value) == registered  # Registered once per process.
+
+    def rank(provider_class):
+        # yt-dlp ignores the option order and sorts solvers by their summed preferences.
+        provider = object.__new__(provider_class)
+        return sum(preference(provider, []) for preference in _jsc_preferences.value)
+
+    assert rank(NodeJCP) > rank(DenoJCP) > 0
+
+
 def test_offline_replay_uses_a_new_network_namespace(monkeypatch, tmp_path):
     monkeypatch.setattr(compat.sys, "platform", "linux")
     monkeypatch.setattr(compat.shutil, "which", lambda name: "/usr/bin/" + name)

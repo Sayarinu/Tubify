@@ -29,7 +29,7 @@ Item {
         Qt.callLater(function() {
             var view = sections.visible ? sections : songList.visible ? songList : collectionGrid
             if (catalogState.hasScrollPosition) view.contentY = catalogState.scrollPosition
-            else view.positionViewAtBeginning()
+            else view.contentY = view.originY - view.topMargin
         })
     }
     Component.onCompleted: restoreScroll()
@@ -40,7 +40,7 @@ Item {
         id: sections
         objectName: "browseSections"
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
-        topMargin: catalogState.route === "home" ? 46 : 32
+        topMargin: catalogState.route === "home" || catalogState.route === "explore" ? 46 : 32
         clip: true; spacing: 80; boundsBehavior: Flickable.StopAtBounds
         visible: (root.result.shelves || []).length > 0 || root.loading && root.loadingLayout === "shelves"
         model: root.result.shelves || []
@@ -54,7 +54,7 @@ Item {
         }
         header: Item {
             width: sections.width
-            height: catalogState.route === "home" ? 82 : catalogState.route === "explore" ? 144 : 112
+            height: catalogState.route === "home" ? 82 : catalogState.route === "explore" ? 106 : 112
             EdgeArrows { objectName: "moodArrows"; target: moods; visible: moods.visible; height: 36 }
             ListView {
                 // Route views may be replaced immediately; avoid unfinished offscreen delegates.

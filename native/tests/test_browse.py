@@ -209,3 +209,28 @@ def test_library_title_order_is_applied_client_side_for_liked_songs(tmp_path):
     view.load("library_liked", {"order": "z_to_a"})
     worker.succeeded.emit(len(worker.requests), {"items": [{"title": "a"}, {"title": "c"}, {"title": "b"}], "cursor": None})
     assert [item["title"] for item in view.data["items"]] == ["c", "b", "a"]
+
+
+def test_selecting_the_tab_already_shown_is_a_no_op_only_at_its_root(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    browse.shell.navigate("Explore")
+    assert browse.atTabRoot("Explore")  # Selecting it again while it loads does not restart the load.
+    explore = len(worker.requests)
+    worker.succeeded.emit(explore, {"title": "Explore", "shelves": [{"title": "New albums", "items": []}]})
+    assert view.route == "explore" and browse.atTabRoot("Explore")
+    assert not browse.atTabRoot("Home")  # A different tab always navigates.
+    browse.showShelf({"title": "Charts", "items": []})
+    assert not browse.atTabRoot("Explore")  # A view opened from the tab goes back to the tab.
+    browse.shell.navigate("Downloads")
+    assert browse.atTabRoot("Downloads")
+    browse.shell.navigate("Home")
+    worker.failed.emit(len(worker.requests), {"message": "offline"})
+    assert view.error and not browse.atTabRoot("Home")  # An error can be retried by selecting the tab.
+
+
+def test_artist_top_songs_show_all_opens_the_songs_playlist_and_albums_keep_their_route(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    browse.openSection({"title": "Top songs", "layout": "rows", "browseId": "VLOLAKsongs", "params": "", "items": []})
+    assert worker.requests[-1][1]["route"] == "playlist" and worker.requests[-1][1]["params"]["id"] == "OLAKsongs"
+    browse.openSection({"title": "Albums", "browseId": "UCartist", "params": "albums", "items": []})
+    assert worker.requests[-1][1]["route"] == "artist_albums" and worker.requests[-1][1]["params"]["params"] == "albums"

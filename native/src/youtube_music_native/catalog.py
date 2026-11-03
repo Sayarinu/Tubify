@@ -142,6 +142,20 @@ def arrange_home(sections):
     return [{**section, "layout": shelf_layout(section)} for section in ordered]
 
 
+ARTIST_TOP_SONGS = 5
+
+
+def artist_songs(section, content):
+    """Build an artist's Top songs list: a few rows, with Show all when there are more.
+
+    The shelf's browseId is the artist's songs playlist (VL-prefixed), so Show all opens
+    it as a playlist and playing from there queues the whole list.
+    """
+    playlist = text(section.get("browseId")).removeprefix("VL")
+    return {"title": "Top songs", "subtitle": "", "layout": "rows", "items": content[:ARTIST_TOP_SONGS] if playlist else content,
+            "browseId": playlist, "params": "", "showAll": bool(playlist) or len(content) > ARTIST_TOP_SONGS}
+
+
 SEARCH_KINDS = ("song", "artist", "album", "playlist")
 
 
@@ -313,8 +327,10 @@ class Catalog:
                     if value["kind"] == "song" and not value["artist"]:
                         value["artist"] = data["title"]
                         value["artists"] = [{"id": identifier, "name": data["title"]}]
-                if content:
-                    data["shelves"].append({"title": "Top songs" if name == "songs" else name.title(), "subtitle": "", "items": content, "browseId": text(section.get("browseId")), "params": text(section.get("params"))})
+                if content and name == "songs":
+                    data["shelves"].append(artist_songs(section, content))
+                elif content:
+                    data["shelves"].append({"title": name.title(), "subtitle": "", "items": content, "browseId": text(section.get("browseId")), "params": text(section.get("params"))})
         elif route == "artist_albums":
             data["items"] = items(client.get_artist_albums(identifier, params["params"], limit=limit), "album")
             data["complete"] = len(data["items"]) < limit

@@ -342,11 +342,9 @@ def main():
                 if rail.isVisible():
                     # Sidebar controls share the navigation inset and stay clear of the border.
                     left = rail.mapToScene(QPointF()).x()
-                    for name in ("newPlaylistButton", "sidebarPlaylists"):
+                    for name in ("newPlaylistButton", "sidebarPlaylists", "navigationDivider"):
                         control = window.findChild(QObject, name)
                         assert control.mapToScene(QPointF()).x() - left == 8 and control.width() == rail.width() - 16, name
-                    divider = window.findChild(QObject, "navigationDivider")
-                    assert divider.x() == rail.width() - divider.x() - divider.width()
                 image = window.grabWindow()
                 assert not image.isNull()
                 scale = image.width() / window.width()
@@ -434,11 +432,11 @@ def main():
                     light_grid = window.findChild(QObject, "lightThemeGrid")
                     color_grid = window.findChild(QObject, "colorRoles")
                     add_theme = window.findChild(QObject, "addThemeButton")
-                    home_backdrop = window.findChild(QObject, "homeBackdrop")
                     rename_button = window.findChild(QObject, "themeRenameButton")
                     delete_button = window.findChild(QObject, "themeDeleteButton")
                     export_button = window.findChild(QObject, "themeExportButton")
-                    assert dark_grid and light_grid and color_grid and add_theme and home_backdrop
+                    assert dark_grid and light_grid and color_grid and add_theme
+                    assert not window.findChild(QObject, "homeBackdrop")  # Home shares the plain page background.
                     assert rename_button and delete_button and export_button
                     assert dark_grid.property("count") == 9
                     assert light_grid.property("count") == 3
@@ -456,9 +454,6 @@ def main():
                         theme_state.selectTheme(theme["id"])
                         QTest.qWait(15)
                         assert window.property("color").name().upper() == theme["colors"]["background"]
-                        assert home_backdrop.property("heroVisible")
-                        assert home_backdrop.property("themeTint").name().upper() != theme["colors"]["background"]
-                        assert home_backdrop.property("themeTint").name().upper() == theme_state.heroTint
                         sliders = [item for item in visual_items(window.contentItem()) if item.property("trackColor") is not None]
                         assert len(sliders) >= 2  # Seek and volume share the derived track token.
                         assert all(item.property("trackColor").name().upper() == theme_state.progressTrack for item in sliders)
@@ -494,6 +489,11 @@ def main():
                     assert window.findChild(QObject, "sidebarToggleButton") is None
                     resize_handle = window.findChild(QObject, "sidebarResizeHandle")
                     assert resize_handle and resize_handle.isVisible()
+                    # The hover line covers the sidebar's 1 px border instead of the middle of the grab area.
+                    line = resize_handle.findChild(QObject, "sidebarResizeLine")
+                    line_box = line.mapRectToScene(line.boundingRect())
+                    rail_box = rail.mapRectToScene(rail.boundingRect())
+                    assert abs(line_box.right() - rail_box.right()) < 0.5 and line_box.left() <= rail_box.right() - 1, (line_box, rail_box)
                     start = resize_handle.mapToScene(QPointF(resize_handle.width() / 2, 400)).toPoint()
                     initial_sidebar_width = rail.width()
                     QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
@@ -510,6 +510,10 @@ def main():
                     queue = window.findChild(QObject, "queueSidebar")
                     queue_handle = window.findChild(QObject, "queueResizeHandle")
                     assert queue and queue.isVisible() and queue_handle
+                    line = queue_handle.findChild(QObject, "panelResizeLine")
+                    line_box = line.mapRectToScene(line.boundingRect())
+                    queue_box = queue.mapRectToScene(queue.boundingRect())
+                    assert abs(line_box.left() - queue_box.left()) < 0.5, (line_box, queue_box)
                     start = queue_handle.mapToScene(QPointF(queue_handle.width() / 2, 400)).toPoint()
                     initial_queue_width = queue.width()
                     QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
@@ -590,6 +594,13 @@ def main():
                                     image = window.grabWindow()
                                     pixel = image.pixelColor(px, py)
                                 assert max(pixel.red(), pixel.blue()) > 40, pixel.name()
+                                # Top songs is a short list of song rows with Show all, not a row of cards.
+                                top = next(item for item in visual_items(window.contentItem()) if item.objectName() == "shelf" and item.property("section").get("title") == "Top songs")
+                                rows = [item for item in visual_items(top) if item.metaObject().className().startswith("SongRow")]
+                                assert top.property("compact") and top.property("rowLimit") == 5 and len(rows) == 5, len(rows)
+                                assert all(abs(row.width() - top.width()) < 1 for row in rows)
+                                primary = next(child for child in visual_items(top) if child.objectName() == "shelfPrimaryAction")
+                                assert primary.isVisible() and primary.property("text") == "Show all"
                             for shelf in (item for item in visual_items(window.contentItem()) if item.objectName() == "shelf" and item.isVisible()):
                                 # Paging controls appear only when part of the shelf is cut off.
                                 controls = {child.objectName(): child for child in visual_items(shelf) if child.objectName() in {"shelfPrevious", "shelfNext", "shelfPrimaryAction"}}
@@ -617,6 +628,10 @@ def main():
                         QTest.qWait(20)
                         assert button.property("visualFocus")
                         assert QQmlProperty(button.property("background"), "border.width").read() == 2
+                    top = next(item for item in visual_items(window.contentItem()) if item.objectName() == "shelf" and item.property("section").get("title") == "Top songs")
+                    next(child for child in visual_items(top) if child.objectName() == "shelfPrimaryAction").clicked.emit()
+                    QTest.qWait(80)
+                    assert view.route == "playlist" and view.parameters["id"] == "PLfixturesongs" and len(view.data["items"]) == 6
                     browse.open({"kind": "playlist", "id": "PLfixture"})
                     view.patch({"subtitle": "First line\nSecond line\nThird line"})
                     QTest.qWait(80)

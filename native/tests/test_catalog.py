@@ -186,6 +186,27 @@ def test_artist_subscription_uses_its_channel_id_and_unavailable_release_is_acti
         catalog.fetch("album", {"id": "MPREunavailable"})
 
 
+def test_artist_top_songs_are_five_rows_with_show_all_for_the_songs_playlist(tmp_path):
+    raw = {"name": "Artist", "songs": {"browseId": "VLOLAKsongs", "results": [track(i) for i in range(7)]},
+           "albums": {"browseId": "UCartist", "params": "albums", "results": [{"title": "Record", "browseId": "MPRErecord"}]}}
+    provider = SimpleNamespace(get_artist=lambda identifier: raw)
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "metadata.sqlite3"))
+    songs, albums = catalog.fetch("artist", {"id": "UCartist"})["shelves"]
+    assert songs["title"] == "Top songs" and songs["layout"] == "rows" and songs["showAll"]
+    assert songs["browseId"] == "OLAKsongs" and not songs["params"]
+    assert [value["videoId"] for value in songs["items"]] == [track(i)["videoId"] for i in range(5)]
+    assert albums["browseId"] == "UCartist" and albums["params"] == "albums" and "layout" not in albums
+
+
+def test_artist_top_songs_without_a_playlist_show_all_only_when_more_than_five():
+    from youtube_music_native.catalog import artist_songs, items
+
+    few = artist_songs({"results": []}, items([track(i) for i in range(5)]))
+    assert few["layout"] == "rows" and not few["browseId"] and not few["showAll"] and len(few["items"]) == 5
+    many = artist_songs({"browseId": None}, items([track(i) for i in range(8)]))
+    assert many["showAll"] and len(many["items"]) == 8
+
+
 def test_music_search_filters_deferred_types_without_skipping_between_pages(tmp_path):
     rows = [{**track(i), "resultType": "video" if i % 3 == 0 else "song"} for i in range(100)]
     provider = SimpleNamespace(search=lambda query, filter, limit: rows[:limit])

@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 import tempfile
 
-from PySide6.QtCore import QEvent, QStandardPaths, QTimer, QUrl
+from PySide6.QtCore import QEvent, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QIcon, QPalette, QWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -36,8 +36,6 @@ from .tray import TrayPlayer
 from .lifecycle import Lifecycle
 from .startup import StartupRegistration
 from .shortcuts import GlobalShortcuts
-from .local_api import LocalApi
-from .obs_overlay import ObsOverlay
 from .theme import ThemeState
 from .color_picker import ColorSampler
 from .maintenance import Maintenance
@@ -59,10 +57,6 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
     engine.rootContext().setContextProperty("playerState", player)
     if hasattr(controller, "maintenanceState"):
         engine.rootContext().setContextProperty("maintenanceState", controller.maintenanceState)
-    if hasattr(controller, "obsState"):
-        engine.rootContext().setContextProperty("obsState", controller.obsState)
-    if hasattr(controller, "apiState"):
-        engine.rootContext().setContextProperty("apiState", controller.apiState)
     if hasattr(controller, "discordState"):
         engine.rootContext().setContextProperty("discordState", controller.discordState)
     if hasattr(controller, "shortcutState"):
@@ -101,6 +95,23 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.setNetworkAccessManagerFactory(engine.artworkFactory)
     engine.load(QUrl.fromLocalFile(str(PACKAGE / "qml" / "Main.qml")))
     return engine
+
+
+# The prefetch worker starts a little after the click worker so the two do not compete
+# for imports and the keyring read at launch.
+PREFETCH_PRESTART_MS = 3000
+
+
+def start_resolvers(app, player, source_worker, prefetch_worker):
+    """Warm both resolve workers and libmpv before the first click needs them."""
+    QTimer.singleShot(0, source_worker.prestart)
+    QTimer.singleShot(0, player.prepareAudio)
+    # The prefetch worker also serves hover warms and clicks made while the click
+    # worker is still busy, so it should be warm too.
+    QTimer.singleShot(PREFETCH_PRESTART_MS, prefetch_worker.prestart)
+    # Coming back to the window means a click may follow.
+    app.applicationStateChanged.connect(
+        lambda state: player.keepWarm() if state == Qt.ApplicationState.ApplicationActive else None)
 
 
 def main(argv=None):
@@ -200,8 +211,7 @@ def main(argv=None):
     prefetch_worker = None if args.fixture else Worker(controller, idle_ms=5 * 60 * 1000, warmup=warmup)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller, prefetch_worker=prefetch_worker)
     if source_worker and not (args.smoke_test or args.screenshot):
-        QTimer.singleShot(0, source_worker.prestart)
-        QTimer.singleShot(0, player.prepareAudio)
+        start_resolvers(app, player, source_worker, prefetch_worker)
     controller.discordState = DiscordPresence(player, data / "settings.ini", parent=controller, fixture=args.fixture)
     on_quit(controller.discordState.close)
     controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)
@@ -219,8 +229,6 @@ def main(argv=None):
     actions = Actions(account, cache / "metadata.sqlite3", fixture=args.fixture, parent=controller)
     actions.applied.connect(browse.applyAction)
     library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
-    controller.apiState = LocalApi(controller, player, browse, library, account, actions, downloads, data, parent=controller)
-    controller.obsState = ObsOverlay(controller.apiState, data / "settings.ini", parent=controller)
     controller.shortcutState = GlobalShortcuts(controller, player, library, account, actions, data / "settings.ini", parent=controller)
     controller.lastFm = LastFm(player, data / "settings.ini", media_data, parent=controller, fixture=args.fixture)
     listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
@@ -230,7 +238,6 @@ def main(argv=None):
     player.setVolume(controller.volume)
     controller.volumeChanged.connect(lambda: player.setVolume(controller.volume))
     controller.actionRequested.connect(player.handleAction)
-    on_quit(controller.apiState.close)
     on_quit(controller.shortcutState.close)
     on_quit(controller.lastFm.close)
     on_quit(account.close)
@@ -264,7 +271,6 @@ def main(argv=None):
     controller.trayState.start(window)
     controller.lifecycleState.start(window)
     controller.shortcutState.start(window)
-    controller.apiState.start(window)
     def show_for_link():
         window.showNormal() if window.visibility() == QWindow.Visibility.Minimized else window.show()
         window.raise_()

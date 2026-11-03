@@ -179,6 +179,40 @@ def test_idle_warm_worker_stays_stopped_until_needed():
     worker.close()
 
 
+def test_kept_warm_worker_comes_back_after_idling_out_and_reports_ready():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = scripted_worker(idle_ms=5, warmup=("warmup", {}))
+    loop = QEventLoop()
+    starts, interrupted = [], []
+    worker.process.started.connect(lambda: starts.append(True))
+
+    def interrupt_first_idle_stop():
+        # Activity during an idle stop already under way brings the process straight back.
+        if not interrupted:
+            interrupted.append(worker._hibernating)
+            worker.keepWarm()
+
+    worker.idle_timer.timeout.connect(interrupt_first_idle_stop)
+    assert not worker.ready()
+    worker.prestart()
+    QTimer.singleShot(2500, loop.quit)
+    loop.exec()
+    assert interrupted == [True] and len(starts) == 2 and not worker.ready()
+    assert worker.process.state() == worker.process.ProcessState.NotRunning
+    # Hovering or a starting track re-warms a worker that idled out.
+    worker.idle_timer.setInterval(60000)
+    worker.keepWarm()
+    QTimer.singleShot(1500, loop.quit)
+    loop.exec()
+    assert len(starts) == 3 and worker.ready()
+    worker.idle_timer.stop()
+    worker.keepWarm()
+    assert worker.idle_timer.isActive()  # A running, idle worker only extends its idle time.
+    worker.request("resolve")
+    assert not worker.ready()
+    worker.close()
+
+
 
 def browser_account(tmp_path, clock, default="firefox"):
     app = QCoreApplication.instance() or QCoreApplication([])

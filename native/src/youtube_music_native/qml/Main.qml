@@ -166,19 +166,6 @@ ApplicationWindow {
         exit: Transition { enabled: !appState.reducedMotion }
         contentItem: Item { id: drawerContent }
     }
-    Rectangle {
-        id: homeBackdrop
-        objectName: "homeBackdrop"
-        anchors.left: navigationEdge.right
-        anchors.right: parent.right
-        height: 370
-        property bool heroVisible: !appState.expanded && appState.page === "Home" && catalogState.route === "home"
-        property color themeTint: themeState.heroTint
-        gradient: Gradient {
-            GradientStop { position: 0; color: homeBackdrop.heroVisible ? homeBackdrop.themeTint : themeState.background }
-            GradientStop { position: 1; color: themeState.background }
-        }
-    }
 
     Rectangle {
         id: sidebar
@@ -202,7 +189,9 @@ ApplicationWindow {
             anchors.bottom: parent.bottom
             HoverHandler { id: sidebarResizeHover; cursorShape: Qt.SizeHorCursor }
             Rectangle {
-                anchors.centerIn: parent
+                objectName: "sidebarResizeLine"
+                // Drawn over the sidebar's 1 px border (its right edge), not the middle of the grab area.
+                anchors.right: parent.right
                 width: 2
                 height: parent.height
                 color: themeState.accent
@@ -245,7 +234,7 @@ ApplicationWindow {
                     leftInset: 0; rightInset: 0; topInset: 0; bottomInset: 0
                     text: modelData.label
                     Accessible.name: text
-                    onClicked: { appState.navigate(text); navigationDrawer.close() }
+                    onClicked: { if (!browseState.atTabRoot(text)) appState.navigate(text); navigationDrawer.close() }
                     background: Rectangle {
                         objectName: "navigationBackground-" + nav.text
                         anchors.fill: parent
@@ -265,7 +254,7 @@ ApplicationWindow {
                 }
             }
         }
-        Rectangle { objectName: "navigationDivider"; x: 16; y: navigation.y + navigation.height + 12; width: sidebar.width - 32; height: 1; color: themeState.border }
+        Rectangle { objectName: "navigationDivider"; x: 8; y: navigation.y + navigation.height + 12; width: sidebar.width - 16; height: 1; color: themeState.border }
         Button {
             id: newPlaylist
             objectName: "newPlaylistButton"
@@ -451,8 +440,6 @@ ApplicationWindow {
     UpdateDialog { id: updateDialog }
     DesktopSettings { id: desktopSettings; host: settingsWindow }
     ShortcutSettings { id: shortcutSettings; host: settingsWindow }
-    ApiSettings { id: apiSettings; host: settingsWindow }
-    ObsSettings { id: obsSettings; host: settingsWindow }
     DiscordSettings { id: discordSettings; host: settingsWindow }
     Loader { active: trayState.enabled; sourceComponent: TrayPlayer { palette: window.palette } }
 
@@ -463,7 +450,6 @@ ApplicationWindow {
             { title: "General", pages: [settingsDialog, playbackSettings, lyricsSettings] },
             { title: "Application", pages: [desktopSettings, shortcutSettings] },
             { title: "Connections", pages: [discordSettings, lastFmSettings] },
-            { title: "Creator Tools", pages: [apiSettings, obsSettings] },
             { title: "Support", pages: [maintenanceSettings] }
         ]
         onClosed: settingsButton.forceActiveFocus()

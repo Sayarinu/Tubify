@@ -12,6 +12,12 @@ class SourceError(RuntimeError):
     pass
 
 
+# Song resolves skip the HLS manifest request: audio-only formats never come from it.
+# The extractor without the skip stays separate, for the rare song that needs it.
+AUDIO = "audio", {"extractor_args": {"youtube": {"skip": ["hls"]}}}
+AUDIO_FALLBACK = "audio-full", {}
+
+
 class Sources:
     def __init__(self, auth, media, extractor_factory=None):
         self.auth, self.media = auth, media
@@ -27,7 +33,7 @@ class Sources:
             if self.auth.session is None:
                 self.auth.restore()
             if self.auth.session is not None:
-                self._extractor("audio", {})
+                self._extractor(*AUDIO)
         except Exception:
             # The first real request reports any problem with a user-facing message.
             pass
@@ -88,8 +94,16 @@ class Sources:
         if self.auth.session is None:
             raise SourceError("Reconnect YouTube Music to stream this song. Downloaded songs remain available.")
         try:
-            info = self._extract("audio", {}, video_id)
-            if not info or info.get("vcodec") != "none" or not str(info.get("url", "")).startswith("https://"):
+            try:
+                info = self._extract(*AUDIO, video_id)
+            except Exception as error:
+                if "requested format" not in str(error).lower():
+                    raise
+                info = None
+            if not self._audio_only(info):
+                # Retry once with every format before reporting that none can play.
+                info = self._extract(*AUDIO_FALLBACK, video_id)
+            if not self._audio_only(info):
                 raise SourceError("No audio-only format is available for this song.")
             expires = parse_qs(urlparse(info["url"]).query).get("expire", [None])[0]
             try:
@@ -103,6 +117,10 @@ class Sources:
             raise
         except Exception:
             raise SourceError("This song could not be resolved. Check your connection, reconnect, or update the extractor.") from None
+
+    @staticmethod
+    def _audio_only(info):
+        return bool(info) and info.get("vcodec") == "none" and str(info.get("url", "")).startswith("https://")
 
     def _resolve_video(self, video_id):
         """Resolve a music video as one mpv-playable EDL of its video and audio streams."""

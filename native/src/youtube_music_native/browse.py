@@ -222,6 +222,18 @@ class Browse(QObject):
             else:
                 self.open({"kind": "playlist", "id": action.split(":", 1)[1]})
 
+    @Slot(str, result=bool)
+    def atTabRoot(self, page):
+        """True when the tab's own top-level view is already showing, so selecting it again has nothing to do."""
+        if page != self.shell.page or self.shell.expanded or self.view.error or self._mood_request is not None:
+            return False
+        route = self.view.route
+        if page == "Library":
+            from .library import SECTIONS
+
+            return route in SECTIONS.values()
+        return route == {"Home": "home", "Explore": "explore", "Downloads": "downloads"}.get(page)
+
     @Slot(str)
     def navigate(self, page):
         self._cancel_local_navigation()
@@ -262,7 +274,7 @@ class Browse(QObject):
             self._remember()
             songs = [{**value, "kind": "song", "duration": 180} for value in self.fixture.get("shelves", [{}])[0].get("items", [])]
             if kind == "artist":
-                data = {"title": media.get("title", "Fixture artist"), "subtitle": "A fixture artist and their music, created for layout verification.", "monthlyListeners": "2.7M", "subscribers": "41K", "subscriptionId": "UCfixture", "shuffleId": "fixture", "radioId": "fixture", "shelves": [{"title": "Top songs", "items": songs}, {"title": "Albums", "items": [{**value, "kind": "album", "id": "MPREfixture"} for value in songs]}]}
+                data = {"title": media.get("title", "Fixture artist"), "subtitle": "A fixture artist and their music, created for layout verification.", "monthlyListeners": "2.7M", "subscribers": "41K", "subscriptionId": "UCfixture", "shuffleId": "fixture", "radioId": "fixture", "shelves": [{"title": "Top songs", "layout": "rows", "browseId": "PLfixturesongs", "showAll": True, "items": songs},{"title": "Albums", "items": [{**value, "kind": "album", "id": "MPREfixture"} for value in songs]}]}
             else:
                 data = {"title": media.get("title", "Fixture album"), "thumbnail": media.get("thumbnail") or (songs[0].get("thumbnail", "") if songs else ""), "subtitle": "A collection for quiet mornings and late nights.", "duration": len(songs) * 180, "items": [{**song, "album": {"name": "Evening sessions", "id": "MPREfixture"}} for song in songs], "artists": [{"id": "UCfixture", "name": "Fixture artist"}], "year": "2026", "trackCount": len(songs), "audioPlaylistId": "OLAKfixture", "shelves": []}
                 if kind == "playlist":
@@ -497,7 +509,8 @@ class Browse(QObject):
         if section.get("params") and section.get("browseId"):
             self._load("artist_albums", {"id": section["browseId"], "params": section["params"], "title": section.get("title", "Albums")})
         elif section.get("browseId"):
-            self._load("playlist", {"id": section["browseId"]})
+            # An artist's songs shelf links to its full playlist; open it like any playlist.
+            self.open({"kind": "playlist", "id": section["browseId"].removeprefix("VL"), "title": section.get("title", "")})
         else:
             self.showShelf(section)
 

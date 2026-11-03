@@ -90,12 +90,37 @@ def edl(urls):
     return "edl://" + ";".join(f"!new_stream;!no_clip;!no_chapters;%{len(url.encode())}%{url}" for url in urls)
 
 
+_node_preferred = False
+
+
+def node_first(provider, requests):
+    """Rank node above deno: it solves YouTube's player challenges measurably faster."""
+    return 200 if getattr(provider, "JS_RUNTIME_NAME", "") == "node" else 0
+
+
+def prefer_node():
+    # yt-dlp ignores the order of js_runtimes and ranks its challenge solvers by a fixed
+    # preference (deno 1000, node 900); its public provider API adjusts that ranking. An
+    # unavailable or failing node still falls back to deno.
+    global _node_preferred
+    if _node_preferred:
+        return
+    try:
+        from yt_dlp.extractor.youtube.jsc.provider import register_preference
+    except ImportError:
+        return
+    register_preference()(node_first)
+    _node_preferred = True
+
+
 def extractor_options(directory):
     runtimes = {}
-    for name in ("deno", "node"):
+    for name in ("node", "deno"):
         path = shutil.which(name)
         if path:
             runtimes[name] = {"path": path}
+    if "node" in runtimes and "deno" in runtimes:
+        prefer_node()
     if not runtimes:
         raise ProbeError("Install Deno or a supported Node.js runtime for YouTube extraction.")
     return {

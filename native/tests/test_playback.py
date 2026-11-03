@@ -806,6 +806,155 @@ def test_warm_resolves_hovered_songs_but_skips_cached_downloaded_and_bursts(tmp_
     player.close()
 
 
+class LaneWorker(FakeWorker):
+    """A fake resolve worker that knows whether it is free and counts keep-warm calls."""
+
+    def __init__(self):
+        super().__init__()
+        self.pending, self.warmed = set(), 0
+        self.succeeded.connect(lambda identifier, _: self.pending.discard(identifier))
+        self.failed.connect(lambda identifier, _: self.pending.discard(identifier))
+
+    def request(self, operation, payload):
+        identifier = super().request(operation, payload)
+        self.pending.add(identifier)
+        return identifier
+
+    def ready(self):
+        return not self.pending
+
+    def keepWarm(self):
+        self.warmed += 1
+
+
+def started_with_queue_prefetch(tmp_path):
+    worker, prefetch = LaneWorker(), LaneWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio, prefetch_worker=prefetch)
+    player.playTracks(QUEUE)
+    worker.succeeded.emit(1, remote(QUEUE[0]["videoId"]))
+    assert prefetch.requests[-1][1]["videoId"] == QUEUE[1]["videoId"] and not prefetch.ready()
+    return player, worker, prefetch
+
+
+def test_hovered_song_resolves_on_the_idle_click_worker_instead_of_waiting_behind_a_prefetch(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player, worker, prefetch = started_with_queue_prefetch(tmp_path)
+    hovered, later = {"videoId": "hoveredsong", "title": "Hovered"}, {"videoId": "latersong01", "title": "Later"}
+    assert player.warm(hovered)
+    assert worker.requests[-1][1]["videoId"] == "hoveredsong" and len(prefetch.requests) == 1
+    # A second hover while that runs waits for the next free slot, as before: no extra resolves.
+    assert player.warm(later)
+    assert len(worker.requests) == 2 and len(prefetch.requests) == 1
+    worker.succeeded.emit(2, remote("hoveredsong"))
+    assert "hoveredsong" in player._prepared and worker.requests[-1][1]["videoId"] == "latersong01"
+    # The queue prefetch carries on without resolving the hovered song a second time.
+    prefetch.succeeded.emit(1, remote(QUEUE[1]["videoId"]))
+    assert prefetch.requests[-1][1]["videoId"] == QUEUE[2]["videoId"] and len(prefetch.requests) == 2
+    worker.succeeded.emit(3, remote("latersong01"))
+    assert len(worker.requests) == 3 and len(prefetch.requests) == 2
+    player.play(hovered)
+    app.processEvents()
+    assert player.playing and player.audio.loads[-1][0]["videoId"] == "hoveredsong" and len(worker.requests) == 3
+    player.close()
+
+
+def test_click_on_a_song_still_warming_on_the_click_worker_adopts_that_resolve(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player, worker, prefetch = started_with_queue_prefetch(tmp_path)
+    hovered = {"videoId": "hoveredsong", "title": "Hovered"}
+    assert player.warm(hovered)
+    player.play(hovered)
+    assert len(worker.requests) == 2 and len(prefetch.requests) == 1 and not worker.cancelled
+    worker.succeeded.emit(2, remote("hoveredsong"))
+    assert player.playing and player.audio.loads[-1][0]["videoId"] == "hoveredsong"
+    player.close()
+
+
+def test_failed_side_warm_is_not_retried_and_the_queue_prefetch_continues(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player, worker, prefetch = started_with_queue_prefetch(tmp_path)
+    assert player.warm({"videoId": "brokensong1"})
+    worker.failed.emit(2, {"message": "offline"})
+    assert not player._warm_target and not player.warm({"videoId": "brokensong1"})
+    prefetch.succeeded.emit(1, remote(QUEUE[1]["videoId"]))
+    assert prefetch.requests[-1][1]["videoId"] == QUEUE[2]["videoId"] and len(worker.requests) == 2
+    player.close()
+
+
+def test_new_click_does_not_wait_behind_an_earlier_click_still_resolving(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker, prefetch = LaneWorker(), LaneWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio, prefetch_worker=prefetch)
+    player.play(QUEUE[0])
+    player.play(QUEUE[1])
+    # The earlier resolve keeps running on the click worker; the new click uses the free one.
+    assert not worker.cancelled and prefetch.requests[-1][1]["videoId"] == QUEUE[1]["videoId"]
+    prefetch.succeeded.emit(1, remote(QUEUE[1]["videoId"]))
+    assert player.playing and player.audio.loads[-1][0]["videoId"] == QUEUE[1]["videoId"]
+    worker.succeeded.emit(1, remote(QUEUE[0]["videoId"]))
+    assert player.audio.loads[-1][0]["videoId"] == QUEUE[1]["videoId"] and QUEUE[0]["videoId"] in player._prepared
+    # With both workers busy, a click queues on the click worker as before.
+    player.play(QUEUE[2])
+    player.play(QUEUE[3])
+    assert worker.requests[-1][1]["videoId"] == QUEUE[2]["videoId"]
+    assert prefetch.requests[-1][1]["videoId"] == QUEUE[3]["videoId"]
+    player.play(QUEUE[4])
+    assert worker.requests[-1][1]["videoId"] == QUEUE[4]["videoId"]
+    worker.succeeded.emit(3, remote(QUEUE[4]["videoId"]))
+    assert player.audio.loads[-1][0]["videoId"] == QUEUE[4]["videoId"]
+    player.close()
+
+
+def test_listening_and_browsing_keep_the_resolve_workers_warm(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player, worker, prefetch = started_with_queue_prefetch(tmp_path)
+    assert worker.warmed == prefetch.warmed == 1  # The track start.
+    player.warm(QUEUE[0])  # Even a hover that needs no resolve counts as activity.
+    assert worker.warmed == prefetch.warmed == 2
+    player.close()
+    player.keepWarm()
+    assert worker.warmed == 2
+
+
+def test_launch_prestarts_both_resolve_workers_and_focus_keeps_them_warm(monkeypatch):
+    from PySide6.QtCore import QEventLoop, Qt, QTimer
+    from youtube_music_native import app as application
+
+    app = QCoreApplication.instance() or QCoreApplication([])
+    monkeypatch.setattr(application, "PREFETCH_PRESTART_MS", 1)
+
+    class Player(QObject):
+        def __init__(self):
+            super().__init__()
+            self.calls = []
+
+        def prepareAudio(self):
+            self.calls.append("audio")
+
+        def keepWarm(self):
+            self.calls.append("warm")
+
+    class Lane:
+        def __init__(self):
+            self.prestarts = 0
+
+        def prestart(self):
+            self.prestarts += 1
+
+    class Application(QObject):
+        applicationStateChanged = Signal(Qt.ApplicationState)
+
+    player, source, prefetch, shell = Player(), Lane(), Lane(), Application()
+    application.start_resolvers(shell, player, source, prefetch)
+    loop = QEventLoop()
+    QTimer.singleShot(50, loop.quit)
+    loop.exec()
+    assert source.prestarts == prefetch.prestarts == 1 and player.calls == ["audio"]
+    shell.applicationStateChanged.emit(Qt.ApplicationState.ApplicationInactive)
+    shell.applicationStateChanged.emit(Qt.ApplicationState.ApplicationActive)
+    assert player.calls == ["audio", "warm"]
+
+
 def test_upcoming_lists_manual_then_source_and_wraps_on_repeat():
     from youtube_music_native.queue import Queue
 

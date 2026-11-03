@@ -8,7 +8,7 @@ Item {
     z: 10; x: -width / 2; width: 12
     anchors.top: parent.top; anchors.bottom: parent.bottom
     HoverHandler { id: hover; cursorShape: Qt.SizeHorCursor }
-    Rectangle { anchors.centerIn: parent; width: 2; height: parent.height; color: themeState.accent; opacity: hover.hovered || mouse.pressed ? 0.9 : 0 }
+    Rectangle { objectName: "panelResizeLine"; x: root.width / 2; width: 2; height: parent.height; color: themeState.accent; opacity: hover.hovered || mouse.pressed ? 0.9 : 0 }
     MouseArea {
         id: mouse
         anchors.fill: parent; cursorShape: Qt.SizeHorCursor; preventStealing: true

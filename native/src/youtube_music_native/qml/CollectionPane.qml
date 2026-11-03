@@ -110,7 +110,7 @@ Item {
     function restoreScroll() {
         if (catalogState.busy || revision === catalogState.revision) return
         revision = catalogState.revision
-        Qt.callLater(function() { if (catalogState.hasScrollPosition) songs.contentY = catalogState.scrollPosition; else songs.positionViewAtBeginning() })
+        Qt.callLater(function() { if (catalogState.hasScrollPosition) songs.contentY = catalogState.scrollPosition; else songs.contentY = songs.originY - songs.topMargin })
     }
     Component.onCompleted: restoreScroll()
     Connections { target: catalogState; function onChanged() { root.restoreScroll() } }

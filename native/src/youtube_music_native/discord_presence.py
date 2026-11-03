@@ -14,7 +14,8 @@ from urllib.parse import urlsplit
 from PySide6.QtCore import QObject, Property, QSettings, QTimer, Signal, Slot
 from PySide6.QtNetwork import QLocalSocket
 
-from .api_public import IMAGE_HOSTS
+# Public YouTube artwork hosts Discord may fetch directly.
+IMAGE_HOSTS = {"i.ytimg.com", "img.youtube.com", "yt3.ggpht.com", "yt3.googleusercontent.com", "lh3.googleusercontent.com"}
 
 DEFAULT_APPLICATION_ID = "1563325756040286280"
 

@@ -142,3 +142,50 @@ def test_warm_without_a_session_reports_not_ready(tmp_path):
 
     auth = SimpleNamespace(session=None, restore=lambda: None)
     assert Sources(auth, MediaFiles(tmp_path), forbidden).warm() == {"ready": False}
+
+
+def test_audio_resolves_skip_hls_and_retry_once_with_every_format(tmp_path, monkeypatch):
+    monkeypatch.setattr(sources, "extractor_options", lambda root: {"format": "bestaudio"})
+    created, calls = [], []
+    audio = {"url": "https://media.invalid/audio?expire=4102444800", "vcodec": "none"}
+
+    class Extractor:
+        def __init__(self, options):
+            self.options = options
+            created.append(options)
+            self.cookiejar = CookieJar()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def extract_info(self, url, download):
+            video_id = url[-11:]
+            skipping = "extractor_args" in self.options
+            calls.append((video_id, skipping))
+            if skipping and video_id == "hlsonlysong":
+                raise RuntimeError("ERROR: [youtube] hlsonlysong: Requested format is not available")
+            if skipping and video_id == "videoformat":
+                return {"url": "https://media.invalid/muxed", "vcodec": "avc1"}
+            if video_id == "unreachable":
+                raise RuntimeError("network down")
+            return audio
+
+    auth = SimpleNamespace(session=SimpleNamespace(cookie_jar=CookieJar), restore=lambda: None)
+    service = Sources(auth, MediaFiles(tmp_path), Extractor)
+    assert service.resolve("abcdefghijk")["source"] == audio["url"]
+    assert created == [{"format": "bestaudio", "skip_download": True, "noplaylist": True,
+                        "extractor_args": {"youtube": {"skip": ["hls"]}}}]
+    assert service.resolve("hlsonlysong")["source"] == audio["url"]
+    assert service.resolve("videoformat")["source"] == audio["url"]
+    assert calls[1:] == [("hlsonlysong", True), ("hlsonlysong", False), ("videoformat", True), ("videoformat", False)]
+    assert len([options for options in created if "extractor_args" not in options]) == 1  # The fallback is reused.
+    # Other failures are not retried.
+    with pytest.raises(sources.SourceError):
+        service.resolve("unreachable")
+    assert calls[-1] == ("unreachable", True)
+    # Video extraction keeps every format.
+    service._extractor("video", {"format": "best"})
+    assert "extractor_args" not in created[-1]

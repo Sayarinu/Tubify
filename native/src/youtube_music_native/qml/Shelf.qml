@@ -10,9 +10,16 @@ Item {
     property bool compact: section.layout === "rows"
     property bool alwaysShowMore: false
     property string moreLabel: "More"
+    // A positive rowLimit shows the first songs as one full-width list (an artist's Top songs).
+    property int rowLimit: 0
+    readonly property int rowCount: rowLimit > 0 ? Math.min(rowLimit, (section.items || []).length) : (section.items || []).length
+    readonly property int rowsPerColumn: rowLimit > 0 ? rowLimit : 4
+    readonly property real rowsHeight: rowLimit > 0 ? rowCount * 64 : 256
+    // Show all opens the full list (the artist's songs playlist) instead of playing the shelf.
+    readonly property bool showAll: compact && !!section.showAll
     // Paging controls only make sense when part of the shelf is cut off.
     readonly property bool overflowing: cards.contentWidth > cards.width + 1
-    readonly property real itemWidth: compact ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
+    readonly property real itemWidth: compact && rowLimit > 0 ? cards.width : compact ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
     // Page by whole items and glide there, so arrows never land mid-card.
     function page(direction) {
         var stride = itemWidth + cards.spacing
@@ -32,7 +39,7 @@ Item {
     signal playRequested(var item)
     signal moreRequested()
     signal playAllRequested()
-    implicitHeight: heading.height + (compact ? 4 : 16) + (compact ? 256 : Theme.cardHeight)
+    implicitHeight: heading.height + (compact ? 4 : 16) + (compact ? rowsHeight : Theme.cardHeight)
     Row {
         id: heading
         width: parent.width - actions.width - 24
@@ -55,10 +62,10 @@ Item {
         ThemeActionButton {
             id: more
             objectName: "shelfPrimaryAction"
-            text: root.compact ? "Play All" : root.moreLabel
+            text: root.showAll ? "Show all" : root.compact ? "Play All" : root.moreLabel
             visible: root.compact || root.overflowing || root.alwaysShowMore
             implicitHeight: 36
-            onClicked: root.compact ? root.playAllRequested() : root.moreRequested()
+            onClicked: root.compact && !root.showAll ? root.playAllRequested() : root.moreRequested()
         }
         IconButton { objectName: "shelfPrevious"; visible: root.overflowing; iconName: "left"; tip: "Previous Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXBeginning; onClicked: root.page(-1) }
         IconButton { objectName: "shelfNext"; visible: root.overflowing; iconName: "right"; tip: "More Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXEnd; onClicked: root.page(1) }
@@ -68,9 +75,9 @@ Item {
         cacheBuffer: 0
         id: cards
         anchors.top: heading.bottom; anchors.topMargin: root.compact ? 4 : 16
-        width: parent.width; height: root.compact ? 256 : Theme.cardHeight
+        width: parent.width; height: root.compact ? root.rowsHeight : Theme.cardHeight
         clip: true; orientation: ListView.Horizontal; spacing: root.compact ? 28 : 24
-        model: root.compact ? Math.ceil((root.section.items || []).length / 4) : (root.section.items || [])
+        model: root.compact ? Math.ceil(root.rowCount / root.rowsPerColumn) : (root.section.items || [])
         boundsBehavior: Flickable.StopAtBounds
         delegate: Loader {
             required property int index
@@ -84,12 +91,12 @@ Item {
                     property int group: parent.index
                     width: parent.width
                     Repeater {
-                        model: Math.min(4, root.section.items.length - parent.group * 4)
+                        model: Math.min(root.rowsPerColumn, root.rowCount - parent.group * root.rowsPerColumn)
                         delegate: SongRow {
                             required property int index
                             width: parent.width
-                            media: root.section.items[parent.group * 4 + index]
-                            number: (root.section.title || "").toLowerCase() === "top songs" ? parent.group * 4 + index + 1 : 0
+                            media: root.section.items[parent.group * root.rowsPerColumn + index]
+                            number: (root.section.title || "").toLowerCase() === "top songs" ? parent.group * root.rowsPerColumn + index + 1 : 0
                             onActivated: item => root.activated(item)
                         }
                     }

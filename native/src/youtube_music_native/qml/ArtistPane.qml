@@ -48,22 +48,16 @@ Item {
                 Label { text: actionsState.message; visible: text.length > 0; color: themeState.secondary; wrapMode: Text.Wrap; width: parent.width }
             }
         }
-        delegate: Loader {
+        delegate: Shelf {
             required property var modelData
-            property var section: modelData
             width: sections.width
-            sourceComponent: modelData.title === "Top Songs" ? songSection : cardSection
-            Component {
-                id: songSection
-                Column {
-                    property var section: parent.section
-                    width: parent.width
-                    Text { text: "Top Songs"; color: themeState.foreground; font.family: Theme.headingFont; font.pixelSize: 24; font.bold: true; height: 45 }
-                    Repeater { model: parent.section.items; delegate: ArtistSongRow { required property var modelData; width: sections.width; media: modelData; onActivated: item => browseState.play(item) } }
-                    ThemeActionButton { text: "More"; implicitHeight: 36; onClicked: browseState.openSection(parent.section) }
-                }
-            }
-            Component { id: cardSection; Shelf { width: sections.width; section: parent.section; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item); onMoreRequested: browseState.openSection(section); onPlayAllRequested: browseState.playItems(section.items) } }
+            section: modelData
+            // Top songs is a short list of rows; Show all opens the artist's full songs playlist.
+            rowLimit: modelData.layout === "rows" ? 5 : 0
+            onActivated: item => browseState.open(item)
+            onPlayRequested: item => browseState.play(item)
+            onMoreRequested: browseState.openSection(modelData)
+            onPlayAllRequested: browseState.playItems(modelData.items)
         }
         footer: LoadingSkeleton { width: sections.width; view: sections; mode: "shelves"; shelfSpacing: sections.spacing }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
@@ -74,7 +68,7 @@ Item {
     function restoreScroll() {
         if (catalogState.busy || revision === catalogState.revision) return
         revision = catalogState.revision
-        Qt.callLater(function() { if (catalogState.hasScrollPosition) sections.contentY = catalogState.scrollPosition; else sections.positionViewAtBeginning() })
+        Qt.callLater(function() { if (catalogState.hasScrollPosition) sections.contentY = catalogState.scrollPosition; else sections.contentY = sections.originY - sections.topMargin })
     }
     Component.onCompleted: restoreScroll()
     Connections { target: catalogState; function onChanged() { root.restoreScroll() } }
