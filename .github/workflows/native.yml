@@ -2,27 +2,6 @@ name: Tubify checks
 
 on:
   pull_request:
-    paths:
-      - 'native/**'
-      - 'packaging/macos/**'
-      - 'packaging/windows/**'
-      - 'packaging/linux/**'
-      - 'packaging/bundle_contents.py'
-      - 'scripts/build-native-linux-package.sh'
-      - 'scripts/check-native-linux-package.sh'
-      - '.github/workflows/native-linux-build.yml'
-      - 'scripts/build-native-macos.sh'
-      - 'scripts/make-macos-signing-identity.sh'
-      - 'scripts/sign-native-macos.sh'
-      - 'packaging/signing-requirements.txt'
-      - 'scripts/native-appcast.py'
-      - 'scripts/native-release-version.py'
-      - 'scripts/open-prs.py'
-      - 'scripts/check-sparkle-key.swift'
-      - 'scripts/build-native-windows.ps1'
-      - 'scripts/build-native-windows-icon.py'
-      - 'scripts/check-native-windows.ps1'
-      - '.github/workflows/native.yml'
   push:
     branches: [main, experimental]
   workflow_dispatch:
@@ -42,8 +21,37 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Pull requests that touch none of these skip the expensive jobs. "Tubify checks passed" below still
+  # reports, so it can be a required check.
+  changes:
+    name: Choose what to check
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          EVENT: ${{ github.event_name }}
+          BUILD_INPUTS: '^(native/|packaging/|scripts/|\.github/workflows/)'
+        run: |
+          # Anything unclear runs everything.
+          run=true
+          if [ "$EVENT" = pull_request ] && files="$(git diff --name-only "$BASE...$HEAD")" && ! grep -qE "$BUILD_INPUTS" <<< "$files"; then
+            run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   version:
     name: Choose release version
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -79,6 +87,8 @@ jobs:
 
   shared-code:
     name: Shared code (${{ matrix.os }}, Python ${{ matrix.python }})
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ${{ matrix.os }}
     env:
       QT_QPA_PLATFORM: offscreen
@@ -445,6 +455,17 @@ jobs:
           if-no-files-found: error
           # Installers are already compressed.
           compression-level: 0
+
+  # The one check branch rules require. A skipped job passes here; a failed or cancelled one doesn't.
+  checks-passed:
+    name: Tubify checks passed
+    needs: [changes, version, linux-app, shared-code, macos-app, windows-app, sign, macos-verify, release-assets]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          BLOCKED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: test "$BLOCKED" = false
 
   release:
     name: Publish versioned release

@@ -93,3 +93,23 @@ def test_release_builds_use_pinned_inputs():
     assert "archlinux:latest" not in linux and re.search(r"archlinux@sha256:[0-9a-f]{64}", linux)
     assert re.search(r"archive\.archlinux\.org/repos/\d{4}/\d{2}/\d{2}/", linux)
     assert re.search(r"deno-version: v\d+\.\d+\.\d+", (WORKFLOWS / "native.yml").read_text())
+
+
+def test_a_failing_check_blocks_merging_and_skipped_jobs_do_not():
+    gate = jobs()["checks-passed"]
+    assert "if: always()" in gate and "needs.*.result, 'failure'" in gate and "needs.*.result, 'cancelled'" in gate
+    needed = re.search(r"needs: \[(.*?)\]", gate).group(1).split(", ")
+    # Every job that tests or builds something counts, and only publishing is left out.
+    assert set(needed) == set(jobs()) - {"checks-passed", "release"}
+    setup = (ROOT / "scripts/setup-release-protection.sh").read_text()
+    assert '{"context": "Tubify checks passed"}' in setup and '{"context": "Branch, title and base"}' in setup
+
+
+def test_release_inputs_cannot_skip_the_checks():
+    pattern = re.search(r"BUILD_INPUTS: '(.*)'", jobs()["changes"]).group(1)
+    for path in ("native/uv.lock", "native/src/youtube_music_native/app.py", "packaging/windows/Tubify.spec", "packaging/build-constraints.txt",
+                 "packaging/signing-requirements.txt", ".github/workflows/native.yml", ".github/workflows/native-linux-build.yml",
+                 "scripts/sign-native-macos.sh", "scripts/open-prs.py", "scripts/setup-release-protection.sh"):
+        assert re.search(pattern, path), path
+    for path in ("docs/releases.md", "README.md", "AGENTS.md"):
+        assert not re.search(pattern, path), path
