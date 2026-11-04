@@ -33,7 +33,7 @@ The "Release size" check on every PR shows the bump it will cause. It warns, wit
 
 To jump to a specific version, raise it in `native/pyproject.toml` and the PKGBUILD together; a declared version higher than the computed one wins. Pushing a tag does not build a release; releases only come from pushes to `main` or `experimental`. Older `main-build-*` releases are kept for download but are not offered as updates.
 
-The macOS build pins Sparkle 2.10.1 and verifies its distribution SHA-256. `TUBIFY_SPARKLE_PRIVATE_KEY` is a GitHub Actions secret; only `packaging/macos/sparkle-public-key.txt` belongs in source. Published builds (stable and experimental) fail without the private key. Keep a secure backup of this key before rotating or deleting it; existing clients trust the embedded public key. The secret stores a 64-byte seed/public-key pair. `native/sign_update.py` extracts the 32-byte seed expected by Sparkle's `sign_update --ed-key-file -`, passes it only on stdin and verifies the generated signature before returning it. The actual vendor tool is checked against RFC 8032 before packaging. Update signatures do not provide Apple notarization.
+The macOS build pins Sparkle 2.10.1 and verifies its distribution SHA-256. `TUBIFY_SPARKLE_PRIVATE_KEY` is a GitHub Actions secret; only its public key is shared, as the `TUBIFY_UPDATE_PUBLIC_KEY` variable. Published builds (stable and experimental) fail without the private key. Keep a secure backup of this key before rotating or deleting it; existing clients trust the embedded public key. The secret stores a 64-byte seed/public-key pair. `native/sign_update.py` extracts the 32-byte seed expected by Sparkle's `sign_update --ed-key-file -`, passes it only on stdin and verifies the generated signature before returning it. The actual vendor tool is checked against RFC 8032 before packaging. Update signatures do not provide Apple notarization.
 
 ## Signing keys
 
@@ -47,6 +47,13 @@ Three secrets sign releases: `TUBIFY_SPARKLE_PRIVATE_KEY` (macOS updates and the
 The macOS identity is self-signed. macOS ties keychain approvals to it, so "Always Allow" survives updates, but it doesn't satisfy Gatekeeper. Gatekeeper needs a paid Apple Developer ID and Windows SmartScreen needs an Authenticode signature, so both still warn on first open.
 
 The Sparkle key was replaced in LUNE-499, so builds from before that change can't verify newer updates. They need one manual install.
+
+Two public values are GitHub variables, so they can change without a commit. They aren't secret, and builds read them when they run:
+
+- `TUBIFY_UPDATE_PUBLIC_KEY`: the key that apps and the Linux update helper trust. A release fails if it doesn't match the Sparkle key.
+- `TUBIFY_MACOS_SIGNING_CERT`: the macOS certificate's SHA-1 fingerprint. A release fails if the app was signed by anything else.
+
+Unlike a file in the repository, these change without a PR or any history in git. Treat changing `TUBIFY_UPDATE_PUBLIC_KEY` like changing the key itself. For a local package build, run `export TUBIFY_UPDATE_PUBLIC_KEY="$(gh variable get TUBIFY_UPDATE_PUBLIC_KEY)"` first.
 
 ### If a key leaks
 
@@ -62,8 +69,8 @@ Replacing a key is not enough on its own: Macs that approved the old certificate
 
 Treat this as urgent, because it signs updates, and Linux packages install as root without a password.
 
-1. Generate a new key and update `packaging/macos/sparkle-public-key.txt`.
-2. Replace the secret with `--sparkle-key-file`.
+1. Generate a new key.
+2. Replace the secret and the public key variable with `--sparkle-key-file`.
 3. Publish a release. Installed apps still trust the old key, so they can't verify it: tell people to install it by hand.
 
 Source launches and unsupported installations use release links. Automatic checks can be disabled; downloads require an explicit update action. Linux installation errors and cancelled authorization are reported on relaunch. Windows displays native installer errors. Sparkle provides native macOS update progress and recovery. All platforms preserve application data and restore playback paused.

@@ -7,6 +7,10 @@ on:
         description: Version to build the package as
         type: string
         required: true
+      update-public-key:
+        description: Public key the package's update helper trusts
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -31,8 +35,10 @@ jobs:
       - name: Stamp the release version
         run: python3 scripts/native-release-version.py --stamp "${{ inputs.version }}"
       - name: Build, install, launch and upgrade in a clean Linux container
+        env:
+          TUBIFY_UPDATE_PUBLIC_KEY: ${{ inputs.update-public-key }}
         run: |
-          docker run --rm --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace archlinux:latest bash -lc '
+          docker run --rm --env TUBIFY_UPDATE_PUBLIC_KEY --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace archlinux:latest bash -lc '
             set -euo pipefail
             pacman -Syu --noconfirm --needed base-devel git
             source packaging/linux/PKGBUILD

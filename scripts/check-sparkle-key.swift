@@ -16,5 +16,5 @@ let key = try Curve25519.Signing.PrivateKey(rawRepresentation: data.prefix(32))
 let expected = try String(contentsOfFile: CommandLine.arguments.last!, encoding: .utf8)
     .trimmingCharacters(in: .whitespacesAndNewlines)
 guard key.publicKey.rawRepresentation.base64EncodedString() == expected else {
-    fail("The Sparkle signing secret does not match the committed public key.")
+    fail("The Sparkle signing secret does not match the public key variable.")
 }

@@ -50,11 +50,16 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 if "$new_identity" || ! gh secret list --env release --repo "$repo" --json name --jq '.[].name' | grep -qx TUBIFY_MACOS_SIGNING_P12; then
   "$(dirname "${BASH_SOURCE[0]}")/make-macos-signing-identity.sh" "$work/id"
+  # The certificate is public. Recording its fingerprint lets CI reject any other signer.
+  fingerprint="$(openssl x509 -in "$work/id/tubify-signing.crt" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':' | tr 'A-F' 'a-f')"
+  gh variable set TUBIFY_MACOS_SIGNING_CERT --repo "$repo" --body "$fingerprint"
   base64 < "$work/id/tubify-signing.p12" | tr -d '\n' | gh secret set TUBIFY_MACOS_SIGNING_P12 --env release --repo "$repo"
   gh secret set TUBIFY_MACOS_SIGNING_PASSWORD --env release --repo "$repo" < "$work/id/tubify-signing.password"
 fi
 if [[ -n "$sparkle_key_file" ]]; then
   gh secret set TUBIFY_SPARKLE_PRIVATE_KEY --env release --repo "$repo" < "$sparkle_key_file"
+  # The key file is the 32-byte seed then the 32-byte public key.
+  gh variable set TUBIFY_UPDATE_PUBLIC_KEY --repo "$repo" --body "$(base64 -d < "$sparkle_key_file" | tail -c 32 | base64 | tr -d '\n')"
 else
   printf 'The Sparkle key was not moved. Rerun with --sparkle-key-file FILE using your backup.\n' >&2
 fi

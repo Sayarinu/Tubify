@@ -74,6 +74,8 @@ jobs:
     uses: ./.github/workflows/native-linux-build.yml
     with:
       version: ${{ needs.version.outputs.version }}
+      # Pull requests and forks can build with a placeholder; releases fail without the real key.
+      update-public-key: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY || (needs.version.outputs.publish != 'true' && 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' || '') }}
 
   shared-code:
     name: Shared code (${{ matrix.os }}, Python ${{ matrix.python }})
@@ -183,6 +185,8 @@ jobs:
       - name: Stamp the release version
         run: python3 scripts/native-release-version.py --stamp "${{ needs.version.outputs.version }}"
       - name: Build Tubify.app
+        env:
+          TUBIFY_UPDATE_PUBLIC_KEY: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY || (needs.version.outputs.publish != 'true' && 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' || '') }}
         run: scripts/build-native-macos.sh
       - name: Check the bundle runs without Homebrew on PATH
         run: |
@@ -300,6 +304,7 @@ jobs:
         env:
           VERSION: ${{ needs.version.outputs.version }}
           PUBLISH: ${{ needs.version.outputs.publish }}
+          TUBIFY_UPDATE_PUBLIC_KEY: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY }}
           TUBIFY_SPARKLE_PRIVATE_KEY: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
           TUBIFY_MACOS_SIGNING_P12: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_MACOS_SIGNING_P12 || '' }}
           TUBIFY_MACOS_SIGNING_PASSWORD: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_MACOS_SIGNING_PASSWORD || '' }}
@@ -317,17 +322,24 @@ jobs:
           mkdir -p dist/native
           tar -C dist/native -xf unsigned/Tubify-unsigned.tar
           scripts/sign-native-macos.sh "$VERSION"
+          if [[ "$PUBLISH" != true ]]; then
+            # The same comparison macos-verify makes for releases, so the first release isn't its first run.
+            fingerprint="$(openssl x509 -in "$RUNNER_TEMP/throwaway/tubify-signing.crt" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')"
+            codesign --display --requirements - dist/native/Tubify-macos-arm64.app 2>&1 | grep -qi "H\"$fingerprint\""
+          fi
       - name: Sign the Linux package
         if: needs.version.outputs.publish == 'true'
         env:
           VERSION: ${{ needs.version.outputs.version }}
+          TUBIFY_UPDATE_PUBLIC_KEY: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY }}
           TUBIFY_SPARKLE_PRIVATE_KEY: ${{ secrets.TUBIFY_SPARKLE_PRIVATE_KEY }}
         run: |
           # Signs with the release key and verifies against the public key the package installs.
           package="dist/native/Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
           cp unsigned/youtube-music-native-*-x86_64.pkg.tar.zst "$package"
+          printf '%s' "$TUBIFY_UPDATE_PUBLIC_KEY" > "$RUNNER_TEMP/update-public-key"
           "$RUNNER_TEMP/signing/bin/python" -I native/src/youtube_music_native/updates/package_signature.py \
-            "$package" packaging/macos/sparkle-public-key.txt
+            "$package" "$RUNNER_TEMP/update-public-key"
           test -s "$package.sig"
           rm "$package"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -344,7 +356,7 @@ jobs:
   # Runs what was signed, on another fresh machine that has no keys.
   macos-verify:
     name: Check the signed macOS app
-    needs: sign
+    needs: [version, sign]
     runs-on: macos-latest
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -352,12 +364,21 @@ jobs:
           name: tubify-macos-arm64
           path: signed
       - name: Open the disk image and run the app
+        env:
+          PUBLISH: ${{ needs.version.outputs.publish }}
+          TUBIFY_MACOS_SIGNING_CERT: ${{ vars.TUBIFY_MACOS_SIGNING_CERT }}
         run: |
           mount="$(mktemp -d)"
           hdiutil attach -quiet -nobrowse -mountpoint "$mount" signed/Tubify-*-macos-arm64.dmg
           app="$mount/Tubify.app"
           codesign --verify --deep --strict "$app"
-          codesign --display --requirements - "$app" 2>&1 | grep -q certificate
+          requirement="$(codesign --display --requirements - "$app" 2>&1)"
+          grep -q certificate <<< "$requirement"
+          if [[ "$PUBLISH" == true ]]; then
+            # A release must be signed by the certificate on record, not just any certificate.
+            [[ -n "$TUBIFY_MACOS_SIGNING_CERT" ]] || { echo "Releases require the TUBIFY_MACOS_SIGNING_CERT variable."; exit 1; }
+            grep -qi "H\"$TUBIFY_MACOS_SIGNING_CERT\"" <<< "$requirement" || { echo "The app is not signed by the recorded certificate."; exit 1; }
+          fi
           env -i HOME="$HOME" TMPDIR="$RUNNER_TEMP/" PATH=/usr/bin:/bin QT_QPA_PLATFORM=offscreen "$app/Contents/MacOS/Tubify" --smoke-test
           hdiutil detach -quiet "$mount"
 

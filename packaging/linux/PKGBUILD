@@ -44,8 +44,10 @@ package() {
   # without a password; it installs only newer packages signed with the release key.
   install -Dm755 packaging/linux/apply-update \
     "$pkgdir/usr/lib/$pkgname/apply-update"
-  install -Dm644 packaging/macos/sparkle-public-key.txt \
-    "$pkgdir/usr/lib/$pkgname/update-public-key"
+  # scripts/build-native-linux-package.sh supplies this from the GitHub variable.
+  install -d "$pkgdir/usr/lib/$pkgname"
+  printf '%s\n' "${_update_public_key:?Build with scripts/build-native-linux-package.sh}" > "$pkgdir/usr/lib/$pkgname/update-public-key"
+  chmod 644 "$pkgdir/usr/lib/$pkgname/update-public-key"
   install -Dm644 packaging/linux/studio.nouvellelune.tubify.update.policy \
     "$pkgdir/usr/share/polkit-1/actions/studio.nouvellelune.tubify.update.policy"
   install -Dm644 packaging/linux/50-tubify-update.rules \

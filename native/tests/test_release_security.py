@@ -59,3 +59,13 @@ def test_signing_material_is_ignored():
     ignored = (ROOT / ".gitignore").read_text().split()
     for pattern in ("*.p12", "*.pem", "*.key", "tubify-signing.*", ".env"):
         assert pattern in ignored
+
+
+def test_public_signing_values_come_from_variables():
+    assert not (ROOT / "packaging/macos/sparkle-public-key.txt").exists()
+    text = (WORKFLOWS / "native.yml").read_text()
+    assert "vars.TUBIFY_UPDATE_PUBLIC_KEY" in jobs()["sign"]
+    assert "vars.TUBIFY_MACOS_SIGNING_CERT" in jobs()["macos-verify"]
+    # The placeholder is only for builds that won't be published.
+    assert "vars.TUBIFY_UPDATE_PUBLIC_KEY ||" in text and "'AAAA" not in jobs()["sign"]
+    assert "publish != 'true' && 'AAAA" in text

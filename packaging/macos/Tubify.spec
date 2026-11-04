@@ -21,6 +21,10 @@ _updates = importlib.util.module_from_spec(_updates_spec)
 _updates_spec.loader.exec_module(_updates)
 release_tag = _updates.release_tag
 BREW = Path(os.environ.get("HOMEBREW_PREFIX", "/opt/homebrew"))
+# From the TUBIFY_UPDATE_PUBLIC_KEY GitHub variable.
+UPDATE_PUBLIC_KEY = os.environ.get("TUBIFY_UPDATE_PUBLIC_KEY", "").strip()
+if not UPDATE_PUBLIC_KEY:
+    raise SystemExit("Set TUBIFY_UPDATE_PUBLIC_KEY: gh variable get TUBIFY_UPDATE_PUBLIC_KEY")
 
 
 def helper(name):
@@ -65,7 +69,7 @@ app = BUNDLE(
     version=VERSION,
     info_plist={
         "CFBundleDisplayName": "Tubify",
-        "SUPublicEDKey": (ROOT / "packaging/macos/sparkle-public-key.txt").read_text().strip(),
+        "SUPublicEDKey": UPDATE_PUBLIC_KEY,
         "SUFeedURL": "https://github.com/Sayarinu/Tubify/releases/download/" + release_tag(VERSION) + "/appcast.xml",
         "SUEnableAutomaticChecks": False,
         "SUAutomaticallyUpdate": False,
