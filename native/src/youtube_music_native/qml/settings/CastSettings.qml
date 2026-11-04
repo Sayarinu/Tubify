@@ -36,6 +36,16 @@ SettingsPage {
                 Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12
                 text: "Tubify listens on your local network only while this is on. Your computer may ask you to allow Tubify on private networks. No Google sign-in is shared with phones."
             }
+            ThemeActionButton {
+                objectName: "castForgetPairings"
+                text: "Forget Paired Phones"
+                Accessible.description: "Disconnects every paired phone. Each one needs approving again."
+                onClicked: castState.forgetPairings()
+            }
+            Label {
+                Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12
+                text: "Turning this off stops Tubify listening on your network. Paired phones stay paired until you choose Forget Paired Phones."
+            }
             Label { objectName: "castStatus"; Layout.fillWidth: true; wrapMode: Text.Wrap; text: castState.status; color: themeState.foreground }
         }
     }

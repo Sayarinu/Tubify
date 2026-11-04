@@ -1,8 +1,9 @@
 from urllib.parse import parse_qs
 
 import pytest
+from PySide6.QtCore import QCoreApplication, QSettings
 
-from youtube_music_native.integrations.lounge import FrameParser, LoungeSession, encode_messages
+from youtube_music_native.integrations.lounge import FrameParser, Lounge, LoungeSession, encode_messages
 
 
 def frame(payload):
@@ -50,3 +51,20 @@ def test_session_tracks_bind_values_and_returns_only_commands():
 
     session.reset()
     assert not session.bound and session.token == "TOKEN" and session.ofs == 0 and session.aid == 0
+
+
+def test_forgetting_drops_the_screen_and_its_token_then_reconnects(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    settings.setValue("cast/screenId", "old-screen-identity")
+    lounge = Lounge(settings, "Tubify")
+    connects = []
+    lounge._connect = lambda: connects.append(lounge.screen_id)
+    lounge.start()
+    assert connects == ["old-screen-identity"]
+    lounge.session.token, lounge.session.token_expiry = "TOKEN", 9e12
+    lounge.forget()
+    assert connects[-1] == "" and not settings.contains("cast/screenId") and lounge.session.token == ""
+    lounge.stop()
+    lounge.forget()
+    assert len(connects) == 2

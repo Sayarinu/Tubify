@@ -228,6 +228,11 @@ ApplicationWindow {
     LastFmSettings { id: lastFmSettings; host: settingsDialog }
     LinkPreview { id: linkPreview }
     HandoffDialog { id: handoffDialog }
+    CastPairingDialog { id: castPairingDialog }
+    Connections {
+        target: typeof castState !== "undefined" ? castState : null
+        function onPairingRequested() { castPairingDialog.open() }
+    }
     Connections {
         target: typeof handoffState !== "undefined" ? handoffState : null
         function onRequested() { handoffDialog.open() }

@@ -153,6 +153,17 @@ def main():
                 click(find("castEnabledOption"))
                 assert not cast.enabled and cast.status == "Off"
 
+                # A pairing request asks first, and closing the prompt declines it.
+                pairing = find("castPairingDialog")
+                assert find("castForgetPairings") is not None
+                cast._pairing_code = "synthetic-code"
+                cast.pairingRequested.emit()
+                QTest.qWait(30)
+                assert pairing.property("opened")
+                click(find("castPairingDecline"))
+                QTest.qWait(30)
+                assert not cast.pairingPending and not pairing.property("visible")
+
                 # Tab navigation is contained in the modal, including both navigation and content.
                 QMetaObject.invokeMethod(find("discordSettingsDialog"), "open")
                 QTest.qWait(30)

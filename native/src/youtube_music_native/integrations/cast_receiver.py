@@ -9,7 +9,7 @@ import math
 import re
 import uuid
 
-from PySide6.QtCore import QObject, Property, QSettings, QSysInfo, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, Property, QSettings, QTimer, Signal, Slot
 
 from .cast_dial import DialServer
 from .lounge import Lounge
@@ -18,17 +18,15 @@ VIDEO = re.compile(r"[A-Za-z0-9_-]{11}")
 MAX_CAST_TRACKS = 500
 SYNC_MS = 10000
 DESCRIPTION_WAIT_MS = 5000
+# A phone gives up on a pairing code quickly, so a request nobody answered goes away.
+PAIRING_WAIT_MS = 60000
+DEFAULT_NAME = "Tubify"
 STATES = {"idle": -1, "playing": 1, "paused": 2, "loading": 3}
-
-
-def default_name():
-    host = re.sub(r"[^\w .-]", "", QSysInfo.machineHostName() or "").strip()[:40]
-    return f"Tubify on {host}" if host else "Tubify"
 
 
 def clean_name(value):
     value = re.sub(r"[\x00-\x1f\x7f<>&\"]", "", str(value or "")).strip()[:60]
-    return value or default_name()
+    return value or DEFAULT_NAME
 
 
 def cast_ids(payload):
@@ -49,6 +47,7 @@ def number(value, default=0.):
 
 class CastReceiver(QObject):
     changed = Signal()
+    pairingRequested = Signal()
 
     def __init__(self, player, shell, settings_path, worker=None, cache_path="", parent=None, fixture=False, lounge_factory=Lounge, dial_factory=DialServer):
         super().__init__(parent)
@@ -79,6 +78,11 @@ class CastReceiver(QObject):
         self.discovery.setInterval(DESCRIPTION_WAIT_MS)
         self.discovery.timeout.connect(self._description_missing)
         self._found = False
+        self._pairing_code = ""
+        self.pairing_wait = QTimer(self)
+        self.pairing_wait.setSingleShot(True)
+        self.pairing_wait.setInterval(PAIRING_WAIT_MS)
+        self.pairing_wait.timeout.connect(self.declinePairing)
         player.changed.connect(self._player_changed)
         player.seeked.connect(lambda _position: self._send_state(force=True))
         player.trackStarted.connect(self._track_started)
@@ -106,6 +110,10 @@ class CastReceiver(QObject):
     def connected(self):
         return bool(self._remotes)
 
+    @Property(bool, notify=changed)
+    def pairingPending(self):
+        return bool(self._pairing_code)
+
     @Slot(bool)
     def setEnabled(self, value):
         value = bool(value)
@@ -128,6 +136,29 @@ class CastReceiver(QObject):
         if self.lounge:
             self.lounge.rename(name)
         self.changed.emit()
+
+    @Slot()
+    def approvePairing(self):
+        code, self._pairing_code = self._pairing_code, ""
+        self.pairing_wait.stop()
+        self.changed.emit()
+        if code and self.lounge:
+            self.lounge.register_pairing_code(code, lambda ok: None if ok else self._set_status("A phone could not pair. Try casting again."))
+
+    @Slot()
+    def declinePairing(self):
+        self._pairing_code = ""
+        self.pairing_wait.stop()
+        self.changed.emit()
+
+    @Slot()
+    def forgetPairings(self):
+        """Replace this screen's identity, so every phone paired to the old one is disconnected."""
+        self.declinePairing()
+        if self.lounge:
+            self.lounge.forget()
+        else:
+            self.settings.remove("cast/screenId")
 
     def close(self):
         self._stop()
@@ -162,6 +193,7 @@ class CastReceiver(QObject):
         self.sync.stop()
         self.discovery.stop()
         self._found = False
+        self.declinePairing()
         for item in (self.lounge, self.dial):
             if item is not None:
                 item.stop()
@@ -206,9 +238,15 @@ class CastReceiver(QObject):
         if not self._found and not self._remotes and self.dial:
             self._set_status(f"A device searched for Tubify but could not connect. Check that your firewall allows Tubify on TCP port {self.dial.port}.")
 
-    def _launched(self, code, theme):
-        if self.lounge:
-            self.lounge.register_pairing_code(code, lambda ok: None if ok else self._set_status("A phone could not pair. Try casting again."))
+    def _launched(self, code, _theme):
+        # Anyone on the network can send this, so it waits for the person at this computer.
+        # One request at a time, so a flood of them can't replace the one being answered.
+        if not self.lounge or self._pairing_code:
+            return
+        self._pairing_code = code
+        self.pairing_wait.start()
+        self.changed.emit()
+        self.pairingRequested.emit()
 
     def _session_ready(self):
         self._last = None

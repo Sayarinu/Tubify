@@ -2,7 +2,8 @@
 
 Phones find Tubify with an SSDP search, read its device description and then launch the
 "YouTube" DIAL app with a pairing code. Nothing else is served. Only peers on a local
-subnet are answered, and requests are small and short-lived.
+subnet are answered, requests are small and short-lived, and anything a web page could
+have sent is refused.
 """
 
 from html import escape
@@ -91,6 +92,16 @@ def parse_request(data):
     return parts[0].upper(), parts[1].split("?", 1)[0], headers, body[:length]
 
 
+def trusted_request(headers, local_host):
+    """False for what a browser could send here: a web Origin, or a Host other than this address (DNS rebinding)."""
+    origin = headers.get("origin", "")
+    # Phone apps don't send a web origin; DIAL names them "package:...", which a page can't claim.
+    if origin and not origin.startswith("package:"):
+        return False
+    host = headers.get("host", "")
+    return (host.rpartition(":")[0] or host) == local_host
+
+
 def launch_fields(body):
     fields = parse_qs(body.decode("utf-8", "replace"), max_num_fields=20)
     return (fields.get("pairingCode") or [""])[0], (fields.get("theme") or [""])[0]
@@ -117,10 +128,8 @@ def local_networks():
 
 
 def local_address_for(peer, networks):
-    """Our IPv4 address on the peer's subnet, or None for peers outside every local subnet."""
+    """Our IPv4 address on the peer's subnet, or None otherwise. Loopback isn't a phone, so this computer gets no answer."""
     peer = QHostAddress(peer.toIPv4Address()) if peer.protocol() == QAbstractSocket.NetworkLayerProtocol.IPv6Protocol and peer.toIPv4Address() else peer
-    if peer.isLoopback():
-        return QHostAddress(QHostAddress.SpecialAddress.LocalHost)
     for address, prefix, _interface in networks:
         if prefix > 0 and peer.isInSubnet(address, prefix):
             return address
@@ -229,6 +238,10 @@ class DialServer(QObject):
         socket.disconnectFromHost()
 
     def _respond(self, socket, method, path, headers, body):
+        if not method:
+            return response(400)
+        if not trusted_request(headers, socket.localAddress().toString()):
+            return response(403)
         app_url = f"http://{socket.localAddress().toString()}:{self.port}/apps/"
         if method == "GET" and path == "/dd.xml":
             self.described.emit()
@@ -248,4 +261,4 @@ class DialServer(QObject):
             self.app_running = False
             self.stopRequested.emit()
             return response(200)
-        return response(404 if method else 400)
+        return response(404)
