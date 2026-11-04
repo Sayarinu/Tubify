@@ -8,12 +8,24 @@ Item {
     readonly property bool hasLyrics: !!lyricState.data.available
     readonly property bool timed: hasLyrics && !!lyricState.data.timed
     readonly property bool following: !resumeFollow.running
-    readonly property int lyricFontSize: width < 360 ? 20 : width < 520 ? 22 : 24
+    readonly property int lyricFontSize: width < 360 ? 22 : width < 520 ? 26 : 30
 
     function centerCurrent() {
         if (!visible || !timed || !following || lyricState.currentLine < 0) return
+        glide.stop()
         lines.forceLayout()
         lines.positionViewAtIndex(lyricState.currentLine, ListView.Center)
+    }
+    // Moving to the next line during playback glides; seeks and layout changes jump.
+    function glideToCurrent() {
+        if (appState.reducedMotion || lines.moving) return centerCurrent()
+        var from = lines.contentY
+        centerCurrent()
+        var to = lines.contentY
+        if (!visible || !timed || !following || Math.abs(to - from) < 1) return
+        lines.contentY = from
+        glide.to = to
+        glide.start()
     }
     function followCurrent() {
         resumeFollow.stop()
@@ -21,6 +33,7 @@ Item {
         Qt.callLater(centerCurrent)
     }
     function pauseFollow() {
+        glide.stop()
         if (timed) resumeFollow.restart()
     }
     function scrollWithKey(event) {
@@ -46,6 +59,13 @@ Item {
     onHeightChanged: Qt.callLater(centerCurrent)
     Component.onCompleted: followCurrent()
     Keys.onPressed: event => scrollWithKey(event)
+
+    NumberAnimation {
+        id: glide
+        objectName: "lyricGlide"
+        target: lines; property: "contentY"
+        duration: Theme.motionSlow; easing.type: Easing.OutCubic
+    }
 
     Timer {
         id: resumeFollow
@@ -158,6 +178,7 @@ Item {
             Keys.onShortcutOverride: event => {
                 if (seekable && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) event.accepted = true
             }
+            HoverHandler { cursorShape: line.seekable ? Qt.PointingHandCursor : Qt.ArrowCursor }
             Keys.onReturnPressed: if (seekable) clicked()
             Keys.onEnterPressed: if (seekable) clicked()
             contentItem: Column {
@@ -181,14 +202,17 @@ Item {
                 }
                 textFormat: Text.StyledText
                 wrapMode: Text.Wrap
-                color: !root.timed || line.index === lyricState.currentLine ? themeState.foreground : themeState.secondary
+                // Current and hovered lines are brightest, sung lines stay readable and upcoming ones recede.
+                color: !root.timed || line.index === lyricState.currentLine || line.hovered && line.seekable ? themeState.foreground
+                    : line.index < lyricState.currentLine ? themeState.secondary : Qt.alpha(themeState.secondary, 0.62)
+                Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionMedium } }
                 font.bold: true
                 font.pixelSize: root.lyricFontSize
-                lineHeight: 1.15
+                lineHeight: 1.2
                 }
             }
             background: Rectangle {
-                color: line.hovered && line.seekable ? themeState.surface : "transparent"
+                color: "transparent"
                 border.color: line.visualFocus ? themeState.accent : "transparent"
                 border.width: 1
                 radius: 6
@@ -248,7 +272,7 @@ Item {
             if (!root.hasLyrics) root.followCurrent()
             else Qt.callLater(root.centerCurrent)
         }
-        function onCurrentLineChanged() { Qt.callLater(root.centerCurrent) }
+        function onCurrentLineChanged() { Qt.callLater(root.glideToCurrent) }
     }
     Connections {
         target: playerState

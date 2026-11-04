@@ -370,6 +370,14 @@ ApplicationWindow {
         anchors.right: showQueueDock ? queueSidebar.left : parent.right
         anchors.bottom: player.top
         width: fittedLyricsWidth
+        // Tinted from the artwork, and held back so the lyrics stay readable over bright covers.
+        ArtworkBackdrop {
+            objectName: "lyricsBackdrop"
+            anchors.fill: parent
+            opacity: 0.65
+            source: playerState.currentTrack.thumbnail || ""
+            mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""
+        }
         Rectangle { width: 1; height: parent.height; color: themeState.border }
         DockHeader { id: lyricsHeader; title: "Lyrics"; tabbed: window.tabbedDocks; onCloseRequested: appState.setLyricsOpen(false) }
         LyricsPane { anchors.fill: parent; anchors.topMargin: 48; anchors.leftMargin: 16; anchors.rightMargin: 16 }
