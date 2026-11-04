@@ -262,6 +262,7 @@ jobs:
         shell: pwsh
         env:
           MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location || steps.msys2_retry.outputs.msys2-location || steps.msys2_final.outputs.msys2-location }}
+          TUBIFY_UPDATE_PUBLIC_KEY: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY || (needs.version.outputs.publish != 'true' && 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' || '') }}
         run: ./scripts/build-native-windows.ps1
       - name: Verify install, upgrade, launch, and uninstall
         shell: pwsh
@@ -280,7 +281,7 @@ jobs:
   # environment and sign with a throwaway identity, to test this same path.
   sign:
     name: Sign release downloads
-    needs: [version, macos-app, linux-app]
+    needs: [version, macos-app, linux-app, windows-app]
     runs-on: macos-latest
     environment: ${{ needs.version.outputs.publish == 'true' && 'release' || '' }}
     steps:
@@ -294,6 +295,10 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: native-linux-package
+          path: unsigned
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: tubify-windows-x64-installer
           path: unsigned
       - name: Install the pinned signing dependency
         if: needs.version.outputs.publish == 'true'
@@ -327,21 +332,26 @@ jobs:
             fingerprint="$(openssl x509 -in "$RUNNER_TEMP/throwaway/tubify-signing.crt" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')"
             codesign --display --requirements - dist/native/Tubify-macos-arm64.app 2>&1 | grep -qi "H\"$fingerprint\""
           fi
-      - name: Sign the Linux package
+      - name: Sign the Linux package and Windows installer
         if: needs.version.outputs.publish == 'true'
         env:
           VERSION: ${{ needs.version.outputs.version }}
           TUBIFY_UPDATE_PUBLIC_KEY: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY }}
           TUBIFY_SPARKLE_PRIVATE_KEY: ${{ secrets.TUBIFY_SPARKLE_PRIVATE_KEY }}
         run: |
-          # Signs with the release key and verifies against the public key the package installs.
+          # Signs with the release key and verifies against the public key each install trusts.
+          # This reads the files as bytes; nothing the build jobs made gets run here.
           package="dist/native/Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
+          installer="dist/native/Tubify-${VERSION}-windows-x64-setup.exe"
           cp unsigned/youtube-music-native-*-x86_64.pkg.tar.zst "$package"
+          cp "unsigned/Tubify-${VERSION}-windows-x64-setup.exe" "$installer"
           printf '%s' "$TUBIFY_UPDATE_PUBLIC_KEY" > "$RUNNER_TEMP/update-public-key"
-          "$RUNNER_TEMP/signing/bin/python" -I native/src/youtube_music_native/updates/package_signature.py \
-            "$package" "$RUNNER_TEMP/update-public-key"
-          test -s "$package.sig"
-          rm "$package"
+          for file in "$package" "$installer"; do
+            "$RUNNER_TEMP/signing/bin/python" -I native/src/youtube_music_native/updates/package_signature.py \
+              "$file" "$RUNNER_TEMP/update-public-key"
+            test -s "$file.sig"
+            rm "$file"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tubify-macos-arm64
@@ -349,6 +359,7 @@ jobs:
             dist/native/Tubify-*-macos-arm64.dmg
             dist/native/appcast.xml
             dist/native/*.pkg.tar.zst.sig
+            dist/native/*.exe.sig
           if-no-files-found: error
           # Installers are already compressed.
           compression-level: 0
@@ -420,8 +431,10 @@ jobs:
           if [[ "$PUBLISH" == true ]]; then
             test -s appcast.xml
             assets+=(appcast.xml)
+            installer="Tubify-${VERSION}-windows-x64-setup.exe"
             test -s "$package.sig"
-            assets+=("$package.sig")
+            test -s "$installer.sig"
+            assets+=("$package.sig" "$installer.sig")
           fi
           sha256sum "${assets[@]}" > SHA256SUMS
           sha256sum --check SHA256SUMS
@@ -473,7 +486,7 @@ jobs:
           cd release
           sha256sum --check SHA256SUMS
           shopt -s failglob
-          assets=( *.exe *.dmg *.pkg.tar.zst *.pkg.tar.zst.sig SHA256SUMS appcast.xml )
+          assets=( *.exe *.exe.sig *.dmg *.pkg.tar.zst *.pkg.tar.zst.sig SHA256SUMS appcast.xml )
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
               echo "This build is already published."

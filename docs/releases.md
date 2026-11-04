@@ -37,7 +37,7 @@ The macOS build pins Sparkle 2.10.1 and verifies its distribution SHA-256. `TUBI
 
 ## Signing keys
 
-Three secrets sign releases: `TUBIFY_SPARKLE_PRIVATE_KEY` (macOS updates and the Linux package), and `TUBIFY_MACOS_SIGNING_P12` with `TUBIFY_MACOS_SIGNING_PASSWORD` (the macOS app). They live only in the protected `release` environment, which `scripts/setup-release-protection.sh` sets up.
+Three secrets sign releases: `TUBIFY_SPARKLE_PRIVATE_KEY` (macOS updates, the Linux package and the Windows installer), and `TUBIFY_MACOS_SIGNING_P12` with `TUBIFY_MACOS_SIGNING_PASSWORD` (the macOS app). They live only in the protected `release` environment, which `scripts/setup-release-protection.sh` sets up.
 
 - **Who can reach them:** only runs on `main` or `experimental`, which sign and publish automatically. A branch that edits a workflow can't enter the environment.
 - **Who can merge:** changes reach those branches only through PRs, and only people with write access can merge, which today is just the owner. Contributors work from forks, so the owner's merge is their approval. Giving someone write access would let them merge, and so publish a signed release.
@@ -68,7 +68,7 @@ Replacing a key is not enough on its own: Macs that approved the old certificate
 
 **Sparkle key**
 
-Treat this as urgent, because it signs updates, and Linux packages install as root without a password.
+Treat this as urgent, because it signs updates: Windows runs what it signs, and Linux packages install as root without a password.
 
 1. Generate a new key.
 2. Replace the secret and the public key variable with `--sparkle-key-file`.

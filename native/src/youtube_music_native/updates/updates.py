@@ -17,6 +17,7 @@ MAX_DOWNLOAD = 1024 * 1024 * 1024
 MAX_SIGNATURE = 4096
 # Installed by the Linux package: applies signed updates without a password prompt.
 LINUX_HELPER = '/usr/lib/youtube-music-native/apply-update'
+LINUX_PUBLIC_KEY = '/usr/lib/youtube-music-native/update-public-key'
 # Release tags: Tubify-X.Y.Z (stable) and Tubify-Experimental-X.Y.ZbN (experimental).
 VERSION = re.compile(r'(\d+)\.(\d+)\.(\d+)(?:b(\d+))?')
 STABLE_TAG = re.compile(r'Tubify-(\d+\.\d+\.\d+)')
@@ -67,6 +68,10 @@ def release_name(value):
     return ('Tubify Experimental ' if key[3] == 0 else 'Tubify ') + version
 
 
+class UnsignedUpdate(ValueError):
+    """The release has no signature, or the download doesn't match it. Nothing gets installed."""
+
+
 def integrity(item, limit):
     digest, size = item.get('digest', ''), item.get('size', 0)
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest) or type(size) is not int or not 0 < size <= limit:
@@ -80,7 +85,7 @@ def asset_name(version, system=None):
         return f'Tubify-{version}-windows-x64-setup.exe'
     if system == 'darwin':
         return f'Tubify-{version}-macos-arm64.dmg'
-    return None
+    return f'Tubify-{version}-linux-x86_64.pkg.tar.zst'
 
 
 def select_asset(release, system=None):
@@ -91,22 +96,17 @@ def select_asset(release, system=None):
         raise ValueError('Invalid Tubify release')
     candidates = []
     for item in release.get('assets', []):
-        name = item.get('name', '')
-        match = name == asset_name(version, system)
-        if system == 'linux':
-            # Releases from 0.2.1 name the pacman package after Tubify; earlier ones used the package name.
-            match = name == f'Tubify-{version}-linux-x86_64.pkg.tar.zst' or bool(
-                re.fullmatch(r'youtube-music-native-' + re.escape(version) + r'-\d+-x86_64\.pkg\.tar\.zst', name))
-        if match:
+        if item.get('name', '') == asset_name(version, system):
             candidates.append({'tag': tag, **integrity(item, MAX_DOWNLOAD)})
     if len(candidates) != 1:
         raise ValueError('Release does not contain one matching installer')
     asset = candidates[0]
-    if system == 'linux':
-        # Releases before signed Linux packages have no signature; they install with a password.
+    # Sparkle checks macOS updates itself; everywhere else launch_installer checks this signature.
+    if system != 'darwin':
         signatures = [item for item in release.get('assets', []) if item.get('name') == asset['name'] + '.sig']
-        if len(signatures) == 1:
-            asset['signature'] = integrity(signatures[0], MAX_SIGNATURE)
+        if len(signatures) != 1:
+            raise UnsignedUpdate('Release has no signature')
+        asset['signature'] = integrity(signatures[0], MAX_SIGNATURE)
     return asset
 
 
@@ -177,11 +177,30 @@ def fetch(tag, asset, directory, progress, opener):
         partial.unlink(missing_ok=True)
 
 
+def update_public_key():
+    """The key this install trusts, placed by the package build."""
+    if sys.platform == 'win32':
+        return Path(sys._MEIPASS) / 'update-public-key'
+    return Path(LINUX_PUBLIC_KEY)
+
+
+def check_signature(data, asset):
+    from youtube_music_native.updates.package_signature import verify
+
+    if not asset.get('signature_path'):
+        raise UnsignedUpdate('Installer has no signature')
+    if not verify(data, Path(asset['signature_path']).read_text(), update_public_key().read_text()):
+        raise UnsignedUpdate('Installer signature check failed')
+
+
 def launch_installer(asset, parent_pid):
     path = Path(asset['path']).resolve()
-    with path.open('rb') as handle:
-        if hashlib.file_digest(handle, 'sha256').hexdigest() != asset['sha256']:
-            raise ValueError('Installer integrity check failed')
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != asset['sha256']:
+        raise ValueError('Installer integrity check failed')
+    if sys.platform not in {'win32', 'linux'}:
+        raise ValueError('Use the macOS updater')
+    check_signature(data, asset)
     if sys.platform == 'win32':
         subprocess.Popen([str(path), '/SILENT', '/SP-', '/NORESTART', '/NOCLOSEAPPLICATIONS',
                           '/TUBIFYUPDATE=1', f'/UPDATEPID={parent_pid}', f'/DIR={Path(sys.executable).parent}'])
@@ -195,8 +214,6 @@ def launch_installer(asset, parent_pid):
         subprocess.Popen([sys.executable, '-I', str(helper), str(parent_pid), str(path), asset['sha256'], *signature],
                          start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    else:
-        raise ValueError('Use the macOS updater')
 
 
 def verified_copy(path, digest, directory):

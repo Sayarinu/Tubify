@@ -8,6 +8,7 @@ function Install-Tubify {
     $process = Start-Process -FilePath $installer.FullName -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -PassThru -Wait
     if ($process.ExitCode -ne 0) { throw "The Tubify installer failed with exit code $($process.ExitCode)." }
     if (-not (Test-Path $executable)) { throw "The installer did not place Tubify.exe in the expected per-user directory." }
+    if (-not (Get-ChildItem -Path $installDir -Recurse -Filter update-public-key)) { throw "The installer did not include the update public key." }
     $versionInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo($executable)
     if ($versionInfo.ProductName -ne "Tubify" -or $versionInfo.FileDescription -ne "Tubify") {
         throw "The installed executable is missing Tubify product metadata."

@@ -13,6 +13,10 @@ NATIVE = ROOT / "native"
 sys.path.insert(0, str(ROOT / "packaging"))
 from bundle_contents import needed_entries
 
+# From the TUBIFY_UPDATE_PUBLIC_KEY GitHub variable. The app only runs installers signed by this key.
+UPDATE_PUBLIC_KEY = os.environ.get("TUBIFY_UPDATE_PUBLIC_KEY", "").strip()
+if not UPDATE_PUBLIC_KEY:
+    raise SystemExit("Set TUBIFY_UPDATE_PUBLIC_KEY: gh variable get TUBIFY_UPDATE_PUBLIC_KEY")
 VERSION = tomllib.loads((NATIVE / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
 # Windows file versions are four numbers: an experimental X.Y.ZbN build is X.Y.Z.N.
 version_tuple = tuple(int(part) for part in re.findall(r"\d+", VERSION))
@@ -43,6 +47,9 @@ analysis = Analysis(
 # PyInstaller collects every QML module and style Qt provides; keep only what Tubify uses.
 analysis.binaries = needed_entries(analysis.binaries)
 analysis.datas = needed_entries(analysis.datas)
+public_key_file = Path(workpath) / "update-public-key"
+public_key_file.write_text(UPDATE_PUBLIC_KEY + "\n", encoding="ascii")
+analysis.datas += [("update-public-key", str(public_key_file), "DATA")]
 pyz = PYZ(analysis.pure)
 exe = EXE(
     pyz, analysis.scripts, [],
