@@ -7,7 +7,7 @@
   scripts/open-prs.py --into stable LUNE-1            urgent fix into main
 
 Each PR takes its title from the subject of its branch's first commit and its description from
-that commit's body. --check-pr applies the same naming rules in CI.
+that commit's body. --check-pr applies the same naming and commit email rules in CI.
 """
 
 import argparse
@@ -19,6 +19,8 @@ import time
 
 TRUNKS = {"experimental": "experimental", "stable": "main"}
 TICKET = re.compile(r"LUNE-\d+")
+# Commit identities are public, so only GitHub's private addresses are allowed.
+PRIVATE_EMAIL = re.compile(r"noreply@github\.com|(?:\d+\+)?[\w-]+(?:\[bot\])?@users\.noreply\.github\.com")
 # Checks can take a moment to appear on a new PR.
 CHECKS_APPEAR_TRIES = 20
 CHECKS_APPEAR_WAIT = 15
@@ -48,6 +50,18 @@ def pr_problems(head, base, title, fork=False):
     return problems
 
 
+def exposed_email_commits(log):
+    """Commits in `git log --format="%h %ae %ce"` output using an email outside GitHub's private addresses."""
+    rows = (line.split() for line in log.splitlines() if line.strip())
+    return [row[0] for row in rows if not all(PRIVATE_EMAIL.fullmatch(email) for email in row[1:])]
+
+
+def email_problems(revisions):
+    # Names the commits only: printing the address here would publish it in the CI log.
+    commits = exposed_email_commits(output("git", "log", "--format=%h %ae %ce", revisions))
+    return [f"Commit {commit} must use a GitHub noreply email address, not a personal one." for commit in commits]
+
+
 def split_message(message):
     subject, _, body = message.strip().partition("\n")
     return subject.strip(), body.strip()
@@ -74,6 +88,8 @@ def describe(branch, parent):
     commits = output("git", "rev-list", "--reverse", "--no-merges", f"{parent}..{branch}").split()
     if not commits:
         raise SystemExit(f"{branch} has no commits on top of {parent}.")
+    if problems := email_problems(f"{parent}..{branch}"):
+        raise SystemExit("\n".join(problems))
     for commit in commits:
         problem = subject_problem(branch, split_message(output("git", "log", "-1", "--format=%B", commit))[0])
         if problem:
@@ -121,11 +137,14 @@ def main(arguments=None):
     parser.add_argument("--into", choices=sorted(TRUNKS), default="experimental", help="Release channel to target")
     parser.add_argument("--feature", action="append", default=[], metavar="BRANCH", help="Label this branch's PR as a Feature (minor version bump)")
     parser.add_argument("--no-wait", action="store_true", help="Don't wait for the PR checks")
-    parser.add_argument("--check-pr", action="store_true", help="CI: check PR_HEAD, PR_BASE, PR_TITLE and PR_FORK against the branch policy")
+    parser.add_argument("--check-pr", action="store_true", help="CI: check PR_HEAD, PR_BASE, PR_TITLE, PR_FORK and the commit emails against the branch policy")
     options = parser.parse_args(arguments)
 
     if options.check_pr:
-        problems = pr_problems(os.environ["PR_HEAD"], os.environ["PR_BASE"], os.environ["PR_TITLE"], os.environ.get("PR_FORK") == "true")
+        fork = os.environ.get("PR_FORK") == "true"
+        problems = pr_problems(os.environ["PR_HEAD"], os.environ["PR_BASE"], os.environ["PR_TITLE"], fork)
+        if not fork:
+            problems += email_problems(f'{os.environ["PR_BASE_SHA"]}..{os.environ["PR_HEAD_SHA"]}')
         for problem in problems:
             print(f"::error title=PR policy::{problem}")
         return 1 if problems else 0

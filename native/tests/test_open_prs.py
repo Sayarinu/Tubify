@@ -49,7 +49,51 @@ def test_commit_message_becomes_title_and_description():
     assert open_prs.split_message("LUNE-1 - Change") == ("LUNE-1 - Change", "")
 
 
+@pytest.mark.parametrize("email", [
+    "12345+name@users.noreply.github.com",
+    "name@users.noreply.github.com",
+    "dependabot[bot]@users.noreply.github.com",
+    "noreply@github.com",
+])
+def test_github_private_addresses_are_allowed(email):
+    assert open_prs.exposed_email_commits(f"abc123 {email} noreply@github.com\n") == []
+
+
+@pytest.mark.parametrize("email", [
+    "someone@example.com",
+    "noreply@users.noreply.github.com.example.com",
+    "x@github.com",
+])
+def test_other_addresses_are_rejected_for_author_or_committer(email):
+    assert open_prs.exposed_email_commits(f"abc123 {email} noreply@github.com\n") == ["abc123"]
+    assert open_prs.exposed_email_commits(f"def456 noreply@github.com {email}\n") == ["def456"]
+
+
+def test_email_check_never_prints_the_address(monkeypatch, capsys):
+    monkeypatch.setattr(open_prs, "output", lambda *command: "abc123 someone@example.com noreply@github.com")
+    monkeypatch.setenv("PR_HEAD", "LUNE-1")
+    monkeypatch.setenv("PR_BASE", "experimental")
+    monkeypatch.setenv("PR_TITLE", "LUNE-1 - Change")
+    monkeypatch.setenv("PR_BASE_SHA", "base")
+    monkeypatch.setenv("PR_HEAD_SHA", "head")
+    assert open_prs.main(["--check-pr"]) == 1
+    printed = capsys.readouterr().out
+    assert "abc123" in printed and "someone@example.com" not in printed
+
+
+def test_fork_pull_requests_skip_the_email_check(monkeypatch):
+    monkeypatch.setattr(open_prs, "output", lambda *command: pytest.fail("a fork's commits are not checked"))
+    monkeypatch.setenv("PR_HEAD", "patch-1")
+    monkeypatch.setenv("PR_BASE", "experimental")
+    monkeypatch.setenv("PR_TITLE", "Fix a typo")
+    monkeypatch.setenv("PR_FORK", "true")
+    assert open_prs.main(["--check-pr"]) == 0
+
+
 def test_check_pr_reports_through_the_exit_code(monkeypatch, capsys):
+    monkeypatch.setattr(open_prs, "output", lambda *command: "")
+    monkeypatch.setenv("PR_BASE_SHA", "base")
+    monkeypatch.setenv("PR_HEAD_SHA", "head")
     monkeypatch.setenv("PR_HEAD", "someone/branch")
     monkeypatch.setenv("PR_BASE", "experimental")
     monkeypatch.setenv("PR_TITLE", "Change")
