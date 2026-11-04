@@ -81,7 +81,7 @@ class DeepLinks(QObject):
         self.worker, self.cache_path, self.clock, self.fixture = account.worker, str(cache_path), clock, fixture
         self._link, self._media, self._message, self._busy = {}, {}, "", False
         self._lookup, self._request, self._recent = None, None, {}
-        self._action, self._notice = "open", ""
+        self._notice = ""
         self._loaded = False
         if downloads:
             downloads.collectionFound.connect(self._local)
@@ -107,7 +107,8 @@ class DeepLinks(QObject):
 
     @Property(bool, notify=changed)
     def previewOnly(self):
-        return self._link.get("action") == "open"
+        # A link only ever opens this preview. Playing it takes a click, so a web page can't start playback.
+        return bool(self._link)
 
     @Property(bool, notify=changed)
     def canPlay(self):
@@ -141,7 +142,7 @@ class DeepLinks(QObject):
         self._cancel()
         self._notice = ""
         self._loaded = False
-        self._link, self._action = link, link["action"]
+        self._link = link
         self._media = {"kind": link["kind"], "id": link["id"], "title": link["kind"].title() + " link"}
         if link["kind"] == "song":
             self._media["videoId"] = link["id"]
@@ -203,17 +204,12 @@ class DeepLinks(QObject):
         self._media, self._busy, self._message = dict(media), False, ""
         self._loaded = True
         self.changed.emit()
-        action, self._action = self._action, "open"
-        if action != "open":
-            self.perform(action)
 
     def _failed(self, identifier, error):
         if identifier is not None and identifier != self._request:
             return
         self._request, self._busy = None, False
         self._message = "Details are unavailable. Connect your account or retry. Downloaded music remains available."
-        # Failure never turns an external preview into an unintended playback request.
-        self._action = "open"
         self.changed.emit()
 
     @Slot()

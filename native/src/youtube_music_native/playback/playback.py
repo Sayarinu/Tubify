@@ -1157,6 +1157,15 @@ class Playback(QObject):
                 self.audio.stop()
         self.changed.emit()
 
+    def forgetQueue(self):
+        """Signing out leaves nothing of this account's listening on disk; playback.json is rewritten empty."""
+        self.stop()
+        self.queue.replace([])
+        self._context, self._duration = {}, 0.
+        self.changed.emit()
+        self.save_timer.stop()
+        self.save()
+
     def close(self):
         self.save_timer.stop()
         self.save()

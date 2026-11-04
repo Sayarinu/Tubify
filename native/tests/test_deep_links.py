@@ -106,10 +106,12 @@ def test_explicit_actions_wait_for_valid_details_and_duplicate_launch_is_suppres
     service, browse, worker, downloads, clock = controller(tmp_path)
     service.receive(link("play"))
     service.receive(link("play"))
-    assert len(downloads.requests) == 1 and not service.previewOnly
+    assert len(downloads.requests) == 1 and service.previewOnly
     downloads.collectionFound.emit(1, {})
     assert worker.requests[0][1]["route"] == "radio" and worker.requests[0][1]["params"]["radio"] is False
     worker.succeeded.emit(1, {"items": [TRACK]})
+    assert not browse.calls, "A link must wait for a click before it plays"
+    service.perform("play")
     assert browse.calls == [("play", TRACK)]
     clock[0] += 3
     service.receive(link("play"))
@@ -143,6 +145,7 @@ def test_failed_details_remain_preview_and_artist_actions_are_explicit(tmp_path)
     assert not browse.calls, "Retrying a failed link must not auto-play"
     service.receive(link("play", ARTIST))
     worker.succeeded.emit(3, {"title": "Synthetic artist"})
+    service.perform("play")
     assert not browse.calls and "Open this artist" in service.message
     service.perform("open")
     assert browse.calls[-1][0] == "open"
@@ -290,5 +293,7 @@ def test_second_file_open_during_startup_is_rejected_visibly(tmp_path):
     service.receive(link("play"))
     service.reportError(rejected[0])
     downloads.collectionFound.emit(1, {"kind": "song", "items": [TRACK]})
-    assert browse.calls == [("play", TRACK)] and "one music link" in service.message
+    assert not browse.calls and service.canPlay and "one music link" in service.message
+    service.perform("play")
+    assert browse.calls == [("play", TRACK)]
     instance.close()

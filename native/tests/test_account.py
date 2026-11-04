@@ -38,10 +38,13 @@ def test_restore_and_failed_reconnect_keep_cached_identity(tmp_path):
     worker.succeeded.emit(3, {"connected": True, "profile": {"name": "Listener"}})
     assert account.connected and not account.reconnect
     assert changes == [True]
+    signed_out = []
+    account.signedOut.connect(lambda: signed_out.append(True))
     account.signOut()
+    assert not signed_out, "Nothing is removed until sign-out has succeeded"
     worker.succeeded.emit(4, {"connected": False, "profile": {}})
     assert not account.connected and account.profile == {}
-    assert changes == [True, True]
+    assert changes == [True, True] and signed_out == [True]
 
 
 def test_provider_requests_are_asynchronous_and_errors_are_sanitized():

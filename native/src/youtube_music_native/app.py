@@ -13,6 +13,8 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication
 
+from .catalog.store import wipe_metadata
+from .compat import private_directory
 from .shell import ShellController
 from .account.account import Account
 from .artwork.artwork import ArtworkCache
@@ -163,7 +165,7 @@ def main(argv=None):
     elif args.smoke_test or args.screenshot:
         data = Path(tempfile.mkdtemp(prefix="youtube-music-native-ui-"))
     else:
-        data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation))
+        data = private_directory(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation))
     data.mkdir(parents=True, exist_ok=True, mode=0o700)
     instance = None
     if not (args.fixture or args.smoke_test or args.screenshot):
@@ -179,7 +181,7 @@ def main(argv=None):
     if args.data_dir or args.smoke_test or args.screenshot:
         cache = data / "cache"
     else:
-        cache = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.CacheLocation))
+        cache = private_directory(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.CacheLocation))
     cache.mkdir(parents=True, exist_ok=True, mode=0o700)
     fixture = json.loads((PACKAGE / "assets" / "visual-fixture.json").read_text()) if args.fixture else None
     controller = ShellController(data / "settings.ini", fixture)
@@ -229,6 +231,9 @@ def main(argv=None):
     player.trackStarted.connect(lambda track: downloads.refresh())
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
     account.sessionChanged.connect(downloads.resetSession)
+    # Downloads stay: they are files the person chose to keep.
+    account.signedOut.connect(player.forgetQueue)
+    account.signedOut.connect(lambda: wipe_metadata(cache / "metadata.sqlite3"))
     # Kept for a few minutes so playing several long playlists in a row stays warm.
     pages = None if args.fixture else Worker(controller, idle_ms=3 * 60 * 1000)
     if pages:
