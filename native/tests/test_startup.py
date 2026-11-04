@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from youtube_music_native import launcher
-from youtube_music_native.system.startup import APP_ID, RUN_KEY, StartupError, StartupRegistration, desktop_exec
+from youtube_music_native.system.startup import APP_ID, OLD_APP_ID, RUN_KEY, StartupError, StartupRegistration, desktop_exec
 
 
 @pytest.mark.parametrize("platform", ["linux", "darwin"])
@@ -168,3 +168,41 @@ def test_legacy_linux_display_name_keeps_login_state_without_rewriting(tmp_path)
     registration.command = ["/different/player"]
     assert not registration.is_enabled()
     assert registration.path.read_bytes() == previous
+
+
+def test_a_linux_login_item_from_an_old_build_moves_to_the_new_identifier(tmp_path):
+    registration = StartupRegistration(["/usr/bin/tubify"], "linux", tmp_path, tmp_path / "config")
+    assert not registration.move_old_item()
+    registration.path.parent.mkdir(parents=True)
+    registration.path.write_bytes(registration._content().replace(APP_ID.encode(), OLD_APP_ID.encode()))
+    assert not registration.is_enabled()
+    assert registration.move_old_item() and registration.is_enabled()
+    assert OLD_APP_ID.encode() not in registration.path.read_bytes()
+    assert not registration.move_old_item()
+
+
+def test_a_foreign_linux_login_item_is_left_alone(tmp_path):
+    registration = StartupRegistration(["/usr/bin/tubify"], "linux", tmp_path, tmp_path / "config")
+    registration.path.parent.mkdir(parents=True)
+    registration.path.write_bytes(b"[Desktop Entry]\nName=Other\n")
+    assert not registration.move_old_item()
+    assert registration.path.read_bytes() == b"[Desktop Entry]\nName=Other\n"
+
+
+def test_a_macos_login_item_from_an_old_build_moves_to_the_new_identifier(tmp_path):
+    registration = StartupRegistration(["/Applications/Tubify.app/Contents/MacOS/Tubify"], "darwin", tmp_path)
+    old = registration.path.with_name(OLD_APP_ID + ".plist")
+    old.parent.mkdir(parents=True)
+    old.write_bytes(plistlib.dumps({"Label": OLD_APP_ID, "ProgramArguments": ["old"], "RunAtLoad": True}))
+    assert registration.move_old_item() and registration.is_enabled() and not old.exists()
+    old.write_bytes(plistlib.dumps({"Label": "someone.else"}))
+    assert not registration.move_old_item() and old.exists()
+
+
+def test_a_windows_login_item_from_an_old_build_moves_to_the_new_identifier(tmp_path):
+    registry = Registry()
+    registration = StartupRegistration(["C:\\Tubify\\Tubify.exe"], "win32", tmp_path, registry=registry)
+    assert not registration.move_old_item()
+    registry.values[OLD_APP_ID] = ("old", registry.REG_SZ)
+    assert registration.move_old_item()
+    assert OLD_APP_ID not in registry.values and registration.is_enabled()

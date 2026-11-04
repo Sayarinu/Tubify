@@ -10,7 +10,9 @@ from ..launcher import application_command
 from ..util import atomic_write
 
 
-APP_ID = "com.carter.youtube-music-native"
+APP_ID = "studio.nouvellelune.tubify"
+# Login items from earlier builds. move_old_item replaces one so the person's choice carries over.
+OLD_APP_ID = "com.carter.youtube-music-native"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 
@@ -76,6 +78,38 @@ class StartupRegistration:
             except (ValueError, plistlib.InvalidFileException):
                 return False
         return f"X-YouTube-Music-Native={APP_ID}\n".encode() in content
+
+    def move_old_item(self):
+        """Re-register a login item an earlier build made under the old identifier; True if one was moved."""
+        if not self.supported:
+            return False
+        if self.platform == "win32":
+            return self._move_old_registry_value()
+        if self.platform == "linux":
+            if not self.path.is_file() or f"X-YouTube-Music-Native={OLD_APP_ID}\n".encode() not in self.path.read_bytes():
+                return False
+            atomic_write(self.path, self._content())
+            return True
+        old = self.path.with_name(OLD_APP_ID + ".plist")
+        try:
+            if plistlib.loads(old.read_bytes()).get("Label") != OLD_APP_ID:
+                return False
+        except (OSError, ValueError, AttributeError, plistlib.InvalidFileException):
+            return False
+        self.set_enabled(True)
+        old.unlink()
+        return True
+
+    def _move_old_registry_value(self):
+        registry = self._registry()
+        with registry.CreateKey(registry.HKEY_CURRENT_USER, RUN_KEY) as key:
+            try:
+                registry.QueryValueEx(key, OLD_APP_ID)
+            except FileNotFoundError:
+                return False
+            registry.DeleteValue(key, OLD_APP_ID)
+        self.set_enabled(True)
+        return True
 
     def is_enabled(self):
         self._check()

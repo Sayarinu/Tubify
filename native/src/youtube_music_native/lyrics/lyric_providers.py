@@ -11,7 +11,7 @@ from . import lyric_formats as formats
 from ..account.credentials import secure_backend
 from .lyric_options import PROVIDERS
 
-KEY_SERVICE = "com.carter.youtube-music.native.lyrics"
+KEY_SERVICE = "studio.nouvellelune.tubify.lyrics"
 KEY_NAME = "better-lyrics"
 
 

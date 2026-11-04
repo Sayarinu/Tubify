@@ -39,7 +39,7 @@ from .integrations.discord_presence import DiscordPresence
 from .integrations.handoff import Handoff
 from .system.tray import TrayPlayer
 from .system.lifecycle import Lifecycle
-from .system.startup import StartupRegistration
+from .system.startup import StartupError, StartupRegistration
 from .system.macos import trusts_certificates
 from .theme import ThemeState
 from .system.color_picker import ColorSampler
@@ -137,7 +137,7 @@ def main(argv=None):
     if len(args.links) > 1:
         parser.error("Open one music link at a time.")
     QGuiApplication.setOrganizationName("YouTubeMusicNative")
-    QGuiApplication.setOrganizationDomain("com.carter")
+    QGuiApplication.setOrganizationDomain("nouvellelune.studio")
     QGuiApplication.setApplicationName("youtube-music-native")
     QGuiApplication.setApplicationDisplayName("Tubify")
     QQuickStyle.setStyle("Basic")
@@ -225,8 +225,13 @@ def main(argv=None):
     on_quit(controller.discordState.close)
     controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)
     controller.trayState = TrayPlayer(controller, player, data / "settings.ini", PACKAGE / "assets" / "music.svg", parent=controller)
-    controller.lifecycleState = Lifecycle(data / "settings.ini", player, controller.trayState, parent=controller,
-                                          startup=StartupRegistration(disabled_reason="Login startup is unavailable in visual fixtures." if args.fixture else ""))
+    startup = StartupRegistration(disabled_reason="Login startup is unavailable in visual fixtures." if args.fixture else "")
+    try:
+        startup.move_old_item()
+    except (OSError, StartupError):
+        # Settings shows login startup as off, and turning it back on still works.
+        pass
+    controller.lifecycleState = Lifecycle(data / "settings.ini", player, controller.trayState, parent=controller, startup=startup)
     downloads = DownloadView(media_data, fixture=args.fixture, parent=controller)
     player.trackStarted.connect(lambda track: downloads.refresh())
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))

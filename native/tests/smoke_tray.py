@@ -31,7 +31,7 @@ def main():
                 assert QGuiApplication.applicationDisplayName() == "Tubify"
                 assert QGuiApplication.applicationName() == "youtube-music-native"
                 assert QGuiApplication.organizationName() == "YouTubeMusicNative"
-                assert QGuiApplication.organizationDomain() == "com.carter"
+                assert QGuiApplication.organizationDomain() == "nouvellelune.studio"
                 assert QGuiApplication.instance().desktopFileName() == "youtube-music-native"
                 assert window.title() == "Tubify · Visual Fixture"
                 assert service.popup is None and not service.enabled

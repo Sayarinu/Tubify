@@ -25,7 +25,7 @@ def test_restore_and_failed_reconnect_keep_cached_identity(tmp_path):
     changes = []
     account.sessionChanged.connect(lambda: changes.append(True))
     app.processEvents()
-    assert worker.requests == [("restore", None)]
+    assert worker.requests == [("restore", {"removeOldEntries": True})]
     worker.succeeded.emit(1, {"connected": True, "profile": {"name": "Listener"}})
     account.requireReconnect("Session expired")
     assert not account.connected and account.reconnect
@@ -331,3 +331,19 @@ def test_timed_out_job_fails_alone_and_queued_work_continues():
     worker.close()
     assert results[0] == (1, "timeout")
     assert results[1][0] == 2 and results[1][1] != "timeout"
+
+
+def test_old_keyring_entries_are_only_removed_until_it_has_worked(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    account = Account(tmp_path / "settings.ini", worker=worker)
+    account.restore()
+    assert worker.requests[-1] == ("restore", {"removeOldEntries": True})
+    worker.succeeded.emit(1, {"connected": False, "profile": {}})
+    account.restore()
+    assert worker.requests[-1] == ("restore", {"removeOldEntries": True}), "A locked keyring is tried again"
+    worker.succeeded.emit(2, {"connected": False, "profile": {}, "oldEntriesRemoved": True})
+    account.restore()
+    assert worker.requests[-1] == ("restore", None)
+    worker.succeeded.emit(3, {"connected": False, "profile": {}})
+    assert Account(tmp_path / "settings.ini", worker=FakeWorker()).settings.value("oldKeyringEntriesRemoved", False, type=bool)

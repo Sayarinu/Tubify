@@ -13,6 +13,7 @@ MUSIC_URL = "https://music.youtube.com/"
 RENEW_AFTER = 7 * 24 * 3600
 RENEW_COOLDOWN = 10 * 60
 POLL_MS = 4000
+OLD_ENTRIES_REMOVED = "oldKeyringEntriesRemoved"
 WAIT_LIMIT = 5 * 60
 
 
@@ -106,7 +107,8 @@ class Account(QObject):
 
     @Slot()
     def restore(self):
-        self._send("restore")
+        # Asks once: reading a keyring entry another build made can prompt for approval on macOS.
+        self._send("restore", None if self.settings.value(OLD_ENTRIES_REMOVED, False, type=bool) else {"removeOldEntries": True})
 
     @Slot(QUrl)
     def importFile(self, url):
@@ -209,6 +211,8 @@ class Account(QObject):
         self._reconnect = False
         self._profile = result.get("profile") or {}
         self._message = "Connected to YouTube Music." if self._connected else ""
+        if result.get("oldEntriesRemoved"):
+            self.settings.setValue(OLD_ENTRIES_REMOVED, True)
         self.settings.setValue("accountProfile", json.dumps(self._profile))
         if self._operation == "import_browser":
             self._poll.stop()

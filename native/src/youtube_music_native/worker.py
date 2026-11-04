@@ -9,7 +9,7 @@ import time
 
 from .account.auth import AuthError, AuthService
 from .catalog.catalog import STABLE_ROUTES, Catalog, CatalogError
-from .account.credentials import CredentialError
+from .account.credentials import CredentialError, remove_old_entries
 from .account.session import SessionError
 from .catalog.store import MetadataStore
 from .playback.media import MediaFiles
@@ -137,6 +137,18 @@ def _account_change(change):
     return action
 
 
+def _restore(service, payload, resources, progress):
+    result = service.restore()
+    if (payload or {}).get("removeOldEntries"):
+        try:
+            remove_old_entries()
+            result = {**result, "oldEntriesRemoved": True}
+        except CredentialError:
+            # The keyring is locked or missing; the app tries again next launch.
+            pass
+    return result
+
+
 def _account_history(service, payload, resources, progress):
     client = service.catalog()
     response = client.add_history_item(client.get_song(payload["videoId"]))
@@ -202,7 +214,7 @@ OPERATIONS = {
     "artwork": _artwork,
     "lyrics_key": _lyrics_key,
     "lyrics": _lyrics,
-    "restore": lambda service, payload, resources, progress: service.restore(),
+    "restore": _restore,
     "import_session": _account_change(lambda service, payload: service.import_session(payload["path"])),
     "import_browser": _account_change(lambda service, payload: service.import_browser([name for name in payload.get("browsers", []) if isinstance(name, str)])),
     "sign_out": _account_change(lambda service, payload: service.sign_out()),
