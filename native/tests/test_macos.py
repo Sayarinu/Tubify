@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native.macos import prepare_runtime, trusts_certificates
-from youtube_music_native.macos_media import COMMANDS, MacBus
-from youtube_music_native.browsers import BrowserBlocked, NoBrowserSession, candidates, read_session
+from youtube_music_native.system.macos import prepare_runtime, trusts_certificates
+from youtube_music_native.system.macos_media import COMMANDS, MacBus
+from youtube_music_native.account.browsers import BrowserBlocked, NoBrowserSession, candidates, read_session
 
 
 def test_runtime_paths_are_added_once_and_only_on_macos(tmp_path):

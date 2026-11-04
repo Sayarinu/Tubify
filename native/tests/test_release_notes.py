@@ -27,7 +27,7 @@ def test_notes_group_cleaned_pr_titles_and_link_each_download():
 
 
 def test_popup_shows_only_the_changes_without_markdown_headings():
-    from youtube_music_native.maintenance import release_notes
+    from youtube_music_native.updates.maintenance import release_notes
 
     text = notes.render("0.2.1", ["Music videos"], ["Faster start"], "Sayarinu/Tubify")
     assert release_notes(text) == "New\n- Music videos\n\nImprovements and fixes\n- Faster start"

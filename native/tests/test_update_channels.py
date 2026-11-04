@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native import maintenance, updates
+from youtube_music_native.updates import maintenance
+
+from youtube_music_native.updates import updates
 from test_maintenance import Worker
 
 DATA = b'synthetic package'

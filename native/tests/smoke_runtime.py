@@ -8,7 +8,7 @@ import wave
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
 
-from youtube_music_native.audio import Audio
+from youtube_music_native.playback.audio import Audio
 from youtube_music_native.compat import play_source
 
 

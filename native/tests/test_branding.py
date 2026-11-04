@@ -4,8 +4,8 @@ import tomllib
 
 import pytest
 
-from youtube_music_native.credentials import SERVICE, USERNAME
-from youtube_music_native.startup import APP_ID
+from youtube_music_native.account.credentials import SERVICE, USERNAME
+from youtube_music_native.system.startup import APP_ID
 
 
 NATIVE = Path(__file__).resolve().parents[1]
@@ -37,7 +37,7 @@ def test_tubify_display_name_preserves_package_desktop_and_credential_ids():
 
 def test_mpris_display_branding_keeps_desktop_and_bus_identifiers():
     pytest.importorskip("jeepney")
-    from youtube_music_native.linux_media import ROOT, PATH, ROOT_VALUES
+    from youtube_music_native.system.linux_media import ROOT, PATH, ROOT_VALUES
     assert ROOT_VALUES["Identity"] == ("s", "Tubify")
     assert ROOT_VALUES["DesktopEntry"] == ("s", "youtube-music-native")
     assert ROOT == "org.mpris.MediaPlayer2" and PATH == "/org/mpris/MediaPlayer2"

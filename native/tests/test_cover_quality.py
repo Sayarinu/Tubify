@@ -20,7 +20,7 @@ from PySide6.QtCore import QObject, QUrl, Slot
 from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
-from youtube_music_native.download_view import DownloadView
+from youtube_music_native.downloads.download_view import DownloadView
 from youtube_music_native.theme import ThemeState
 from youtube_music_native.shell import ShellController
 from youtube_music_native.app import PACKAGE
@@ -48,7 +48,7 @@ engine.rootContext().setContextProperty('appState', shell)
 engine.rootContext().setContextProperty('downloadsState', downloads)
 engine.rootContext().setContextProperty('themeState', theme)
 engine.rootContext().setContextProperty('smallCover', small)
-engine.loadData(b'import QtQuick\nimport QtQuick.Controls\nimport "."\nApplicationWindow { visible: true; width: 1000; height: 1000; Cover { scale: appState.uiScaleFactor; transformOrigin: Item.TopLeft; objectName: "largeCover"; width: 300; height: 300; largeArtwork: true; mediaKey: "abcdefghijk"; source: smallCover; media: ({videoId: "abcdefghijk"}) } }', QUrl.fromLocalFile(str(PACKAGE / 'qml' / 'test.qml')))
+engine.loadData(b'import QtQuick\nimport QtQuick.Controls\nimport "."\nApplicationWindow { visible: true; width: 1000; height: 1000; Cover { scale: appState.uiScaleFactor; transformOrigin: Item.TopLeft; objectName: "largeCover"; width: 300; height: 300; largeArtwork: true; mediaKey: "abcdefghijk"; source: smallCover; media: ({videoId: "abcdefghijk"}) } }', QUrl.fromLocalFile(str(PACKAGE / 'qml' / 'components' / 'test.qml')))
 window = engine.rootObjects()[0]
 cover = window.findChild(QObject, 'largeCover')
 art = cover.findChild(QObject, 'coverArtwork')
@@ -114,7 +114,7 @@ from PySide6.QtCore import QObject, QUrl
 from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
-from youtube_music_native.download_view import DownloadView
+from youtube_music_native.downloads.download_view import DownloadView
 from youtube_music_native.theme import ThemeState
 from youtube_music_native.shell import ShellController
 from youtube_music_native.app import PACKAGE
@@ -155,7 +155,7 @@ engine.rootContext().setContextProperty("appState", shell)
 engine.rootContext().setContextProperty("downloadsState", downloads)
 engine.rootContext().setContextProperty("themeState", theme)
 engine.rootContext().setContextProperty("smallCover", small)
-engine.loadData(b'import QtQuick\nimport QtQuick.Controls\nimport "."\nApplicationWindow { visible: true; width: 400; height: 400; Cover { objectName: "largeCover"; width: 300; height: 300; largeArtwork: true; mediaKey: "abcdefghijk"; source: smallCover; media: ({videoId: "abcdefghijk", thumbnail: smallCover}) } }', QUrl.fromLocalFile(str(PACKAGE / "qml" / "test.qml")))
+engine.loadData(b'import QtQuick\nimport QtQuick.Controls\nimport "."\nApplicationWindow { visible: true; width: 400; height: 400; Cover { objectName: "largeCover"; width: 300; height: 300; largeArtwork: true; mediaKey: "abcdefghijk"; source: smallCover; media: ({videoId: "abcdefghijk", thumbnail: smallCover}) } }', QUrl.fromLocalFile(str(PACKAGE / "qml" / "components" / "test.qml")))
 window = engine.rootObjects()[0]
 cover = window.findChild(QObject, "largeCover")
 def wait_until(predicate, description, seconds=3):

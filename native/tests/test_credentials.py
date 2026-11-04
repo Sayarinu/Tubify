@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from youtube_music_native.credentials import CHUNK_SIZE, Credentials, CredentialError, SERVICE, USERNAME, default_chunk_size, secure_backend, single_record
-from youtube_music_native.session import from_headers
+from youtube_music_native.account.credentials import CHUNK_SIZE, Credentials, CredentialError, SERVICE, USERNAME, default_chunk_size, secure_backend, single_record
+from youtube_music_native.account.session import from_headers
 
 
 class Vault:

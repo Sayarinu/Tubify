@@ -6,10 +6,10 @@ import wave
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
 
-from youtube_music_native.audio import Audio
+from youtube_music_native.playback.audio import Audio
 from youtube_music_native.jobs import Worker
-from youtube_music_native.media import MediaFiles
-from youtube_music_native.playback import Playback
+from youtube_music_native.playback.media import MediaFiles
+from youtube_music_native.playback.playback import Playback
 
 
 def main():

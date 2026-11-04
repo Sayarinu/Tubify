@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from youtube_music_native.speaker_fill import LABEL, SpeakerFill, channel_graph
+from youtube_music_native.playback.speaker_fill import LABEL, SpeakerFill, channel_graph
 
 
 class Output:

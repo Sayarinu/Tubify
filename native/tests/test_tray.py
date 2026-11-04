@@ -1,7 +1,7 @@
 from PySide6.QtCore import QCoreApplication, QObject, QRect, Signal
 from PySide6.QtWidgets import QSystemTrayIcon
 
-from youtube_music_native.tray import TrayPlayer, clamped_position
+from youtube_music_native.system.tray import TrayPlayer, clamped_position
 from test_playback_options import player_at
 from youtube_music_native.shell import ShellController
 

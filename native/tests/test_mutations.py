@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from youtube_music_native.mutations import ActionError, perform
+from youtube_music_native.catalog.mutations import ActionError, perform
 
 
 def test_album_save_and_artist_subscription_use_provider_mutation_identifiers():
@@ -23,7 +23,7 @@ def test_album_save_and_artist_subscription_use_provider_mutation_identifiers():
 
 def test_account_change_prevents_queuing_a_library_mutation(tmp_path):
     from PySide6.QtCore import QCoreApplication
-    from youtube_music_native.actions import Actions
+    from youtube_music_native.catalog.actions import Actions
 
     app = QCoreApplication.instance() or QCoreApplication([])
     account = SimpleNamespace(worker=None, busy=True, connected=True)

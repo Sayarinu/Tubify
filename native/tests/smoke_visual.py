@@ -256,7 +256,7 @@ def main():
                 art.setPixelColor(x, y, QColor("#4060d0"))
         art.save(str(root / "art.png"))
         if args.soak_seconds:
-            from youtube_music_native.media import MediaFiles
+            from youtube_music_native.playback.media import MediaFiles
             media = MediaFiles(root / "media")
             audio = media.root / "fixture.wav"
             with wave.open(str(audio), "wb") as handle:
@@ -280,7 +280,7 @@ def main():
             account._profile["avatar"] = uri
             account.changed.emit()
             if args.soak_seconds:
-                from youtube_music_native.audio import Audio
+                from youtube_music_native.playback.audio import Audio
                 from youtube_music_native.jobs import Worker
                 player._fixture = False
                 player.worker = Worker(player, idle_ms=15000)

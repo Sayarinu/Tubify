@@ -7,9 +7,9 @@ from types import SimpleNamespace
 from PySide6.QtCore import QCoreApplication
 import pytest
 
-from youtube_music_native.browsers import NoBrowserSession, read_session
-from youtube_music_native.windows import prepare_runtime
-from youtube_music_native.windows_media import WindowsBus, metadata
+from youtube_music_native.account.browsers import NoBrowserSession, read_session
+from youtube_music_native.system.windows import prepare_runtime
+from youtube_music_native.system.windows_media import WindowsBus, metadata
 
 
 class Event:
@@ -181,7 +181,7 @@ def test_windows_media_registration_failure_disables_controls():
 
 REAL_REGISTRATION = """
 from PySide6.QtGui import QGuiApplication, QWindow
-from youtube_music_native.windows_media import WindowsBus, require_projections
+from youtube_music_native.system.windows_media import WindowsBus, require_projections
 require_projections()
 app = QGuiApplication([])
 window = QWindow()
@@ -204,7 +204,7 @@ def test_windows_media_controls_register_real_handlers():
 
 
 def test_power_broadcast_maps_to_prepare_for_sleep():
-    from youtube_music_native.windows_media import power_transition, WM_POWERBROADCAST
+    from youtube_music_native.system.windows_media import power_transition, WM_POWERBROADCAST
 
     assert power_transition(WM_POWERBROADCAST, 0x4) is True
     assert power_transition(WM_POWERBROADCAST, 0x7) is False

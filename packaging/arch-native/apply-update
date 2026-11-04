@@ -13,7 +13,7 @@ import subprocess
 import sys
 import tempfile
 
-from youtube_music_native.package_signature import verify
+from youtube_music_native.updates.package_signature import verify
 
 PUBLIC_KEY = Path("/usr/lib/youtube-music-native/update-public-key")
 PACKAGE = "youtube-music-native"

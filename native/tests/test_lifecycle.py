@@ -1,7 +1,7 @@
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, Signal
 
-from youtube_music_native.lifecycle import Lifecycle
-from youtube_music_native.startup import StartupError
+from youtube_music_native.system.lifecycle import Lifecycle
+from youtube_music_native.system.startup import StartupError
 from test_playback_options import player_at, track
 
 

@@ -14,34 +14,34 @@ from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication
 
 from .shell import ShellController
-from .account import Account
-from .artwork import ArtworkCache
-from .catalog_view import CatalogView
+from .account.account import Account
+from .artwork.artwork import ArtworkCache
+from .catalog.catalog_view import CatalogView
 from .jobs import Worker
-from .playback import Playback
-from .playback_options import PlaybackOptions
-from .browse import Browse
-from .download_view import DownloadView
-from .actions import Actions
-from .search import Search
-from .library import Library
-from .listening import Listening
-from .lastfm import LastFm
-from .deep_links import DeepLinks, LinkError
-from .link_instance import LinkInstance
-from .lyric_view import LyricView
-from .desktop import Desktop
-from .artist_preview import ArtistPreview
-from .cast_receiver import CastReceiver
-from .discord_presence import DiscordPresence
-from .handoff import Handoff
-from .tray import TrayPlayer
-from .lifecycle import Lifecycle
-from .startup import StartupRegistration
-from .macos import trusts_certificates
+from .playback.playback import Playback
+from .playback.playback_options import PlaybackOptions
+from .catalog.browse import Browse
+from .downloads.download_view import DownloadView
+from .catalog.actions import Actions
+from .catalog.search import Search
+from .catalog.library import Library
+from .playback.listening import Listening
+from .integrations.lastfm import LastFm
+from .integrations.deep_links import DeepLinks, LinkError
+from .integrations.link_instance import LinkInstance
+from .lyrics.lyric_view import LyricView
+from .system.desktop import Desktop
+from .catalog.artist_preview import ArtistPreview
+from .integrations.cast_receiver import CastReceiver
+from .integrations.discord_presence import DiscordPresence
+from .integrations.handoff import Handoff
+from .system.tray import TrayPlayer
+from .system.lifecycle import Lifecycle
+from .system.startup import StartupRegistration
+from .system.macos import trusts_certificates
 from .theme import ThemeState
-from .color_picker import ColorSampler
-from .maintenance import Maintenance
+from .system.color_picker import ColorSampler
+from .updates.maintenance import Maintenance
 
 
 PACKAGE = Path(__file__).resolve().parent
@@ -49,7 +49,7 @@ PACKAGE = Path(__file__).resolve().parent
 
 def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None, search=None, actions=None, library=None, lyrics=None, theme=None, color_sampler=None):
     from PySide6.QtQml import qmlRegisterType
-    from .video import VideoSurface
+    from .playback.video import VideoSurface
 
     qmlRegisterType(VideoSurface, "Tubify.Video", 1, 0, "VideoSurface")
     engine = QQmlApplicationEngine()
@@ -269,11 +269,11 @@ def main(argv=None):
         if controller.maintenanceState.currentVersion == "unknown":
             raise RuntimeError("Packaged version metadata is missing")
         if sys.platform == "darwin":
-            from .macos_updates import MacUpdater
+            from .system.macos_updates import MacUpdater
             controller.maintenanceState._mac = MacUpdater(lambda: None)
         if sys.platform == "win32":
             # Media keys need every WinRT projection the controls touch to be bundled.
-            from .windows_media import require_projections
+            from .system.windows_media import require_projections
             require_projections()
     controller.maintenanceState.window = window
     controller.maintenanceState.prepare_restart = lambda: [callback() for callback in cleanup]

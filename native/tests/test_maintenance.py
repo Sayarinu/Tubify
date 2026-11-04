@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QCoreApplication, QObject, QUrl, Signal
 import pytest
 
-from youtube_music_native.maintenance import Maintenance, lookup_release, perform, public_diagnostics
+from youtube_music_native.updates.maintenance import Maintenance, lookup_release, perform, public_diagnostics
 
 
 class Worker(QObject):

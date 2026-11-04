@@ -8,8 +8,8 @@ from urllib.parse import parse_qs
 import pytest
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.lastfm import LastFm
-from youtube_music_native.lastfm_service import LastFmError, LastFmService, VAULT, metadata, request
+from youtube_music_native.integrations.lastfm import LastFm
+from youtube_music_native.integrations.lastfm_service import LastFmError, LastFmService, VAULT, metadata, request
 from youtube_music_native.worker import safe_error
 
 
@@ -150,7 +150,7 @@ def test_switch_user_clears_previous_user_pending_and_bad_metadata_rejects(tmp_p
 
 
 def test_queue_bound_and_filtered_listen_does_not_retry(tmp_path, monkeypatch):
-    import youtube_music_native.lastfm_service as module
+    import youtube_music_native.integrations.lastfm_service as module
     monkeypatch.setattr(module, "MAX_PENDING", 3)
     backend, vault, api = service(tmp_path)
     connect(backend)

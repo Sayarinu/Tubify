@@ -4,6 +4,12 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import QtQuick.Window
 import "Theme.js" as Theme
+import "components"
+import "dialogs"
+import "pages"
+import "player"
+import "settings"
+import "shell"
 
 ApplicationWindow {
     id: window

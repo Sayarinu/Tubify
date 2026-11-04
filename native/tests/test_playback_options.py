@@ -1,8 +1,8 @@
 import pytest
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native.playback import Playback
-from youtube_music_native.playback_options import PlaybackOptions
+from youtube_music_native.playback.playback import Playback
+from youtube_music_native.playback.playback_options import PlaybackOptions
 from test_playback import FakeAudio
 
 

@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from Cryptodome.PublicKey import ECC
 import pytest
 
-from youtube_music_native import package_signature
+from youtube_music_native.updates import package_signature
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="The helper is only installed by the Arch package")
 

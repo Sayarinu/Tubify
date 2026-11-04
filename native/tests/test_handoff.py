@@ -3,9 +3,9 @@ import base64
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QImage
 
-from youtube_music_native.deep_links import parse_link, share_url
-from youtube_music_native.handoff import Handoff, handoff_url, qr_data_url
-from youtube_music_native.qrcodegen import QrCode
+from youtube_music_native.integrations.deep_links import parse_link, share_url
+from youtube_music_native.integrations.handoff import Handoff, handoff_url, qr_data_url
+from youtube_music_native.integrations.qrcodegen import QrCode
 
 
 def test_share_url_builds_song_list_and_position_links():

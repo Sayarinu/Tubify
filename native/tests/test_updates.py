@@ -10,7 +10,9 @@ from types import SimpleNamespace
 import pytest
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native import updates, maintenance
+from youtube_music_native.updates import updates
+
+from youtube_music_native.updates import maintenance
 from test_maintenance import Worker
 
 
@@ -217,7 +219,7 @@ def test_release_lookup_carries_bounded_plain_notes_and_restart_rechecks(tmp_pat
 
 
 def test_third_party_notices_ship_with_the_package():
-    notices = Path(maintenance.__file__).resolve().parent / 'assets' / 'THIRD_PARTY_NOTICES.md'
+    notices = Path(maintenance.__file__).resolve().parents[1] / 'assets' / 'THIRD_PARTY_NOTICES.md'
     text = notices.read_text(encoding='utf-8')
     for component in ('PySide6', 'mpv', 'FFmpeg', 'yt-dlp', 'ytmusicapi', 'Sparkle', 'Roboto', 'Lucide', 'mutagen'):
         assert component in text

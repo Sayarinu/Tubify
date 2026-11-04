@@ -68,7 +68,7 @@ def test_needed_files_stay(path):
 
 def test_every_qml_import_is_bundled():
     modules = set()
-    for path in (SOURCE / "qml").glob("*.qml"):
+    for path in (SOURCE / "qml").rglob("*.qml"):
         modules.update(re.findall(r"^import +(Qt[\w.]*)", path.read_text(encoding="utf-8"), re.M))
     assert "QtQuick.Controls" in modules
     missing = [module for module in modules if not is_needed("PySide6/qml/" + module.replace(".", "/") + "/qmldir")]
@@ -77,7 +77,7 @@ def test_every_qml_import_is_bundled():
 
 def test_every_python_qt_module_is_bundled():
     modules = set()
-    for path in SOURCE.glob("*.py"):
+    for path in SOURCE.rglob("*.py"):
         modules.update(re.findall(r"PySide6\.(Qt\w+)", path.read_text(encoding="utf-8")))
     assert "QtQuick" in modules
     missing = [module for module in modules if not is_needed(f"PySide6/{module}.pyd") or not is_needed(f"PySide6/Qt6{module[2:]}.dll")]

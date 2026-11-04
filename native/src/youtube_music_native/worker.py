@@ -7,19 +7,19 @@ import sqlite3
 import sys
 import time
 
-from .auth import AuthError, AuthService
-from .catalog import STABLE_ROUTES, Catalog, CatalogError
-from .credentials import CredentialError
-from .session import SessionError
-from .store import MetadataStore
-from .media import MediaFiles
-from .sources import SourceError, Sources
-from .downloads import DownloadError, Downloads
-from .mutations import ActionError, perform
-from .playlist_ops import PlaylistError, perform as playlist_action
-from .lyric_data import Lyrics, LyricsError
-from .lyric_providers import ProviderUnavailable, provider_key
-from .lastfm_service import LastFmService, LastFmError
+from .account.auth import AuthError, AuthService
+from .catalog.catalog import STABLE_ROUTES, Catalog, CatalogError
+from .account.credentials import CredentialError
+from .account.session import SessionError
+from .catalog.store import MetadataStore
+from .playback.media import MediaFiles
+from .playback.sources import SourceError, Sources
+from .downloads.downloads import DownloadError, Downloads
+from .catalog.mutations import ActionError, perform
+from .catalog.playlist_ops import PlaylistError, perform as playlist_action
+from .lyrics.lyric_data import Lyrics, LyricsError
+from .lyrics.lyric_providers import ProviderUnavailable, provider_key
+from .integrations.lastfm_service import LastFmService, LastFmError
 from .util import session_rejected
 
 
@@ -38,7 +38,7 @@ def _shared(resources, kind, payload, create):
 
 
 def _maintenance(service, payload, resources, progress):
-    from .maintenance import perform as maintenance_action
+    from .updates.maintenance import perform as maintenance_action
     return maintenance_action(payload, progress=progress)
 
 
@@ -53,7 +53,7 @@ def _lastfm(service, payload, resources, progress):
 
 
 def _artwork(service, payload, resources, progress):
-    from .large_artwork import resolve
+    from .artwork.large_artwork import resolve
     return resolve(service, payload["data_dir"], payload["media"], payload["pixels"], bool(payload.get("online")))
 
 

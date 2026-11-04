@@ -2,7 +2,7 @@ from urllib.parse import parse_qs
 
 import pytest
 
-from youtube_music_native.lounge import FrameParser, LoungeSession, encode_messages
+from youtube_music_native.integrations.lounge import FrameParser, LoungeSession, encode_messages
 
 
 def frame(payload):

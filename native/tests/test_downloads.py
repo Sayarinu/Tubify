@@ -6,8 +6,8 @@ import wave
 
 import pytest
 
-from youtube_music_native import downloads
-from youtube_music_native.downloads import DownloadBlocked, DownloadError, Downloads, DownloadStore, clean_track
+from youtube_music_native.downloads import downloads
+from youtube_music_native.downloads.downloads import DownloadBlocked, DownloadError, Downloads, DownloadStore, clean_track
 
 
 IDS = ["abcdefghijk", "lmnopqrstuv", "zyxwvutsrqp"]

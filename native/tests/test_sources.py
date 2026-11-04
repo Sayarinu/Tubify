@@ -3,10 +3,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from youtube_music_native import sources
-from youtube_music_native.auth import AuthService
-from youtube_music_native.media import MediaFiles
-from youtube_music_native.sources import Sources
+from youtube_music_native.playback import sources
+from youtube_music_native.account.auth import AuthService
+from youtube_music_native.playback.media import MediaFiles
+from youtube_music_native.playback.sources import Sources
 
 
 def test_complete_local_audio_wins_even_with_expired_credentials_or_force(tmp_path, monkeypatch):
@@ -19,7 +19,7 @@ def test_complete_local_audio_wins_even_with_expired_credentials_or_force(tmp_pa
     def forbidden(*args):
         raise AssertionError("Local playback must not access auth or extract a stream")
 
-    monkeypatch.setattr("youtube_music_native.auth.Credentials", forbidden)
+    monkeypatch.setattr("youtube_music_native.account.auth.Credentials", forbidden)
     auth = AuthService()
     service = Sources(auth, media, extractor_factory=forbidden)
     assert service.resolve("abcdefghijk", force=True, available=False)["source"] == str(audio)

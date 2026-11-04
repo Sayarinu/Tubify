@@ -3,14 +3,14 @@ import pytest
 
 from PySide6.QtCore import QObject, Signal
 
-from youtube_music_native.downloads import DownloadStore
+from youtube_music_native.downloads.downloads import DownloadStore
 from youtube_music_native.worker import handle
 from test_browse import setup
 from test_downloads import IDS, body, write_wave
 from test_playback import FakeAudio, FakeWorker
-from youtube_music_native.playback import Playback
-from youtube_music_native.media import MediaFiles
-from youtube_music_native.sources import Sources
+from youtube_music_native.playback.playback import Playback
+from youtube_music_native.playback.media import MediaFiles
+from youtube_music_native.playback.sources import Sources
 
 
 def test_download_lookup_and_repair_states_work_without_authentication(tmp_path):

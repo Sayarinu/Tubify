@@ -9,7 +9,7 @@ import sys
 import pytest
 
 from youtube_music_native import launcher
-from youtube_music_native.startup import APP_ID, RUN_KEY, StartupError, StartupRegistration, desktop_exec
+from youtube_music_native.system.startup import APP_ID, RUN_KEY, StartupError, StartupRegistration, desktop_exec
 
 
 @pytest.mark.parametrize("platform", ["linux", "darwin"])

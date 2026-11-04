@@ -10,10 +10,10 @@ from PySide6.QtCore import QSettings
 
 import youtube_music_native
 from youtube_music_native.compat import play_source
-from youtube_music_native.downloads import DownloadStore
+from youtube_music_native.downloads.downloads import DownloadStore
 from youtube_music_native.util import atomic_write
-from youtube_music_native.queue import Queue
-from youtube_music_native.sources import Sources
+from youtube_music_native.playback.queue import Queue
+from youtube_music_native.playback.sources import Sources
 
 
 TRACK = {"kind": "song", "videoId": "fixture0001", "title": "Package fixture", "duration": 3}

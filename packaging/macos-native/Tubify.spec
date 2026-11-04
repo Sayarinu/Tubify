@@ -16,7 +16,7 @@ from bundle_contents import needed_entries
 
 VERSION = tomllib.loads((NATIVE / "pyproject.toml").read_text())["project"]["version"]
 # Sparkle's feed lives in this build's own release; the tag comes from the app's shared rule.
-_updates_spec = importlib.util.spec_from_file_location("tubify_updates", NATIVE / "src/youtube_music_native/updates.py")
+_updates_spec = importlib.util.spec_from_file_location("tubify_updates", NATIVE / "src/youtube_music_native/updates/updates.py")
 _updates = importlib.util.module_from_spec(_updates_spec)
 _updates_spec.loader.exec_module(_updates)
 release_tag = _updates.release_tag

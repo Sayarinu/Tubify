@@ -13,8 +13,8 @@ from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtTest import QTest
 from shiboken6 import isValid
 
-from youtube_music_native.deep_links import DeepLinks, LinkError, parse_link
-from youtube_music_native.link_instance import LinkInstance, MAX_MESSAGE
+from youtube_music_native.integrations.deep_links import DeepLinks, LinkError, parse_link
+from youtube_music_native.integrations.link_instance import LinkInstance, MAX_MESSAGE
 
 SONG = "https://music.youtube.com/watch?v=abcdefghijk"
 ARTIST = "https://music.youtube.com/channel/UC" + "a" * 22
@@ -171,7 +171,7 @@ def test_second_process_forwards_to_one_instance_and_stale_lock_recovers(tmp_pat
     primary.linksReceived.connect(received.append)
     primary.ready()
     assert received == [[SONG]]
-    code = "from pathlib import Path; from PySide6.QtCore import QCoreApplication; from youtube_music_native.link_instance import LinkInstance; import sys; app=QCoreApplication([]); item=LinkInstance(Path(sys.argv[1])); assert not item.claim_or_forward([sys.argv[2]]); item.close()"
+    code = "from pathlib import Path; from PySide6.QtCore import QCoreApplication; from youtube_music_native.integrations.link_instance import LinkInstance; import sys; app=QCoreApplication([]); item=LinkInstance(Path(sys.argv[1])); assert not item.claim_or_forward([sys.argv[2]]); item.close()"
     process = subprocess.Popen([sys.executable, "-c", code, str(tmp_path), link("queue")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     wait_for(lambda: process.poll() is not None)
     stdout, stderr = process.communicate()

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from youtube_music_native.playlist_ops import PlaylistError, perform
+from youtube_music_native.catalog.playlist_ops import PlaylistError, perform
 
 
 def test_playlist_occurrences_are_distinct_and_add_preserves_requested_duplicates():

@@ -2,7 +2,7 @@ import base64
 
 from Cryptodome.PublicKey import ECC
 
-from youtube_music_native import package_signature
+from youtube_music_native.updates import package_signature
 
 
 def keys():

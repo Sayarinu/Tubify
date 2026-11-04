@@ -7,7 +7,7 @@ from PySide6.QtCore import QCoreApplication, QObject, QSettings, Signal
 from PySide6.QtNetwork import QLocalServer
 from PySide6.QtTest import QTest
 
-from youtube_music_native.discord_presence import DEFAULT_APPLICATION_ID, DiscordPipe, DiscordPresence, activity_for, ipc_paths
+from youtube_music_native.integrations.discord_presence import DEFAULT_APPLICATION_ID, DiscordPipe, DiscordPresence, activity_for, ipc_paths
 
 
 class Player(QObject):

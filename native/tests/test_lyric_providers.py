@@ -5,10 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from youtube_music_native import lyric_formats as formats
-from youtube_music_native.lyric_data import Lyrics, valid_cached
-from youtube_music_native.lyric_options import clean_options
-from youtube_music_native.lyric_providers import Providers, ProviderUnavailable, provider_key
+from youtube_music_native.lyrics import lyric_formats as formats
+from youtube_music_native.lyrics.lyric_data import Lyrics, valid_cached
+from youtube_music_native.lyrics.lyric_options import clean_options
+from youtube_music_native.lyrics.lyric_providers import Providers, ProviderUnavailable, provider_key
 
 VIDEO = "abcdefghijk"
 TRACK = {"title": "Fixture Song", "artist": "Fixture Artist", "album": "Fixture Album", "duration": 20}

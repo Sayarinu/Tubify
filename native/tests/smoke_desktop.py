@@ -14,12 +14,12 @@ from jeepney.bus_messages import message_bus, MatchRule
 from jeepney.io.blocking import open_dbus_connection
 from jeepney.low_level import HeaderFields, MessageType
 
-from youtube_music_native.audio import Audio
-from youtube_music_native.desktop import Desktop
+from youtube_music_native.playback.audio import Audio
+from youtube_music_native.system.desktop import Desktop
 from youtube_music_native.jobs import Worker
-from youtube_music_native.linux_media import LinuxBus, PLAYER, PROPERTIES, PATH
-from youtube_music_native.media import MediaFiles
-from youtube_music_native.playback import Playback
+from youtube_music_native.system.linux_media import LinuxBus, PLAYER, PROPERTIES, PATH
+from youtube_music_native.playback.media import MediaFiles
+from youtube_music_native.playback.playback import Playback
 from youtube_music_native.shell import ShellController
 
 

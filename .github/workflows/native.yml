@@ -326,7 +326,7 @@ jobs:
           # Signs with the release key and verifies against the public key the package installs.
           package="dist/native/Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
           cp unsigned/youtube-music-native-*-x86_64.pkg.tar.zst "$package"
-          "$RUNNER_TEMP/signing/bin/python" -I native/src/youtube_music_native/package_signature.py \
+          "$RUNNER_TEMP/signing/bin/python" -I native/src/youtube_music_native/updates/package_signature.py \
             "$package" packaging/macos-native/sparkle-public-key.txt
           test -s "$package.sig"
           rm "$package"

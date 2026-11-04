@@ -11,8 +11,8 @@ import subprocess
 import sys
 import tempfile
 
-from . import browsers
-from .session import SessionError, read_browser_session
+from .account import browsers
+from .account.session import SessionError, read_browser_session
 from .launcher import process_command
 
 

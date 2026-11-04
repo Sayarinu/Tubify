@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.listening import Listening
+from youtube_music_native.playback.listening import Listening
 
 
 class Player(QObject):

@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from youtube_music_native.auth import AuthError, AuthService
-from youtube_music_native.credentials import Credentials
+from youtube_music_native.account.auth import AuthError, AuthService
+from youtube_music_native.account.credentials import Credentials
 from youtube_music_native.worker import safe_error
 
 
@@ -68,7 +68,9 @@ def test_expired_replacement_cannot_overwrite_existing_session(tmp_path):
 def test_browser_sign_in_is_validated_before_replacing_the_saved_session(monkeypatch):
     from functools import partial
 
-    from youtube_music_native import auth, browsers
+    from youtube_music_native.account import auth
+
+    from youtube_music_native.account import browsers
 
     credentials = Credentials(MemoryVault(), inline=False)
     service = AuthService(credentials, lambda session: Catalog())
@@ -112,7 +114,7 @@ def test_unknown_worker_operations_are_refused(operation):
 
 
 def test_unknown_download_operation_is_refused(tmp_path):
-    from youtube_music_native.downloads import DownloadError
+    from youtube_music_native.downloads.downloads import DownloadError
     from youtube_music_native.worker import handle
 
     resources = {}

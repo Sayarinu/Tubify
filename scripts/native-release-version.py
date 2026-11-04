@@ -58,7 +58,7 @@ def git(*args):
 
 def load_updates():
     """The app's own tag and version rules (standard library only)."""
-    spec = importlib.util.spec_from_file_location("tubify_updates", ROOT / "native/src/youtube_music_native/updates.py")
+    spec = importlib.util.spec_from_file_location("tubify_updates", ROOT / "native/src/youtube_music_native/updates/updates.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
