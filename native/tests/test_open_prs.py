@@ -36,6 +36,14 @@ def test_rejected_pull_requests(head, base, title, expected):
     assert problems and expected in problems[0]
 
 
+def test_fork_pull_requests_skip_the_naming_rules():
+    assert open_prs.pr_problems("patch-1", "experimental", "Fix a typo", fork=True) == []
+    assert open_prs.pr_problems("patch-1", "main", "Fix a typo", fork=True) == []
+    assert "Base" in open_prs.pr_problems("patch-1", "LUNE-1", "Fix a typo", fork=True)[0]
+    # The same names on a branch in this repository are still rejected.
+    assert open_prs.pr_problems("patch-1", "experimental", "Fix a typo")
+
+
 def test_commit_message_becomes_title_and_description():
     assert open_prs.split_message("LUNE-1 - Change\n\n## Why\n\nBecause.\n") == ("LUNE-1 - Change", "## Why\n\nBecause.")
     assert open_prs.split_message("LUNE-1 - Change") == ("LUNE-1 - Change", "")

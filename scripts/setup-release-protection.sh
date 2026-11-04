@@ -33,11 +33,10 @@ if "$finish"; then
   exit 0
 fi
 
-owner_id="$(gh api user --jq .id)"
-# Every release waits for the owner's approval before it can use a key.
+# Releases are automatic: merging to a release branch is the approval, and only those branches can use the keys.
 gh api -X PUT "repos/$repo/environments/release" --input - >/dev/null <<JSON
 {"wait_timer": 0, "prevent_self_review": false,
- "reviewers": [{"type": "User", "id": $owner_id}],
+ "reviewers": [],
  "deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
 JSON
 existing="$(gh api "repos/$repo/environments/release/deployment-branch-policies" --jq '.branch_policies[].name')"

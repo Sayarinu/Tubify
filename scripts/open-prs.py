@@ -30,8 +30,10 @@ def subject_problem(branch, subject):
     return None
 
 
-def pr_problems(head, base, title):
-    """What a PR breaks in the branch policy; the rules in AGENTS.md."""
+def pr_problems(head, base, title, fork=False):
+    """What a PR breaks in the branch policy. The naming rules in AGENTS.md apply to this repository's branches, not to forks."""
+    if fork:
+        return [] if base in TRUNKS.values() else [f'Base "{base}" must be experimental or main.']
     if head == "experimental" and base == "main":
         return []
     if head == "main" and base == "experimental":
@@ -119,11 +121,11 @@ def main(arguments=None):
     parser.add_argument("--into", choices=sorted(TRUNKS), default="experimental", help="Release channel to target")
     parser.add_argument("--feature", action="append", default=[], metavar="BRANCH", help="Label this branch's PR as a Feature (minor version bump)")
     parser.add_argument("--no-wait", action="store_true", help="Don't wait for the PR checks")
-    parser.add_argument("--check-pr", action="store_true", help="CI: check PR_HEAD, PR_BASE and PR_TITLE against the branch policy")
+    parser.add_argument("--check-pr", action="store_true", help="CI: check PR_HEAD, PR_BASE, PR_TITLE and PR_FORK against the branch policy")
     options = parser.parse_args(arguments)
 
     if options.check_pr:
-        problems = pr_problems(os.environ["PR_HEAD"], os.environ["PR_BASE"], os.environ["PR_TITLE"])
+        problems = pr_problems(os.environ["PR_HEAD"], os.environ["PR_BASE"], os.environ["PR_TITLE"], os.environ.get("PR_FORK") == "true")
         for problem in problems:
             print(f"::error title=PR policy::{problem}")
         return 1 if problems else 0
