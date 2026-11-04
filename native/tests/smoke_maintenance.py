@@ -29,7 +29,7 @@ def main():
                     service._available = True
                     service.changed.emit()
                     QTest.qWait(20)
-                    service._tag = "native-v99.0.0"
+                    service._tag = "Tubify-99.0.0"
                     service._notes = "Faster search and a header update indicator."
                     service.changed.emit()
                     QTest.qWait(20)

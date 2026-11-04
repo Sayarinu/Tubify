@@ -10,7 +10,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
 
 from youtube_music_native import app
-from youtube_music_native.lyric_formats import ttml
+from youtube_music_native.lyrics.lyric_formats import ttml
 
 
 def visual_items(item):

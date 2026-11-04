@@ -2,7 +2,7 @@ import json
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.playback import Playback
+from youtube_music_native.playback.playback import Playback
 
 
 class FakeWorker(QObject):
@@ -103,7 +103,7 @@ def test_manual_play_cancels_active_prefetch_and_ignores_its_late_result(tmp_pat
     worker.succeeded.emit(prefetch, {"kind": "remote", "source": "https://media.invalid/stale", "videoId": TRACKS[1]["videoId"]})
     assert not player._prepared
     worker.succeeded.emit(len(worker.requests), {"kind": "local", "source": "/fixture/first.wav"})
-    assert player.sourceKind == "local" and player.playing
+    assert player._source_kind == "local" and player.playing
     player.close()
 
 
@@ -346,7 +346,7 @@ def test_unavailable_manual_entries_are_skipped_once_before_offline_source(tmp_p
     player._skip_failed()
     assert player.currentTrack == TRACKS[1] and not player.manualCount
     worker.succeeded.emit(player._request, {"kind": "local", "source": "/fixture/second.wav"})
-    assert player.sourceKind == "local" and player.playing
+    assert player._source_kind == "local" and player.playing
     player.close()
 
 
@@ -427,22 +427,6 @@ def test_entries_hide_history_without_changing_previous_or_snapshot(tmp_path):
     player.close()
 
 
-def test_selecting_history_key_restarts_playback_at_that_session_position(tmp_path):
-    app = QCoreApplication.instance() or QCoreApplication([])
-    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
-    player.playTracks(TRACKS)
-    first_key = player.queue.current["key"]
-    player.next()
-
-    player.selectHistoryKey(first_key)
-
-    assert player.currentTrack["title"] == "First"
-    assert [entry["title"] for entry in player.entries] == ["First", "Next"]
-    assert player.entries[0]["group"] == "Now playing"
-    assert not any(entry["group"] == "Previously played" for entry in player.entries)
-    player.close()
-
-
 def test_dragging_source_song_into_manual_queue_updates_playback_model(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
@@ -494,7 +478,7 @@ def test_empty_and_exhausted_queue_keeps_source_heading_without_history_rows(tmp
 
 def test_stalled_stream_is_reresolved_at_its_position_then_skipped(tmp_path, monkeypatch):
     app = QCoreApplication.instance() or QCoreApplication([])
-    from youtube_music_native import playback as module
+    from youtube_music_native.playback import playback as module
 
     clock = [1000.]
     monkeypatch.setattr(module.time, "monotonic", lambda: clock[0])
@@ -581,7 +565,7 @@ def test_last_song_prefetches_context_radio_and_hands_off_without_repeats(tmp_pa
 
 def test_failed_context_radio_falls_back_to_song_radio_and_autoplay_persists(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
-    from youtube_music_native.playback_options import PlaybackOptions
+    from youtube_music_native.playback.playback_options import PlaybackOptions
 
     worker, radio = FakeWorker(), FakeWorker()
     player = Playback(tmp_path, worker, radio, audio_factory=FakeAudio)
@@ -756,7 +740,7 @@ def test_prefetch_for_the_clicked_song_starts_it_before_the_click_resolve(tmp_pa
 
 def test_rapid_clicks_let_a_recent_resolve_finish_but_restart_a_stuck_one(tmp_path, monkeypatch):
     app = QCoreApplication.instance() or QCoreApplication([])
-    from youtube_music_native import playback
+    from youtube_music_native.playback import playback
 
     now = [100.]
     monkeypatch.setattr(playback.time, "monotonic", lambda: now[0])
@@ -777,7 +761,7 @@ def test_rapid_clicks_let_a_recent_resolve_finish_but_restart_a_stuck_one(tmp_pa
 
 def test_warm_resolves_hovered_songs_but_skips_cached_downloaded_and_bursts(tmp_path, monkeypatch):
     app = QCoreApplication.instance() or QCoreApplication([])
-    from youtube_music_native import playback
+    from youtube_music_native.playback import playback
 
     now = [100.]
     monkeypatch.setattr(playback.time, "monotonic", lambda: now[0])
@@ -956,7 +940,7 @@ def test_launch_prestarts_both_resolve_workers_and_focus_keeps_them_warm(monkeyp
 
 
 def test_upcoming_lists_manual_then_source_and_wraps_on_repeat():
-    from youtube_music_native.queue import Queue
+    from youtube_music_native.playback.queue import Queue
 
     queue = Queue()
     queue.replace(QUEUE[:3], 1)
@@ -985,3 +969,17 @@ def test_queue_rows_notify_only_when_the_queue_changes(tmp_path):
     player.appendContext([{"videoId": "wxyzabcdefg", "title": "Last"}])
     assert notified and player.entries[-1]["title"] == "Last"
     player.close()
+
+
+def test_forgetting_the_queue_leaves_nothing_on_disk(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.playTracks(TRACKS, 0, "Private playlist")
+    player.forgetQueue()
+    assert not player.hasTrack and not player.playing
+    player.close()
+    saved = (tmp_path / "playback.json").read_text()
+    assert TRACKS[0]["title"] not in saved and "Private playlist" not in saved
+    restored = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    assert not restored.hasTrack
+    restored.close()

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.catalog_view import CatalogView
+from youtube_music_native.catalog.catalog_view import CatalogView
 
 
 class FakeWorker(QObject):
@@ -66,7 +66,7 @@ def test_fresh_library_memory_hit_renders_without_a_request(tmp_path):
 
 
 def test_dirty_or_expired_entries_render_and_revalidate_once_in_the_background(tmp_path, monkeypatch):
-    from youtube_music_native import catalog_view
+    from youtube_music_native.catalog import catalog_view
 
     worker, account, view = memory_view(tmp_path)
     view.load("library_songs", {})

@@ -3,8 +3,8 @@ from threading import Barrier
 
 import pytest
 
-from youtube_music_native.media import MediaFiles
-from youtube_music_native.store import MetadataStore
+from youtube_music_native.playback.media import MediaFiles
+from youtube_music_native.catalog.store import MetadataStore
 
 
 @pytest.mark.parametrize("store_type,name", [(MediaFiles, "media"), (MetadataStore, "metadata.sqlite3")])

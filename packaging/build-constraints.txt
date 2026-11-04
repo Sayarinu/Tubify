@@ -1,0 +1,2 @@
+# The build backend for ./native, kept out of the app itself. Raise it deliberately.
+setuptools==84.2.1

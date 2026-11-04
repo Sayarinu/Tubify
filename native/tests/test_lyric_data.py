@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from youtube_music_native.lyric_data import Lyrics, normalize
+from youtube_music_native.lyrics.lyric_data import Lyrics, normalize
 
 
 def test_lyrics_normalize_plain_timed_missing_and_invalid_timing():

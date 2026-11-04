@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from PySide6.QtCore import QByteArray, QCoreApplication, QDateTime, QEventLoop, QTimer, QUrl
 from PySide6.QtNetwork import QNetworkCacheMetaData, QNetworkRequest
 
-from youtube_music_native.artwork import ArtworkCache
+from youtube_music_native.artwork.artwork import ArtworkCache
 
 
 def test_artwork_survives_restart_without_reaching_the_network(tmp_path):
@@ -38,7 +38,7 @@ def test_artwork_survives_restart_without_reaching_the_network(tmp_path):
 
 
 def test_google_artwork_is_resized_without_lookups():
-    from youtube_music_native.artwork_sources import choose, with_resized
+    from youtube_music_native.artwork.artwork_sources import choose, with_resized
 
     values = [{"url": "https://lh3.googleusercontent.com/abc123=w544-h544-l90-rj", "width": 544, "height": 544}]
     chosen = choose(with_resized(values, 1200), 1200)
@@ -49,7 +49,7 @@ def test_google_artwork_is_resized_without_lookups():
 
 
 def test_artwork_sizes_snap_to_shared_buckets():
-    from youtube_music_native.artwork_sources import bucket, resized
+    from youtube_music_native.artwork.artwork_sources import bucket, resized
 
     assert [bucket(value) for value in (1, 256, 257, 544, 545, 900, 1081, 1500, 4096)] == [256, 256, 544, 544, 1080, 1080, 1440, 2048, 2048]
     values = [{"url": "https://lh3.googleusercontent.com/abc123=w120-h120"}]

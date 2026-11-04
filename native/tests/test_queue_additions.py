@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.queue_additions import QueueAdditions
+from youtube_music_native.playback.queue_additions import QueueAdditions
 from test_browse import Account, Worker
 from test_local_collections import Downloads
 

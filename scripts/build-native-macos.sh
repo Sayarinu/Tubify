@@ -31,14 +31,11 @@ curl --fail --location --silent --show-error https://github.com/sparkle-project/
 printf '%s  %s\n' 1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27 "$sparkle/archive.tar.xz" | shasum -a 256 --check
 tar -xf "$sparkle/archive.tar.xz" -C "$sparkle"
 python3 native/tests/check_signing_key.py "$sparkle/bin/sign_update"
-if [[ -n "${TUBIFY_SPARKLE_PRIVATE_KEY:-}" ]]; then
-  swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
-  printf 'Tubify release-signing preflight' > "$native_build_root/signing-check.bin"
-  python3 native/sign_update.py "$sparkle/bin/sign_update" "$native_build_root/signing-check.bin" >/dev/null
-fi
-
 uv venv --quiet --python 3.13 "$native_build_root/venv"
-VIRTUAL_ENV="$native_build_root/venv" uv pip install --quiet "./native[macos-build]"
+# Everything shipped comes from the committed lockfile, checked by hash.
+uv export --quiet --project native --frozen --no-dev --extra macos-build --no-emit-project --output-file "$native_build_root/requirements.txt"
+VIRTUAL_ENV="$native_build_root/venv" uv pip install --quiet --require-hashes --requirement "$native_build_root/requirements.txt"
+VIRTUAL_ENV="$native_build_root/venv" uv pip install --quiet --no-deps --build-constraints packaging/build-constraints.txt ./native
 native_python="$native_build_root/venv/bin/python"
 
 # The app icon is rendered from the same SVG the Linux package installs.
@@ -64,7 +61,7 @@ PY
 iconutil -c icns "$iconset" -o "$native_build_root/Tubify.icns"
 
 TUBIFY_ICON="$native_build_root/Tubify.icns" "$native_python" -m PyInstaller --noconfirm --clean \
-  --distpath "$native_build_root/dist" --workpath "$native_build_root/work" packaging/macos-native/Tubify.spec
+  --distpath "$native_build_root/dist" --workpath "$native_build_root/work" packaging/macos/Tubify.spec
 
 app="$native_build_root/dist/Tubify.app"
 [[ "$(lipo -archs "$app/Contents/MacOS/Tubify")" == "arm64" ]] || { printf '%s\n' 'Tubify executable is not arm64.' >&2; exit 1; }
@@ -72,22 +69,12 @@ app="$native_build_root/dist/Tubify.app"
 ln -sf libmpv.2.dylib "$app/Contents/Frameworks/libmpv.dylib"
 ditto "$sparkle/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
 cp "$sparkle/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
-# Local builds are ad-hoc signed; Gatekeeper accepts them on the machine that built them.
+"$native_python" packaging/bundle_contents.py "$app" --max-files 1100 --max-mb 370
+
+# Ad-hoc signed so it can run here. scripts/sign-native-macos.sh makes the signed disk image.
 codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict "$app"
 
-rm -rf "$native_output/Tubify-macos-arm64.app" "$native_output/Tubify-${native_version}-macos-arm64.dmg"
+rm -rf "$native_output/Tubify-macos-arm64.app"
 ditto "$app" "$native_output/Tubify-macos-arm64.app"
-staging="$native_build_root/dmg"
-mkdir -p "$staging"
-ditto "$app" "$staging/Tubify.app"
-ln -s /Applications "$staging/Applications"
-hdiutil create -quiet -volname "Tubify" -srcfolder "$staging" -ov -format UDZO "$native_output/Tubify-${native_version}-macos-arm64.dmg"
-printf 'Built %s and %s\n' "$native_output/Tubify-macos-arm64.app" "$native_output/Tubify-${native_version}-macos-arm64.dmg"
-
-if [[ -n "${TUBIFY_SPARKLE_PRIVATE_KEY:-}" ]]; then
-  # Fail closed if a secret was rotated without updating the bundled trust anchor.
-  swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
-  signature="$("$native_python" native/sign_update.py "$sparkle/bin/sign_update" "$native_output/Tubify-${native_version}-macos-arm64.dmg")"
-  "$native_python" scripts/native-appcast.py "$native_version" "$native_output/Tubify-${native_version}-macos-arm64.dmg" "$signature" "$native_output/appcast.xml"
-fi
+printf 'Built %s\n' "$native_output/Tubify-macos-arm64.app"

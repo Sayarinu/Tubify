@@ -13,33 +13,37 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication
 
+from .catalog.store import wipe_metadata
+from .compat import private_directory
 from .shell import ShellController
-from .account import Account
-from .artwork import ArtworkCache
-from .catalog_view import CatalogView
+from .account.account import Account
+from .artwork.artwork import ArtworkCache
+from .catalog.catalog_view import CatalogView
 from .jobs import Worker
-from .playback import Playback
-from .playback_options import PlaybackOptions
-from .browse import Browse
-from .download_view import DownloadView
-from .actions import Actions
-from .search import Search
-from .library import Library
-from .listening import Listening
-from .lastfm import LastFm
-from .deep_links import DeepLinks, LinkError
-from .link_instance import LinkInstance
-from .lyric_view import LyricView
-from .desktop import Desktop
-from .cast_receiver import CastReceiver
-from .discord_presence import DiscordPresence
-from .handoff import Handoff
-from .tray import TrayPlayer
-from .lifecycle import Lifecycle
-from .startup import StartupRegistration
+from .playback.playback import Playback
+from .playback.playback_options import PlaybackOptions
+from .catalog.browse import Browse
+from .downloads.download_view import DownloadView
+from .catalog.actions import Actions
+from .catalog.search import Search
+from .catalog.library import Library
+from .playback.listening import Listening
+from .integrations.lastfm import LastFm
+from .integrations.deep_links import DeepLinks, LinkError
+from .integrations.link_instance import LinkInstance
+from .lyrics.lyric_view import LyricView
+from .system.desktop import Desktop
+from .catalog.artist_preview import ArtistPreview
+from .integrations.cast_receiver import CastReceiver
+from .integrations.discord_presence import DiscordPresence
+from .integrations.handoff import Handoff
+from .system.tray import TrayPlayer
+from .system.lifecycle import Lifecycle
+from .system.startup import StartupError, StartupRegistration
+from .system.macos import trusts_certificates
 from .theme import ThemeState
-from .color_picker import ColorSampler
-from .maintenance import Maintenance
+from .system.color_picker import ColorSampler
+from .updates.maintenance import Maintenance
 
 
 PACKAGE = Path(__file__).resolve().parent
@@ -47,7 +51,7 @@ PACKAGE = Path(__file__).resolve().parent
 
 def load_window(controller, account, player, catalog=None, artwork_path=None, browse=None, downloads=None, search=None, actions=None, library=None, lyrics=None, theme=None, color_sampler=None):
     from PySide6.QtQml import qmlRegisterType
-    from .video import VideoSurface
+    from .playback.video import VideoSurface
 
     qmlRegisterType(VideoSurface, "Tubify.Video", 1, 0, "VideoSurface")
     engine = QQmlApplicationEngine()
@@ -60,6 +64,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("maintenanceState", controller.maintenanceState)
     if hasattr(controller, "discordState"):
         engine.rootContext().setContextProperty("discordState", controller.discordState)
+    if hasattr(controller, "artistPreview"):
+        engine.rootContext().setContextProperty("artistPreview", controller.artistPreview)
     if hasattr(controller, "castState"):
         engine.rootContext().setContextProperty("castState", controller.castState)
     if hasattr(controller, "trayState"):
@@ -131,7 +137,7 @@ def main(argv=None):
     if len(args.links) > 1:
         parser.error("Open one music link at a time.")
     QGuiApplication.setOrganizationName("YouTubeMusicNative")
-    QGuiApplication.setOrganizationDomain("com.carter")
+    QGuiApplication.setOrganizationDomain("nouvellelune.studio")
     QGuiApplication.setApplicationName("youtube-music-native")
     QGuiApplication.setApplicationDisplayName("Tubify")
     QQuickStyle.setStyle("Basic")
@@ -159,7 +165,7 @@ def main(argv=None):
     elif args.smoke_test or args.screenshot:
         data = Path(tempfile.mkdtemp(prefix="youtube-music-native-ui-"))
     else:
-        data = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation))
+        data = private_directory(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation))
     data.mkdir(parents=True, exist_ok=True, mode=0o700)
     instance = None
     if not (args.fixture or args.smoke_test or args.screenshot):
@@ -175,7 +181,7 @@ def main(argv=None):
     if args.data_dir or args.smoke_test or args.screenshot:
         cache = data / "cache"
     else:
-        cache = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.CacheLocation))
+        cache = private_directory(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.CacheLocation))
     cache.mkdir(parents=True, exist_ok=True, mode=0o700)
     fixture = json.loads((PACKAGE / "assets" / "visual-fixture.json").read_text()) if args.fixture else None
     controller = ShellController(data / "settings.ini", fixture)
@@ -219,12 +225,20 @@ def main(argv=None):
     on_quit(controller.discordState.close)
     controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)
     controller.trayState = TrayPlayer(controller, player, data / "settings.ini", PACKAGE / "assets" / "music.svg", parent=controller)
-    controller.lifecycleState = Lifecycle(data / "settings.ini", player, controller.trayState, parent=controller,
-                                          startup=StartupRegistration(disabled_reason="Login startup is unavailable in visual fixtures." if args.fixture else ""))
+    startup = StartupRegistration(disabled_reason="Login startup is unavailable in visual fixtures." if args.fixture else "")
+    try:
+        startup.move_old_item()
+    except (OSError, StartupError):
+        # Settings shows login startup as off, and turning it back on still works.
+        pass
+    controller.lifecycleState = Lifecycle(data / "settings.ini", player, controller.trayState, parent=controller, startup=startup)
     downloads = DownloadView(media_data, fixture=args.fixture, parent=controller)
     player.trackStarted.connect(lambda track: downloads.refresh())
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
     account.sessionChanged.connect(downloads.resetSession)
+    # Downloads stay: they are files the person chose to keep.
+    account.signedOut.connect(player.forgetQueue)
+    account.signedOut.connect(lambda: wipe_metadata(cache / "metadata.sqlite3"))
     # Kept for a few minutes so playing several long playlists in a row stays warm.
     pages = None if args.fixture else Worker(controller, idle_ms=3 * 60 * 1000)
     if pages:
@@ -233,6 +247,7 @@ def main(argv=None):
     controller.linkState = DeepLinks(browse, account, downloads, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     on_quit(controller.linkState.close)
     controller.handoffState = Handoff(player, parent=controller)
+    controller.artistPreview = ArtistPreview(player, controller, account.worker, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     controller.castState = CastReceiver(player, controller, data / "settings.ini", account.worker, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     on_quit(controller.castState.close)
     search = Search(controller, account, catalog, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
@@ -240,7 +255,7 @@ def main(argv=None):
     actions.applied.connect(browse.applyAction)
     library = Library(controller, account, catalog, player, browse, actions, cache / "metadata.sqlite3", fixture=fixture, parent=controller)
     controller.lastFm = LastFm(player, data / "settings.ini", media_data, parent=controller, fixture=args.fixture)
-    listening = Listening(account, player, cache / "metadata.sqlite3", parent=controller)
+    Listening(account, player, cache / "metadata.sqlite3", parent=controller)  # kept alive by its Qt parent
     lyrics = LyricView(account, player, media_data, fixture=args.fixture, parent=controller, settings_path=data / "settings.ini")
     lyrics.openRequested.connect(lambda: controller.setLyricsOpen(True))
     player.trackStarted.connect(lyrics.playbackStarted)
@@ -264,11 +279,11 @@ def main(argv=None):
         if controller.maintenanceState.currentVersion == "unknown":
             raise RuntimeError("Packaged version metadata is missing")
         if sys.platform == "darwin":
-            from .macos_updates import MacUpdater
+            from .system.macos_updates import MacUpdater
             controller.maintenanceState._mac = MacUpdater(lambda: None)
         if sys.platform == "win32":
             # Media keys need every WinRT projection the controls touch to be bundled.
-            from .windows_media import require_projections
+            from .system.windows_media import require_projections
             require_projections()
     controller.maintenanceState.window = window
     controller.maintenanceState.prepare_restart = lambda: [callback() for callback in cleanup]
@@ -313,6 +328,9 @@ def main(argv=None):
             args.screenshot.parent.mkdir(parents=True, exist_ok=True)
             image = window.grabWindow()
             failed = failed or image.isNull() or not image.save(str(args.screenshot))
+        if not trusts_certificates():
+            print("HTTPS has no trusted certificates.", file=sys.stderr)
+            failed = True
         window.close()
         app.exit(1 if failed else 0)
 

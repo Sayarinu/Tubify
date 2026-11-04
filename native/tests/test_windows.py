@@ -7,9 +7,9 @@ from types import SimpleNamespace
 from PySide6.QtCore import QCoreApplication
 import pytest
 
-from youtube_music_native.browsers import NoBrowserSession, read_session
-from youtube_music_native.windows import prepare_runtime
-from youtube_music_native.windows_media import WindowsBus, metadata
+from youtube_music_native.account.browsers import NoBrowserSession, read_session
+from youtube_music_native.system.windows import prepare_runtime
+from youtube_music_native.system.windows_media import WindowsBus, metadata
 
 
 class Event:
@@ -127,8 +127,7 @@ def test_windows_media_controls_publish_track_state_and_forward_commands():
 def test_windows_metadata_handles_empty_track_and_runtime_paths_are_platform_scoped(tmp_path):
     assert metadata({"Metadata": {}, "Position": 0})["track"] == ""
     bundle = tmp_path / "Tubify"
-    (bundle / "mpv").mkdir(parents=True)
-    (bundle / "helpers").mkdir()
+    (bundle / "helpers").mkdir(parents=True)
     environment = {"PATH": r"C:\Windows\System32"}
     opened = []
     prepare_runtime(environment, platform="linux", bundle=bundle, add_dll_directory=opened.append)
@@ -137,8 +136,8 @@ def test_windows_metadata_handles_empty_track_and_runtime_paths_are_platform_sco
     prepare_runtime(environment, platform="win32", bundle=bundle, add_dll_directory=opened.append)
     prepare_runtime(environment, platform="win32", bundle=bundle, add_dll_directory=opened.append)
     paths = environment["PATH"].split(";")
-    assert paths[:2] == [str(bundle / "helpers"), str(bundle / "mpv")]
-    assert opened == [str(bundle / "mpv"), str(bundle / "helpers")]
+    assert paths[0] == str(bundle / "helpers") and str(bundle / "mpv") not in paths
+    assert opened == [str(bundle / "helpers")]
 
 
 def test_windows_sign_in_failure_explains_locked_chromium_cookies():
@@ -182,7 +181,7 @@ def test_windows_media_registration_failure_disables_controls():
 
 REAL_REGISTRATION = """
 from PySide6.QtGui import QGuiApplication, QWindow
-from youtube_music_native.windows_media import WindowsBus, require_projections
+from youtube_music_native.system.windows_media import WindowsBus, require_projections
 require_projections()
 app = QGuiApplication([])
 window = QWindow()
@@ -205,7 +204,7 @@ def test_windows_media_controls_register_real_handlers():
 
 
 def test_power_broadcast_maps_to_prepare_for_sleep():
-    from youtube_music_native.windows_media import power_transition, WM_POWERBROADCAST
+    from youtube_music_native.system.windows_media import power_transition, WM_POWERBROADCAST
 
     assert power_transition(WM_POWERBROADCAST, 0x4) is True
     assert power_transition(WM_POWERBROADCAST, 0x7) is False

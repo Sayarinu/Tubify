@@ -1,0 +1,64 @@
+pkgname=youtube-music-native
+pkgver=0.8.0
+pkgrel=1
+pkgdesc='Tubify, a desktop app for YouTube Music'
+arch=('x86_64')
+url='https://github.com/Sayarinu/Tubify'
+license=('MIT')
+depends=(
+  'python>=3.12' 'pyside6>=6.8' 'qt6-svg' 'qt6-imageformats'
+  'python-keyring>=25.7' 'python-ytmusicapi>=1.12.3' 'python-mpv>=1.0.8'
+  'python-jeepney>=0.9' 'yt-dlp>=2026.08.19' 'yt-dlp-ejs' 'deno' 'ffmpeg'
+  'python-brotli' 'python-mutagen' 'python-pycryptodomex' 'python-websockets'
+)
+optdepends=('polkit: desktop authorization for in-app updates')
+makedepends=('python-build' 'python-installer' 'python-setuptools')
+checkdepends=('python-pytest' 'desktop-file-utils' 'dbus')
+source=("${pkgname}-${pkgver}.tar.gz")
+# The build script supplies the digest of its clean, local Git archive.
+sha256sums=()
+
+build() {
+  cd "${srcdir}/${pkgname}-${pkgver}/native"
+  python -m build --wheel --no-isolation
+}
+
+check() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  export PYTHONPATH="$PWD/native/src"
+  export QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software
+  python -m pytest native/tests -q
+  python native/tests/smoke_runtime.py
+  dbus-run-session -- python native/tests/smoke_desktop.py
+  desktop-file-validate packaging/linux/youtube-music-native.desktop
+}
+
+package() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  python -m installer --destdir="$pkgdir" native/dist/*.whl
+  install -Dm644 packaging/linux/youtube-music-native.desktop \
+    "$pkgdir/usr/share/applications/youtube-music-native.desktop"
+  install -Dm644 native/src/youtube_music_native/assets/music.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/tubify.svg"
+  # Signed in-app updates: a root-owned helper that polkit lets local wheel users run
+  # without a password; it installs only newer packages signed with the release key.
+  install -Dm755 packaging/linux/apply-update \
+    "$pkgdir/usr/lib/$pkgname/apply-update"
+  # scripts/build-native-linux-package.sh supplies this from the GitHub variable.
+  install -d "$pkgdir/usr/lib/$pkgname"
+  printf '%s\n' "${_update_public_key:?Build with scripts/build-native-linux-package.sh}" > "$pkgdir/usr/lib/$pkgname/update-public-key"
+  chmod 644 "$pkgdir/usr/lib/$pkgname/update-public-key"
+  install -Dm644 packaging/linux/studio.nouvellelune.tubify.update.policy \
+    "$pkgdir/usr/share/polkit-1/actions/studio.nouvellelune.tubify.update.policy"
+  install -Dm644 packaging/linux/50-tubify-update.rules \
+    "$pkgdir/usr/share/polkit-1/rules.d/50-tubify-update.rules"
+  install -Dm644 native/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 native/src/youtube_music_native/assets/Roboto-OFL.txt \
+    "$pkgdir/usr/share/licenses/$pkgname/Roboto-OFL.txt"
+  install -Dm644 native/src/youtube_music_native/assets/lucide-LICENSE \
+    "$pkgdir/usr/share/licenses/$pkgname/lucide-LICENSE"
+  install -Dm644 native/src/youtube_music_native/assets/lucide-NOTICE.txt \
+    "$pkgdir/usr/share/licenses/$pkgname/lucide-NOTICE.txt"
+  install -Dm644 native/src/youtube_music_native/assets/THIRD_PARTY_NOTICES.md \
+    "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_NOTICES.md"
+}

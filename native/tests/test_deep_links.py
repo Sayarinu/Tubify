@@ -13,8 +13,8 @@ from PySide6.QtNetwork import QLocalSocket
 from PySide6.QtTest import QTest
 from shiboken6 import isValid
 
-from youtube_music_native.deep_links import DeepLinks, LinkError, parse_link
-from youtube_music_native.link_instance import LinkInstance, MAX_MESSAGE
+from youtube_music_native.integrations.deep_links import DeepLinks, LinkError, parse_link
+from youtube_music_native.integrations.link_instance import LinkInstance, MAX_MESSAGE
 
 SONG = "https://music.youtube.com/watch?v=abcdefghijk"
 ARTIST = "https://music.youtube.com/channel/UC" + "a" * 22
@@ -106,10 +106,12 @@ def test_explicit_actions_wait_for_valid_details_and_duplicate_launch_is_suppres
     service, browse, worker, downloads, clock = controller(tmp_path)
     service.receive(link("play"))
     service.receive(link("play"))
-    assert len(downloads.requests) == 1 and not service.previewOnly
+    assert len(downloads.requests) == 1 and service.previewOnly
     downloads.collectionFound.emit(1, {})
     assert worker.requests[0][1]["route"] == "radio" and worker.requests[0][1]["params"]["radio"] is False
     worker.succeeded.emit(1, {"items": [TRACK]})
+    assert not browse.calls, "A link must wait for a click before it plays"
+    service.perform("play")
     assert browse.calls == [("play", TRACK)]
     clock[0] += 3
     service.receive(link("play"))
@@ -143,6 +145,7 @@ def test_failed_details_remain_preview_and_artist_actions_are_explicit(tmp_path)
     assert not browse.calls, "Retrying a failed link must not auto-play"
     service.receive(link("play", ARTIST))
     worker.succeeded.emit(3, {"title": "Synthetic artist"})
+    service.perform("play")
     assert not browse.calls and "Open this artist" in service.message
     service.perform("open")
     assert browse.calls[-1][0] == "open"
@@ -171,7 +174,7 @@ def test_second_process_forwards_to_one_instance_and_stale_lock_recovers(tmp_pat
     primary.linksReceived.connect(received.append)
     primary.ready()
     assert received == [[SONG]]
-    code = "from pathlib import Path; from PySide6.QtCore import QCoreApplication; from youtube_music_native.link_instance import LinkInstance; import sys; app=QCoreApplication([]); item=LinkInstance(Path(sys.argv[1])); assert not item.claim_or_forward([sys.argv[2]]); item.close()"
+    code = "from pathlib import Path; from PySide6.QtCore import QCoreApplication; from youtube_music_native.integrations.link_instance import LinkInstance; import sys; app=QCoreApplication([]); item=LinkInstance(Path(sys.argv[1])); assert not item.claim_or_forward([sys.argv[2]]); item.close()"
     process = subprocess.Popen([sys.executable, "-c", code, str(tmp_path), link("queue")], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     wait_for(lambda: process.poll() is not None)
     stdout, stderr = process.communicate()
@@ -218,7 +221,7 @@ def test_file_open_and_cold_start_are_deferred_until_ready(tmp_path):
 
 def test_package_registers_only_native_handler():
     root = Path(__file__).resolve().parents[2]
-    desktop = (root / "packaging/arch-native/youtube-music-native.desktop").read_text()
+    desktop = (root / "packaging/linux/youtube-music-native.desktop").read_text()
     assert "Exec=youtube-music-native -- %u" in desktop and "MimeType=x-scheme-handler/ytmusic-native;" in desktop
 
 
@@ -290,5 +293,7 @@ def test_second_file_open_during_startup_is_rejected_visibly(tmp_path):
     service.receive(link("play"))
     service.reportError(rejected[0])
     downloads.collectionFound.emit(1, {"kind": "song", "items": [TRACK]})
-    assert browse.calls == [("play", TRACK)] and "one music link" in service.message
+    assert not browse.calls and service.canPlay and "one music link" in service.message
+    service.perform("play")
+    assert browse.calls == [("play", TRACK)]
     instance.close()

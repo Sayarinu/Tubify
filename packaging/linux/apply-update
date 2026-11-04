@@ -1,0 +1,77 @@
+#!/usr/bin/python3 -I
+"""Install a signed, newer Tubify package as root. Runs through pkexec.
+
+Polkit lets local, active wheel users run this without a password, so it must only
+ever install a genuine Tubify release that is newer than the installed one:
+the package bytes are read once, checked against the release signing key, and
+installed from a root-only copy so the user's file cannot change afterwards.
+"""
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+import tempfile
+
+from youtube_music_native.updates.package_signature import verify
+
+PUBLIC_KEY = Path("/usr/lib/youtube-music-native/update-public-key")
+PACKAGE = "youtube-music-native"
+LIMIT = 1024 * 1024 * 1024
+ENV = {"PATH": "/usr/bin", "LC_ALL": "C"}
+
+
+def read(path, limit):
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise ValueError("Not a regular file")
+        data = handle.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError("File too large")
+    return data
+
+
+def field(output, name):
+    for line in output.splitlines():
+        key, _, value = line.partition(":")
+        if key.strip() == name:
+            return value.strip()
+    return ""
+
+
+def main(argv):
+    if len(argv) != 3 or not argv[1].endswith(".pkg.tar.zst"):
+        print("Usage: apply-update PACKAGE.pkg.tar.zst PACKAGE.pkg.tar.zst.sig", file=sys.stderr)
+        return 2
+    try:
+        data = read(argv[1], LIMIT)
+        signature = read(argv[2], 4096).decode("ascii")
+    except (OSError, ValueError, UnicodeError):
+        print("The update files could not be read.", file=sys.stderr)
+        return 3
+    if not verify(data, signature, PUBLIC_KEY.read_text()):
+        print("The update is not signed by Tubify.", file=sys.stderr)
+        return 3
+    os.umask(0o077)
+    with tempfile.TemporaryDirectory(prefix="tubify-update-") as directory:
+        package = Path(directory) / "update.pkg.tar.zst"
+        package.write_bytes(data)
+        info = subprocess.run(["/usr/bin/pacman", "-Qip", str(package)], capture_output=True, text=True, env=ENV)
+        if info.returncode != 0 or field(info.stdout, "Name") != PACKAGE:
+            print("The update is not a Tubify package.", file=sys.stderr)
+            return 4
+        version = field(info.stdout, "Version")
+        installed = subprocess.run(["/usr/bin/pacman", "-Q", PACKAGE], capture_output=True, text=True, env=ENV)
+        if installed.returncode == 0:
+            current = installed.stdout.split()[-1]
+            # A signed but older release must not be installable without a password.
+            order = subprocess.run(["/usr/bin/vercmp", version, current], capture_output=True, text=True, env=ENV)
+            if order.returncode != 0 or order.stdout.strip() != "1":
+                print("The update is not newer than the installed version.", file=sys.stderr)
+                return 5
+        return subprocess.run(["/usr/bin/pacman", "-U", "--noconfirm", str(package)], env=ENV).returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

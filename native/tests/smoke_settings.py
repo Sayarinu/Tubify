@@ -16,7 +16,7 @@ PAGES = {
     "appearanceSettingsDialog": "Appearance", "playbackSettings": "Playback",
     "lyricsSettingsDialog": "Lyrics", "desktopSettings": "Desktop",
     "discordSettingsDialog": "Discord Presence",
-    "lastFmSettingsDialog": "Last.fm", "castSettingsDialog": "Cast from Phone",
+    "lastFmSettingsDialog": "Last.fm", "castSettingsDialog": "Mobile Sync",
     "updateSettings": "Updates", "troubleshootingSettings": "Troubleshooting",
 }
 
@@ -78,6 +78,29 @@ def main():
                     assert not dialog.property("opened") and not window.property("modalOpen")
                     assert window.activeFocusItem() == find("settingsButton")
 
+                # Any open dialog, menu or drawer blocks the shortcuts without being registered in Main.qml.
+                for name in ("accountDialog", "colorPickerDialog", "shortcutHelpDialog", "accountMenu", "navigationDrawer"):
+                    popup = find(name)
+                    if name == "navigationDrawer":
+                        # The drawer holds the navigation only while space is short.
+                        shell.setUiScale(150)
+                        window.resize(920, 620)
+                        shell.setQueueOpen(True)
+                        QTest.qWait(40)
+                        assert window.property("compactNavigation")
+                    QMetaObject.invokeMethod(popup, "open")
+                    # The drawer reports opened once its slide finishes.
+                    for _ in range(50):
+                        if popup.property("opened"):
+                            break
+                        QTest.qWait(20)
+                    assert popup.property("opened") and window.property("modalOpen") and not window.property("playbackShortcuts"), name
+                    QMetaObject.invokeMethod(popup, "close")
+                    QTest.qWait(400)
+                    assert not window.property("modalOpen"), name
+                shell.setQueueOpen(False)
+                shell.setUiScale(100)
+
                 # Content ordering and real keyboard interaction in the appearance page.
                 shell.setUiScale(100)
                 window.resize(1280, 820)
@@ -119,7 +142,7 @@ def main():
                 QTest.qWait(30)
                 assert find("lastFmApiKey").property("text") == find("lastFmSecret").property("text") == ""
 
-                # Cast from Phone starts off and never opens network sockets in the fixture.
+                # Mobile Sync starts off and never opens network sockets in the fixture.
                 cast = shell.castState
                 QMetaObject.invokeMethod(find("castSettingsDialog"), "open")
                 QTest.qWait(30)
@@ -129,6 +152,17 @@ def main():
                 assert find("castStatus").property("text") == cast.status
                 click(find("castEnabledOption"))
                 assert not cast.enabled and cast.status == "Off"
+
+                # A pairing request asks first, and closing the prompt declines it.
+                pairing = find("castPairingDialog")
+                assert find("castForgetPairings") is not None
+                cast._pairing_code = "synthetic-code"
+                cast.pairingRequested.emit()
+                QTest.qWait(30)
+                assert pairing.property("opened")
+                click(find("castPairingDecline"))
+                QTest.qWait(30)
+                assert not cast.pairingPending and not pairing.property("visible")
 
                 # Tab navigation is contained in the modal, including both navigation and content.
                 QMetaObject.invokeMethod(find("discordSettingsDialog"), "open")

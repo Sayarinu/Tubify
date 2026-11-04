@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from youtube_music_native import compat
-from youtube_music_native.session import from_headers
+from youtube_music_native.account.session import from_headers
 
 
 def test_signed_sources_are_sent_through_stdin_and_child_output_is_not_forwarded(monkeypatch):

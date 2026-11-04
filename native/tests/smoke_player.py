@@ -40,6 +40,11 @@ def check_autoplay(window, player, theme, output_dir=None, label="queue"):
     QTest.qWait(20)
 
     def verify(expected):
+        # The thumb and track colour animate to their new state.
+        for _ in range(40):
+            if abs(thumb.x() - (23 if expected else 3)) < 0.1 and track.property("color") == QColor(theme.accent if expected else theme.progressTrack):
+                break
+            QTest.qWait(10)
         assert control.property("checked") == player.autoplay == expected
         assert state.property("text") == ("On" if expected else "Off")
         assert abs(thumb.x() - (23 if expected else 3)) < 0.1
@@ -137,6 +142,8 @@ def main():
                         old_width = find("browseLoader").width()
                         QTest.keyClick(window, Qt.Key.Key_F)
                         settle()
+                        while window.property("immersiveOpening"):
+                            QTest.qWait(10)
                         assert shell.expanded and window.visibility() != window.Visibility.FullScreen
                         stage, cover = find("expandedPlayer"), find("immersiveArtwork")
                         assert stage and stage.isVisible() and stage.width() >= 320
@@ -146,6 +153,8 @@ def main():
                         assert browsing.property("contentY") == old_scroll
                         assert find("queuePane") == queue_pane and find("lyricsPane") == lyrics_pane
                         assert find("playerBar") == transport and transport.isVisible()
+                        # The stage's backdrop reaches the bar, with no strip of page colour between them.
+                        assert abs(stage.mapToScene(QPointF(0, stage.height())).y() - transport.mapToScene(QPointF()).y()) < 1
                         tabbed = queue_open and lyrics_open and size[0] < 1040
                         assert bool(find("queueSidebar").isVisible()) == (queue_open and (not tabbed or shell.activeDock == "Queue"))
                         lyric_visible = lyrics_open and (not tabbed or shell.activeDock == "Lyrics")
@@ -190,7 +199,14 @@ def main():
                     settle()
                 shell.setQueueOpen(False)
                 shell.setLyricsOpen(False)
+                # While the stage slides, nothing shows through the margins around the bar.
                 shell.setExpanded(True)
+                assert window.property("immersiveOpening") and find("playerBarBackdrop").isVisible()
+                backdrop_bounds = find("playerBarBackdrop").mapRectToScene(find("playerBarBackdrop").boundingRect())
+                assert backdrop_bounds.bottom() >= window.height() - 1 and backdrop_bounds.left() <= 0 and backdrop_bounds.right() >= window.width() - 1
+                while window.property("immersiveOpening"):
+                    QTest.qWait(10)
+                assert not find("playerBarBackdrop").isVisible()
                 settle()
                 # Bottom controls toggle the same panels without leaving the stage.
                 QMetaObject.invokeMethod(find("queueToggle"), "clicked")
@@ -202,6 +218,35 @@ def main():
                 shell.setLyricsOpen(False)
                 shell.setQueueWidth(280)
                 theme = args[11]
+                # Tabbing to Autoplay in the larger view scrolls it into sight above the player bar.
+                window.resize(920, 620)
+                settle()
+                autoplay, listing = find("queueAutoplay"), find("queueUpcomingList")
+                find("immersiveToggle").forceActiveFocus()
+                listing.setProperty("contentY", listing.property("originY") - listing.property("topMargin"))
+                settle()
+                autoplay.forceActiveFocus()
+                settle()
+                list_area, autoplay_area = listing.mapRectToScene(listing.boundingRect()), autoplay.mapRectToScene(autoplay.boundingRect())
+                assert autoplay_area.bottom() <= list_area.bottom() + 1 and autoplay_area.top() >= list_area.top() - 1
+                window.resize(1600, 900)
+                settle()
+                # The switch matrix below checks the switch itself, in the compact panel.
+                shell.setQueueDetails(False)
+                settle()
+                # Autoplay glides between its states, and Reduce Motion jumps.
+                thumb = find("queueAutoplayThumb")
+                positions = []
+                record = lambda: positions.append(thumb.x())
+                thumb.xChanged.connect(record)
+                player.toggleAutoplay()
+                QTest.qWait(400)
+                player.toggleAutoplay()
+                QTest.qWait(400)
+                thumb.xChanged.disconnect(record)
+                assert any(3 < position < 23 for position in positions), positions
+                shell.setReducedMotion(True)
+                settle()
                 for scale in (80, 100, 150):
                     shell.setUiScale(scale)
                     window.resize(920, 620)
@@ -213,6 +258,8 @@ def main():
                         check_autoplay(window, player, theme, options.output_dir, f"autoplay-{scale}-{palette}")
                 theme.selectTheme("classic-dark")
                 shell.setUiScale(100)
+                shell.setQueueDetails(True)
+                shell.setReducedMotion(False)
                 window.resize(1600, 900)
                 shell.setLyricsOpen(True)
                 settle()
@@ -300,7 +347,7 @@ def main():
                 QGuiApplication.instance().exit(0 if passed else 1)
 
         QTimer.singleShot(250, verify)
-        QTimer.singleShot(25000, window.close)
+        QTimer.singleShot(45000, window.close)
         return engine
 
     app.load_window = load

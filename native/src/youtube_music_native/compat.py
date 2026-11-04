@@ -11,13 +11,22 @@ import subprocess
 import sys
 import tempfile
 
-from . import browsers
-from .session import SessionError, read_browser_session
+from .account import browsers
+from .account.session import SessionError, read_browser_session
 from .launcher import process_command
 
 
 class ProbeError(RuntimeError):
     pass
+
+
+def private_directory(path):
+    """Create a per-user data directory, tightening one left more open by an earlier version or by umask."""
+    path = Path(path)
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if sys.platform != "win32":
+        path.chmod(0o700)
+    return path
 
 
 def hidden_window():

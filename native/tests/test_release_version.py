@@ -32,12 +32,12 @@ def test_declared_version_wins_when_started_by_hand():
 
 def test_main_push_bumps_the_previous_tag_and_other_events_keep_their_version(monkeypatch):
     monkeypatch.setattr(release, "declared", lambda: (0, 1, 2))
-    monkeypatch.setattr(release, "previous_tag", lambda ref="HEAD": "native-v0.1.7")
+    monkeypatch.setattr(release, "previous_tag", lambda ref="HEAD": "Tubify-0.1.7")
     monkeypatch.setattr(release, "git", lambda *args: "a\nb\n")
     main = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main"}
-    assert release.release_version(main, labels=lambda sha: set()) == ("0.1.8", "patch", "native-v0.1.7")
-    assert release.release_version(main, labels=lambda sha: {"Feature"} if sha == "b" else set()) == ("0.2.0", "feature", "native-v0.1.7")
-    assert release.release_version({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/native-v0.3.0"})[0] == "0.3.0"
+    assert release.release_version(main, labels=lambda sha: set()) == ("0.1.8", "patch", "Tubify-0.1.7")
+    assert release.release_version(main, labels=lambda sha: {"Feature"} if sha == "b" else set()) == ("0.2.0", "feature", "Tubify-0.1.7")
+    assert release.release_version({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/Tubify-0.3.0"})[0] == "0.3.0"
     assert release.release_version({"GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF": "refs/pull/9/merge"})[0] == "0.1.2"
 
 
@@ -48,21 +48,21 @@ def test_labels_match_case_insensitively_and_legacy_names_still_count():
 
 def test_experimental_push_targets_the_next_stable_version_and_counts_its_builds(monkeypatch):
     monkeypatch.setattr(release, "declared", lambda: (0, 1, 2))
-    monkeypatch.setattr(release, "newest_stable_tag", lambda: ((0, 6, 0), "native-v0.6.0"))
+    monkeypatch.setattr(release, "newest_stable_tag", lambda: ((0, 6, 0), "Tubify-0.6.0"))
     monkeypatch.setattr(release, "git", lambda *args: "a\nb\n")
     builds = {(0, 6, 1): [], (0, 7, 0): [1, 2]}
     monkeypatch.setattr(release, "experimental_builds", lambda version: builds[version])
     monkeypatch.setattr(release, "previous_experimental", lambda ref="HEAD": None)
     experimental = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/experimental"}
     assert release.release_version(experimental, labels=lambda sha: set()) == ("0.6.1b1", "patch", "origin/main")
-    monkeypatch.setattr(release, "previous_experimental", lambda ref="HEAD": "native-v0.7.0b2")
-    assert release.release_version(experimental, labels=lambda sha: {"Feature"}) == ("0.7.0b3", "feature", "native-v0.7.0b2")
+    monkeypatch.setattr(release, "previous_experimental", lambda ref="HEAD": "Tubify-Experimental-0.7.0b2")
+    assert release.release_version(experimental, labels=lambda sha: {"Feature"}) == ("0.7.0b3", "feature", "Tubify-Experimental-0.7.0b2")
 
 
 def test_only_main_experimental_and_tag_pushes_publish():
     assert release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main"})
     assert release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/experimental"})
-    assert release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/native-v0.7.0"})
+    assert release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/Tubify-0.7.0"})
     assert not release.is_release({"GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF": "refs/heads/experimental"})
     assert not release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/LUNE-473"})
 
@@ -73,8 +73,8 @@ def test_stamp_rejects_versions_outside_the_two_channels():
             release.stamp(bad)
 
 
-def test_release_tags_of_both_formats_drive_versions(monkeypatch):
-    tags = "native-v0.6.0\nnative-v0.7.0b4\nnative-v0.7.0\nTubify-0.7.1\nTubify-Experimental-0.7.2b1\nTubify-Experimental-0.7.2b2\nnot-a-release\n"
+def test_release_tags_drive_versions(monkeypatch):
+    tags = "Tubify-0.6.0\nTubify-Experimental-0.7.0b4\nTubify-0.7.0\nTubify-0.7.1\nTubify-Experimental-0.7.2b1\nTubify-Experimental-0.7.2b2\nnot-a-release\n"
     monkeypatch.setattr(release, "git", lambda *args: tags)
     assert release.newest_stable_tag() == ((0, 7, 1), "Tubify-0.7.1")
     assert release.previous_tag() == "Tubify-0.7.1"
@@ -83,3 +83,16 @@ def test_release_tags_of_both_formats_drive_versions(monkeypatch):
     assert release.release_version({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/Tubify-0.7.3"})[0] == "0.7.3"
     assert release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/Tubify-Experimental-0.7.2b3"})
     assert not release.is_release({"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/tags/random"})
+
+
+def test_with_no_release_tags_versions_count_up_from_the_declared_floor(monkeypatch):
+    # The repository moved without its tags, so the declared version must stay above what is already installed.
+    monkeypatch.setattr(release, "git", lambda *args: "" if args[0] == "tag" else "a\n")
+    no_labels = lambda sha: set()
+    floor = release.declared()
+    assert release.updates.version_key(release.text(floor)) > release.updates.version_key("0.7.1b4")
+    next_patch = release.text(release.bump(floor, release.PATCH))
+    stable = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main"}
+    assert release.release_version(stable, labels=no_labels) == (next_patch, "patch", "")
+    experimental = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/experimental"}
+    assert release.release_version(experimental, labels=no_labels) == (next_patch + "b1", "patch", "origin/main")

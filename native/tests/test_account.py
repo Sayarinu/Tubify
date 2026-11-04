@@ -1,7 +1,7 @@
 from PySide6.QtCore import QCoreApplication, QEventLoop, QObject, QTimer, QUrl, Signal
 import sys
 
-from youtube_music_native.account import Account
+from youtube_music_native.account.account import Account
 from youtube_music_native.jobs import Worker
 
 
@@ -25,7 +25,7 @@ def test_restore_and_failed_reconnect_keep_cached_identity(tmp_path):
     changes = []
     account.sessionChanged.connect(lambda: changes.append(True))
     app.processEvents()
-    assert worker.requests == [("restore", None)]
+    assert worker.requests == [("restore", {"removeOldEntries": True})]
     worker.succeeded.emit(1, {"connected": True, "profile": {"name": "Listener"}})
     account.requireReconnect("Session expired")
     assert not account.connected and account.reconnect
@@ -38,10 +38,13 @@ def test_restore_and_failed_reconnect_keep_cached_identity(tmp_path):
     worker.succeeded.emit(3, {"connected": True, "profile": {"name": "Listener"}})
     assert account.connected and not account.reconnect
     assert changes == [True]
+    signed_out = []
+    account.signedOut.connect(lambda: signed_out.append(True))
     account.signOut()
+    assert not signed_out, "Nothing is removed until sign-out has succeeded"
     worker.succeeded.emit(4, {"connected": False, "profile": {}})
     assert not account.connected and account.profile == {}
-    assert changes == [True, True]
+    assert changes == [True, True] and signed_out == [True]
 
 
 def test_provider_requests_are_asynchronous_and_errors_are_sanitized():
@@ -328,3 +331,19 @@ def test_timed_out_job_fails_alone_and_queued_work_continues():
     worker.close()
     assert results[0] == (1, "timeout")
     assert results[1][0] == 2 and results[1][1] != "timeout"
+
+
+def test_old_keyring_entries_are_only_removed_until_it_has_worked(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    account = Account(tmp_path / "settings.ini", worker=worker)
+    account.restore()
+    assert worker.requests[-1] == ("restore", {"removeOldEntries": True})
+    worker.succeeded.emit(1, {"connected": False, "profile": {}})
+    account.restore()
+    assert worker.requests[-1] == ("restore", {"removeOldEntries": True}), "A locked keyring is tried again"
+    worker.succeeded.emit(2, {"connected": False, "profile": {}, "oldEntriesRemoved": True})
+    account.restore()
+    assert worker.requests[-1] == ("restore", None)
+    worker.succeeded.emit(3, {"connected": False, "profile": {}})
+    assert Account(tmp_path / "settings.ini", worker=FakeWorker()).settings.value("oldKeyringEntriesRemoved", False, type=bool)

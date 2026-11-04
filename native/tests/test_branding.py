@@ -4,8 +4,8 @@ import tomllib
 
 import pytest
 
-from youtube_music_native.credentials import SERVICE, USERNAME
-from youtube_music_native.startup import APP_ID
+from youtube_music_native.account.credentials import SERVICE, USERNAME
+from youtube_music_native.system.startup import APP_ID
 
 
 NATIVE = Path(__file__).resolve().parents[1]
@@ -23,21 +23,33 @@ def test_tubify_display_name_preserves_package_desktop_and_credential_ids():
         "youtube-music-native-check": "youtube_music_native.launcher:compat_main",
     }
     desktop = dict(line.split("=", 1) for line in
-        (NATIVE.parent / "packaging/arch-native/youtube-music-native.desktop").read_text().splitlines() if "=" in line)
+        (NATIVE.parent / "packaging/linux/youtube-music-native.desktop").read_text().splitlines() if "=" in line)
     assert desktop["Name"] == "Tubify"
     assert desktop["Exec"] == "youtube-music-native -- %u"
     assert desktop["MimeType"] == "x-scheme-handler/ytmusic-native;"
     assert desktop["StartupWMClass"] == "youtube-music-native"
     assert desktop["Icon"] == "tubify"
-    packaging = (NATIVE.parent / "packaging/arch-native/PKGBUILD").read_text()
+    packaging = (NATIVE.parent / "packaging/linux/PKGBUILD").read_text()
     assert '$pkgdir/usr/share/icons/hicolor/scalable/apps/tubify.svg' in packaging
-    assert APP_ID == "com.carter.youtube-music-native"
-    assert (SERVICE, USERNAME) == ("com.carter.youtube-music.native", "session")
+    assert APP_ID == "studio.nouvellelune.tubify"
+    assert (SERVICE, USERNAME) == ("studio.nouvellelune.tubify", "session")
+
+
+def test_the_old_personal_identifier_is_only_used_to_clean_up():
+    # Old entries must be found to be removed, so the name stays in exactly these two modules.
+    allowed = {"account/credentials.py", "system/startup.py"}
+    package = NATIVE / "src/youtube_music_native"
+    found = {str(path.relative_to(package)).replace("\\", "/") for path in package.rglob("*")
+             if path.suffix in {".py", ".qml", ".js"} and "com.carter" in path.read_text(encoding="utf-8")}
+    assert found == allowed
+    # The Linux source package doesn't include the other platforms' packaging.
+    for spec in (NATIVE.parent / "packaging").glob("*/Tubify.spec"):
+        assert "com.carter" not in spec.read_text(encoding="utf-8")
 
 
 def test_mpris_display_branding_keeps_desktop_and_bus_identifiers():
     pytest.importorskip("jeepney")
-    from youtube_music_native.linux_media import ROOT, PATH, ROOT_VALUES
+    from youtube_music_native.system.linux_media import ROOT, PATH, ROOT_VALUES
     assert ROOT_VALUES["Identity"] == ("s", "Tubify")
     assert ROOT_VALUES["DesktopEntry"] == ("s", "youtube-music-native")
     assert ROOT == "org.mpris.MediaPlayer2" and PATH == "/org/mpris/MediaPlayer2"

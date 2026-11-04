@@ -9,7 +9,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
 
 from youtube_music_native import app
-from youtube_music_native.tray import TrayPlayer
+from youtube_music_native.system.tray import TrayPlayer
 from test_tray import FakeMenu, FakeTray
 from test_lifecycle import Startup
 

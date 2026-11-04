@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtCore import QCoreApplication, QSettings
 
-from youtube_music_native.theme import DEFAULT_COLORS, DEFAULT_THEME_ID, ThemeState
+from youtube_music_native.theme import CLASSIC_LIGHT_COLORS, DEFAULT_COLORS, DEFAULT_THEME_ID, PRESETS, ThemeState
 
 
 def _app():
@@ -39,17 +39,55 @@ def test_select_custom_palette_is_reactive_and_persists(tmp_path):
     assert restored.activeThemeIsCustom
 
 
-def test_hero_tint_blends_the_active_background_with_its_accent(tmp_path):
+@pytest.mark.parametrize("preset", PRESETS, ids=lambda preset: preset["id"])
+def test_error_color_is_readable_on_every_builtin_theme(preset):
+    colors = preset["colors"]
+    assert ThemeState._contrast(colors["error"], colors["background"]) >= 4.5
+    assert ThemeState._contrast(colors["error"], colors["surface"]) >= 4.5
+
+
+def test_saved_theme_missing_a_newer_role_is_kept_and_filled(tmp_path):
+    _app()
+    path = tmp_path / "theme.ini"
+    dark = {role: color for role, color in DEFAULT_COLORS.items() if role != "error"}
+    light = dict(dark, background="#FAFAFA")
+    saved = [{"id": "custom-dark", "name": "Old Dark", "colors": dict(dark, accent="#123456")},
+             {"id": "custom-light", "name": "Old Light", "colors": light}]
+    settings = QSettings(str(path), QSettings.Format.IniFormat)
+    settings.setValue("theme/custom", json.dumps(saved))
+    settings.setValue("theme/active", "custom-dark")
+    settings.sync()
+    theme = ThemeState(path)
+    assert theme.activeThemeName == "Old Dark"
+    assert theme.accent == "#123456"
+    assert theme.error == DEFAULT_COLORS["error"]
+    theme.selectTheme("custom-light")
+    assert theme.error == CLASSIC_LIGHT_COLORS["error"]
+
+
+def test_theme_selection_no_longer_writes_legacy_color_keys(tmp_path):
+    _app()
+    path = tmp_path / "theme.ini"
+    theme = ThemeState(path)
+    theme.selectTheme("dracula")
+    assert theme.createCustomTheme("Mine")
+    theme.setColor("accent", "#abcdef")
+    settings = QSettings(str(path), QSettings.Format.IniFormat)
+    assert "colors" not in settings.childGroups()
+    assert ThemeState(path).accent == "#ABCDEF"
+
+
+def test_complete_import_without_inspection_fails_cleanly(tmp_path):
     _app()
     theme = ThemeState(tmp_path / "theme.ini")
-    assert theme.heroTint == ThemeState._blend(theme.background, theme.accent)
-    classic_tint = theme.heroTint
-    theme.selectTheme("classic-light")
-    assert theme.heroTint == ThemeState._blend(theme.background, theme.accent)
-    assert theme.heroTint != classic_tint
-    theme.createCustomTheme("Tint test")
-    theme.setColor("accent", "#0000FF")
-    assert theme.heroTint == ThemeState._blend(theme.background, "#0000FF")
+    before = theme.activeThemeId
+    assert not theme.completeImport("Anything", False)
+    assert theme.message == "Choose a theme file to import."
+    invalid = tmp_path / "invalid.json"
+    invalid.write_text("{}", encoding="utf-8")
+    assert not theme.inspectImport(str(invalid))["ok"]
+    assert not theme.completeImport("Anything", False)
+    assert theme.activeThemeId == before
 
 
 def test_custom_theme_crud_and_active_delete_falls_back(tmp_path):
@@ -73,8 +111,10 @@ def test_legacy_non_default_colors_migrate_to_custom_theme(tmp_path):
     assert theme.activeThemeIsCustom
     assert theme.activeThemeName == "My Custom Theme"
     assert theme.accent == "#FF0000"
+    assert "colors" not in QSettings(str(path), QSettings.Format.IniFormat).childGroups()
     restored = ThemeState(path)
     assert restored.activeThemeName == "My Custom Theme"
+    assert restored.accent == "#FF0000"
 
 
 def test_import_export_and_conflict_rules(tmp_path):

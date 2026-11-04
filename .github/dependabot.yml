@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keeps native/uv.lock current through ordinary PRs into experimental.
+  - package-ecosystem: uv
+    directory: /native
+    target-branch: experimental
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

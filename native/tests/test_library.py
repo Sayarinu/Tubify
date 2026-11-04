@@ -2,10 +2,10 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.actions import Actions
-from youtube_music_native.browse import Browse
-from youtube_music_native.catalog_view import CatalogView
-from youtube_music_native.library import Library
+from youtube_music_native.catalog.actions import Actions
+from youtube_music_native.catalog.browse import Browse
+from youtube_music_native.catalog.catalog_view import CatalogView
+from youtube_music_native.catalog.library import Library
 from youtube_music_native.shell import ShellController
 
 

@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from youtube_music_native.auth import AuthService
-from youtube_music_native.credentials import Credentials
+from youtube_music_native.account.auth import AuthError, AuthService
+from youtube_music_native.account.credentials import Credentials
 from youtube_music_native.worker import safe_error
 
 
@@ -31,7 +31,7 @@ class Catalog:
 def test_validated_import_restores_without_network_and_sign_out_clears_only_session(tmp_path):
     path = tmp_path / "browser.json"
     path.write_text(json.dumps({"cookie": "__Secure-3PAPISID=private-cookie"}))
-    credentials = Credentials(MemoryVault())
+    credentials = Credentials(MemoryVault(), inline=False)
     service = AuthService(credentials, lambda session: Catalog())
     result = service.import_session(path)
     assert result["connected"]
@@ -49,7 +49,7 @@ def test_validated_import_restores_without_network_and_sign_out_clears_only_sess
 def test_expired_replacement_cannot_overwrite_existing_session(tmp_path):
     path = tmp_path / "browser.json"
     path.write_text(json.dumps({"cookie": "__Secure-3PAPISID=private-cookie"}))
-    credentials = Credentials(MemoryVault())
+    credentials = Credentials(MemoryVault(), inline=False)
     service = AuthService(credentials, lambda session: Catalog())
     service.import_session(path)
     previous = credentials.load().session.headers["cookie"]
@@ -68,9 +68,11 @@ def test_expired_replacement_cannot_overwrite_existing_session(tmp_path):
 def test_browser_sign_in_is_validated_before_replacing_the_saved_session(monkeypatch):
     from functools import partial
 
-    from youtube_music_native import auth, browsers
+    from youtube_music_native.account import auth
 
-    credentials = Credentials(MemoryVault())
+    from youtube_music_native.account import browsers
+
+    credentials = Credentials(MemoryVault(), inline=False)
     service = AuthService(credentials, lambda session: Catalog())
     value = ["private-first"]
 
@@ -92,3 +94,31 @@ def test_browser_sign_in_is_validated_before_replacing_the_saved_session(monkeyp
     with pytest.raises(RuntimeError):
         service.import_browser(["firefox"])
     assert "private-first" in credentials.load().session.headers["cookie"]
+
+
+def test_safe_error_asks_to_reconnect_only_for_rejected_sessions():
+    from ytmusicapi.exceptions import YTMusicServerError
+
+    assert safe_error(YTMusicServerError("Server returned HTTP 403: Forbidden.\nprivate"))["code"] == "reconnect"
+    assert safe_error(YTMusicServerError("Server returned HTTP 500: Error.\nprivate"))["code"] == "provider_error"
+    # Wording alone from another error type must not sign the account out.
+    assert safe_error(RuntimeError("Server returned HTTP 401"))["code"] == "provider_error"
+
+
+@pytest.mark.parametrize("operation", ["unknown", None, ["catalog"]])
+def test_unknown_worker_operations_are_refused(operation):
+    from youtube_music_native.worker import handle
+
+    with pytest.raises(AuthError, match="unavailable"):
+        handle(None, {"operation": operation, "payload": {}})
+
+
+def test_unknown_download_operation_is_refused(tmp_path):
+    from youtube_music_native.downloads.downloads import DownloadError
+    from youtube_music_native.worker import handle
+
+    resources = {}
+    with pytest.raises(DownloadError, match="unavailable"):
+        handle(None, {"operation": "downloads_unknown", "payload": {"data_dir": str(tmp_path)}}, resources)
+    for value in resources.values():
+        value.close()

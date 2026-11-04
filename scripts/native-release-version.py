@@ -17,8 +17,8 @@ is the stable version its changes are heading for (the newest stable tag bumped 
 the largest change on experimental but not yet on main) and N counts its builds.
 PEP 440, pacman's vercmp and Sparkle all sort 0.7.0 < 0.7.1b1 < 0.7.1b2 < 0.7.1.
 
-Tags are Tubify-X.Y.Z and Tubify-Experimental-X.Y.ZbN; releases up to 0.7.0 keep the
-original native-vVERSION tags (see updates.release_tag, the one rule CI and the app share).
+Tags are Tubify-X.Y.Z and Tubify-Experimental-X.Y.ZbN (see updates.release_tag, the one
+rule CI and the app share). With no release tags at all, versions count up from pyproject's.
 
 ``--stamp VERSION`` writes the version into pyproject.toml and the Linux PKGBUILD
 and commits it locally (never pushed): the package scripts refuse to build a
@@ -36,7 +36,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "native/pyproject.toml"
-PKGBUILD = ROOT / "packaging/arch-native/PKGBUILD"
+PKGBUILD = ROOT / "packaging/linux/PKGBUILD"
 VERSION_LINE = re.compile(r'^version = "(\d+)\.(\d+)\.(\d+)"$', re.M)
 STABLE_BRANCH, EXPERIMENTAL_BRANCH = "refs/heads/main", "refs/heads/experimental"
 # Label names are matched case-insensitively; the release:* names are accepted from older PRs.
@@ -58,7 +58,7 @@ def git(*args):
 
 def load_updates():
     """The app's own tag and version rules (standard library only)."""
-    spec = importlib.util.spec_from_file_location("tubify_updates", ROOT / "native/src/youtube_music_native/updates.py")
+    spec = importlib.util.spec_from_file_location("tubify_updates", ROOT / "native/src/youtube_music_native/updates/updates.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

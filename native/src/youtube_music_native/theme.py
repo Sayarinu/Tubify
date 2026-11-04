@@ -12,55 +12,58 @@ DEFAULT_COLORS = {
     "background": "#0F0F0F", "surface": "#212121", "hover": "#303030",
     "foreground": "#FFFFFF", "secondary": "#AAAAAA", "border": "#3F3F3F",
     "accent": "#FF0033", "accentHover": "#FF335C", "onAccent": "#FFFFFF",
-    "selected": "#292929", "muted": "#717171",
+    "selected": "#292929", "muted": "#717171", "error": "#FF6B6B",
 }
 
 MIDNIGHT_VIOLET_COLORS = {
     "background": "#14131B", "surface": "#22212B", "hover": "#302D3E",
     "foreground": "#F6F4FB", "secondary": "#AAA6B8", "border": "#36323F",
     "accent": "#A78BFA", "accentHover": "#C4B5FD", "onAccent": "#201630",
-    "selected": "#332B49", "muted": "#716B80",
+    "selected": "#332B49", "muted": "#716B80", "error": "#FF8FA3",
 }
 
 ROLE_LABELS = {
     "background": "App Background", "surface": "Raised Surfaces", "hover": "Hover State",
     "foreground": "Primary Text", "secondary": "Secondary Text", "border": "Borders",
     "accent": "Accent", "accentHover": "Accent Hover", "onAccent": "Text on Accent",
-    "selected": "Selected State", "muted": "Disabled Controls",
+    "selected": "Selected State", "muted": "Disabled Controls", "error": "Error Text",
 }
 
 
 def _palette(background, surface, hover, foreground, secondary, border,
-             accent, accent_hover, on_accent, selected, muted):
+             accent, accent_hover, on_accent, selected, muted, error):
     return dict(zip(DEFAULT_COLORS, (background, surface, hover, foreground, secondary,
-                                    border, accent, accent_hover, on_accent, selected, muted)))
+                                    border, accent, accent_hover, on_accent, selected, muted, error)))
 
+
+CLASSIC_LIGHT_COLORS = _palette("#FFFFFF", "#F9F9F9", "#F2F2F2", "#0F0F0F", "#606060", "#E5E5E5",
+                                "#FF0033", "#D9002B", "#FFFFFF", "#F2F2F2", "#909090", "#C5221F")
 
 PRESETS = [
     {"id": "classic-dark", "name": "Classic", "light": False,
      "colors": DEFAULT_COLORS},
     {"id": "classic-light", "name": "Classic Light", "light": True,
-     "colors": _palette("#FFFFFF", "#F9F9F9", "#F2F2F2", "#0F0F0F", "#606060", "#E5E5E5", "#FF0033", "#D9002B", "#FFFFFF", "#F2F2F2", "#909090")},
+     "colors": CLASSIC_LIGHT_COLORS},
     {"id": "youtube-music-purple", "name": "Midnight Violet", "light": False,
      "colors": MIDNIGHT_VIOLET_COLORS},
     {"id": "catppuccin-mocha", "name": "Catppuccin Mocha", "light": False,
-     "colors": _palette("#1e1e2e", "#313244", "#45475a", "#cdd6f4", "#a6adc8", "#585b70", "#cba6f7", "#d7bafa", "#1e1e2e", "#45405a", "#7f849c")},
+     "colors": _palette("#1e1e2e", "#313244", "#45475a", "#cdd6f4", "#a6adc8", "#585b70", "#cba6f7", "#d7bafa", "#1e1e2e", "#45405a", "#7f849c", "#F38BA8")},
     {"id": "dracula", "name": "Dracula", "light": False,
-     "colors": _palette("#282a36", "#343746", "#44475a", "#f8f8f2", "#bdc0cc", "#6272a4", "#bd93f9", "#d2b4ff", "#282a36", "#44475a", "#858899")},
+     "colors": _palette("#282a36", "#343746", "#44475a", "#f8f8f2", "#bdc0cc", "#6272a4", "#bd93f9", "#d2b4ff", "#282a36", "#44475a", "#858899", "#FF8080")},
     {"id": "nord", "name": "Nord", "light": False,
-     "colors": _palette("#2e3440", "#3b4252", "#434c5e", "#eceff4", "#d8dee9", "#4c566a", "#88c0d0", "#8fcedd", "#2e3440", "#434c5e", "#7b879b")},
+     "colors": _palette("#2e3440", "#3b4252", "#434c5e", "#eceff4", "#d8dee9", "#4c566a", "#88c0d0", "#8fcedd", "#2e3440", "#434c5e", "#7b879b", "#F0A3AA")},
     {"id": "gruvbox-dark", "name": "Gruvbox Dark", "light": False,
-     "colors": _palette("#282828", "#3c3836", "#504945", "#ebdbb2", "#d5c4a1", "#665c54", "#fabd2f", "#fdd663", "#282828", "#504945", "#928374")},
+     "colors": _palette("#282828", "#3c3836", "#504945", "#ebdbb2", "#d5c4a1", "#665c54", "#fabd2f", "#fdd663", "#282828", "#504945", "#928374", "#FC8B79")},
     {"id": "solarized-dark", "name": "Solarized Dark", "light": False,
-     "colors": _palette("#002b36", "#073642", "#164b57", "#fdf6e3", "#93a1a1", "#586e75", "#268bd2", "#54a5df", "#fdf6e3", "#164b57", "#657b83")},
+     "colors": _palette("#002b36", "#073642", "#164b57", "#fdf6e3", "#93a1a1", "#586e75", "#268bd2", "#54a5df", "#fdf6e3", "#164b57", "#657b83", "#FF6E64")},
     {"id": "tokyo-night", "name": "Tokyo Night", "light": False,
-     "colors": _palette("#1a1b26", "#24283b", "#343a52", "#c0caf5", "#a9b1d6", "#414868", "#7aa2f7", "#9ab8ff", "#1a1b26", "#343a52", "#565f89")},
+     "colors": _palette("#1a1b26", "#24283b", "#343a52", "#c0caf5", "#a9b1d6", "#414868", "#7aa2f7", "#9ab8ff", "#1a1b26", "#343a52", "#565f89", "#F7768E")},
     {"id": "rose-pine", "name": "Rosé Pine", "light": False,
-     "colors": _palette("#191724", "#26233a", "#393552", "#e0def4", "#908caa", "#524f67", "#c4a7e7", "#d3b8ef", "#191724", "#393552", "#6e6a86")},
+     "colors": _palette("#191724", "#26233a", "#393552", "#e0def4", "#908caa", "#524f67", "#c4a7e7", "#d3b8ef", "#191724", "#393552", "#6e6a86", "#EB6F92")},
     {"id": "solarized-light", "name": "Solarized Light", "light": True,
-     "colors": _palette("#fdf6e3", "#eee8d5", "#e5dec9", "#073642", "#586e75", "#c8c0ad", "#268bd2", "#1576bd", "#ffffff", "#dce6e6", "#93a1a1")},
+     "colors": _palette("#fdf6e3", "#eee8d5", "#e5dec9", "#073642", "#586e75", "#c8c0ad", "#268bd2", "#1576bd", "#ffffff", "#dce6e6", "#93a1a1", "#B02624")},
     {"id": "catppuccin-latte", "name": "Catppuccin Latte", "light": True,
-     "colors": _palette("#eff1f5", "#e6e9ef", "#dce0e8", "#4c4f69", "#6c6f85", "#bcc0cc", "#8839ef", "#7628d8", "#ffffff", "#dce0e8", "#9ca0b0")},
+     "colors": _palette("#eff1f5", "#e6e9ef", "#dce0e8", "#4c4f69", "#6c6f85", "#bcc0cc", "#8839ef", "#7628d8", "#ffffff", "#dce0e8", "#9ca0b0", "#B50D31")},
 ]
 for _preset in PRESETS:
     _preset["colors"] = {role: color.upper() for role, color in _preset["colors"].items()}
@@ -77,10 +80,13 @@ class ThemeState(QObject):
         super().__init__(parent)
         self._settings = QSettings(str(config_path), QSettings.Format.IniFormat)
         self._message = ""
+        self._import_name = ""
+        self._import_conflict = ""
+        self._import_colors = None
         self._custom_themes = self._read_custom_themes()
 
-        # Keep compatibility with existing installs that store the selected
-        # colors under colors/<role>. A changed legacy palette becomes editable.
+        # Older installs stored the selected colors under colors/<role>. Read them
+        # once: a changed legacy palette becomes an editable custom theme.
         legacy = {role: self._normalize(self._settings.value(f"colors/{role}", default)) or default
                   for role, default in DEFAULT_COLORS.items()}
         stored_id = str(self._settings.value("theme/active", ""))
@@ -89,6 +95,7 @@ class ThemeState(QObject):
             self._custom_themes.append({"id": theme_id, "name": "My Custom Theme", "colors": legacy})
             stored_id = theme_id
             self._save_custom_themes()
+        self._settings.remove("colors")
         self._active_id = stored_id if self._theme_by_id(stored_id) else DEFAULT_THEME_ID
         self._apply_theme(self._theme_by_id(self._active_id))
 
@@ -124,10 +131,15 @@ class ThemeState(QObject):
 
     @staticmethod
     def _validate_colors(colors):
-        if not isinstance(colors, dict) or set(colors) != set(DEFAULT_COLORS):
+        """Normalize a saved or imported palette; roles it predates come from the matching Classic theme."""
+        if not isinstance(colors, dict):
             return None
-        normalized = {role: ThemeState._normalize(colors[role]) for role in DEFAULT_COLORS}
-        return normalized if all(normalized.values()) else None
+        normalized = {role: ThemeState._normalize(value) for role, value in colors.items() if role in DEFAULT_COLORS}
+        if not normalized or not all(normalized.values()):
+            return None
+        light = "background" in normalized and ThemeState._is_light(normalized)
+        defaults = CLASSIC_LIGHT_COLORS if light else DEFAULT_COLORS
+        return {role: normalized.get(role, defaults[role]) for role in DEFAULT_COLORS}
 
     @staticmethod
     def _is_light(colors):
@@ -166,8 +178,6 @@ class ThemeState(QObject):
         theme = theme or PRESETS[0]
         self._active_id = theme["id"]
         self._colors = dict(theme["colors"])
-        for role, color in self._colors.items():
-            self._settings.setValue(f"colors/{role}", color)
         self._settings.setValue("theme/active", self._active_id)
         self._settings.sync()
 
@@ -197,10 +207,8 @@ class ThemeState(QObject):
     def selected(self): return self._colors["selected"]
     @Property(str, notify=paletteChanged)
     def muted(self): return self._colors["muted"]
-
     @Property(str, notify=paletteChanged)
-    def heroTint(self):
-        return self._blend(self._colors["background"], self._colors["accent"])
+    def error(self): return self._colors["error"]
 
     @Property(str, notify=paletteChanged)
     def progressTrack(self):
@@ -247,21 +255,9 @@ class ThemeState(QObject):
     def activeThemeIsCustom(self):
         return self._active_id.startswith("custom-")
 
-    @Property(str, constant=True)
-    def configPath(self):
-        return self._settings.fileName()
-
     @Property(str, notify=messageChanged)
     def message(self):
         return self._message
-
-    @Property(str, notify=messageChanged)
-    def importName(self):
-        return getattr(self, "_import_name", "")
-
-    @Property(str, notify=messageChanged)
-    def importConflict(self):
-        return getattr(self, "_import_conflict", "")
 
     @Slot(str)
     def selectTheme(self, theme_id):
@@ -334,7 +330,6 @@ class ThemeState(QObject):
             return
         self._colors[role] = color
         theme["colors"] = dict(self._colors)
-        self._settings.setValue(f"colors/{role}", color)
         self._save_custom_themes()
         self._success()
         self.paletteChanged.emit()
@@ -366,11 +361,12 @@ class ThemeState(QObject):
 
     @Slot(str, result="QVariantMap")
     def inspectImport(self, file_path):
-        self._import_path = self._local_path(file_path)
+        path = self._local_path(file_path)
         self._import_name = ""
         self._import_conflict = ""
+        self._import_colors = None
         try:
-            data = json.loads(self._import_path.read_text(encoding="utf-8")) if self._import_path else None
+            data = json.loads(path.read_text(encoding="utf-8")) if path else None
         except (OSError, ValueError, UnicodeError):
             data = None
         if not isinstance(data, dict) or data.get("version") != THEME_FORMAT_VERSION:
@@ -391,6 +387,8 @@ class ThemeState(QObject):
 
     @Slot(str, bool, result=bool)
     def completeImport(self, name, replace_existing):
+        if not self._import_colors:
+            return self._fail("Choose a theme file to import.")
         name = name.strip()[:60]
         if not name:
             return self._fail("Enter a name for the imported theme.")

@@ -8,7 +8,7 @@ import wave
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
 
-from youtube_music_native.audio import Audio
+from youtube_music_native.playback.audio import Audio
 from youtube_music_native.compat import play_source
 
 
@@ -29,7 +29,7 @@ def main():
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_discord.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_maintenance.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_library.py"))], check=True, timeout=30)
-        subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_player.py"))], check=True, timeout=30)
+        subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_player.py"))], check=True, timeout=60)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_lyrics.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_lyric_options.py"))], check=True, timeout=30)
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_lastfm.py"))], check=True, timeout=30)

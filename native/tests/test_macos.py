@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native.macos import prepare_runtime
-from youtube_music_native.macos_media import COMMANDS, MacBus
-from youtube_music_native.browsers import BrowserBlocked, NoBrowserSession, candidates, read_session
+from youtube_music_native.system.macos import prepare_runtime, trusts_certificates
+from youtube_music_native.system.macos_media import COMMANDS, MacBus
+from youtube_music_native.account.browsers import BrowserBlocked, NoBrowserSession, candidates, read_session
 
 
 def test_runtime_paths_are_added_once_and_only_on_macos(tmp_path):
@@ -142,3 +142,28 @@ def test_missing_local_artwork_is_skipped(tmp_path):
     bus.start()
     assert "MPMediaItemPropertyArtwork" not in center.info
     bus.close()
+
+
+def test_bundled_certificates_are_trusted_in_a_packaged_app(tmp_path):
+    (tmp_path / "certifi").mkdir()
+    certificates = tmp_path / "certifi" / "cacert.pem"
+    certificates.write_text("certificates")
+    environ = {}
+    prepare_runtime(environ, platform="linux", bundle=tmp_path)
+    assert "SSL_CERT_FILE" not in environ
+    prepare_runtime(environ, platform="darwin", bundle=tmp_path)
+    assert environ["SSL_CERT_FILE"] == str(certificates)
+    # Someone's own certificate file still wins.
+    environ = {"SSL_CERT_FILE": "mine.pem"}
+    prepare_runtime(environ, platform="darwin", bundle=tmp_path)
+    assert environ["SSL_CERT_FILE"] == "mine.pem"
+
+
+def test_source_launches_keep_the_system_certificates(tmp_path):
+    environ = {}
+    prepare_runtime(environ, platform="darwin", bundle=tmp_path)
+    assert "SSL_CERT_FILE" not in environ
+
+
+def test_trust_check_only_applies_to_macos():
+    assert trusts_certificates(platform="linux")

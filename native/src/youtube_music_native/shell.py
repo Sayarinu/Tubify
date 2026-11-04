@@ -29,6 +29,7 @@ class ShellController(QObject):
     playerViewChanged = Signal()
     playerViewChanging = Signal(bool)
     queueOpenChanged = Signal()
+    queueDetailsChanged = Signal()
     lyricsOpenChanged = Signal()
     lyricsWidthChanged = Signal()
     activeDockChanged = Signal()
@@ -43,7 +44,6 @@ class ShellController(QObject):
         self._artwork_blur = self.settings.value("artworkBlur", True, type=bool)
         self._page = "Home"
         self._query = ""
-        self._sidebar = self.settings.value("sidebarExpanded", False, type=bool)
         self._sidebar_width = max(180, min(420, self._integer_setting("sidebarWidth", 240)))
         self._queue_width = max(280, min(520, self._integer_setting("queueWidth", 360)))
         self._volume = max(0, min(100, self._integer_setting("volume", 70)))
@@ -53,6 +53,7 @@ class ShellController(QObject):
         self._playlists = self._fixture.get("playlists", [])
         self._expanded = False
         self._queue_open = self.settings.value("queueOpen", False, type=bool)
+        self._queue_details = self.settings.value("queueDetails", True, type=bool)
         self._lyrics_open = self.settings.value("lyricsOpen", False, type=bool)
         self._lyrics_width = max(280, min(520, self._integer_setting("lyricsWidth", 360)))
         self._active_dock = str(self.settings.value("activeDock", "Queue"))
@@ -143,10 +144,6 @@ class ShellController(QObject):
     def query(self):
         return self._query
 
-    @Property(bool, notify=sidebarChanged)
-    def sidebarExpanded(self):
-        return self._sidebar
-
     @Property(int, notify=sidebarChanged)
     def sidebarWidth(self):
         return self._sidebar_width
@@ -216,11 +213,6 @@ class ShellController(QObject):
         self.navigate("Search")
         self.searchRequested.emit(query)
 
-    @Slot()
-    def toggleSidebar(self):
-        self._sidebar = not self._sidebar
-        self.sidebarChanged.emit()
-
     @Slot(float)
     def setSidebarWidth(self, value):
         width = max(180, min(420, round(value)))
@@ -245,6 +237,28 @@ class ShellController(QObject):
     @Property(bool, notify=queueOpenChanged)
     def queueOpen(self):
         return self._queue_open
+
+    @Property(bool, notify=queueDetailsChanged)
+    def queueDetails(self):
+        return self._queue_details
+
+    @Slot(bool)
+    def setQueueDetails(self, value):
+        if self._queue_details != value:
+            self._queue_details = value
+            self.settings.setValue("queueDetails", value)
+            self.settings.sync()
+            self.queueDetailsChanged.emit()
+
+    @Slot(bool)
+    def toggleNowPlayingView(self, queue_visible):
+        """Flip the view when the queue is on screen; otherwise bring the queue up showing it."""
+        if queue_visible:
+            self.setQueueDetails(not self._queue_details)
+            return
+        self.setQueueDetails(True)
+        self.setQueueOpen(True)
+        self.setActiveDock("Queue")
 
     @Property(bool, notify=lyricsOpenChanged)
     def lyricsOpen(self):
@@ -337,7 +351,6 @@ class ShellController(QObject):
     def saveWindow(self, width, height):
         self.settings.setValue("width", max(920, min(7680, width)))
         self.settings.setValue("height", max(620, min(4320, height)))
-        self.settings.setValue("sidebarExpanded", self._sidebar)
         self.settings.setValue("sidebarWidth", self._sidebar_width)
         self.settings.setValue("queueWidth", self._queue_width)
         self.settings.setValue("lyricsWidth", self._lyrics_width)

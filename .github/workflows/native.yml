@@ -2,38 +2,56 @@ name: Tubify checks
 
 on:
   pull_request:
-    paths:
-      - 'native/**'
-      - 'packaging/macos-native/**'
-      - 'packaging/windows-native/**'
-      - 'packaging/arch-native/**'
-      - 'scripts/build-native-arch-package.sh'
-      - 'scripts/check-native-arch-package.sh'
-      - '.github/workflows/native-arch-build.yml'
-      - 'scripts/build-native-macos.sh'
-      - 'scripts/native-appcast.py'
-      - 'scripts/native-release-version.py'
-      - 'scripts/check-sparkle-key.swift'
-      - 'scripts/build-native-windows.ps1'
-      - 'scripts/build-native-windows-icon.py'
-      - 'scripts/check-native-windows.ps1'
-      - '.github/workflows/native.yml'
   push:
     branches: [main, experimental]
-    tags: ['native-v*', 'Tubify-*']
   workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
+  HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: 1
+
 # Stable (main) and experimental releases run one at a time so each bumps the version the previous one published.
 concurrency:
   group: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/experimental') && 'native-main-release' || format('native-{0}', github.run_id) }}
-  cancel-in-progress: false
+  # A new push to a pull request replaces its older checks; releases always run to the end.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Pull requests that touch none of these skip the expensive jobs. "Tubify checks passed" below still
+  # reports, so it can be a required check.
+  changes:
+    name: Choose what to check
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          EVENT: ${{ github.event_name }}
+          BUILD_INPUTS: '^(native/|packaging/|scripts/|\.github/workflows/)'
+        run: |
+          # Anything unclear runs everything.
+          run=true
+          if [ "$EVENT" = pull_request ] && files="$(git diff --name-only "$BASE...$HEAD")" && ! grep -qE "$BUILD_INPUTS" <<< "$files"; then
+            run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   version:
     name: Choose release version
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -47,7 +65,7 @@ jobs:
       prerelease: ${{ steps.choose.outputs.prerelease }}
       tag: ${{ steps.choose.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: Bump by the largest change since the last release
@@ -58,15 +76,19 @@ jobs:
           python3 scripts/native-release-version.py
           echo "Release version: $(grep '^version=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2) ($(grep '^level=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2))" >> "$GITHUB_STEP_SUMMARY"
 
-  arch-app:
+  linux-app:
     name: Linux packages
     needs: version
-    uses: ./.github/workflows/native-arch-build.yml
+    uses: ./.github/workflows/native-linux-build.yml
     with:
       version: ${{ needs.version.outputs.version }}
+      # Pull requests and forks can build with a placeholder; releases fail without the real key.
+      update-public-key: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY || (needs.version.outputs.publish != 'true' && 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' || '') }}
 
   shared-code:
     name: Shared code (${{ matrix.os }}, Python ${{ matrix.python }})
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ${{ matrix.os }}
     env:
       QT_QPA_PLATFORM: offscreen
@@ -80,13 +102,13 @@ jobs:
           - os: ubuntu-latest
             python: '3.14'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: native/pyproject.toml
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
       - name: Install shared Python package
@@ -105,7 +127,7 @@ jobs:
         if: runner.os == 'Windows'
         id: msys2
         continue-on-error: true
-        uses: msys2/setup-msys2@v2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
         with:
           msystem: UCRT64
           update: true
@@ -118,7 +140,7 @@ jobs:
         if: runner.os == 'Windows' && steps.msys2.outcome == 'failure'
         id: msys2_retry
         continue-on-error: true
-        uses: msys2/setup-msys2@v2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
         with:
           msystem: UCRT64
           update: true
@@ -130,7 +152,7 @@ jobs:
       - name: Install mpv and FFmpeg on Windows (retry 3 of 3)
         if: runner.os == 'Windows' && steps.msys2.outcome == 'failure' && steps.msys2_retry.outcome == 'failure'
         id: msys2_final
-        uses: msys2/setup-msys2@v2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
         with:
           msystem: UCRT64
           update: true
@@ -163,30 +185,19 @@ jobs:
     needs: version
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: native/uv.lock
       - name: Test signing-key validation
         run: python3 native/tests/check_signing_key.py
-      - name: Validate configured update signing key
-        env:
-          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ secrets.TUBIFY_SPARKLE_PRIVATE_KEY }}
-        run: |
-          if [[ -n "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
-            swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
-          fi
       - name: Stamp the release version
         run: python3 scripts/native-release-version.py --stamp "${{ needs.version.outputs.version }}"
-      - name: Build Tubify.app and disk image
+      - name: Build Tubify.app
         env:
-          # Every published release (stable or experimental) signs the Sparkle appcast.
-          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
-          PUBLISH: ${{ needs.version.outputs.publish }}
-        run: |
-          if [[ "$PUBLISH" == true && -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
-            echo "Releases require the Sparkle signing secret."
-            exit 1
-          fi
-          scripts/build-native-macos.sh
+          TUBIFY_UPDATE_PUBLIC_KEY: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY || (needs.version.outputs.publish != 'true' && 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' || '') }}
+        run: scripts/build-native-macos.sh
       - name: Check the bundle runs without Homebrew on PATH
         run: |
           app="dist/native/Tubify-macos-arm64.app/Contents/MacOS/Tubify"
@@ -196,12 +207,12 @@ jobs:
           finder_env=(env -i HOME="$HOME" TMPDIR="$RUNNER_TEMP/" PATH=/usr/bin:/bin)
           printf '{"source": "%s"}' "$RUNNER_TEMP/tone.wav" | "${finder_env[@]}" "$app" --player-worker
           "${finder_env[@]}" QT_QPA_PLATFORM=offscreen "$app" --smoke-test
-      - uses: actions/upload-artifact@v4
+      - name: Pack the app, keeping its symlinks
+        run: tar -C dist/native -cf dist/native/Tubify-unsigned.tar Tubify-macos-arm64.app
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: tubify-macos-arm64
-          path: |
-            dist/native/Tubify-*-macos-arm64.dmg
-            dist/native/appcast.xml
+          name: tubify-macos-unsigned
+          path: dist/native/Tubify-unsigned.tar
           if-no-files-found: error
 
   windows-app:
@@ -209,16 +220,19 @@ jobs:
     needs: version
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
-          deno-version: v2.x
+          enable-cache: true
+          cache-dependency-glob: native/uv.lock
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+        with:
+          deno-version: v2.9.8
       # mirror.msys2.org sometimes stalls while syncing; retry before failing the job.
       - name: Install MPV and FFmpeg for UCRT64
         id: msys2
         continue-on-error: true
-        uses: msys2/setup-msys2@v2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
         with:
           msystem: UCRT64
           update: true
@@ -231,7 +245,7 @@ jobs:
         if: steps.msys2.outcome == 'failure'
         id: msys2_retry
         continue-on-error: true
-        uses: msys2/setup-msys2@v2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
         with:
           msystem: UCRT64
           update: true
@@ -243,7 +257,7 @@ jobs:
       - name: Install MPV and FFmpeg for UCRT64 (retry 3 of 3)
         if: steps.msys2.outcome == 'failure' && steps.msys2_retry.outcome == 'failure'
         id: msys2_final
-        uses: msys2/setup-msys2@v2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
         with:
           msystem: UCRT64
           update: true
@@ -258,43 +272,162 @@ jobs:
         shell: pwsh
         env:
           MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location || steps.msys2_retry.outputs.msys2-location || steps.msys2_final.outputs.msys2-location }}
+          TUBIFY_UPDATE_PUBLIC_KEY: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY || (needs.version.outputs.publish != 'true' && 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' || '') }}
         run: ./scripts/build-native-windows.ps1
       - name: Verify install, upgrade, launch, and uninstall
         shell: pwsh
         run: ./scripts/check-native-windows.ps1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tubify-windows-x64-installer
           path: dist/native/Tubify-*-windows-x64-setup.exe
           if-no-files-found: error
+          # Installers are already compressed.
+          compression-level: 0
+
+  # The only job that can reach the signing keys. It runs on a fresh machine, installs nothing unpinned
+  # and never runs what the build jobs made, so nothing they ran can reach the keys. Releases use the
+  # protected "release" environment, which only main and experimental can enter. Pull requests get no
+  # environment and sign with a throwaway identity, to test this same path.
+  sign:
+    name: Sign release downloads
+    needs: [version, macos-app, linux-app, windows-app]
+    runs-on: macos-latest
+    environment: ${{ needs.version.outputs.publish == 'true' && 'release' || '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: tubify-macos-unsigned
+          path: unsigned
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: native-linux-package
+          path: unsigned
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: tubify-windows-x64-installer
+          path: unsigned
+      - name: Install the pinned signing dependency
+        if: needs.version.outputs.publish == 'true'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/signing"
+          "$RUNNER_TEMP/signing/bin/pip" install --quiet --only-binary :all: --require-hashes -r packaging/signing-requirements.txt
+      - name: Sign the macOS app and make its disk image
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          PUBLISH: ${{ needs.version.outputs.publish }}
+          TUBIFY_UPDATE_PUBLIC_KEY: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY }}
+          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
+          TUBIFY_MACOS_SIGNING_P12: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_MACOS_SIGNING_P12 || '' }}
+          TUBIFY_MACOS_SIGNING_PASSWORD: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_MACOS_SIGNING_PASSWORD || '' }}
+        run: |
+          if [[ "$PUBLISH" == true && ( -z "$TUBIFY_SPARKLE_PRIVATE_KEY" || -z "$TUBIFY_MACOS_SIGNING_P12" ) ]]; then
+            echo "Releases require the Sparkle and macOS signing secrets."
+            exit 1
+          fi
+          if [[ "$PUBLISH" != true ]]; then
+            scripts/make-macos-signing-identity.sh "$RUNNER_TEMP/throwaway"
+            TUBIFY_MACOS_SIGNING_P12="$(base64 < "$RUNNER_TEMP/throwaway/tubify-signing.p12" | tr -d '\n')"
+            TUBIFY_MACOS_SIGNING_PASSWORD="$(cat "$RUNNER_TEMP/throwaway/tubify-signing.password")"
+            export TUBIFY_MACOS_SIGNING_P12 TUBIFY_MACOS_SIGNING_PASSWORD
+          fi
+          mkdir -p dist/native
+          tar -C dist/native -xf unsigned/Tubify-unsigned.tar
+          scripts/sign-native-macos.sh "$VERSION"
+          if [[ "$PUBLISH" != true ]]; then
+            # The same comparison macos-verify makes for releases, so the first release isn't its first run.
+            fingerprint="$(openssl x509 -in "$RUNNER_TEMP/throwaway/tubify-signing.crt" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')"
+            codesign --display --requirements - dist/native/Tubify-macos-arm64.app 2>&1 | grep -qi "H\"$fingerprint\""
+          fi
+      - name: Sign the Linux package and Windows installer
+        if: needs.version.outputs.publish == 'true'
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          TUBIFY_UPDATE_PUBLIC_KEY: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY }}
+          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ secrets.TUBIFY_SPARKLE_PRIVATE_KEY }}
+        run: |
+          # Signs with the release key and verifies against the public key each install trusts.
+          # This reads the files as bytes; nothing the build jobs made gets run here.
+          package="dist/native/Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
+          installer="dist/native/Tubify-${VERSION}-windows-x64-setup.exe"
+          cp unsigned/youtube-music-native-*-x86_64.pkg.tar.zst "$package"
+          cp "unsigned/Tubify-${VERSION}-windows-x64-setup.exe" "$installer"
+          printf '%s' "$TUBIFY_UPDATE_PUBLIC_KEY" > "$RUNNER_TEMP/update-public-key"
+          for file in "$package" "$installer"; do
+            "$RUNNER_TEMP/signing/bin/python" -I native/src/youtube_music_native/updates/package_signature.py \
+              "$file" "$RUNNER_TEMP/update-public-key"
+            test -s "$file.sig"
+            rm "$file"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tubify-macos-arm64
+          path: |
+            dist/native/Tubify-*-macos-arm64.dmg
+            dist/native/appcast.xml
+            dist/native/*.pkg.tar.zst.sig
+            dist/native/*.exe.sig
+          if-no-files-found: error
+          # Installers are already compressed.
+          compression-level: 0
+
+  # Runs what was signed, on another fresh machine that has no keys.
+  macos-verify:
+    name: Check the signed macOS app
+    needs: [version, sign]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: tubify-macos-arm64
+          path: signed
+      - name: Open the disk image and run the app
+        env:
+          PUBLISH: ${{ needs.version.outputs.publish }}
+          TUBIFY_MACOS_SIGNING_CERT: ${{ vars.TUBIFY_MACOS_SIGNING_CERT }}
+        run: |
+          mount="$(mktemp -d)"
+          hdiutil attach -quiet -nobrowse -mountpoint "$mount" signed/Tubify-*-macos-arm64.dmg
+          app="$mount/Tubify.app"
+          codesign --verify --deep --strict "$app"
+          requirement="$(codesign --display --requirements - "$app" 2>&1)"
+          grep -q certificate <<< "$requirement"
+          if [[ "$PUBLISH" == true ]]; then
+            # A release must be signed by the certificate on record, not just any certificate.
+            [[ -n "$TUBIFY_MACOS_SIGNING_CERT" ]] || { echo "Releases require the TUBIFY_MACOS_SIGNING_CERT variable."; exit 1; }
+            grep -qi "H\"$TUBIFY_MACOS_SIGNING_CERT\"" <<< "$requirement" || { echo "The app is not signed by the recorded certificate."; exit 1; }
+          fi
+          env -i HOME="$HOME" TMPDIR="$RUNNER_TEMP/" PATH=/usr/bin:/bin QT_QPA_PLATFORM=offscreen "$app/Contents/MacOS/Tubify" --smoke-test
+          hdiutil detach -quiet "$mount"
 
   release-assets:
     name: Assemble and verify all release downloads
-    needs: [version, shared-code, windows-app, macos-app, arch-app]
+    needs: [version, shared-code, windows-app, macos-verify, sign, linux-app]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: source
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: tubify-windows-x64-installer
           path: release
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: tubify-macos-arm64
           path: release
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: native-arch-package
+          name: native-linux-package
           path: release
       - name: Require every download type and generate checksums
         working-directory: release
         shell: bash
         env:
           VERSION: ${{ needs.version.outputs.version }}
-          # Releases sign the Linux package so the Arch update helper can install it without a password.
-          TUBIFY_SPARKLE_PRIVATE_KEY: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
           PUBLISH: ${{ needs.version.outputs.publish }}
         run: |
           set -euo pipefail
@@ -308,25 +441,31 @@ jobs:
           if [[ "$PUBLISH" == true ]]; then
             test -s appcast.xml
             assets+=(appcast.xml)
-            if [[ -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
-              echo "Releases require the update signing secret."
-              exit 1
-            fi
-            python3 -m venv "$RUNNER_TEMP/signing"
-            "$RUNNER_TEMP/signing/bin/pip" install --quiet 'pycryptodomex>=3.20,<4'
-            # Signs with the release key and verifies against the public key the package installs.
-            "$RUNNER_TEMP/signing/bin/python" -I ../source/native/src/youtube_music_native/package_signature.py \
-              "$package" ../source/packaging/macos-native/sparkle-public-key.txt
+            installer="Tubify-${VERSION}-windows-x64-setup.exe"
             test -s "$package.sig"
-            assets+=("$package.sig")
+            test -s "$installer.sig"
+            assets+=("$package.sig" "$installer.sig")
           fi
           sha256sum "${assets[@]}" > SHA256SUMS
           sha256sum --check SHA256SUMS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: verified-release-downloads
           path: release/*
           if-no-files-found: error
+          # Installers are already compressed.
+          compression-level: 0
+
+  # The one check branch rules require. A skipped job passes here; a failed or cancelled one doesn't.
+  checks-passed:
+    name: Tubify checks passed
+    needs: [changes, version, linux-app, shared-code, macos-app, windows-app, sign, macos-verify, release-assets]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          BLOCKED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: test "$BLOCKED" = false
 
   release:
     name: Publish versioned release
@@ -336,10 +475,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: verified-release-downloads
           path: release
@@ -356,7 +495,7 @@ jobs:
           set -euo pipefail
           # Every main build is a stable release and every experimental build a prerelease;
           # installed apps offer each one on its update channel. Tags come from updates.release_tag:
-          # Tubify-X.Y.Z / Tubify-Experimental-X.Y.ZbN (native-vVERSION through the 0.7.0 bridge).
+          # Tubify-X.Y.Z / Tubify-Experimental-X.Y.ZbN.
           tag="${TAG}"
           test -n "$tag"
           title="Tubify ${VERSION}"
@@ -368,7 +507,7 @@ jobs:
           cd release
           sha256sum --check SHA256SUMS
           shopt -s failglob
-          assets=( *.exe *.dmg *.pkg.tar.zst *.pkg.tar.zst.sig SHA256SUMS appcast.xml )
+          assets=( *.exe *.exe.sig *.dmg *.pkg.tar.zst *.pkg.tar.zst.sig SHA256SUMS appcast.xml )
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
               echo "This build is already published."

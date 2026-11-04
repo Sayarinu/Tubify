@@ -8,8 +8,11 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native import maintenance, updates
+from youtube_music_native.updates import maintenance
+
+from youtube_music_native.updates import updates
 from test_maintenance import Worker
+from test_updates import trust_new_key
 
 DATA = b'synthetic package'
 
@@ -25,43 +28,44 @@ def opener(data):
 def test_versions_order_experimental_builds_before_their_stable_release():
     ordered = ['0.6.0', '0.7.0b1', '0.7.0b2', '0.7.0b10', '0.7.0', '0.7.1b1', '1.0.0']
     assert sorted(reversed(ordered), key=updates.version_key) == ordered
-    assert updates.version_key('native-v0.7.0b2') == updates.version_key('0.7.0b2')
-    for bad in ('0.7', '0.7.0-rc1', '0.7.0b', 'native-v0.7.0b1x', None, 7):
+    assert updates.version_key('Tubify-Experimental-0.7.0b2') == updates.version_key('0.7.0b2')
+    for bad in ('0.7', '0.7.0-rc1', '0.7.0b', 'Tubify-Experimental-0.7.0b1x', None, 7):
         assert updates.version_key(bad) is None
     assert updates.release_name('0.7.0b3') == 'Tubify Experimental 0.7.0b3'
-    assert updates.release_name('native-v0.7.0') == 'Tubify 0.7.0' and updates.release_name('junk') == 'Tubify'
+    assert updates.release_name('Tubify-0.7.0') == 'Tubify 0.7.0' and updates.release_name('junk') == 'Tubify'
     assert updates.is_experimental('0.7.0b1') and not updates.is_experimental('0.7.0')
 
 
 def test_stable_channel_never_sees_prereleases_and_experimental_takes_the_newest():
-    listing = rows(('native-v0.7.0b2', True, False), ('native-v0.6.0', False, False), ('native-v0.7.0b3', True, True),
-                   ('native-v0.8.0b1', False, False), ('native-v0.6.1', True, False), ('native-vbad', False, False))
-    assert maintenance.lookup_release(opener(listing))['tag'] == 'native-v0.6.0'
+    listing = rows(('Tubify-Experimental-0.7.0b2', True, False), ('Tubify-0.6.0', False, False), ('Tubify-Experimental-0.7.0b3', True, True),
+                   ('Tubify-Experimental-0.8.0b1', False, False), ('Tubify-0.6.1', True, False), ('Tubify-bad', False, False))
+    assert maintenance.lookup_release(opener(listing))['tag'] == 'Tubify-0.6.0'
     result = maintenance.lookup_release(opener(listing), 'experimental')
-    assert result['tag'] == 'native-v0.7.0b2' and result['channel'] == 'experimental'
+    assert result['tag'] == 'Tubify-Experimental-0.7.0b2' and result['channel'] == 'experimental'
     # Once the stable release lands it outranks its experimental builds.
-    listing += rows(('native-v0.7.0', False, False))
-    assert maintenance.lookup_release(opener(listing), 'experimental')['tag'] == 'native-v0.7.0'
+    listing += rows(('Tubify-0.7.0', False, False))
+    assert maintenance.lookup_release(opener(listing), 'experimental')['tag'] == 'Tubify-0.7.0'
     with pytest.raises(ValueError):
-        maintenance.lookup_release(opener(rows(('native-v0.7.0b1', True, False))))
+        maintenance.lookup_release(opener(rows(('Tubify-Experimental-0.7.0b1', True, False))))
 
 
 def test_downloads_require_prerelease_flags_to_match_the_tag(tmp_path, monkeypatch):
     monkeypatch.setattr(updates.sys, 'platform', 'linux')
     def release(tag, prerelease):
-        version = tag.removeprefix('native-v')
+        version = updates.tag_version(tag)
         name = f'Tubify-{version}-linux-x86_64.pkg.tar.zst'
-        body = {'tag_name': tag, 'prerelease': prerelease, 'assets': [{'name': name, 'size': len(DATA), 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest()}]}
+        row = {'size': len(DATA), 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest()}
+        body = {'tag_name': tag, 'prerelease': prerelease, 'assets': [{'name': name, **row}, {'name': name + '.sig', **row}]}
         def fetch(request, timeout):
             url = request if isinstance(request, str) else request.full_url
-            return io.BytesIO(DATA if url.endswith('.zst') else json.dumps(body).encode())
+            return io.BytesIO(DATA if url.endswith(('.zst', '.sig')) else json.dumps(body).encode())
         return fetch
-    assert updates.download('native-v0.7.0b1', tmp_path, opener=release('native-v0.7.0b1', True))['name'] == 'Tubify-0.7.0b1-linux-x86_64.pkg.tar.zst'
-    for tag, prerelease in (('native-v0.7.0b1', False), ('native-v0.7.0', True)):
+    assert updates.download('Tubify-Experimental-0.7.0b1', tmp_path, opener=release('Tubify-Experimental-0.7.0b1', True))['name'] == 'Tubify-0.7.0b1-linux-x86_64.pkg.tar.zst'
+    for tag, prerelease in (('Tubify-Experimental-0.7.0b1', False), ('Tubify-0.7.0', True)):
         with pytest.raises(ValueError):
             updates.download(tag, tmp_path, opener=release(tag, prerelease))
     with pytest.raises(ValueError):
-        updates.download('native-v0.7.0-evil', tmp_path, opener=release('native-v0.7.0', False))
+        updates.download('Tubify-0.7.0-evil', tmp_path, opener=release('Tubify-0.7.0', False))
 
 
 def test_switching_back_to_stable_skips_the_newer_only_helper(tmp_path, monkeypatch):
@@ -70,7 +74,7 @@ def test_switching_back_to_stable_skips_the_newer_only_helper(tmp_path, monkeypa
     launched = []
     monkeypatch.setattr(updates.sys, 'platform', 'linux')
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: launched.append(argv))
-    asset = {'path': str(package), 'sha256': hashlib.sha256(DATA).hexdigest(), 'signature_path': str(tmp_path / 'package.sig')}
+    asset = {'path': str(package), 'sha256': hashlib.sha256(DATA).hexdigest(), 'signature_path': str(trust_new_key(tmp_path, monkeypatch))}
     updates.launch_installer({**asset, 'downgrade': True}, 123)
     assert launched[0][-3:] == ['123', str(package), hashlib.sha256(DATA).hexdigest()]
 
@@ -105,13 +109,13 @@ def test_experimental_channel_offers_newer_builds_and_stable_offers_the_way_back
     monkeypatch.setattr(maintenance.sys, 'platform', 'linux')
     item = service(tmp_path, monkeypatch, '0.6.0', 'experimental')
     item.checkRelease()
-    item._worker.succeeded.emit(1, {'tag': 'native-v0.7.0b1', 'notes': 'Try it'})
+    item._worker.succeeded.emit(1, {'tag': 'Tubify-Experimental-0.7.0b1', 'notes': 'Try it'})
     assert item.updateAvailable and not item.switchingChannel and item.latestName == 'Tubify Experimental 0.7.0b1' and item.status == 'Tubify Experimental 0.7.0b1 is available.'
     item.close()
 
     item = service(tmp_path / 'back', monkeypatch, '0.7.0b1', 'stable')
     item.checkRelease()
-    item._worker.succeeded.emit(1, {'tag': 'native-v0.6.0', 'notes': 'Stable'})
+    item._worker.succeeded.emit(1, {'tag': 'Tubify-0.6.0', 'notes': 'Stable'})
     assert item.updateAvailable and item.switchingChannel and item.latestName == 'Tubify 0.6.0' and item.status == 'Tubify 0.6.0 is available to switch back to Stable.'
     # The download is installed as a downgrade so Linux never uses the newer-only helper.
     item.installUpdate()
@@ -122,7 +126,7 @@ def test_experimental_channel_offers_newer_builds_and_stable_offers_the_way_back
     # A stable build on the stable channel is never offered an older release.
     item = service(tmp_path / 'stable', monkeypatch, '0.7.0', 'stable')
     item.checkRelease()
-    item._worker.succeeded.emit(1, {'tag': 'native-v0.6.0'})
+    item._worker.succeeded.emit(1, {'tag': 'Tubify-0.6.0'})
     assert not item.updateAvailable
     item.close()
 
@@ -131,7 +135,7 @@ def test_mac_switching_back_points_to_the_download(tmp_path, monkeypatch):
     item = service(tmp_path, monkeypatch, '0.7.0b1', 'stable')
     monkeypatch.setattr(maintenance.sys, 'platform', 'darwin')
     item.checkRelease()
-    item._worker.succeeded.emit(1, {'tag': 'native-v0.6.0'})
+    item._worker.succeeded.emit(1, {'tag': 'Tubify-0.6.0'})
     item.installUpdate()
     assert 'download it from Release Details' in item.status and item._worker.requests[-1][1]['action'] == 'release'
     item.close()
@@ -139,13 +143,13 @@ def test_mac_switching_back_points_to_the_download(tmp_path, monkeypatch):
 
 def test_stale_cache_never_shows_experimental_builds_on_stable(tmp_path):
     cache = tmp_path / 'release.json'
-    cache.write_text(json.dumps({'tag': 'native-v0.7.0b1', 'channel': 'experimental', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
+    cache.write_text(json.dumps({'tag': 'Tubify-Experimental-0.7.0b1', 'channel': 'experimental', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
     def offline(request, timeout):
         raise OSError('offline')
     assert maintenance.perform({'action': 'release', 'cache_path': str(cache), 'channel': 'experimental'}, offline)['stale']
     assert 'error' in maintenance.perform({'action': 'release', 'cache_path': str(cache), 'channel': 'stable'}, offline)
     # Stable lookups, including caches from before channels existed, also answer for experimental.
-    for cached in ({'tag': 'native-v0.6.0', 'channel': 'stable'}, {'tag': 'native-v0.6.0'}):
+    for cached in ({'tag': 'Tubify-0.6.0', 'channel': 'stable'}, {'tag': 'Tubify-0.6.0'}):
         cache.write_text(json.dumps({**cached, 'checkedAt': '2026-01-01T00:00:00+00:00'}))
         for channel in ('stable', 'experimental'):
             assert maintenance.perform({'action': 'release', 'cache_path': str(cache), 'channel': channel}, offline)['stale']
@@ -155,9 +159,9 @@ def test_a_known_update_survives_upgrading_to_an_experimental_build(tmp_path, mo
     item = service(tmp_path, monkeypatch, '0.7.0b1')
     cache = tmp_path / 'cache/release.json'
     cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text(json.dumps({'tag': 'native-v99.0.0', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
+    cache.write_text(json.dumps({'tag': 'Tubify-99.0.0', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
     assert item.channel == 'experimental' and item._known_newer()
-    cache.write_text(json.dumps({'tag': 'native-v99.0.0b1', 'channel': 'experimental', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
+    cache.write_text(json.dumps({'tag': 'Tubify-Experimental-99.0.0b1', 'channel': 'experimental', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
     item.setChannel('stable')
     assert not item._known_newer()
     item.close()
@@ -173,48 +177,44 @@ def test_appcast_accepts_experimental_versions(tmp_path):
     archive = tmp_path / 'Tubify-0.7.0b2-macos-arm64.dmg'
     archive.write_bytes(DATA)
     result = code.appcast('0.7.0b2', archive, base64.b64encode(b's' * 64).decode()).decode()
-    assert 'native-v0.7.0b2/Tubify-0.7.0b2-macos-arm64.dmg' in result and '>0.7.0b2<' in result
+    assert 'Tubify-Experimental-0.7.0b2/Tubify-0.7.0b2-macos-arm64.dmg' in result and '>0.7.0b2<' in result
 
 
-def test_tags_switch_to_tubify_names_after_the_070_bridge():
-    # Apps from before the new tags only find native-v releases, so everything through 0.7.0 keeps them.
-    assert updates.release_tag('0.6.0') == 'native-v0.6.0'
-    assert updates.release_tag('0.7.0b5') == 'native-v0.7.0b5'
-    assert updates.release_tag('0.7.0') == 'native-v0.7.0'
+def test_every_release_uses_a_tubify_tag():
     assert updates.release_tag('0.7.1b1') == 'Tubify-Experimental-0.7.1b1'
     assert updates.release_tag('0.7.1') == 'Tubify-0.7.1'
     assert updates.release_tag('1.0.0') == 'Tubify-1.0.0'
-    for bad in ('Tubify-0.7.1', 'native-v0.7.1', '0.7', 'latest'):
+    for bad in ('Tubify-0.7.1', '0.7', 'latest'):
         with pytest.raises(ValueError):
             updates.release_tag(bad)
 
 
-def test_both_tag_formats_parse_and_must_match_their_channel():
-    assert updates.tag_version('Tubify-0.7.1') == '0.7.1' and updates.tag_version('native-v0.7.0b2') == '0.7.0b2'
-    assert updates.tag_version('Tubify-Experimental-0.7.1b3') == '0.7.1b3'
-    for bad in ('Tubify-0.7.1b1', 'Tubify-Experimental-0.7.1', 'tubify-0.7.1', 'Tubify-0.7.1/../x', 'Tubify-v0.7.1'):
+def test_tags_parse_and_must_match_their_channel():
+    assert updates.tag_version('Tubify-0.7.1') == '0.7.1' and updates.tag_version('Tubify-Experimental-0.7.0b2') == '0.7.0b2'
+    for bad in ('native-v0.7.1', 'Tubify-0.7.1b1', 'Tubify-Experimental-0.7.1', 'tubify-0.7.1', 'Tubify-0.7.1/../x', 'Tubify-v0.7.1'):
         assert updates.tag_version(bad) is None and updates.version_key(bad) is None
     assert updates.version_key('Tubify-Experimental-0.7.1b1') < updates.version_key('Tubify-0.7.1') < updates.version_key('Tubify-Experimental-0.7.2b1')
-    assert updates.version_key('native-v0.7.0') < updates.version_key('Tubify-Experimental-0.7.1b1')
+    assert updates.version_key('Tubify-0.7.0') < updates.version_key('Tubify-Experimental-0.7.1b1')
     assert updates.release_name('Tubify-Experimental-0.7.1b1') == 'Tubify Experimental 0.7.1b1'
     assert updates.release_name('Tubify-0.7.1') == 'Tubify 0.7.1'
 
 
-def test_channels_and_downloads_work_across_the_tag_change(tmp_path, monkeypatch):
-    listing = rows(('Tubify-0.7.1', False, False), ('native-v0.7.0', False, False), ('Tubify-Experimental-0.7.2b1', True, False),
-                   ('native-v0.7.0b4', True, False), ('Tubify-0.7.2b1', True, False))
+def test_channels_and_downloads_use_the_release_tags(tmp_path, monkeypatch):
+    listing = rows(('Tubify-0.7.1', False, False), ('Tubify-0.7.0', False, False), ('Tubify-Experimental-0.7.2b1', True, False),
+                   ('Tubify-Experimental-0.7.0b4', True, False), ('Tubify-0.7.2b1', True, False))
     assert maintenance.lookup_release(opener(listing))['tag'] == 'Tubify-0.7.1'
     assert maintenance.lookup_release(opener(listing), 'experimental')['tag'] == 'Tubify-Experimental-0.7.2b1'
     monkeypatch.setattr(updates.sys, 'platform', 'linux')
     name = 'Tubify-0.7.1-linux-x86_64.pkg.tar.zst'
-    body = {'tag_name': 'Tubify-0.7.1', 'prerelease': False, 'assets': [{'name': name, 'size': len(DATA), 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest()}]}
+    row = {'size': len(DATA), 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest()}
+    body = {'tag_name': 'Tubify-0.7.1', 'prerelease': False, 'assets': [{'name': name, **row}, {'name': name + '.sig', **row}]}
     urls = []
     def fetch(request, timeout):
         url = request if isinstance(request, str) else request.full_url
         urls.append(url)
-        return io.BytesIO(DATA if url.endswith('.zst') else json.dumps(body).encode())
+        return io.BytesIO(DATA if url.endswith(('.zst', '.sig')) else json.dumps(body).encode())
     assert updates.download('Tubify-0.7.1', tmp_path, opener=fetch)['name'] == name
-    assert urls == ['https://api.github.com/repos/Sayarinu/Tubify/releases/tags/Tubify-0.7.1', updates.BASE + 'Tubify-0.7.1/' + name]
+    assert urls == ['https://api.github.com/repos/Sayarinu/Tubify/releases/tags/Tubify-0.7.1', updates.BASE + 'Tubify-0.7.1/' + name, updates.BASE + 'Tubify-0.7.1/' + name + '.sig']
 
 
 def test_appcast_points_at_the_release_tag(tmp_path):
@@ -225,7 +225,7 @@ def test_appcast_points_at_the_release_tag(tmp_path):
     code = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(code)
     signature = base64.b64encode(b's' * 64).decode()
-    for version, tag in (('0.7.0', 'native-v0.7.0'), ('0.7.1', 'Tubify-0.7.1'), ('0.7.1b2', 'Tubify-Experimental-0.7.1b2')):
+    for version, tag in (('0.7.0', 'Tubify-0.7.0'), ('0.7.1', 'Tubify-0.7.1'), ('0.7.1b2', 'Tubify-Experimental-0.7.1b2')):
         archive = tmp_path / f'Tubify-{version}-macos-arm64.dmg'
         archive.write_bytes(DATA)
         assert f'releases/download/{tag}/Tubify-{version}-macos-arm64.dmg' in code.appcast(version, archive, signature).decode()

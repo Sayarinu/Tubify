@@ -2,7 +2,8 @@ import json
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.cast_receiver import CastReceiver, cast_ids, clean_name
+from youtube_music_native.integrations.cast_receiver import CastReceiver, cast_ids, clean_name
+from youtube_music_native.playback.playback import Playback
 
 
 class Player(QObject):
@@ -100,11 +101,16 @@ class Lounge(QObject):
         self.pairings.append(code)
         done(True)
 
+    def forget(self):
+        self.forgotten = True
+
     def names(self):
         return [name for name, _payload in self.sent]
 
 
 class Dial(QObject):
+    searched = Signal()
+    described = Signal()
     launched = Signal(str, str)
     stopRequested = Signal()
     created = []
@@ -238,10 +244,59 @@ def test_remote_status_never_echoes_device_data(tmp_path):
     assert cast.status == "Can't reach YouTube. Retrying…"
 
 
-def test_dial_launch_registers_the_pairing_code(tmp_path):
+def test_pairing_waits_for_approval(tmp_path):
+    cast, _player, _shell = receiver(tmp_path)
+    requests = []
+    cast.pairingRequested.connect(lambda: requests.append(True))
+    Dial.created[0].launched.emit("abcd-1234", "m")
+    assert cast.pairingPending and requests == [True] and Lounge.created[0].pairings == []
+    cast.approvePairing()
+    assert not cast.pairingPending and Lounge.created[0].pairings == ["abcd-1234"]
+
+
+def test_declined_pairing_is_never_registered(tmp_path):
     cast, _player, _shell = receiver(tmp_path)
     Dial.created[0].launched.emit("abcd-1234", "m")
+    cast.declinePairing()
+    cast.approvePairing()
+    assert not cast.pairingPending and Lounge.created[0].pairings == []
+
+
+def test_a_second_request_cannot_replace_the_one_being_answered(tmp_path):
+    cast, _player, _shell = receiver(tmp_path)
+    Dial.created[0].launched.emit("abcd-1234", "m")
+    Dial.created[0].launched.emit("evil-5678", "m")
+    cast.approvePairing()
     assert Lounge.created[0].pairings == ["abcd-1234"]
+
+
+def test_an_unanswered_request_expires_and_turning_off_clears_it(tmp_path):
+    cast, _player, _shell = receiver(tmp_path)
+    Dial.created[0].launched.emit("abcd-1234", "m")
+    assert cast.pairing_wait.isActive()
+    cast.pairing_wait.timeout.emit()
+    assert not cast.pairingPending and not cast.pairing_wait.isActive()
+    Dial.created[0].launched.emit("abcd-1234", "m")
+    cast.setEnabled(False)
+    assert not cast.pairingPending
+    cast.approvePairing()
+    assert Lounge.created[0].pairings == []
+
+
+def test_forgetting_replaces_the_screen_identity(tmp_path):
+    cast, _player, _shell = receiver(tmp_path)
+    cast.settings.setValue("cast/screenId", "screen-identity")
+    Dial.created[0].launched.emit("abcd-1234", "m")
+    cast.forgetPairings()
+    assert Lounge.created[0].forgotten and not cast.pairingPending
+    cast.setEnabled(False)
+    cast.settings.setValue("cast/screenId", "screen-identity")
+    cast.forgetPairings()
+    assert not cast.settings.contains("cast/screenId")
+
+
+def test_the_default_device_name_does_not_reveal_the_computer():
+    assert clean_name("") == "Tubify"
 
 
 def test_metadata_is_filled_for_cast_songs_without_looking_up_the_lounge_queue(tmp_path):
@@ -256,8 +311,33 @@ def test_metadata_is_filled_for_cast_songs_without_looking_up_the_lounge_queue(t
 
 def test_names_and_ids_are_sanitised():
     assert clean_name('  Living <room> & "tv"  ') == "Living room  tv"
-    assert clean_name("") .startswith("Tubify")
     assert len(clean_name("x" * 200)) == 60
     assert cast_ids({"videoIds": ",".join(["aaaaaaaaaaa"] * 600)}) == ["aaaaaaaaaaa"] * 500
     assert cast_ids({"videoIds": "", "videoId": "bbbbbbbbbbb"}) == ["bbbbbbbbbbb"]
     assert cast_ids({"videoIds": "../../etc"}) == []
+
+
+def test_fake_player_only_offers_what_real_playback_has():
+    # The receiver is tested against this fake, so a member missing from Playback would only fail at runtime.
+    fake_members = {name for name in vars(Player) if not name.startswith("_")} - {"staticMetaObject"}
+    assert {name for name in fake_members if not hasattr(Playback, name)} == set()
+
+
+def test_status_says_how_far_discovery_got_without_naming_any_device(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    cast, _player, _shell = receiver(tmp_path)
+    lounge, dial = Lounge.created[0], Dial.created[0]
+    dial.port = 38008
+    lounge.ready = True
+    lounge.stateChanged.emit("ready")
+    assert "No device has looked for Tubify yet" in cast.status
+    dial.searched.emit()
+    assert cast.discovery.isActive()
+    cast.discovery.stop()
+    cast.discovery.timeout.emit()
+    assert "firewall" in cast.status and "38008" in cast.status
+    dial.described.emit()
+    assert "found Tubify" in cast.status
+    dial.searched.emit()
+    assert not cast.discovery.isActive()
+    cast.close()

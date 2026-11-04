@@ -1,10 +1,10 @@
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
-from PySide6.QtNetwork import QHostAddress, QTcpSocket
+from PySide6.QtNetwork import QHostAddress, QTcpSocket, QNetworkInterface
 
 import pytest
 
-from youtube_music_native.cast_dial import (
-    DIAL_ST, DialServer, app_description, device_description, is_search, launch_fields, local_address_for, parse_request, search_reply,
+from youtube_music_native.integrations.cast_dial import (
+    DIAL_ST, DialServer, app_description, device_description, is_search, launch_fields, local_address_for, parse_request, search_reply, trusted_request
 )
 
 SEARCH = f'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"\r\nMX: 1\r\nST: {DIAL_ST}\r\n\r\n'.encode()
@@ -42,7 +42,7 @@ def test_only_local_subnet_peers_are_served():
     networks = [(QHostAddress("192.168.1.5"), 24, None), (QHostAddress("10.0.0.2"), 8, None)]
     assert local_address_for(QHostAddress("192.168.1.77"), networks).toString() == "192.168.1.5"
     assert local_address_for(QHostAddress("10.200.1.1"), networks).toString() == "10.0.0.2"
-    assert local_address_for(QHostAddress("127.0.0.1"), networks).isLoopback()
+    assert local_address_for(QHostAddress("127.0.0.1"), networks) is None
     assert local_address_for(QHostAddress("8.8.8.8"), networks) is None
     assert local_address_for(QHostAddress("::ffff:192.168.1.9"), networks).toString() == "192.168.1.5"
 
@@ -58,22 +58,97 @@ def http(port, raw):
     return bytes(data).decode("latin-1")
 
 
+def LOOPBACK_ONLY():
+    # A real server never counts loopback as a network; this lets the tests stand in for a phone.
+    return [(QHostAddress("127.0.0.1"), 8, None)]
+
+
+def request(port, method, path, headers=b"", body=b""):
+    host = b"Host: 127.0.0.1:%d\r\n" % port
+    length = b"Content-Length: %d\r\n" % len(body) if body else b""
+    return http(port, b"%s %s HTTP/1.1\r\n%s%s%s\r\n%s" % (method, path, host, length, headers, body))
+
+
 def test_dial_http_launch_and_stop_over_loopback():
     app = QCoreApplication.instance() or QCoreApplication([])
-    server, launches, stops = DialServer("Tubify test", "udn-1", port=0, networks=lambda: []), [], []
+    server, launches, stops = DialServer("Tubify test", "udn-1", port=0, networks=LOOPBACK_ONLY), [], []
     server.launched.connect(lambda code, theme: launches.append((code, theme)))
     server.stopRequested.connect(lambda: stops.append(True))
     assert server.listen_http() == "" and server.port
-    description = http(server.port, b"GET /dd.xml HTTP/1.1\r\nHost: x\r\n\r\n")
+    description = request(server.port, b"GET", b"/dd.xml")
     assert description.startswith("HTTP/1.1 200") and f"Application-URL: http://127.0.0.1:{server.port}/apps/" in description and "Tubify test" in description
-    assert "<state>stopped</state>" in http(server.port, b"GET /apps/YouTube HTTP/1.1\r\n\r\n")
-    assert http(server.port, b"POST /apps/YouTube HTTP/1.1\r\nContent-Length: 7\r\n\r\ntheme=m").startswith("HTTP/1.1 400")
+    assert "<state>stopped</state>" in request(server.port, b"GET", b"/apps/YouTube")
+    assert request(server.port, b"POST", b"/apps/YouTube", body=b"theme=m").startswith("HTTP/1.1 400")
     body = b"pairingCode=abcd-1234&theme=m"
-    launched = http(server.port, b"POST /apps/YouTube HTTP/1.1\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body))
+    launched = request(server.port, b"POST", b"/apps/YouTube", body=body)
     assert launched.startswith("HTTP/1.1 201") and f"Location: http://127.0.0.1:{server.port}/apps/YouTube/run" in launched
-    assert launches == [("abcd-1234", "m")] and "<state>running</state>" in http(server.port, b"GET /apps/YouTube HTTP/1.1\r\n\r\n")
-    assert http(server.port, b"DELETE /apps/YouTube/run HTTP/1.1\r\n\r\n").startswith("HTTP/1.1 200") and stops == [True]
-    assert http(server.port, b"GET /etc/passwd HTTP/1.1\r\n\r\n").startswith("HTTP/1.1 404")
+    assert launches == [("abcd-1234", "m")] and "<state>running</state>" in request(server.port, b"GET", b"/apps/YouTube")
+    assert request(server.port, b"DELETE", b"/apps/YouTube/run").startswith("HTTP/1.1 200") and stops == [True]
+    assert request(server.port, b"GET", b"/etc/passwd").startswith("HTTP/1.1 404")
     assert http(server.port, b"BROKEN\r\n\r\n").startswith("HTTP/1.1 400")
     server.stop()
     assert not server.port and app
+
+
+def test_networks_that_appear_after_launch_are_joined():
+    app = QCoreApplication.instance() or QCoreApplication([])
+
+    class Interface:
+        def __init__(self, name):
+            self.name = name
+
+        def flags(self):
+            return QNetworkInterface.InterfaceFlag.CanMulticast
+
+    class Socket:
+        joined = []
+
+        def joinMulticastGroup(self, _group, interface):
+            self.joined.append(interface.name)
+            return True
+
+    networks = [(QHostAddress("192.168.1.5"), 24, Interface("wifi"))]
+    server = DialServer("Tubify test", "udn-1", port=0, networks=lambda: networks)
+    server.udp = Socket()
+    assert server.join_networks() and Socket.joined == ["wifi"]
+    networks.append((QHostAddress("192.168.1.6"), 24, Interface("wired")))
+    server.membership.timeout.emit()
+    assert Socket.joined == ["wifi", "wifi", "wired"]
+    server.udp = None
+
+
+@pytest.mark.parametrize("origin", ["https://evil.example", "http://192.168.1.5", "null", "file://"])
+def test_requests_from_web_pages_are_refused(origin):
+    assert not trusted_request({"origin": origin, "host": "192.168.1.5:38008"}, "192.168.1.5")
+
+
+@pytest.mark.parametrize("host", ["evil.example", "evil.example:38008", "192.168.1.6:38008", ""])
+def test_a_host_other_than_this_address_is_refused(host):
+    assert not trusted_request({"host": host}, "192.168.1.5")
+
+
+def test_phone_requests_are_trusted():
+    assert trusted_request({"host": "192.168.1.5:38008"}, "192.168.1.5")
+    assert trusted_request({"host": "192.168.1.5"}, "192.168.1.5")
+    assert trusted_request({"host": "192.168.1.5:38008", "origin": "package:com.google.android.apps.youtube.music"}, "192.168.1.5")
+
+
+def test_refused_requests_never_reach_pairing_or_the_device_name():
+    QCoreApplication.instance() or QCoreApplication([])
+    server, launches = DialServer("Private name", "udn-1", port=0, networks=LOOPBACK_ONLY), []
+    server.launched.connect(lambda code, theme: launches.append(code))
+    assert server.listen_http() == ""
+    form = b"pairingCode=abcd-1234"
+    web = http(server.port, b"POST /apps/YouTube HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nOrigin: https://evil.example\r\nContent-Length: %d\r\n\r\n%s" % (server.port, len(form), form))
+    assert web.startswith("HTTP/1.1 403") and not launches
+    rebound = http(server.port, b"GET /dd.xml HTTP/1.1\r\nHost: evil.example\r\n\r\n")
+    assert rebound.startswith("HTTP/1.1 403") and "Private name" not in rebound
+    server.stop()
+
+
+def test_this_computer_is_not_answered():
+    QCoreApplication.instance() or QCoreApplication([])
+    server = DialServer("Tubify test", "udn-1", port=0, networks=lambda: [])
+    assert server.listen_http() == ""
+    assert http(server.port, b"GET /dd.xml HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n") == ""
+    server.stop()

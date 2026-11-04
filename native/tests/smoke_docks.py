@@ -47,13 +47,15 @@ def main():
                     QTest.qWait(80)
                     assert lyric.isVisible() and not queue.isVisible() and lyrics._active
                     assert lyric.x() + lyric.width() == size[0]
+                    assert content.width() >= 480 or lyric.width() == 280, (size, content.width())
                     assert content.x() + content.width() == lyric.x()
                     shell.setQueueOpen(True)
                     QTest.qWait(80)
                     dual = size[0] >= 1280
                     assert queue.isVisible() and lyric.isVisible() == dual
                     assert bool(window.property("tabbedDocks")) != dual
-                    assert content.width() >= (480 if dual else 320)
+                    # One dock never squeezes the page below 480 px unless it is already at its 280 px minimum.
+                    assert content.width() >= 480 or (not dual and queue.width() == 280), (size, content.width())
                     assert queue.width() >= 280
                     if dual:
                         assert lyric.width() >= 280 and lyric.x() + lyric.width() == queue.x()

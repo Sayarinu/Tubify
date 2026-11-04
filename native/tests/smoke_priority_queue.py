@@ -6,10 +6,10 @@ import wave
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
 
-from youtube_music_native.audio import Audio
+from youtube_music_native.playback.audio import Audio
 from youtube_music_native.jobs import Worker
-from youtube_music_native.media import MediaFiles
-from youtube_music_native.playback import Playback
+from youtube_music_native.playback.media import MediaFiles
+from youtube_music_native.playback.playback import Playback
 
 
 def main():
@@ -32,7 +32,7 @@ def main():
         loop, started = QEventLoop(), []
 
         def record(track):
-            started.append((track["videoId"], player.sourceKind))
+            started.append((track["videoId"], player._source_kind))
             if len(started) == 1:
                 player.enqueue([tracks[1]])
 
@@ -50,7 +50,7 @@ def main():
         restored.trackStarted.connect(lambda track: restore_loop.quit())
         QTimer.singleShot(10000, restore_loop.quit)
         restore_loop.exec()
-        assert restored.sourceKind == "local" and not restored.playing
+        assert restored._source_kind == "local" and not restored.playing
         assert restored.queue.snapshot(snapshot["position"]) == snapshot
         restored.close()
     print("Real libmpv source/manual/source playback and paused restart passed.")

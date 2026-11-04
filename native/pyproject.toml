@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "youtube-music-native"
-version = "0.1.2"
+version = "0.8.0"
 description = "Tubify, a desktop app for YouTube Music"
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
-  "PySide6>=6.8,<7",
+  # Essentials has every Qt module Tubify uses; the full PySide6 adds WebEngine, 3D, Charts and more.
+  "PySide6-Essentials>=6.8,<7",
   "keyring>=25.7,<26",
   "ytmusicapi>=1.12.3,<2",
   "yt-dlp[default]>=2026.8.19",
@@ -43,7 +44,7 @@ youtube-music-native-check = "youtube_music_native.launcher:compat_main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-youtube_music_native = ["qml/*.qml", "qml/*.js", "assets/*"]
+youtube_music_native = ["qml/*.qml", "qml/*/*.qml", "qml/*.js", "assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

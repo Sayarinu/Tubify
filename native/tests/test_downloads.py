@@ -6,8 +6,8 @@ import wave
 
 import pytest
 
-from youtube_music_native import downloads
-from youtube_music_native.downloads import DownloadError, Downloads, DownloadStore, clean_track
+from youtube_music_native.downloads import downloads
+from youtube_music_native.downloads.downloads import DownloadBlocked, DownloadError, Downloads, DownloadStore, clean_track
 
 
 IDS = ["abcdefghijk", "lmnopqrstuv", "zyxwvutsrqp"]
@@ -260,6 +260,65 @@ def test_run_queue_stops_when_the_disk_is_full(service):
     with pytest.raises(DownloadError, match="disk is full"):
         service.run_queue(first)
     assert service.store.state(second) == "queued" and factory.calls == [IDS[0]]
+
+
+def test_run_queue_stops_when_the_account_needs_reconnecting(service):
+    service, factory = service
+    first = service.store.schedule(body("PLfirst", IDS[:1]))
+    second = service.store.schedule(body("PLsecond", IDS[1:2]))
+    service.auth.session, service.auth.restore = None, lambda: None
+    with pytest.raises(DownloadBlocked, match="Reconnect"):
+        service.run_queue(first)
+    assert service.store.state(first) == "failed" and service.store.state(second) == "queued"
+
+
+def test_run_queue_continues_after_an_ordinary_download_error_whatever_its_wording(service, monkeypatch):
+    service, factory = service
+    first = service.store.schedule(body("PLfirst", IDS[:1]))
+    second = service.store.schedule(body("PLsecond", IDS[1:2]))
+    real_run = service.run
+
+    def run(identifier):
+        if identifier == first:
+            service.store.progress(identifier, 0, 1, state="failed")
+            raise DownloadError("Reconnect wording from an ordinary failure.")
+        return real_run(identifier)
+
+    monkeypatch.setattr(service, "run", run)
+    service.run_queue(first)
+    assert service.store.state(second) == "complete"
+
+
+def test_failed_artwork_write_leaves_no_temporary_file(tmp_path, monkeypatch):
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+    from PySide6.QtGui import QImage
+    import requests
+
+    image = QImage(2, 2, QImage.Format_RGB32)
+    image.fill(0)
+    data = QByteArray()
+    buffer = QBuffer(data)
+    buffer.open(QIODevice.WriteOnly)
+    image.save(buffer, "PNG")
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, size):
+            yield bytes(data)
+
+    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: Response())
+    monkeypatch.setattr("os.replace", lambda *args: (_ for _ in ()).throw(OSError(errno.EACCES, "denied")))
+    folder = tmp_path / "artwork"
+    assert downloads.cache_artwork("https://example.invalid/art.png", folder) == ""
+    assert not list(folder.iterdir())
 
 
 def test_schedule_all_queues_new_playlists_once_and_skips_failures(service):

@@ -14,11 +14,12 @@ from PySide6.QtQml import QQmlProperty
 from PySide6.QtTest import QTest
 
 from youtube_music_native import app
+from youtube_music_native.theme import DEFAULT_COLORS
 
 
 def immersive_offset(window):
     stage, content = window.findChild(QObject, "expandedPlayer"), window.findChild(QObject, "pageContent")
-    return stage and abs(stage.mapToScene(QPointF()).y() - content.mapToScene(QPointF()).y()) > 0.5
+    return stage and stage.isVisible() and abs(stage.mapToScene(QPointF()).y() - content.mapToScene(QPointF()).y()) > 0.5
 
 
 def visual_items(item):
@@ -47,7 +48,12 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     sidebar = window.findChild(QObject, "queueSidebar")
     bar = window.findChild(QObject, "queueSidebarScrollbar")
     assert pane and listing and now and sidebar and sidebar.isVisible()
-    assert listing.mapToScene(QPointF()).y() == now.mapToScene(QPointF()).y() + now.height()
+    # The larger view scrolls with the songs from the top of the list; the compact panel is pinned above it.
+    if shell.queueDetails:
+        assert listing.property("topMargin") == now.height()
+        assert abs(listing.mapToScene(QPointF()).y() - now.mapToScene(QPointF()).y()) < 1
+    else:
+        assert listing.mapToScene(QPointF()).y() == now.mapToScene(QPointF()).y() + now.height()
     assert not window.findChild(QObject, "queueHistoryList")
     assert not window.findChild(QObject, "pinnedQueueNextList")
     assert not any(entry["group"] == "Previously played" for entry in player.entries)
@@ -58,6 +64,20 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     assert bar.mapToScene(QPointF()).x() + bar.width() <= sidebar.mapToScene(QPointF()).x() + sidebar.width()
     if not exercise:
         return
+
+    # The now-playing view is on by default and shows the artwork at the full width of the list.
+    assert shell.queueDetails
+    artwork = next(child for child in visual_items(window.contentItem()) if child.objectName() == "queueNowPlayingArtwork")
+    assert artwork.isVisible() and artwork.width() == listing.width() and artwork.height() == artwork.width()
+    toggle = window.findChild(QObject, "nowPlayingViewToggle")
+    tall = now.height()
+    if output_dir:
+        assert window.grabWindow().save(str(output_dir / "queue-now-playing.png"))
+    QMetaObject.invokeMethod(toggle, "clicked")
+    QTest.qWait(40)
+    # Off restores the compact row pinned above the list.
+    assert not shell.queueDetails and now.height() < tall and listing.property("topMargin") == 0
+    assert listing.mapToScene(QPointF()).y() == now.mapToScene(QPointF()).y() + now.height()
 
     snapshot = player.queue.snapshot(player.position)
     fixture = dict(player.currentTrack)
@@ -100,6 +120,9 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     settle()
     assert not any(child.objectName() == "queueSidebarSong-" + history_key for child in visual_items(pane))
     assert item("queueNextHeading").property("text") == "Next From Fixture source"
+    assert item("queueSectionHeading").property("text") == "Next in queue"
+    # The reorder handle only shows on a hovered or focused row, but stays usable at rest.
+    assert item("queueSidebarDrag-" + player.queue.manual[0]["key"]).property("opacity") == 0
     save("queue-mixed")
     manual = [entry["key"] for entry in player.queue.manual]
     # Equal video IDs remain separate occurrences, with only the pinned row current.
@@ -175,7 +198,7 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     settle()
     assert listing.property("count") == 10004
     # Qt estimates total height while only visible delegates exist.
-    assert listing.property("contentHeight") > 64 * 9000, listing.property("contentHeight")
+    assert listing.property("contentHeight") > 56 * 9000, listing.property("contentHeight")
     fixed_y = now.mapToScene(QPointF()).y()
     listing.positionViewAtEnd()
     settle()
@@ -233,7 +256,7 @@ def main():
                 art.setPixelColor(x, y, QColor("#4060d0"))
         art.save(str(root / "art.png"))
         if args.soak_seconds:
-            from youtube_music_native.media import MediaFiles
+            from youtube_music_native.playback.media import MediaFiles
             media = MediaFiles(root / "media")
             audio = media.root / "fixture.wav"
             with wave.open(str(audio), "wb") as handle:
@@ -257,7 +280,7 @@ def main():
             account._profile["avatar"] = uri
             account.changed.emit()
             if args.soak_seconds:
-                from youtube_music_native.audio import Audio
+                from youtube_music_native.playback.audio import Audio
                 from youtube_music_native.jobs import Worker
                 player._fixture = False
                 player.worker = Worker(player, idle_ms=15000)
@@ -311,13 +334,11 @@ def main():
                 content = window.findChild(QObject, "pageContent")
                 assert player_bar.x() == 12 and player_bar.width() == window.width() - 24
                 assert player_bar.height() == 92 and player_bar.y() + 104 == window.height()
-                like = window.findChild(QObject, "playerLike")
-                dislike = window.findChild(QObject, "playerDislike")
                 seek = window.findChild(QObject, "playbackSeek")
                 elapsed = window.findChild(QObject, "playbackElapsed")
                 duration = window.findChild(QObject, "playbackDuration")
                 transport = window.findChild(QObject, "playerTransport")
-                assert like and dislike and like.x() < dislike.x()
+                assert not window.findChild(QObject, "playerLike") and not window.findChild(QObject, "playerDislike")
                 assert elapsed and duration and seek and transport
                 assert abs(elapsed.x() - seek.x() - seek.property("leftPadding")) < 0.1
                 assert abs(duration.x() + duration.width() - seek.x() - seek.width() + seek.property("rightPadding")) < 0.1
@@ -440,7 +461,7 @@ def main():
                     assert rename_button and delete_button and export_button
                     assert dark_grid.property("count") == 9
                     assert light_grid.property("count") == 3
-                    assert color_grid.property("count") == 11
+                    assert color_grid.property("count") == len(DEFAULT_COLORS)
                     assert not rename_button.property("enabled")
                     assert not delete_button.property("enabled")
                     assert not export_button.property("enabled")
@@ -472,7 +493,7 @@ def main():
                     assert export_button.property("enabled")
                     theme_dialog.setProperty("editingColors", True)
                     QTest.qWait(30)
-                    assert color_grid.property("count") == 11
+                    assert color_grid.property("count") == len(DEFAULT_COLORS)
                     for width, height in ((1280, 820), (920, 620), (1280, 820)):
                         window.resize(width, height)
                         QTest.qWait(30)
@@ -572,7 +593,7 @@ def main():
                             QTest.qWait(80)
                             # Let the expanded player finish sliding up or down before taking the snapshot.
                             deadline = time.monotonic() + 2
-                            while time.monotonic() < deadline and (window.property("immersiveClosing") or immersive_offset(window)):
+                            while time.monotonic() < deadline and (window.property("immersiveClosing") or window.property("immersiveOpening") or immersive_offset(window)):
                                 QTest.qWait(10)
                             image = check()
                             if name in {"album", "playlist"}:
@@ -693,7 +714,7 @@ def main():
                     state["index"] += 1
                     state["audio_position"] = max(state["audio_position"], player.position)
                     if time.monotonic() - state["started"] >= args.soak_seconds:
-                        assert player.sourceKind == "local" and state["audio_position"] > 2
+                        assert player._source_kind == "local" and state["audio_position"] > 2
                         timer.stop()
                         finish(True)
                 except Exception:

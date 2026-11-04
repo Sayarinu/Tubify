@@ -1,8 +1,8 @@
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
 import sys
 
-from youtube_music_native.download_view import DownloadView
-from youtube_music_native.downloads import DownloadStore
+from youtube_music_native.downloads.download_view import DownloadView
+from youtube_music_native.downloads.downloads import DownloadStore
 
 from test_downloads import IDS, body, write_wave
 
@@ -43,7 +43,7 @@ def test_download_control_and_progress_workers_finish_local_jobs_without_auth(tm
 
 
 def test_local_collection_lookup_finishes_while_online_planning_is_blocked(tmp_path, monkeypatch):
-    from youtube_music_native import download_view
+    from youtube_music_native.downloads import download_view
     from youtube_music_native.jobs import Worker
 
     app = QCoreApplication.instance() or QCoreApplication([])
@@ -55,7 +55,7 @@ def test_local_collection_lookup_finishes_while_online_planning_is_blocked(tmp_p
     script = tmp_path / "provider.py"
     script.write_text('''import json,sys,time
 from pathlib import Path
-from youtube_music_native.auth import AuthService
+from youtube_music_native.account.auth import AuthService
 from youtube_music_native.worker import handle
 service=AuthService()
 resources={}
@@ -140,7 +140,7 @@ def test_queued_collections_finish_in_one_transfer_process(tmp_path):
     view.transfer.request = lambda operation, payload=None: (requests.append(operation), original(operation, payload))[1]
 
     def changed():
-        if len(view.collections) == 2 and all(entry["state"] == "complete" for entry in view.collections) and not view.activeCollection:
+        if len(view.collections) == 2 and all(entry["state"] == "complete" for entry in view.collections) and not view._active:
             loop.quit()
 
     view.changed.connect(changed)

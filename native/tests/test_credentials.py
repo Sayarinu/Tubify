@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from youtube_music_native.credentials import CHUNK_SIZE, Credentials, CredentialError, SERVICE, USERNAME, default_chunk_size, secure_backend
-from youtube_music_native.session import from_headers
+from youtube_music_native.account.credentials import CHUNK_SIZE, Credentials, CredentialError, OLD_ENTRIES, OLD_SERVICE, SERVICE, USERNAME, remove_old_entries, default_chunk_size, secure_backend, single_record
+from youtube_music_native.account.session import from_headers
 
 
 class Vault:
@@ -32,7 +32,7 @@ def session(marker="private", size=100):
 
 def test_large_unicode_account_round_trips_with_windows_sized_secret_records():
     backend = Vault()
-    credentials = Credentials(backend, chunk_size=CHUNK_SIZE)
+    credentials = Credentials(backend, chunk_size=CHUNK_SIZE, inline=False)
     original = session(size=12000)
     profile = {"name": "音楽", "handle": "@listener", "avatar": ""}
     credentials.save(original, profile)
@@ -45,7 +45,7 @@ def test_large_unicode_account_round_trips_with_windows_sized_secret_records():
 
 def test_failed_replacement_preserves_previous_session_and_removes_uncommitted_chunks():
     backend = Vault()
-    credentials = Credentials(backend)
+    credentials = Credentials(backend, inline=False)
     original = session("previous")
     credentials.save(original, {"name": "Previous"})
     count = len(backend.values)
@@ -59,7 +59,7 @@ def test_failed_replacement_preserves_previous_session_and_removes_uncommitted_c
 
 def test_corrupt_manifest_can_be_reconnected_or_signed_out():
     backend = Vault()
-    credentials = Credentials(backend)
+    credentials = Credentials(backend, inline=False)
     backend.values[SERVICE, USERNAME] = "malformed private manifest"
     with pytest.raises(CredentialError):
         credentials.load()
@@ -72,7 +72,7 @@ def test_corrupt_manifest_can_be_reconnected_or_signed_out():
 
 def test_missing_chunk_requires_reconnection_and_sign_out_leaves_other_apps_alone():
     backend = Vault()
-    credentials = Credentials(backend, chunk_size=CHUNK_SIZE)
+    credentials = Credentials(backend, chunk_size=CHUNK_SIZE, inline=False)
     credentials.save(session(size=2000), {"name": "Listener"})
     manifest = json.loads(backend.values[SERVICE, USERNAME])
     backend.values.pop((credentials._chunk_service(manifest, 0), USERNAME))
@@ -98,7 +98,7 @@ def test_plaintext_keyring_backend_is_rejected(monkeypatch):
 
 def test_entry_another_app_build_cannot_read_is_replaced_by_a_new_sign_in():
     backend = Vault()
-    credentials = Credentials(backend)
+    credentials = Credentials(backend, inline=False)
     credentials.save(session("old"), {"name": "Listener"})
     read = backend.get_password
 
@@ -120,7 +120,74 @@ def test_session_is_one_record_outside_windows():
     assert default_chunk_size("win32") == CHUNK_SIZE
     backend = Vault()
     backend.set_password = lambda service, username, value: backend.values.__setitem__((service, username), value)
-    credentials = Credentials(backend, chunk_size=default_chunk_size("darwin"))
+    credentials = Credentials(backend, chunk_size=default_chunk_size("darwin"), inline=False)
     credentials.save(session(size=12000), {"name": "Listener"})
     assert len(backend.values) == 2
     assert "x" * 100 in credentials.load().session.headers["cookie"]
+
+
+def test_macos_session_is_a_single_record_and_replaces_the_older_two_record_format():
+    backend = Vault()
+    backend.set_password = lambda service, username, value: backend.values.__setitem__((service, username), value)
+    older = Credentials(backend, chunk_size=default_chunk_size("darwin"), inline=False)
+    older.save(session("older"), {"name": "Listener"})
+    assert len(backend.values) == 2
+    credentials = Credentials(backend, chunk_size=default_chunk_size("darwin"), inline=True)
+    # Sessions saved by earlier builds keep loading until the next save.
+    assert "older" in credentials.load().session.headers["cookie"]
+    credentials.save(session("newer", size=12000), {"name": "Listener"})
+    assert list(backend.values) == [(SERVICE, USERNAME)]
+    assert "newer" in credentials.load().session.headers["cookie"]
+    credentials.clear()
+    assert credentials.load() is None and not backend.values
+
+
+def test_failed_single_record_save_keeps_the_previous_session():
+    backend = Vault()
+    backend.set_password = lambda service, username, value: backend.values.__setitem__((service, username), value)
+    credentials = Credentials(backend, chunk_size=default_chunk_size("darwin"), inline=True)
+    credentials.save(session("previous"), {"name": "Listener"})
+
+    def refuse(service, username, value):
+        raise RuntimeError("private keychain denial")
+
+    backend.set_password = refuse
+    with pytest.raises(CredentialError) as error:
+        credentials.save(session("replacement"), {"name": "Listener"})
+    assert "private" not in str(error.value)
+    assert "previous" in credentials.load().session.headers["cookie"]
+
+
+def test_only_macos_defaults_to_a_single_record():
+    assert single_record("darwin") and not single_record("win32") and not single_record("linux")
+
+
+def old_session(backend, **options):
+    Credentials(backend, service=OLD_SERVICE, **options).save(session(), {"name": "Synthetic"})
+
+
+@pytest.mark.parametrize("options", [{"inline": True}, {"inline": False, "chunk_size": 64}])
+def test_old_entries_are_removed_and_never_read_as_the_session(options):
+    backend = Vault()
+    old_session(backend, **options)
+    backend.values[OLD_ENTRIES[0]] = "synthetic-lyrics-key"
+    assert Credentials(backend).load() is None
+    remove_old_entries(backend)
+    assert not backend.values
+
+
+def test_removing_old_entries_leaves_the_current_session_alone():
+    backend = Vault()
+    Credentials(backend).save(session(), {"name": "Synthetic"})
+    old_session(backend)
+    remove_old_entries(backend)
+    assert Credentials(backend).load().profile == {"name": "Synthetic"}
+    assert not [key for key in backend.values if key[0].startswith(OLD_SERVICE)]
+
+
+def test_an_unreadable_old_entry_does_not_block_startup():
+    backend = Vault()
+    backend.values[OLD_SERVICE, USERNAME] = "malformed"
+    remove_old_entries(backend)
+    assert not backend.values
+    remove_old_entries(backend)

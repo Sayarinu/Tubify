@@ -5,14 +5,14 @@ from pathlib import Path
 import tempfile
 import time
 
-from PySide6.QtCore import QObject, QPoint, QPointF, QMetaObject, QUrl, Qt, Signal
+from PySide6.QtCore import Property, QObject, QPoint, QPointF, QMetaObject, QUrl, Qt, Signal
 from PySide6.QtGui import QAccessible, QColor, QGuiApplication, QInputDevice, QPointingDevice, QShortcut, QKeySequence, QWheelEvent
 from PySide6.QtQml import QQmlProperty
 from PySide6.QtQuick import QQuickView
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtTest import QTest
 
-from youtube_music_native.lyric_view import LyricView
+from youtube_music_native.lyrics.lyric_view import LyricView
 from youtube_music_native.theme import ThemeState
 
 
@@ -30,6 +30,10 @@ class Player(QObject):
     def tick(self, position):
         self.position = position
         self.positionChanged.emit()
+
+
+class Shell(QObject):
+    reducedMotion = Property(bool, lambda self: False, constant=True)
 
 
 class Account(QObject):
@@ -63,10 +67,12 @@ def main():
         warnings = []
         window.engine().warnings.connect(lambda values: warnings.extend(value.toString() for value in values))
         context = window.rootContext()
+        shell = Shell()
+        context.setContextProperty("appState", shell)
         context.setContextProperty("themeState", theme)
         context.setContextProperty("lyricState", lyrics)
         context.setContextProperty("playerState", player)
-        source = Path(__file__).parents[1] / "src/youtube_music_native/qml/LyricsPane.qml"
+        source = Path(__file__).parents[1] / "src/youtube_music_native/qml/player/LyricsPane.qml"
         window.setSource(QUrl.fromLocalFile(str(source)))
         assert window.status() == QQuickView.Status.Ready, warnings
         playback_shortcuts = []
@@ -88,9 +94,14 @@ def main():
             return next(node for node in visual_items(pane) if node.objectName() == name)
 
         def centered(index):
-            QTest.qWait(80)
-            row = item(f"lyricLine-{index}")
-            center = row.mapToItem(lines, QPointF(row.width() / 2, row.height() / 2))
+            # Moving to the next line glides, so give it time to arrive.
+            deadline = time.monotonic() + 1
+            while True:
+                QTest.qWait(80)
+                row = item(f"lyricLine-{index}")
+                center = row.mapToItem(lines, QPointF(row.width() / 2, row.height() / 2))
+                if abs(center.y() - lines.height() / 2) < 2 or time.monotonic() > deadline:
+                    break
             assert abs(center.y() - lines.height() / 2) < 2, (index, center.y(), lines.height())
 
         def click(control):
@@ -116,17 +127,30 @@ def main():
 
         # The first and final lines center too; active text and unsynced text use the primary color.
         centered(0)
-        assert QQmlProperty(item("lyricText-0"), "font.pixelSize").read() == 20
+        assert QQmlProperty(item("lyricText-0"), "font.pixelSize").read() == 22
         assert item("lyricText-0").property("color").name().upper() == theme.foreground
+        # Upcoming lines recede behind the current one.
         assert item("lyricText-1").property("color").name().upper() == theme.secondary
+        assert item("lyricText-1").property("color").alphaF() < 0.7
         assert "Saved lyrics" in pane.findChild(QObject, "lyricSource").property("text")
         player.seek(original[-1]["start"])
         centered(39)
         player.seek(original[12]["start"])
         centered(12)
+        # Sung lines stay readable, playback glides to the next line, and a seek jumps.
+        assert item("lyricText-11").property("color").alphaF() == 1
+        glide = pane.findChild(QObject, "lyricGlide")
+        player.tick(original[13]["start"])
+        QTest.qWait(30)
+        assert glide.property("running"), "The next line should glide into place"
+        centered(13)
+        player.seek(original[12]["start"])
+        QTest.qWait(30)
+        assert not glide.property("running")
+        centered(12)
         window.resize(720, 560)
         centered(12)
-        assert QQmlProperty(item("lyricText-12"), "font.pixelSize").read() == 24
+        assert QQmlProperty(item("lyricText-12"), "font.pixelSize").read() == 30
         window.resize(280, 640)
         centered(12)
 
