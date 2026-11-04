@@ -42,8 +42,9 @@ def test_the_old_personal_identifier_is_only_used_to_clean_up():
     found = {str(path.relative_to(package)).replace("\\", "/") for path in package.rglob("*")
              if path.suffix in {".py", ".qml", ".js"} and "com.carter" in path.read_text(encoding="utf-8")}
     assert found == allowed
-    for spec in ("macos", "windows"):
-        assert "com.carter" not in (NATIVE.parent / "packaging" / spec / "Tubify.spec").read_text(encoding="utf-8")
+    # The Linux source package doesn't include the other platforms' packaging.
+    for spec in (NATIVE.parent / "packaging").glob("*/Tubify.spec"):
+        assert "com.carter" not in spec.read_text(encoding="utf-8")
 
 
 def test_mpris_display_branding_keeps_desktop_and_bus_identifiers():
