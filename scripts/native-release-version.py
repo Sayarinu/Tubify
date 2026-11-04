@@ -17,8 +17,8 @@ is the stable version its changes are heading for (the newest stable tag bumped 
 the largest change on experimental but not yet on main) and N counts its builds.
 PEP 440, pacman's vercmp and Sparkle all sort 0.7.0 < 0.7.1b1 < 0.7.1b2 < 0.7.1.
 
-Tags are Tubify-X.Y.Z and Tubify-Experimental-X.Y.ZbN; releases up to 0.7.0 keep the
-original native-vVERSION tags (see updates.release_tag, the one rule CI and the app share).
+Tags are Tubify-X.Y.Z and Tubify-Experimental-X.Y.ZbN (see updates.release_tag, the one
+rule CI and the app share). With no release tags at all, versions count up from pyproject's.
 
 ``--stamp VERSION`` writes the version into pyproject.toml and the Linux PKGBUILD
 and commits it locally (never pushed): the package scripts refuse to build a

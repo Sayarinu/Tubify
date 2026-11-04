@@ -1,5 +1,5 @@
 pkgname=youtube-music-native
-pkgver=0.1.2
+pkgver=0.8.0
 pkgrel=1
 pkgdesc='Tubify, a desktop app for YouTube Music'
 arch=('x86_64')

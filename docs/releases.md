@@ -9,7 +9,7 @@
 | `experimental` | a GitHub prerelease on every push, never marked Latest | `X.Y.ZbN` | `Tubify-Experimental-X.Y.ZbN` | Experimental |
 | `main` | the full release on every push | `X.Y.Z` | `Tubify-X.Y.Z` | Stable |
 
-Releases up to and including 0.7.0 are tagged `native-vVERSION`. Apps from before the new tags only look for `native-v` releases, so 0.7.0 is the bridge every existing install updates through; it and every later app read both formats. `updates.release_tag` in the app is the one rule that the version script, the release job, the appcast, the release notes and the macOS feed URL all use. Existing `native-v` releases are never renamed, because installed apps and their update feeds link to them.
+Version numbers start from the version in `native/pyproject.toml`, which is above every release published before the repository moved. `updates.release_tag` is the one rule CI, the appcast and the app share for tags.
 
 Ticket PRs target `experimental` and are squash-merged; each merge ships an experimental build. When experimental is ready, open a PR from `experimental` into `main` and merge it with a **merge commit** (not squash or rebase) so both branches keep the same commits; that push publishes the stable release. Urgent fixes may target `main` directly; merge `main` back into `experimental` afterwards.
 
@@ -31,7 +31,7 @@ In **Settings → Updates**, the Update Channel chooses what Tubify offers. Stab
 
 The "Release size" check on every PR shows the bump it will cause. It warns, without blocking, when a title that reads like a feature has no label. `scripts/native-release-version.py` stamps the chosen version into `native/pyproject.toml` and the Linux PKGBUILD in a local, unpushed CI commit, so every package is built as that version. Main and experimental runs are serialized so each bumps the version the previous one published. After all builds and tests pass, the pipeline publishes the release tag (`Tubify-<version>`, or `Tubify-Experimental-<version>` for experimental builds) with the Windows, macOS and Linux app packages, `SHA256SUMS` and the signed macOS `appcast.xml`. `scripts/native-release-notes.py` writes short notes from the titles of the PRs merged since the previous release: **New** for Feature and Major Release PRs, **Improvements and fixes** for the rest, then a download table. The in-app update popup shows only the changes. The pacman package is published as `Tubify-<version>-linux-x86_64.pkg.tar.zst`. It is signed with the same Ed25519 update key as the appcast, and the signature is published beside it as `Tubify-<version>-linux-x86_64.pkg.tar.zst.sig`. The Linux package's `apply-update` helper installs an update without a password only when this signature verifies and the version is newer than the installed one. Releases include only the desktop app builds; the source package is built only to test upgrades in CI. Published releases are never overwritten.
 
-To jump to a specific version, raise it in `native/pyproject.toml` and the PKGBUILD together; a declared version higher than the computed one wins. Pushing a tag does not build a release; releases only come from pushes to `main` or `experimental`. Older `main-build-*` releases are kept for download but are not offered as updates.
+To jump to a specific version, raise it in `native/pyproject.toml` and the PKGBUILD together; a declared version higher than the computed one wins. Pushing a tag does not build a release; releases only come from pushes to `main` or `experimental`.
 
 The macOS build pins Sparkle 2.10.1 and verifies its distribution SHA-256. `TUBIFY_SPARKLE_PRIVATE_KEY` is a GitHub Actions secret; only its public key is shared, as the `TUBIFY_UPDATE_PUBLIC_KEY` variable. Published builds (stable and experimental) fail without the private key. Keep a secure backup of this key before rotating or deleting it; existing clients trust the embedded public key. The secret stores a 64-byte seed/public-key pair. `native/sign_update.py` extracts the 32-byte seed expected by Sparkle's `sign_update --ed-key-file -`, passes it only on stdin and verifies the generated signature before returning it. The actual vendor tool is checked against RFC 8032 before packaging. Update signatures do not provide Apple notarization.
 
@@ -47,7 +47,7 @@ Three secrets sign releases: `TUBIFY_SPARKLE_PRIVATE_KEY` (macOS updates and the
 
 The macOS identity is self-signed. macOS ties keychain approvals to it, so "Always Allow" survives updates, but it doesn't satisfy Gatekeeper. Gatekeeper needs a paid Apple Developer ID and Windows SmartScreen needs an Authenticode signature, so both still warn on first open.
 
-The Sparkle key was replaced in LUNE-499, so builds from before that change can't verify newer updates. They need one manual install.
+Tubify moved to a new repository with new signing keys in November 2026. Earlier releases were removed, and builds from before the move can't verify newer updates, so they need one manual install.
 
 Two public values are GitHub variables, so they can change without a commit. They aren't secret, and builds read them when they run:
 

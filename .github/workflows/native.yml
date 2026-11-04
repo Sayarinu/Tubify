@@ -461,7 +461,7 @@ jobs:
           set -euo pipefail
           # Every main build is a stable release and every experimental build a prerelease;
           # installed apps offer each one on its update channel. Tags come from updates.release_tag:
-          # Tubify-X.Y.Z / Tubify-Experimental-X.Y.ZbN (native-vVERSION through the 0.7.0 bridge).
+          # Tubify-X.Y.Z / Tubify-Experimental-X.Y.ZbN.
           tag="${TAG}"
           test -n "$tag"
           title="Tubify ${VERSION}"
