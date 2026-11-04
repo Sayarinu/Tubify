@@ -55,8 +55,14 @@ try {
     uv venv --quiet --python 3.12 $venv
     if ($LASTEXITCODE -ne 0) { throw "uv could not create the Windows build environment." }
     $python = Join-Path $venv "Scripts\python.exe"
-    uv pip install --quiet --python $python "./native[windows-build]"
+    # Everything shipped comes from the committed lockfile, checked by hash.
+    $requirements = Join-Path $buildRoot "requirements.txt"
+    uv export --quiet --project native --frozen --no-dev --extra windows-build --no-emit-project --output-file $requirements
+    if ($LASTEXITCODE -ne 0) { throw "uv could not read the dependency lockfile." }
+    uv pip install --quiet --python $python --require-hashes --requirement $requirements
     if ($LASTEXITCODE -ne 0) { throw "uv could not install the native Windows build dependencies." }
+    uv pip install --quiet --python $python --no-deps --build-constraints packaging/build-constraints.txt ./native
+    if ($LASTEXITCODE -ne 0) { throw "uv could not install Tubify into the Windows build environment." }
     $env:TUBIFY_ICON = Join-Path $buildRoot "Tubify.ico"
     & $python scripts/build-native-windows-icon.py $env:TUBIFY_ICON
     if ($LASTEXITCODE -ne 0) { throw "Could not render the Tubify Windows icon." }

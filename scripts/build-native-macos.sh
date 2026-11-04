@@ -32,7 +32,10 @@ printf '%s  %s\n' 1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf
 tar -xf "$sparkle/archive.tar.xz" -C "$sparkle"
 python3 native/tests/check_signing_key.py "$sparkle/bin/sign_update"
 uv venv --quiet --python 3.13 "$native_build_root/venv"
-VIRTUAL_ENV="$native_build_root/venv" uv pip install --quiet "./native[macos-build]"
+# Everything shipped comes from the committed lockfile, checked by hash.
+uv export --quiet --project native --frozen --no-dev --extra macos-build --no-emit-project --output-file "$native_build_root/requirements.txt"
+VIRTUAL_ENV="$native_build_root/venv" uv pip install --quiet --require-hashes --requirement "$native_build_root/requirements.txt"
+VIRTUAL_ENV="$native_build_root/venv" uv pip install --quiet --no-deps --build-constraints packaging/build-constraints.txt ./native
 native_python="$native_build_root/venv/bin/python"
 
 # The app icon is rendered from the same SVG the Linux package installs.

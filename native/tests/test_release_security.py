@@ -79,3 +79,17 @@ def test_every_windows_and_linux_download_is_signed_and_published_with_its_signa
     assert "*.exe.sig" in jobs()["release"]
     assert "TUBIFY_UPDATE_PUBLIC_KEY" in jobs()["windows-app"]
     assert "update-public-key" in (ROOT / "packaging/windows/Tubify.spec").read_text()
+
+
+def test_release_builds_use_pinned_inputs():
+    # A release is signed and shipped automatically, so nothing it installs may float.
+    for script in ("build-native-macos.sh", "build-native-windows.ps1"):
+        text = (ROOT / "scripts" / script).read_text()
+        assert "--frozen" in text and "--require-hashes" in text and "--build-constraints" in text
+        assert not re.search(r"\./native\[", text), script
+    assert (ROOT / "native/uv.lock").exists()
+    assert re.fullmatch(r"setuptools==\d[\d.]*", (ROOT / "packaging/build-constraints.txt").read_text().splitlines()[-1])
+    linux = (WORKFLOWS / "native-linux-build.yml").read_text()
+    assert "archlinux:latest" not in linux and re.search(r"archlinux@sha256:[0-9a-f]{64}", linux)
+    assert re.search(r"archive\.archlinux\.org/repos/\d{4}/\d{2}/\d{2}/", linux)
+    assert re.search(r"deno-version: v\d+\.\d+\.\d+", (WORKFLOWS / "native.yml").read_text())

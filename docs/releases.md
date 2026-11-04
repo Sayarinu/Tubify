@@ -35,6 +35,22 @@ To jump to a specific version, raise it in `native/pyproject.toml` and the PKGBU
 
 The macOS build pins Sparkle 2.10.1 and verifies its distribution SHA-256. `TUBIFY_SPARKLE_PRIVATE_KEY` is a GitHub Actions secret; only its public key is shared, as the `TUBIFY_UPDATE_PUBLIC_KEY` variable. Published builds (stable and experimental) fail without the private key. Keep a secure backup of this key before rotating or deleting it; existing clients trust the embedded public key. The secret stores a 64-byte seed/public-key pair. `native/sign_update.py` extracts the 32-byte seed expected by Sparkle's `sign_update --ed-key-file -`, passes it only on stdin and verifies the generated signature before returning it. The actual vendor tool is checked against RFC 8032 before packaging. Update signatures do not provide Apple notarization.
 
+## Dependencies
+
+Releases are signed and published automatically, so what they're built from is pinned:
+
+- **Python packages:** `native/uv.lock`, checked by hash. Only the build backend in `packaging/build-constraints.txt` is pinned by version alone, and it isn't shipped in the app.
+- **Linux build:** the Arch container image by digest, and its packages from a dated [Arch archive](https://archive.archlinux.org/) snapshot. Move both together in `.github/workflows/native-linux-build.yml`.
+- **Tools:** Deno by exact version, and third-party actions by commit.
+
+Not pinned yet: the `mpv` and `ffmpeg` that Homebrew and MSYS2 provide for the macOS and Windows builds, and Inno Setup from Chocolatey. None of the three offers a simple way to pin a version. The Linux package also installs its Python packages from Arch when a user installs it, so `uv.lock` doesn't cover that path.
+
+Dependabot opens weekly PRs for `uv.lock` into `experimental`, and security PRs into `main`. To update yt-dlp sooner, for example when a YouTube change breaks playback:
+
+```bash
+uv lock --project native --upgrade-package yt-dlp
+```
+
 ## Signing keys
 
 Three secrets sign releases: `TUBIFY_SPARKLE_PRIVATE_KEY` (macOS updates, the Linux package and the Windows installer), and `TUBIFY_MACOS_SIGNING_P12` with `TUBIFY_MACOS_SIGNING_PASSWORD` (the macOS app). They live only in the protected `release` environment, which `scripts/setup-release-protection.sh` sets up.

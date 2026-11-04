@@ -36,6 +36,8 @@ def pr_problems(head, base, title, fork=False):
     """What a PR breaks in the branch policy. The naming rules in AGENTS.md apply to this repository's branches, not to forks."""
     if fork:
         return [] if base in TRUNKS.values() else [f'Base "{base}" must be experimental or main.']
+    if head.startswith("dependabot/"):
+        return [] if base in TRUNKS.values() else [f'Base "{base}" must be experimental or main.']
     if head == "experimental" and base == "main":
         return []
     if head == "main" and base == "experimental":
