@@ -179,7 +179,7 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
-          cache-dependency-glob: native/pyproject.toml
+          cache-dependency-glob: native/uv.lock
       - name: Test signing-key validation
         run: python3 native/tests/check_signing_key.py
       - name: Stamp the release version
@@ -214,10 +214,10 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           enable-cache: true
-          cache-dependency-glob: native/pyproject.toml
+          cache-dependency-glob: native/uv.lock
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
         with:
-          deno-version: v2.x
+          deno-version: v2.9.8
       # mirror.msys2.org sometimes stalls while syncing; retry before failing the job.
       - name: Install MPV and FFmpeg for UCRT64
         id: msys2

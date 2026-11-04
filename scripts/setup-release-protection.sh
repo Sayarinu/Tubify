@@ -88,4 +88,7 @@ gh api -X PUT "repos/$repo/actions/permissions/workflow" -f default_workflow_per
 gh api -X PATCH "repos/$repo" --input - >/dev/null <<'JSON'
 {"security_and_analysis": {"secret_scanning": {"status": "enabled"}, "secret_scanning_push_protection": {"status": "enabled"}}}
 JSON
+# Dependabot raises PRs for vulnerable locked dependencies; merging them is still the owner's call.
+gh api -X PUT "repos/$repo/vulnerability-alerts" --silent
+gh api -X PUT "repos/$repo/automated-security-fixes" --silent
 printf 'Done. After the signing change merges, run: %s --finish\n' "$0"

@@ -38,9 +38,12 @@ jobs:
         env:
           TUBIFY_UPDATE_PUBLIC_KEY: ${{ inputs.update-public-key }}
         run: |
-          docker run --rm --env TUBIFY_UPDATE_PUBLIC_KEY --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace archlinux:latest bash -lc '
+          # The image and the dated package archive are both pinned, so a build only changes when a commit moves them.
+          docker run --rm --env TUBIFY_UPDATE_PUBLIC_KEY --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace \
+            archlinux@sha256:ece6c971fec3c532fd508bce299a446deaf469feecbfe7c353e995bc1a5e7bba bash -lc '
             set -euo pipefail
-            pacman -Syu --noconfirm --needed base-devel git
+            echo "Server=https://archive.archlinux.org/repos/2026/11/03/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist
+            pacman -Syyuu --noconfirm --needed base-devel git
             source packaging/linux/PKGBUILD
             pacman -S --noconfirm --needed "${depends[@]}" "${makedepends[@]}" "${checkdepends[@]}"
             useradd --create-home builder

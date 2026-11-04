@@ -36,6 +36,12 @@ def test_rejected_pull_requests(head, base, title, expected):
     assert problems and expected in problems[0]
 
 
+def test_dependabot_pull_requests_skip_the_naming_rules_but_not_the_base():
+    assert open_prs.pr_problems("dependabot/uv/native/yt-dlp-2026.11.1", "experimental", "Bump yt-dlp") == []
+    assert open_prs.pr_problems("dependabot/uv/native/yt-dlp-2026.11.1", "main", "Bump yt-dlp") == []
+    assert "Base" in open_prs.pr_problems("dependabot/uv/native/yt-dlp-2026.11.1", "LUNE-1", "Bump yt-dlp")[0]
+
+
 def test_fork_pull_requests_skip_the_naming_rules():
     assert open_prs.pr_problems("patch-1", "experimental", "Fix a typo", fork=True) == []
     assert open_prs.pr_problems("patch-1", "main", "Fix a typo", fork=True) == []
