@@ -4,12 +4,16 @@ import importlib.util
 import os
 from pathlib import Path
 import shutil
+import sys
 import tomllib
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 ROOT = Path(SPECPATH).resolve().parents[1]
 NATIVE = ROOT / "native"
+sys.path.insert(0, str(ROOT / "packaging"))
+from bundle_contents import needed_entries
+
 VERSION = tomllib.loads((NATIVE / "pyproject.toml").read_text())["project"]["version"]
 # Sparkle's feed lives in this build's own release; the tag comes from the app's shared rule.
 _updates_spec = importlib.util.spec_from_file_location("tubify_updates", NATIVE / "src/youtube_music_native/updates.py")
@@ -41,12 +45,11 @@ analysis = Analysis(
         "PySide6.QtNetwork",
         "MediaPlayer", "AppKit", "Foundation", "keyring.backends.macOS",
     ],
-    # Sign-in happens in the user's own browser, so Chromium (QtWebEngine) is never needed.
-    excludes=["tkinter", "jeepney", "gi", "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineQuick"],
+    excludes=["tkinter", "jeepney", "gi", "PySide6.QtTest", "setuptools", "pkg_resources"],
 )
-# Qt's QML plugin collection drags WebEngine back in; drop it from the bundle entirely.
-analysis.binaries = [entry for entry in analysis.binaries if "QtWebEngine" not in entry[0]]
-analysis.datas = [entry for entry in analysis.datas if "QtWebEngine" not in entry[0]]
+# PyInstaller collects every QML module and style Qt provides; keep only what Tubify uses.
+analysis.binaries = needed_entries(analysis.binaries)
+analysis.datas = needed_entries(analysis.datas)
 pyz = PYZ(analysis.pure)
 exe = EXE(
     pyz, analysis.scripts, [],

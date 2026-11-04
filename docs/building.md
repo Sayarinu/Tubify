@@ -35,3 +35,9 @@ Every merge to `main` is built, tested on all three platforms and published as a
 ## Licensing
 
 Tubify is MIT licensed (see [`LICENSE`](../LICENSE)). Packages that bundle third-party components must ship [`THIRD_PARTY_NOTICES.md`](../native/src/youtube_music_native/assets/THIRD_PARTY_NOTICES.md), which the build already does on every platform. If you add a dependency or a bundled binary, add it to that file too.
+
+## What the Windows and macOS packages ship
+
+Both builds bundle Qt themselves, so `native/pyproject.toml` depends on `PySide6-Essentials`, not the full `PySide6`, which adds Chromium, 3D and charting. [`packaging/bundle_contents.py`](../packaging/bundle_contents.py) then keeps only the QML modules and Controls style Tubify uses, drops Qt's translations and fails the build if a finished bundle holds unneeded files or passes its size limits.
+
+If you import a new Qt module in Python or QML, add it to that file. `native/tests/test_bundle_contents.py` fails until you do. The Arch package uses the system's Qt and isn't affected.

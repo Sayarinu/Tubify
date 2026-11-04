@@ -18,7 +18,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          # Only the tag gate below reads history.
+          fetch-depth: ${{ !startsWith(github.ref, 'refs/tags/') && 1 || 0 }}
       - name: Validate the release gate
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -50,3 +51,4 @@ jobs:
             dist/native/*.pkg.tar.zst
             dist/native/*.src.tar.gz
           if-no-files-found: error
+          compression-level: 0

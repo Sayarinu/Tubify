@@ -30,27 +30,19 @@ $deno = $env:DENO_EXE
 if (-not $deno) { $deno = (Get-Command deno.exe -ErrorAction SilentlyContinue).Source }
 if (-not $deno -or -not (Test-Path $deno)) { throw "DENO_EXE or deno.exe is required to package the YouTube extractor runtime." }
 
-function Get-UcrtDependencies([string]$RootFile) {
-    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    $pending = [System.Collections.Generic.Queue[string]]::new()
-    $pending.Enqueue((Resolve-Path $RootFile).Path)
-    while ($pending.Count -gt 0) {
-        $file = $pending.Dequeue()
-        $unixPath = (& $cygpath -u $file).Trim()
-        $lines = & $bash -lc "ldd '$unixPath'" 2>&1
-        if ($LASTEXITCODE -ne 0 -and ($lines -join " ") -notmatch "not a dynamic executable") {
-            throw "Could not inspect native dependencies for ${file}: $($lines -join ' ')"
-        }
-        foreach ($line in $lines) {
-            if ($line -match "(?:=>\s+)?(/ucrt64/bin/[^\s]+)\s+\(") {
-                $dependency = Join-Path $ucrtBin (Split-Path $Matches[1] -Leaf)
-                if ((Test-Path $dependency) -and $seen.Add((Resolve-Path $dependency).Path)) {
-                    $pending.Enqueue((Resolve-Path $dependency).Path)
-                }
-            }
+# ldd follows the whole dependency tree, so one call covers libmpv and both FFmpeg helpers.
+function Get-UcrtDependencies([string[]]$RootFiles) {
+    $unixPaths = ($RootFiles | ForEach-Object { "'" + (& $cygpath -u $_).Trim() + "'" }) -join " "
+    $lines = & $bash -lc "ldd $unixPaths" 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "Could not inspect native dependencies: $($lines -join ' ')" }
+    $found = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($line in $lines) {
+        if ($line -match "(?:=>\s+)?(/ucrt64/bin/[^\s]+)\s+\(") {
+            $dependency = Join-Path $ucrtBin (Split-Path $Matches[1] -Leaf)
+            if (Test-Path $dependency) { [void]$found.Add((Resolve-Path $dependency).Path) }
         }
     }
-    return @($seen)
+    return @($found)
 }
 
 $version = & python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('native/pyproject.toml').read_text())['project']['version'])"
@@ -59,27 +51,6 @@ $output = Join-Path $repo "dist\native"
 $appOutput = Join-Path $buildRoot "dist\Tubify"
 New-Item -ItemType Directory -Force -Path $buildRoot, $output | Out-Null
 try {
-    $manifest = [System.Collections.Generic.List[object]]::new()
-    $manifest.Add(@{ source = (Resolve-Path $mpvDll).Path; destination = "mpv" })
-    foreach ($dependency in (Get-UcrtDependencies $mpvDll)) {
-        if ((Resolve-Path $dependency).Path -ne (Resolve-Path $mpvDll).Path) {
-            $manifest.Add(@{ source = (Resolve-Path $dependency).Path; destination = "mpv" })
-        }
-    }
-
-    foreach ($helper in @($ffmpeg, $ffprobe)) {
-        $manifest.Add(@{ source = (Resolve-Path $helper).Path; destination = "helpers" })
-        foreach ($dependency in (Get-UcrtDependencies $helper)) {
-            if ((Resolve-Path $dependency).Path -ne (Resolve-Path $helper).Path) {
-                $manifest.Add(@{ source = (Resolve-Path $dependency).Path; destination = "helpers" })
-            }
-        }
-    }
-    $manifest.Add(@{ source = (Resolve-Path $deno).Path; destination = "helpers" })
-    $manifestPath = Join-Path $buildRoot "binaries.json"
-    [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
-    $env:TUBIFY_BINARY_MANIFEST = $manifestPath
-
     $venv = Join-Path $buildRoot "venv"
     uv venv --quiet --python 3.12 $venv
     if ($LASTEXITCODE -ne 0) { throw "uv could not create the Windows build environment." }
@@ -94,6 +65,16 @@ try {
         throw "PyInstaller did not produce Tubify.exe."
     }
 
+    # libmpv and the helpers share one folder, so the libraries they have in common ship once.
+    $helpers = Join-Path $appOutput "_internal\helpers"
+    New-Item -ItemType Directory -Force -Path $helpers | Out-Null
+    $roots = @($mpvDll, $ffmpeg, $ffprobe)
+    $bundled = @($roots) + @(Get-UcrtDependencies $roots) + @($deno)
+    $bundled | Sort-Object -Unique | ForEach-Object { Copy-Item -LiteralPath $_ -Destination $helpers -Force }
+
+    & $python packaging/bundle_contents.py $appOutput --max-files 700 --max-mb 480
+    if ($LASTEXITCODE -ne 0) { throw "The Tubify bundle ships more than it needs." }
+
     $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
     if (-not $iscc) {
         $knownIscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
@@ -106,6 +87,5 @@ try {
 }
 finally {
     Remove-Item -Recurse -Force $buildRoot -ErrorAction SilentlyContinue
-    Remove-Item Env:\TUBIFY_BINARY_MANIFEST -ErrorAction SilentlyContinue
     Remove-Item Env:\TUBIFY_ICON -ErrorAction SilentlyContinue
 }
