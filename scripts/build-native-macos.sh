@@ -75,7 +75,30 @@ cp "$sparkle/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
 "$native_python" packaging/bundle_contents.py "$app" --max-files 1100 --max-mb 370
 
 # Local builds are ad-hoc signed; Gatekeeper accepts them on the machine that built them.
-codesign --force --deep --sign - "$app"
+# With a signing identity, every build keeps one identity, so macOS keeps "Always Allow" keychain
+# answers across updates. A self-signed identity does not satisfy Gatekeeper; that needs Apple's Developer ID.
+if [[ -n "${TUBIFY_MACOS_SIGNING_P12:-}" ]]; then
+  signing_keychain="$native_build_root/signing.keychain-db"
+  signing_keychain_password="$(uuidgen)"
+  trap 'security delete-keychain "$signing_keychain" 2>/dev/null || true; rm -rf "$native_build_root"' EXIT
+  printf '%s' "$TUBIFY_MACOS_SIGNING_P12" | base64 -d > "$native_build_root/signing.p12"
+  security create-keychain -p "$signing_keychain_password" "$signing_keychain"
+  security set-keychain-settings "$signing_keychain"
+  security unlock-keychain -p "$signing_keychain_password" "$signing_keychain"
+  security import "$native_build_root/signing.p12" -k "$signing_keychain" -f pkcs12 -P "${TUBIFY_MACOS_SIGNING_PASSWORD:-}" -T /usr/bin/codesign >/dev/null
+  rm -f "$native_build_root/signing.p12"
+  security set-key-partition-list -S apple-tool:,apple: -s -k "$signing_keychain_password" "$signing_keychain" >/dev/null
+  # codesign only finds identities in keychains on the search list.
+  security list-keychains -d user -s "$signing_keychain" $(security list-keychains -d user | tr -d '"')
+  # Listed by hash: a self-signed certificate is not "valid" to find-identity -v, but it can sign.
+  signing_identity="$(security find-identity -p codesigning "$signing_keychain" | awk '$2 ~ /^[0-9A-F]{40}$/ { print $2; exit }')"
+  [[ -n "$signing_identity" ]] || { printf '%s\n' 'The signing certificate has no usable identity.' >&2; exit 1; }
+  codesign --force --deep --timestamp=none --keychain "$signing_keychain" --sign "$signing_identity" "$app"
+  # A cdhash requirement would change with every build, and the keychain would forget its answers.
+  codesign --display --requirements - "$app" 2>&1 | grep -q 'certificate' || { printf '%s\n' 'The app is not tied to its signing certificate.' >&2; exit 1; }
+else
+  codesign --force --deep --sign - "$app"
+fi
 codesign --verify --deep --strict "$app"
 
 rm -rf "$native_output/Tubify-macos-arm64.app" "$native_output/Tubify-${native_version}-macos-arm64.dmg"

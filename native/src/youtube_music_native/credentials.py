@@ -15,13 +15,17 @@ USERNAME = "session"
 # Windows credentials allow 2560 bytes. ASCII chunks also fit UTF-16 encoding.
 CHUNK_SIZE = 800
 MAX_CHUNKS = 128
-# Other vaults take the whole session as one record. On macOS every record can need its own
-# access approval, so one record means at most one prompt.
+# Other vaults take the whole session as one record.
 LARGE_CHUNK = CHUNK_SIZE * MAX_CHUNKS
 
 
 def default_chunk_size(platform=None):
     return CHUNK_SIZE if (platform or sys.platform) == "win32" else LARGE_CHUNK
+
+
+def single_record(platform=None):
+    """On macOS every record can need its own access approval, so the session is one record, not a pointer and a chunk."""
+    return (platform or sys.platform) == "darwin"
 
 
 class CredentialError(RuntimeError):
@@ -61,8 +65,9 @@ class StoredAccount:
 
 
 class Credentials:
-    def __init__(self, backend=None, chunk_size=None):
+    def __init__(self, backend=None, chunk_size=None, inline=None):
         self.chunk_size = chunk_size or default_chunk_size()
+        self.inline = single_record() if inline is None else inline
         self.backend = backend if backend is not None else secure_backend()
 
     def _manifest(self):
@@ -73,6 +78,8 @@ class Credentials:
             manifest = json.loads(raw)
         except (ValueError, TypeError):
             raise CorruptManifest("The saved session is incomplete. Reconnect YouTube Music.") from None
+        if isinstance(manifest, dict) and manifest.get("version") == 2 and isinstance(manifest.get("data"), str):
+            return manifest
         if (
             not isinstance(manifest, dict)
             or
@@ -90,7 +97,7 @@ class Credentials:
 
     def _remove_chunks(self, manifest):
         if manifest:
-            for index in range(manifest["count"]):
+            for index in range(manifest.get("count", 0)):
                 try:
                     self.backend.delete_password(self._chunk_service(manifest, index), USERNAME)
                 except Exception:
@@ -101,7 +108,7 @@ class Credentials:
             manifest = self._manifest()
             if manifest is None:
                 return None
-            pieces = [self.backend.get_password(self._chunk_service(manifest, index), USERNAME) for index in range(manifest["count"])]
+            pieces = [manifest["data"]] if "data" in manifest else [self.backend.get_password(self._chunk_service(manifest, index), USERNAME) for index in range(manifest["count"])]
             if not all(isinstance(piece, str) and len(piece) <= LARGE_CHUNK for piece in pieces):
                 raise ValueError()
             value = json.loads(base64.b64decode("".join(pieces), validate=True))
@@ -121,6 +128,10 @@ class Credentials:
                 # the code signature), is replaced rather than blocking a fresh sign-in.
                 previous = None
             encoded = base64.b64encode(json.dumps({"session": session.to_payload(), "profile": profile}, separators=(",", ":")).encode()).decode("ascii")
+            if self.inline and len(encoded) <= LARGE_CHUNK:
+                self.backend.set_password(SERVICE, USERNAME, json.dumps({"version": 2, "data": encoded}))
+                self._remove_chunks(previous)
+                return
             parts = [encoded[index:index + self.chunk_size] for index in range(0, len(encoded), self.chunk_size)]
             if not 1 <= len(parts) <= MAX_CHUNKS:
                 raise CredentialError("The session is too large for portable keyring storage.")

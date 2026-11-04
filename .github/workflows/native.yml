@@ -12,6 +12,7 @@ on:
       - 'scripts/check-native-arch-package.sh'
       - '.github/workflows/native-arch-build.yml'
       - 'scripts/build-native-macos.sh'
+      - 'scripts/make-macos-signing-identity.sh'
       - 'scripts/native-appcast.py'
       - 'scripts/native-release-version.py'
       - 'scripts/check-sparkle-key.swift'
@@ -191,11 +192,20 @@ jobs:
         env:
           # Every published release (stable or experimental) signs the Sparkle appcast.
           TUBIFY_SPARKLE_PRIVATE_KEY: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_SPARKLE_PRIVATE_KEY || '' }}
+          TUBIFY_MACOS_SIGNING_P12: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_MACOS_SIGNING_P12 || '' }}
+          TUBIFY_MACOS_SIGNING_PASSWORD: ${{ needs.version.outputs.publish == 'true' && secrets.TUBIFY_MACOS_SIGNING_PASSWORD || '' }}
           PUBLISH: ${{ needs.version.outputs.publish }}
         run: |
-          if [[ "$PUBLISH" == true && -z "$TUBIFY_SPARKLE_PRIVATE_KEY" ]]; then
-            echo "Releases require the Sparkle signing secret."
+          if [[ "$PUBLISH" == true && ( -z "$TUBIFY_SPARKLE_PRIVATE_KEY" || -z "$TUBIFY_MACOS_SIGNING_P12" ) ]]; then
+            echo "Releases require the Sparkle and macOS signing secrets."
             exit 1
+          fi
+          if [[ "$PUBLISH" != true ]]; then
+            # Pull requests sign with a throwaway identity, so releases can't be the first run of this path.
+            scripts/make-macos-signing-identity.sh "$RUNNER_TEMP/signing"
+            TUBIFY_MACOS_SIGNING_P12="$(base64 < "$RUNNER_TEMP/signing/tubify-signing.p12" | tr -d '\n')"
+            TUBIFY_MACOS_SIGNING_PASSWORD="$(cat "$RUNNER_TEMP/signing/tubify-signing.password")"
+            export TUBIFY_MACOS_SIGNING_P12 TUBIFY_MACOS_SIGNING_PASSWORD
           fi
           scripts/build-native-macos.sh
       - name: Check the bundle runs without Homebrew on PATH

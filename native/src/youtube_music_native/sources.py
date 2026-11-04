@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import re
+import sys
 import time
 from urllib.parse import parse_qs, urlparse
 
@@ -27,11 +28,15 @@ class Sources:
         # connection caches warm; the worker restarts whenever the account changes.
         self._extractors = {}
 
-    def warm(self):
+    def warm(self, platform=None):
         """Pay imports and the credential read before the first song is chosen."""
         try:
             if self.auth.session is None:
-                self.auth.restore()
+                if (platform or sys.platform) == "darwin":
+                    # A keychain read can ask for approval, so each worker waits until a song needs it.
+                    import yt_dlp  # noqa: F401
+                else:
+                    self.auth.restore()
             if self.auth.session is not None:
                 self._extractor(*AUDIO)
         except Exception:

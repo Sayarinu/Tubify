@@ -31,7 +31,7 @@ class Catalog:
 def test_validated_import_restores_without_network_and_sign_out_clears_only_session(tmp_path):
     path = tmp_path / "browser.json"
     path.write_text(json.dumps({"cookie": "__Secure-3PAPISID=private-cookie"}))
-    credentials = Credentials(MemoryVault())
+    credentials = Credentials(MemoryVault(), inline=False)
     service = AuthService(credentials, lambda session: Catalog())
     result = service.import_session(path)
     assert result["connected"]
@@ -49,7 +49,7 @@ def test_validated_import_restores_without_network_and_sign_out_clears_only_sess
 def test_expired_replacement_cannot_overwrite_existing_session(tmp_path):
     path = tmp_path / "browser.json"
     path.write_text(json.dumps({"cookie": "__Secure-3PAPISID=private-cookie"}))
-    credentials = Credentials(MemoryVault())
+    credentials = Credentials(MemoryVault(), inline=False)
     service = AuthService(credentials, lambda session: Catalog())
     service.import_session(path)
     previous = credentials.load().session.headers["cookie"]
@@ -70,7 +70,7 @@ def test_browser_sign_in_is_validated_before_replacing_the_saved_session(monkeyp
 
     from youtube_music_native import auth, browsers
 
-    credentials = Credentials(MemoryVault())
+    credentials = Credentials(MemoryVault(), inline=False)
     service = AuthService(credentials, lambda session: Catalog())
     value = ["private-first"]
 

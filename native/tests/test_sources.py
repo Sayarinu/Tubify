@@ -189,3 +189,18 @@ def test_audio_resolves_skip_hls_and_retry_once_with_every_format(tmp_path, monk
     # Video extraction keeps every format.
     service._extractor("video", {"format": "best"})
     assert "extractor_args" not in created[-1]
+
+
+def test_macos_workers_leave_the_keychain_alone_until_a_song_needs_it():
+    class Auth:
+        session, restored = None, 0
+
+        def restore(self):
+            self.restored += 1
+
+    resolver = Sources.__new__(Sources)
+    resolver.auth = Auth()
+    resolver.warm(platform="darwin")
+    assert resolver.auth.restored == 0
+    resolver.warm(platform="linux")
+    assert resolver.auth.restored == 1
