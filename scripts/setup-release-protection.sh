@@ -76,7 +76,7 @@ ruleset "Release branches" <<'JSON'
   {"type": "pull_request", "parameters": {"required_approving_review_count": 0, "dismiss_stale_reviews_on_push": false,
     "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false}},
   {"type": "required_status_checks", "parameters": {"strict_required_status_checks_policy": false,
-    "required_status_checks": [{"context": "Branch, title and base"}]}}]}
+    "required_status_checks": [{"context": "Branch, title and base"}, {"context": "Tubify checks passed"}]}}]}
 JSON
 ruleset "Release tags" <<'JSON'
 {"name": "Release tags", "target": "tag", "enforcement": "active", "bypass_actors": [],
