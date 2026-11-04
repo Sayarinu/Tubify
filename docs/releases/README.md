@@ -31,10 +31,39 @@ In **Settings → Updates**, the Update Channel chooses what Tubify offers. Stab
 
 The "Release size" check on every PR shows the bump it will cause. It warns, without blocking, when a title that reads like a feature has no label. `scripts/native-release-version.py` stamps the chosen version into `native/pyproject.toml` and the Arch PKGBUILD in a local, unpushed CI commit, so every package is built as that version. Main and experimental runs are serialized so each bumps the version the previous one published. After all builds and tests pass, the pipeline publishes the release tag (`Tubify-<version>`, or `Tubify-Experimental-<version>` for experimental builds) with the Windows, macOS and Linux app packages, `SHA256SUMS` and the signed macOS `appcast.xml`. `scripts/native-release-notes.py` writes short notes from the titles of the PRs merged since the previous release: **New** for Feature and Major Release PRs, **Improvements and fixes** for the rest, then a download table. The in-app update popup shows only the changes. The pacman package is published as `Tubify-<version>-linux-x86_64.pkg.tar.zst`. It is signed with the same Ed25519 update key as the appcast, and the signature is published beside it as `Tubify-<version>-linux-x86_64.pkg.tar.zst.sig`. The Arch package's `apply-update` helper installs an update without a password only when this signature verifies and the version is newer than the installed one. Releases include only the desktop app builds; the Arch source package is built only to test upgrades in CI. Published releases are never overwritten.
 
-To jump to a specific version, raise it in `native/pyproject.toml` and the PKGBUILD together; a declared version higher than the computed one wins. A manually pushed release tag (for example `Tubify-X.Y.Z`) on a main commit still builds exactly that version. The tag must match pyproject, and `native/release_gate.py` must accept `native/evidence/linux-performance.json`. The gate only re-checks the Linux performance figures recorded in that file against fixed targets; it does not measure the tagged build. Older `main-build-*` releases are kept for download but are not offered as updates.
+To jump to a specific version, raise it in `native/pyproject.toml` and the PKGBUILD together; a declared version higher than the computed one wins. Pushing a tag does not build a release; releases only come from pushes to `main` or `experimental`. Older `main-build-*` releases are kept for download but are not offered as updates.
 
 The macOS build pins Sparkle 2.10.1 and verifies its distribution SHA-256. `TUBIFY_SPARKLE_PRIVATE_KEY` is a GitHub Actions secret; only `packaging/macos-native/sparkle-public-key.txt` belongs in source. Published builds (stable and experimental) fail without the private key. Keep a secure backup of this key before rotating or deleting it; existing clients trust the embedded public key. The secret stores a 64-byte seed/public-key pair. `native/sign_update.py` extracts the 32-byte seed expected by Sparkle's `sign_update --ed-key-file -`, passes it only on stdin and verifies the generated signature before returning it. The actual vendor tool is checked against RFC 8032 before packaging. Update signatures do not provide Apple notarization.
 
-Published macOS builds are signed with one long-lived self-signed identity, kept in the `TUBIFY_MACOS_SIGNING_P12` and `TUBIFY_MACOS_SIGNING_PASSWORD` secrets and created by `scripts/make-macos-signing-identity.sh`. macOS ties keychain approvals to the app's signing identity, so "Always Allow" now survives updates; ad-hoc builds lost it on every update. Published builds fail without these secrets. Pull requests sign with a throwaway identity to test the same path. Replacing the identity costs one more keychain approval for each saved item and nothing else, so a lost key can simply be regenerated. A self-signed identity does not satisfy Gatekeeper or notarization: the first-open warning on macOS needs a paid Apple Developer ID, and SmartScreen on Windows needs an Authenticode signature.
+## Signing keys
+
+Three secrets sign releases: `TUBIFY_SPARKLE_PRIVATE_KEY` (macOS updates and the Linux package), and `TUBIFY_MACOS_SIGNING_P12` with `TUBIFY_MACOS_SIGNING_PASSWORD` (the macOS app). They live only in the protected `release` environment, which `scripts/setup-release-protection.sh` sets up.
+
+- **Who can reach them:** only runs on `main` or `experimental`, and only after the owner approves that release in GitHub. A branch that edits a workflow can't enter the environment.
+- **Where they're used:** only the `sign` job. It runs on a fresh machine, installs only a dependency pinned by hash, and never runs what the build jobs made. A separate `macos-verify` job with no keys runs the signed app. `native/tests/test_release_security.py` fails if this stops being true.
+- **Other protection:** third-party actions are pinned to commits, release branches and tags can't be force-pushed or deleted, and GitHub secret scanning blocks pushes containing known secret formats.
+- **What this can't stop:** the repository owner's GitHub account can change all of this, so protect it with two-factor authentication. Anything built from malicious code that reaches a release branch still gets signed, which is why changes arrive through PRs.
+
+The macOS identity is self-signed. macOS ties keychain approvals to it, so "Always Allow" survives updates, but it doesn't satisfy Gatekeeper. Gatekeeper needs a paid Apple Developer ID and Windows SmartScreen needs an Authenticode signature, so both still warn on first open.
+
+The Sparkle key was replaced in LUNE-499, so builds from before that change can't verify newer updates. They need one manual install.
+
+### If a key leaks
+
+Replacing a key is not enough on its own: Macs that approved the old certificate keep trusting it.
+
+**macOS identity**
+
+1. Run `scripts/setup-release-protection.sh --new-identity`.
+2. On each Mac, sign out of Tubify, which deletes the saved session, then sign in again and remove any saved Last.fm and Better Lyrics credentials before adding them again.
+3. Revoke your Google sessions and change your Last.fm credentials.
+
+**Sparkle key**
+
+Treat this as urgent, because it signs updates, and Linux packages install as root without a password.
+
+1. Generate a new key and update `packaging/macos-native/sparkle-public-key.txt`.
+2. Replace the secret with `--sparkle-key-file`.
+3. Publish a release. Installed apps still trust the old key, so they can't verify it: tell people to install it by hand.
 
 Source launches and unsupported installations use release links. Automatic checks can be disabled; downloads require an explicit update action. Linux installation errors and cancelled authorization are reported on relaunch. Windows displays native installer errors. Sparkle provides native macOS update progress and recovery. All platforms preserve application data and restore playback paused.

@@ -31,12 +31,6 @@ curl --fail --location --silent --show-error https://github.com/sparkle-project/
 printf '%s  %s\n' 1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27 "$sparkle/archive.tar.xz" | shasum -a 256 --check
 tar -xf "$sparkle/archive.tar.xz" -C "$sparkle"
 python3 native/tests/check_signing_key.py "$sparkle/bin/sign_update"
-if [[ -n "${TUBIFY_SPARKLE_PRIVATE_KEY:-}" ]]; then
-  swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
-  printf 'Tubify release-signing preflight' > "$native_build_root/signing-check.bin"
-  python3 native/sign_update.py "$sparkle/bin/sign_update" "$native_build_root/signing-check.bin" >/dev/null
-fi
-
 uv venv --quiet --python 3.13 "$native_build_root/venv"
 VIRTUAL_ENV="$native_build_root/venv" uv pip install --quiet "./native[macos-build]"
 native_python="$native_build_root/venv/bin/python"
@@ -74,45 +68,10 @@ ditto "$sparkle/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
 cp "$sparkle/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
 "$native_python" packaging/bundle_contents.py "$app" --max-files 1100 --max-mb 370
 
-# Local builds are ad-hoc signed; Gatekeeper accepts them on the machine that built them.
-# With a signing identity, every build keeps one identity, so macOS keeps "Always Allow" keychain
-# answers across updates. A self-signed identity does not satisfy Gatekeeper; that needs Apple's Developer ID.
-if [[ -n "${TUBIFY_MACOS_SIGNING_P12:-}" ]]; then
-  signing_keychain="$native_build_root/signing.keychain-db"
-  signing_keychain_password="$(uuidgen)"
-  trap 'security delete-keychain "$signing_keychain" 2>/dev/null || true; rm -rf "$native_build_root"' EXIT
-  printf '%s' "$TUBIFY_MACOS_SIGNING_P12" | base64 -d > "$native_build_root/signing.p12"
-  security create-keychain -p "$signing_keychain_password" "$signing_keychain"
-  security set-keychain-settings "$signing_keychain"
-  security unlock-keychain -p "$signing_keychain_password" "$signing_keychain"
-  security import "$native_build_root/signing.p12" -k "$signing_keychain" -f pkcs12 -P "${TUBIFY_MACOS_SIGNING_PASSWORD:-}" -T /usr/bin/codesign >/dev/null
-  rm -f "$native_build_root/signing.p12"
-  security set-key-partition-list -S apple-tool:,apple: -s -k "$signing_keychain_password" "$signing_keychain" >/dev/null
-  # codesign only finds identities in keychains on the search list.
-  security list-keychains -d user -s "$signing_keychain" $(security list-keychains -d user | tr -d '"')
-  # Listed by hash: a self-signed certificate is not "valid" to find-identity -v, but it can sign.
-  signing_identity="$(security find-identity -p codesigning "$signing_keychain" | awk '$2 ~ /^[0-9A-F]{40}$/ { print $2; exit }')"
-  [[ -n "$signing_identity" ]] || { printf '%s\n' 'The signing certificate has no usable identity.' >&2; exit 1; }
-  codesign --force --deep --timestamp=none --keychain "$signing_keychain" --sign "$signing_identity" "$app"
-  # A cdhash requirement would change with every build, and the keychain would forget its answers.
-  codesign --display --requirements - "$app" 2>&1 | grep -q 'certificate' || { printf '%s\n' 'The app is not tied to its signing certificate.' >&2; exit 1; }
-else
-  codesign --force --deep --sign - "$app"
-fi
+# Ad-hoc signed so it can run here. scripts/sign-native-macos.sh makes the signed disk image.
+codesign --force --deep --sign - "$app"
 codesign --verify --deep --strict "$app"
 
-rm -rf "$native_output/Tubify-macos-arm64.app" "$native_output/Tubify-${native_version}-macos-arm64.dmg"
+rm -rf "$native_output/Tubify-macos-arm64.app"
 ditto "$app" "$native_output/Tubify-macos-arm64.app"
-staging="$native_build_root/dmg"
-mkdir -p "$staging"
-ditto "$app" "$staging/Tubify.app"
-ln -s /Applications "$staging/Applications"
-hdiutil create -quiet -volname "Tubify" -srcfolder "$staging" -ov -format UDZO "$native_output/Tubify-${native_version}-macos-arm64.dmg"
-printf 'Built %s and %s\n' "$native_output/Tubify-macos-arm64.app" "$native_output/Tubify-${native_version}-macos-arm64.dmg"
-
-if [[ -n "${TUBIFY_SPARKLE_PRIVATE_KEY:-}" ]]; then
-  # Fail closed if a secret was rotated without updating the bundled trust anchor.
-  swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
-  signature="$("$native_python" native/sign_update.py "$sparkle/bin/sign_update" "$native_output/Tubify-${native_version}-macos-arm64.dmg")"
-  "$native_python" scripts/native-appcast.py "$native_version" "$native_output/Tubify-${native_version}-macos-arm64.dmg" "$signature" "$native_output/appcast.xml"
-fi
+printf 'Built %s\n' "$native_output/Tubify-macos-arm64.app"

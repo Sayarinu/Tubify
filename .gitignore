@@ -11,3 +11,13 @@ core
 core.*
 native/build/
 .claude/
+node_modules/
+target/
+*.log
+*.p12
+*.pfx
+*.pem
+*.key
+.env
+.env.*
+tubify-signing.*
