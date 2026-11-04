@@ -15,6 +15,9 @@ from urllib.request import Request, urlopen
 BASE = 'https://github.com/Sayarinu/Tubify/releases/download/'
 MAX_DOWNLOAD = 1024 * 1024 * 1024
 MAX_SIGNATURE = 4096
+# pacman reads <package>.sig as a GPG signature, so Linux packages use .ed25519.
+# Linux .sig stays until no 0.8.1 installs, which only look for that name, remain.
+SIGNATURE_SUFFIXES = ('.ed25519', '.sig')
 # Installed by the Linux package: applies signed updates without a password prompt.
 LINUX_HELPER = '/usr/lib/youtube-music-native/apply-update'
 LINUX_PUBLIC_KEY = '/usr/lib/youtube-music-native/update-public-key'
@@ -103,10 +106,12 @@ def select_asset(release, system=None):
     asset = candidates[0]
     # Sparkle checks macOS updates itself; everywhere else launch_installer checks this signature.
     if system != 'darwin':
-        signatures = [item for item in release.get('assets', []) if item.get('name') == asset['name'] + '.sig']
-        if len(signatures) != 1:
-            raise UnsignedUpdate('Release has no signature')
-        asset['signature'] = integrity(signatures[0], MAX_SIGNATURE)
+        for suffix in SIGNATURE_SUFFIXES:
+            signatures = [item for item in release.get('assets', []) if item.get('name') == asset['name'] + suffix]
+            if len(signatures) == 1:
+                asset['signature'] = integrity(signatures[0], MAX_SIGNATURE)
+                return asset
+        raise UnsignedUpdate('Release has no signature')
     return asset
 
 

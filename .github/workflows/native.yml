@@ -362,6 +362,8 @@ jobs:
             test -s "$file.sig"
             rm "$file"
           done
+          # pacman would read a .sig beside the package as a GPG signature; see updates.SIGNATURE_SUFFIXES.
+          cp "$package.sig" "$package.ed25519"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tubify-macos-arm64
@@ -369,6 +371,7 @@ jobs:
             dist/native/Tubify-*-macos-arm64.dmg
             dist/native/appcast.xml
             dist/native/*.pkg.tar.zst.sig
+            dist/native/*.pkg.tar.zst.ed25519
             dist/native/*.exe.sig
           if-no-files-found: error
           # Installers are already compressed.
@@ -443,8 +446,9 @@ jobs:
             assets+=(appcast.xml)
             installer="Tubify-${VERSION}-windows-x64-setup.exe"
             test -s "$package.sig"
+            test -s "$package.ed25519"
             test -s "$installer.sig"
-            assets+=("$package.sig" "$installer.sig")
+            assets+=("$package.sig" "$package.ed25519" "$installer.sig")
           fi
           sha256sum "${assets[@]}" > SHA256SUMS
           sha256sum --check SHA256SUMS
@@ -507,7 +511,7 @@ jobs:
           cd release
           sha256sum --check SHA256SUMS
           shopt -s failglob
-          assets=( *.exe *.exe.sig *.dmg *.pkg.tar.zst *.pkg.tar.zst.sig SHA256SUMS appcast.xml )
+          assets=( *.exe *.exe.sig *.dmg *.pkg.tar.zst *.pkg.tar.zst.sig *.pkg.tar.zst.ed25519 SHA256SUMS appcast.xml )
           if gh release view "$tag" --json isDraft --jq .isDraft > existing-draft 2>/dev/null; then
             if [ "$(cat existing-draft)" = false ]; then
               echo "This build is already published."

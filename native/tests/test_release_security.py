@@ -77,6 +77,10 @@ def test_every_windows_and_linux_download_is_signed_and_published_with_its_signa
     assert 'for file in "$package" "$installer"' in sign and "dist/native/*.exe.sig" in sign
     assert 'test -s "$installer.sig"' in jobs()["release-assets"]
     assert "*.exe.sig" in jobs()["release"]
+    assert 'cp "$package.sig" "$package.ed25519"' in sign and "dist/native/*.pkg.tar.zst.ed25519" in sign
+    assert 'test -s "$package.ed25519"' in jobs()["release-assets"]
+    # 0.8.1 installs only look for .sig, so it stays published for now.
+    assert "*.pkg.tar.zst.sig" in jobs()["release"] and "*.pkg.tar.zst.ed25519" in jobs()["release"]
     assert "TUBIFY_UPDATE_PUBLIC_KEY" in jobs()["windows-app"]
     assert "update-public-key" in (ROOT / "packaging/windows/Tubify.spec").read_text()
 
