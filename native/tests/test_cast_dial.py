@@ -1,5 +1,5 @@
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
-from PySide6.QtNetwork import QHostAddress, QTcpSocket
+from PySide6.QtNetwork import QHostAddress, QTcpSocket, QNetworkInterface
 
 import pytest
 
@@ -77,3 +77,30 @@ def test_dial_http_launch_and_stop_over_loopback():
     assert http(server.port, b"BROKEN\r\n\r\n").startswith("HTTP/1.1 400")
     server.stop()
     assert not server.port and app
+
+
+def test_networks_that_appear_after_launch_are_joined():
+    app = QCoreApplication.instance() or QCoreApplication([])
+
+    class Interface:
+        def __init__(self, name):
+            self.name = name
+
+        def flags(self):
+            return QNetworkInterface.InterfaceFlag.CanMulticast
+
+    class Socket:
+        joined = []
+
+        def joinMulticastGroup(self, _group, interface):
+            self.joined.append(interface.name)
+            return True
+
+    networks = [(QHostAddress("192.168.1.5"), 24, Interface("wifi"))]
+    server = DialServer("Tubify test", "udn-1", port=0, networks=lambda: networks)
+    server.udp = Socket()
+    assert server.join_networks() and Socket.joined == ["wifi"]
+    networks.append((QHostAddress("192.168.1.6"), 24, Interface("wired")))
+    server.membership.timeout.emit()
+    assert Socket.joined == ["wifi", "wifi", "wired"]
+    server.udp = None

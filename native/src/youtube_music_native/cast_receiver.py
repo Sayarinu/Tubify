@@ -17,6 +17,7 @@ from .lounge import Lounge
 VIDEO = re.compile(r"[A-Za-z0-9_-]{11}")
 MAX_CAST_TRACKS = 500
 SYNC_MS = 10000
+DESCRIPTION_WAIT_MS = 5000
 STATES = {"idle": -1, "playing": 1, "paused": 2, "loading": 3}
 
 
@@ -72,6 +73,12 @@ class CastReceiver(QObject):
         self.volume_timer.setSingleShot(True)
         self.volume_timer.setInterval(300)
         self.volume_timer.timeout.connect(self._send_volume)
+        # A device that searches but never asks for the description was probably stopped by a firewall.
+        self.discovery = QTimer(self)
+        self.discovery.setSingleShot(True)
+        self.discovery.setInterval(DESCRIPTION_WAIT_MS)
+        self.discovery.timeout.connect(self._description_missing)
+        self._found = False
         player.changed.connect(self._player_changed)
         player.seeked.connect(lambda _position: self._send_state(force=True))
         player.trackStarted.connect(self._track_started)
@@ -142,6 +149,8 @@ class CastReceiver(QObject):
             self._set_status(error)
             return
         self.dial.launched.connect(self._launched)
+        self.dial.searched.connect(self._searched)
+        self.dial.described.connect(self._described)
         self.dial.stopRequested.connect(lambda: self._remote_change("remoteDisconnected", {}))
         self.lounge = self.lounge_factory(self.settings, self._name, parent=self)
         self.lounge.command.connect(self._command)
@@ -151,6 +160,8 @@ class CastReceiver(QObject):
 
     def _stop(self):
         self.sync.stop()
+        self.discovery.stop()
+        self._found = False
         for item in (self.lounge, self.dial):
             if item is not None:
                 item.stop()
@@ -169,11 +180,31 @@ class CastReceiver(QObject):
             self._update_ready_status()
 
     def _update_ready_status(self):
-        self._set_status("Connected to a phone." if self._remotes else f"Ready. Choose “{self._name}” from Cast in the YouTube Music app on the same network.")
+        if self._remotes:
+            status = "Connected to a phone."
+        elif self._found:
+            status = f"A device on your network found Tubify. Choose “{self._name}” from Cast in the YouTube Music app."
+        else:
+            status = f"Ready. No device has looked for Tubify yet. Open Cast in the YouTube Music app on the same network and choose “{self._name}”."
+        self._set_status(status)
         if self._remotes:
             self.sync.start()
         else:
             self.sync.stop()
+
+    def _searched(self):
+        if not self._found and not self._remotes and not self.discovery.isActive():
+            self.discovery.start()
+
+    def _described(self):
+        self.discovery.stop()
+        self._found = True
+        if self.lounge and self.lounge.ready:
+            self._update_ready_status()
+
+    def _description_missing(self):
+        if not self._found and not self._remotes and self.dial:
+            self._set_status(f"A device searched for Tubify but could not connect. Check that your firewall allows Tubify on TCP port {self.dial.port}.")
 
     def _launched(self, code, theme):
         if self.lounge:

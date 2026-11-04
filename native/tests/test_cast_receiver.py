@@ -106,6 +106,8 @@ class Lounge(QObject):
 
 
 class Dial(QObject):
+    searched = Signal()
+    described = Signal()
     launched = Signal(str, str)
     stopRequested = Signal()
     created = []
@@ -268,3 +270,23 @@ def test_fake_player_only_offers_what_real_playback_has():
     # The receiver is tested against this fake, so a member missing from Playback would only fail at runtime.
     fake_members = {name for name in vars(Player) if not name.startswith("_")} - {"staticMetaObject"}
     assert {name for name in fake_members if not hasattr(Playback, name)} == set()
+
+
+def test_status_says_how_far_discovery_got_without_naming_any_device(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    cast, _player, _shell = receiver(tmp_path)
+    lounge, dial = Lounge.created[0], Dial.created[0]
+    dial.port = 38008
+    lounge.ready = True
+    lounge.stateChanged.emit("ready")
+    assert "No device has looked for Tubify yet" in cast.status
+    dial.searched.emit()
+    assert cast.discovery.isActive()
+    cast.discovery.stop()
+    cast.discovery.timeout.emit()
+    assert "firewall" in cast.status and "38008" in cast.status
+    dial.described.emit()
+    assert "found Tubify" in cast.status
+    dial.searched.emit()
+    assert not cast.discovery.isActive()
+    cast.close()

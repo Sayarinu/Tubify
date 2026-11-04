@@ -17,6 +17,7 @@ PREFERRED_PORT = 38008
 MAX_REQUEST = 8192
 MAX_BODY = 4096
 REQUEST_TIMEOUT_MS = 5000
+MEMBERSHIP_REFRESH_MS = 30000
 
 
 def is_search(datagram):
@@ -129,12 +130,18 @@ def local_address_for(peer, networks):
 class DialServer(QObject):
     launched = Signal(str, str)
     stopRequested = Signal()
+    searched = Signal()
+    described = Signal()
 
     def __init__(self, name, udn, parent=None, port=PREFERRED_PORT, networks=local_networks):
         super().__init__(parent)
         self.name, self.udn, self.preferred_port, self.networks = name, udn, port, networks
         self.app_running = False
         self.server = self.udp = None
+        # A network that comes up after launch has no membership until it is joined.
+        self.membership = QTimer(self)
+        self.membership.setInterval(MEMBERSHIP_REFRESH_MS)
+        self.membership.timeout.connect(self.join_networks)
 
     @property
     def port(self):
@@ -159,17 +166,22 @@ class DialServer(QObject):
         self.udp = QUdpSocket(self)
         bound = self.udp.bind(QHostAddress(QHostAddress.SpecialAddress.AnyIPv4), SSDP_PORT,
                               QAbstractSocket.BindFlag.ShareAddress | QAbstractSocket.BindFlag.ReuseAddressHint)
-        joined = False
-        if bound:
-            for _address, _prefix, interface in self.networks():
-                if interface.flags() & QNetworkInterface.InterfaceFlag.CanMulticast:
-                    joined = self.udp.joinMulticastGroup(QHostAddress(SSDP_GROUP), interface) or joined
-        if not joined:
+        if not bound or not self.join_networks():
             return "Tubify could not listen for phones on the local network."
         self.udp.readyRead.connect(self._datagrams)
+        self.membership.start()
         return ""
 
+    def join_networks(self):
+        """Join the SSDP group on every multicast network; a network already joined just reports False."""
+        joined = False
+        for _address, _prefix, interface in self.networks():
+            if interface.flags() & QNetworkInterface.InterfaceFlag.CanMulticast:
+                joined = self.udp.joinMulticastGroup(QHostAddress(SSDP_GROUP), interface) or joined
+        return joined
+
     def stop(self):
+        self.membership.stop()
         for item in (self.server, self.udp):
             if item is not None:
                 item.close()
@@ -187,6 +199,7 @@ class DialServer(QObject):
                 continue
             location = f"http://{local.toString()}:{self.port}/dd.xml"
             self.udp.writeDatagram(search_reply(location, self.udn), sender, datagram.senderPort())
+            self.searched.emit()
 
     def _accept(self):
         while self.server is not None and self.server.hasPendingConnections():
@@ -218,6 +231,7 @@ class DialServer(QObject):
     def _respond(self, socket, method, path, headers, body):
         app_url = f"http://{socket.localAddress().toString()}:{self.port}/apps/"
         if method == "GET" and path == "/dd.xml":
+            self.described.emit()
             return response(200, device_description(self.name, self.udn), [("Content-Type", "text/xml; charset=utf-8"), ("Application-URL", app_url)])
         if path.rstrip("/") == "/apps/YouTube":
             if method == "GET":
