@@ -41,7 +41,7 @@ def test_keys_are_only_handed_to_steps_that_need_them():
     sign = jobs()["sign"]
     steps = re.split(r"(?m)^      - ", sign)
     with_keys = [step.splitlines()[0] for step in steps if "secrets." in step]
-    assert with_keys == ["name: Sign the macOS app and make its disk image", "name: Sign the Linux package"]
+    assert with_keys == ["name: Sign the macOS app and make its disk image", "name: Sign the Linux package and Windows installer"]
 
 
 def test_every_third_party_action_is_pinned_to_a_commit():
@@ -69,3 +69,13 @@ def test_public_signing_values_come_from_variables():
     # The placeholder is only for builds that won't be published.
     assert "vars.TUBIFY_UPDATE_PUBLIC_KEY ||" in text and "'AAAA" not in jobs()["sign"]
     assert "publish != 'true' && 'AAAA" in text
+
+
+def test_every_windows_and_linux_download_is_signed_and_published_with_its_signature():
+    sign = jobs()["sign"]
+    assert "windows-app" in sign.split("runs-on", 1)[0] and "tubify-windows-x64-installer" in sign
+    assert 'for file in "$package" "$installer"' in sign and "dist/native/*.exe.sig" in sign
+    assert 'test -s "$installer.sig"' in jobs()["release-assets"]
+    assert "*.exe.sig" in jobs()["release"]
+    assert "TUBIFY_UPDATE_PUBLIC_KEY" in jobs()["windows-app"]
+    assert "update-public-key" in (ROOT / "packaging/windows/Tubify.spec").read_text()

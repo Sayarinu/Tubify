@@ -9,6 +9,7 @@ A Windows x64 checkout with uv, MSYS2 UCRT64 (`mpv` and `ffmpeg`), Deno and Inno
 ## Build
 
 ```powershell
+$env:TUBIFY_UPDATE_PUBLIC_KEY = gh variable get TUBIFY_UPDATE_PUBLIC_KEY
 ./scripts/build-native-windows.ps1
 ```
 

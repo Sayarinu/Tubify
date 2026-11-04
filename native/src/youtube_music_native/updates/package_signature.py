@@ -1,8 +1,9 @@
-"""Ed25519 signatures that let the Linux update helper trust a downloaded package.
+"""Ed25519 signatures that let Windows and Linux installs trust a downloaded update.
 
-Releases are signed with the same update key as the macOS appcast. The root-owned
-helper only installs a package whose signature matches the installed public key,
-so allowing it without a password cannot be used to install arbitrary packages.
+Releases are signed with the same update key as the macOS appcast. Windows only runs an
+installer whose signature matches the public key in the app. On Linux, the root-owned
+helper only installs a package that matches the installed public key, so allowing it
+without a password cannot be used to install arbitrary packages.
 """
 import base64
 import binascii

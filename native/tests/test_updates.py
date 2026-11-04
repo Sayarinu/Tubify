@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 
+from Cryptodome.Signature import eddsa
 import pytest
 from PySide6.QtCore import QCoreApplication
 
@@ -19,9 +20,27 @@ from test_maintenance import Worker
 DATA = b'synthetic package'
 
 
+def asset_row(name, data=DATA):
+    return {'name': name, 'size': len(data), 'digest': 'sha256:'+hashlib.sha256(data).hexdigest()}
+
+
 def release(system='linux', version='0.2.0'):
-    name = updates.asset_name(version, system) or f'youtube-music-native-{version}-1-x86_64.pkg.tar.zst'
-    return {'tag_name': updates.release_tag(version), 'assets': [{'name': name, 'size': len(DATA), 'digest': 'sha256:'+hashlib.sha256(DATA).hexdigest()}]}
+    name = updates.asset_name(version, system)
+    assets = [asset_row(name)]
+    if system != 'darwin':
+        assets.append(asset_row(name + '.sig'))
+    return {'tag_name': updates.release_tag(version), 'assets': assets}
+
+
+def trust_new_key(tmp_path, monkeypatch, data=DATA):
+    """Install a throwaway update key and return a file holding a valid signature for data."""
+    seed = eddsa.import_private_key(bytes(range(32)))
+    public = tmp_path/'update-public-key'
+    public.write_text(base64.b64encode(seed.public_key().export_key(format='raw')).decode())
+    monkeypatch.setattr(updates, 'update_public_key', lambda: public)
+    signature = tmp_path/'installer.sig'
+    signature.write_text(base64.b64encode(eddsa.new(seed, 'rfc8032').sign(data)).decode())
+    return signature
 
 
 @pytest.mark.parametrize('system', ['linux', 'win32', 'darwin'])
@@ -182,7 +201,8 @@ def test_windows_handoff_waits_for_gui_and_preserves_install_directory(tmp_path,
     monkeypatch.setattr(updates.sys, 'platform', 'win32')
     monkeypatch.setattr(updates.sys, 'executable', str(tmp_path/'Installed App/Tubify.exe'))
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: calls.append(argv))
-    updates.launch_installer({'path':str(path), 'sha256':hashlib.sha256(DATA).hexdigest()}, 321)
+    signature = trust_new_key(tmp_path, monkeypatch)
+    updates.launch_installer({'path':str(path), 'sha256':hashlib.sha256(DATA).hexdigest(), 'signature_path':str(signature)}, 321)
     assert '/UPDATEPID=321' in calls[0]
     assert '/NOCLOSEAPPLICATIONS' in calls[0]
     assert calls[0][-1] == '/DIR='+str(tmp_path/'Installed App')
@@ -226,12 +246,91 @@ def test_third_party_notices_ship_with_the_package():
     assert 'not affiliated' in text
 
 
-def test_linux_updates_find_the_tubify_named_package_and_the_legacy_name():
-    for name in ('Tubify-0.2.1-linux-x86_64.pkg.tar.zst', 'youtube-music-native-0.2.1-1-x86_64.pkg.tar.zst'):
-        row = {'tag_name': 'Tubify-0.2.1', 'assets': [
-            {'name': name, 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest(), 'size': len(DATA)},
-            {'name': 'Tubify-0.2.1-linux-source.tar.gz', 'digest': 'sha256:' + '0' * 64, 'size': 10}]}
-        assert updates.select_asset(row, 'linux')['name'] == name
+def test_linux_updates_find_only_the_tubify_named_package():
+    name = 'Tubify-0.2.1-linux-x86_64.pkg.tar.zst'
+    source = {'name': 'Tubify-0.2.1-linux-source.tar.gz', 'digest': 'sha256:' + '0' * 64, 'size': 10}
+    row = {'tag_name': 'Tubify-0.2.1', 'assets': [asset_row(name), asset_row(name + '.sig'), source]}
+    assert updates.select_asset(row, 'linux')['name'] == name
+    old = 'youtube-music-native-0.2.1-1-x86_64.pkg.tar.zst'
+    with pytest.raises(ValueError):
+        updates.select_asset({'tag_name': 'Tubify-0.2.1', 'assets': [asset_row(old), asset_row(old + '.sig')]}, 'linux')
+
+
+@pytest.mark.parametrize('system', ['linux', 'win32'])
+def test_a_release_without_a_signature_is_refused(system):
+    row = release(system)
+    del row['assets'][1]
+    with pytest.raises(updates.UnsignedUpdate):
+        updates.select_asset(row, system)
+
+
+def test_macos_relies_on_sparkle_rather_than_a_separate_signature():
+    assert 'signature' not in updates.select_asset(release('darwin'), 'darwin')
+
+
+def windows_installer(tmp_path, monkeypatch, data=DATA):
+    path = tmp_path/'setup.exe'
+    path.write_bytes(data)
+    calls = []
+    monkeypatch.setattr(updates.sys, 'platform', 'win32')
+    monkeypatch.setattr(updates.sys, 'executable', str(tmp_path/'Tubify.exe'))
+    monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: calls.append(argv))
+    return {'path': str(path), 'sha256': hashlib.sha256(data).hexdigest()}, calls
+
+
+def test_windows_runs_an_installer_only_with_a_valid_signature(tmp_path, monkeypatch):
+    signature = trust_new_key(tmp_path, monkeypatch)
+    asset, calls = windows_installer(tmp_path, monkeypatch)
+    updates.launch_installer({**asset, 'signature_path': str(signature)}, 1)
+    assert len(calls) == 1
+
+
+def test_windows_refuses_a_missing_signature(tmp_path, monkeypatch):
+    trust_new_key(tmp_path, monkeypatch)
+    asset, calls = windows_installer(tmp_path, monkeypatch)
+    with pytest.raises(updates.UnsignedUpdate):
+        updates.launch_installer(asset, 1)
+    assert not calls
+
+
+def test_windows_refuses_a_bad_signature(tmp_path, monkeypatch):
+    signature = trust_new_key(tmp_path, monkeypatch)
+    signature.write_text(base64.b64encode(bytes(64)).decode())
+    asset, calls = windows_installer(tmp_path, monkeypatch)
+    with pytest.raises(updates.UnsignedUpdate):
+        updates.launch_installer({**asset, 'signature_path': str(signature)}, 1)
+    assert not calls
+
+
+def test_windows_refuses_a_tampered_installer_even_with_a_matching_hash(tmp_path, monkeypatch):
+    signature = trust_new_key(tmp_path, monkeypatch)
+    # An attacker who controls the release also controls the hash, so only the signature can catch this.
+    asset, calls = windows_installer(tmp_path, monkeypatch, DATA + b'tampered')
+    with pytest.raises(updates.UnsignedUpdate):
+        updates.launch_installer({**asset, 'signature_path': str(signature)}, 1)
+    assert not calls
+
+
+def test_windows_refuses_a_signature_from_another_key(tmp_path, monkeypatch):
+    signature = trust_new_key(tmp_path, monkeypatch)
+    other = eddsa.import_private_key(bytes(32))
+    (tmp_path/'update-public-key').write_text(base64.b64encode(other.public_key().export_key(format='raw')).decode())
+    asset, calls = windows_installer(tmp_path, monkeypatch)
+    with pytest.raises(updates.UnsignedUpdate):
+        updates.launch_installer({**asset, 'signature_path': str(signature)}, 1)
+    assert not calls
+
+
+def test_unverified_updates_explain_why_they_were_stopped(tmp_path, monkeypatch):
+    trust_new_key(tmp_path, monkeypatch)
+    asset, calls = windows_installer(tmp_path, monkeypatch)
+    result = maintenance.perform({'action': 'install', 'asset': asset, 'parent_pid': 1})
+    assert result == {'error': maintenance.UNSIGNED_UPDATE} and not calls
+    row = release('win32')
+    del row['assets'][1]
+    opener = lambda request, timeout: io.BytesIO(json.dumps(row).encode())
+    result = maintenance.perform({'action': 'download', 'tag': 'Tubify-0.2.0', 'directory': str(tmp_path/'updates')}, opener)
+    assert result == {'error': maintenance.UNSIGNED_UPDATE}
 
 
 SIGNATURE = b'c2lnbmF0dXJl\n'
@@ -239,13 +338,12 @@ SIGNATURE = b'c2lnbmF0dXJl\n'
 
 def signed_release():
     row = release('linux')
-    row['assets'].append({'name': row['assets'][0]['name'] + '.sig', 'size': len(SIGNATURE), 'digest': 'sha256:'+hashlib.sha256(SIGNATURE).hexdigest()})
+    row['assets'][1] = asset_row(row['assets'][0]['name'] + '.sig', SIGNATURE)
     return row
 
 
 def test_linux_release_downloads_its_signature_beside_the_package(tmp_path, monkeypatch):
     monkeypatch.setattr(updates.sys, 'platform', 'linux')
-    assert 'signature' not in updates.select_asset(release('linux'), 'linux')
     calls = []
     def opener(url, **kwargs):
         calls.append(url)
@@ -275,7 +373,7 @@ def test_linux_signed_update_uses_the_passwordless_helper_when_installed(tmp_pat
     monkeypatch.setattr(updates.subprocess, 'run', lambda argv: calls.append(argv) or SimpleNamespace(returncode=0))
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: None)
     monkeypatch.setattr(updates, 'LINUX_HELPER', str(helper))
-    # Installs from before the helper existed still update, with the old password prompt.
+    # Without the helper, the update still installs with a password prompt.
     assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest(), signature) == 0
     assert calls[-1][2] == '/usr/bin/pacman'
     helper.write_text('')
@@ -291,5 +389,6 @@ def test_linux_installer_helper_receives_the_signature(tmp_path, monkeypatch):
     launched = []
     monkeypatch.setattr(updates.sys, 'platform', 'linux')
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: launched.append(argv))
-    updates.launch_installer({'path': str(package), 'sha256': hashlib.sha256(DATA).hexdigest(), 'signature_path': str(tmp_path/'package.sig')}, 123)
-    assert launched[0][-4:] == ['123', str(package), hashlib.sha256(DATA).hexdigest(), str(tmp_path/'package.sig')]
+    signature = trust_new_key(tmp_path, monkeypatch)
+    updates.launch_installer({'path': str(package), 'sha256': hashlib.sha256(DATA).hexdigest(), 'signature_path': str(signature)}, 123)
+    assert launched[0][-4:] == ['123', str(package), hashlib.sha256(DATA).hexdigest(), str(signature)]

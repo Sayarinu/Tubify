@@ -116,16 +116,23 @@ def public_diagnostics(snapshot):
     return result
 
 
+UNSIGNED_UPDATE = "This update couldn't be verified as coming from Tubify, so it wasn't installed."
+
+
 def perform(payload, opener=urlopen, progress=None):
     if payload.get("action") == "download":
         try:
             return updates.download(payload["tag"], payload["directory"], progress, opener)
+        except updates.UnsignedUpdate:
+            return {"error": UNSIGNED_UPDATE}
         except Exception:
             return {"error": "Update download failed. Check your connection and free disk space, then retry."}
     if payload.get("action") == "install":
         try:
             updates.launch_installer(payload["asset"], payload["parent_pid"])
             return {"started": True}
+        except updates.UnsignedUpdate:
+            return {"error": UNSIGNED_UPDATE}
         except Exception:
             return {"error": "Installer could not start. Retry or use Release Details."}
     if payload.get("action") == "release":

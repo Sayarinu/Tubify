@@ -12,6 +12,7 @@ from youtube_music_native.updates import maintenance
 
 from youtube_music_native.updates import updates
 from test_maintenance import Worker
+from test_updates import trust_new_key
 
 DATA = b'synthetic package'
 
@@ -53,10 +54,11 @@ def test_downloads_require_prerelease_flags_to_match_the_tag(tmp_path, monkeypat
     def release(tag, prerelease):
         version = updates.tag_version(tag)
         name = f'Tubify-{version}-linux-x86_64.pkg.tar.zst'
-        body = {'tag_name': tag, 'prerelease': prerelease, 'assets': [{'name': name, 'size': len(DATA), 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest()}]}
+        row = {'size': len(DATA), 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest()}
+        body = {'tag_name': tag, 'prerelease': prerelease, 'assets': [{'name': name, **row}, {'name': name + '.sig', **row}]}
         def fetch(request, timeout):
             url = request if isinstance(request, str) else request.full_url
-            return io.BytesIO(DATA if url.endswith('.zst') else json.dumps(body).encode())
+            return io.BytesIO(DATA if url.endswith(('.zst', '.sig')) else json.dumps(body).encode())
         return fetch
     assert updates.download('Tubify-Experimental-0.7.0b1', tmp_path, opener=release('Tubify-Experimental-0.7.0b1', True))['name'] == 'Tubify-0.7.0b1-linux-x86_64.pkg.tar.zst'
     for tag, prerelease in (('Tubify-Experimental-0.7.0b1', False), ('Tubify-0.7.0', True)):
@@ -72,7 +74,7 @@ def test_switching_back_to_stable_skips_the_newer_only_helper(tmp_path, monkeypa
     launched = []
     monkeypatch.setattr(updates.sys, 'platform', 'linux')
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: launched.append(argv))
-    asset = {'path': str(package), 'sha256': hashlib.sha256(DATA).hexdigest(), 'signature_path': str(tmp_path / 'package.sig')}
+    asset = {'path': str(package), 'sha256': hashlib.sha256(DATA).hexdigest(), 'signature_path': str(trust_new_key(tmp_path, monkeypatch))}
     updates.launch_installer({**asset, 'downgrade': True}, 123)
     assert launched[0][-3:] == ['123', str(package), hashlib.sha256(DATA).hexdigest()]
 
@@ -197,21 +199,22 @@ def test_tags_parse_and_must_match_their_channel():
     assert updates.release_name('Tubify-0.7.1') == 'Tubify 0.7.1'
 
 
-def test_channels_and_downloads_work_across_the_tag_change(tmp_path, monkeypatch):
+def test_channels_and_downloads_use_the_release_tags(tmp_path, monkeypatch):
     listing = rows(('Tubify-0.7.1', False, False), ('Tubify-0.7.0', False, False), ('Tubify-Experimental-0.7.2b1', True, False),
                    ('Tubify-Experimental-0.7.0b4', True, False), ('Tubify-0.7.2b1', True, False))
     assert maintenance.lookup_release(opener(listing))['tag'] == 'Tubify-0.7.1'
     assert maintenance.lookup_release(opener(listing), 'experimental')['tag'] == 'Tubify-Experimental-0.7.2b1'
     monkeypatch.setattr(updates.sys, 'platform', 'linux')
     name = 'Tubify-0.7.1-linux-x86_64.pkg.tar.zst'
-    body = {'tag_name': 'Tubify-0.7.1', 'prerelease': False, 'assets': [{'name': name, 'size': len(DATA), 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest()}]}
+    row = {'size': len(DATA), 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest()}
+    body = {'tag_name': 'Tubify-0.7.1', 'prerelease': False, 'assets': [{'name': name, **row}, {'name': name + '.sig', **row}]}
     urls = []
     def fetch(request, timeout):
         url = request if isinstance(request, str) else request.full_url
         urls.append(url)
-        return io.BytesIO(DATA if url.endswith('.zst') else json.dumps(body).encode())
+        return io.BytesIO(DATA if url.endswith(('.zst', '.sig')) else json.dumps(body).encode())
     assert updates.download('Tubify-0.7.1', tmp_path, opener=fetch)['name'] == name
-    assert urls == ['https://api.github.com/repos/Sayarinu/Tubify/releases/tags/Tubify-0.7.1', updates.BASE + 'Tubify-0.7.1/' + name]
+    assert urls == ['https://api.github.com/repos/Sayarinu/Tubify/releases/tags/Tubify-0.7.1', updates.BASE + 'Tubify-0.7.1/' + name, updates.BASE + 'Tubify-0.7.1/' + name + '.sig']
 
 
 def test_appcast_points_at_the_release_tag(tmp_path):
