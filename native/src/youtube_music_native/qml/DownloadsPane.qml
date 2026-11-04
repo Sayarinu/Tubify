@@ -25,6 +25,7 @@ Item {
     }
     ListView {
         id: list
+        WheelScroll { view: list }
         objectName: "downloadsList"
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         clip: true; bottomMargin: 32

@@ -14,6 +14,7 @@ Rectangle {
     readonly property bool sleepMenuOpen: sleepMenu.opened
     property bool compact: width < 1100
     readonly property bool dense: width < 850
+    property bool queueVisible: false
     Connections {
         target: appState
         function onAppearanceChanged() { titleViewport.updateScroll(); artistViewport.updateScroll() }
@@ -33,7 +34,7 @@ Rectangle {
         x: 16; width: root.dense ? root.width * 0.28 : Math.min(380, root.width * 0.34); height: parent.height
         Cover { id: cover; anchors.verticalCenter: parent.verticalCenter; width: root.dense ? 48 : 68; height: width; radius: 8; source: playerState.currentTrack.thumbnail || ""; mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""; accent: themeState.selected }
         Column {
-            x: root.dense ? 56 : 80; width: parent.width - x - (root.dense ? 0 : like.width + dislike.width); anchors.verticalCenter: parent.verticalCenter; spacing: 5
+            x: root.dense ? 56 : 80; width: parent.width - x; anchors.verticalCenter: parent.verticalCenter; spacing: 5
             Item {
                 id: titleViewport
                 width: parent.width
@@ -159,8 +160,6 @@ Rectangle {
                 }
             }
         }
-        IconButton { id: dislike; visible: !root.dense; objectName: "playerDislike"; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; iconName: "dislike"; tip: playerState.currentTrack.rating === "DISLIKE" ? "Remove Dislike" : "Dislike"; iconColor: playerState.currentTrack.rating === "DISLIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("dislike") }
-        IconButton { id: like; visible: !root.dense; objectName: "playerLike"; anchors.right: dislike.left; anchors.verticalCenter: parent.verticalCenter; iconName: "like"; tip: playerState.currentTrack.rating === "LIKE" ? "Remove Like" : "Like"; iconColor: playerState.currentTrack.rating === "LIKE" ? themeState.accent : themeState.secondary; enabled: playerState.hasTrack && !actionsState.busy && (accountState.connected || appState.fixtureMode); onClicked: appState.requestAction("like") }
     }
     Item {
         anchors.left: track.right; anchors.leftMargin: 8
@@ -212,6 +211,15 @@ Rectangle {
             iconColor: visible && playbackOptions.sleepRemaining > 0 ? themeState.accent : themeState.secondary
             tip: visible && playbackOptions.sleepRemaining > 0 ? "Sleep Timer: pauses in " + Theme.timeLabel(playbackOptions.sleepRemaining) : "Sleep Timer"
             onClicked: sleepMenu.opened ? sleepMenu.close() : sleepMenu.popup(sleepButton, (sleepButton.width - sleepMenu.width) / 2, -sleepMenu.height - 8)
+        }
+        IconButton {
+            objectName: "nowPlayingViewToggle"
+            implicitWidth: root.dense ? 36 : 44
+            readonly property bool active: root.queueVisible && appState.queueDetails
+            iconName: "nowPlaying"
+            tip: active ? "Hide Now Playing View" : "Show Now Playing View"
+            iconColor: active ? themeState.accent : themeState.secondary
+            onClicked: appState.toggleNowPlayingView(root.queueVisible)
         }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: queueToggle; objectName: "queueToggle"; iconName: "queue"; tip: appState.queueOpen ? "Close Queue" : "Queue"; iconColor: appState.queueOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleQueue() }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: lyricsToggle; objectName: "lyricsToggle"; iconName: "music"; tip: appState.lyricsOpen ? "Close Lyrics" : "Lyrics"; iconColor: appState.lyricsOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleLyrics() }

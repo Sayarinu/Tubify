@@ -15,6 +15,7 @@ Item {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
         id: sections
+        WheelScroll { view: sections; onScrolled: catalogState.saveScroll(view.contentY) }
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         clip: true; spacing: 36; bottomMargin: 48
         model: root.artist.shelves || []; ScrollBar.vertical: ScrollBar {}

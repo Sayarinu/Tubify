@@ -19,7 +19,7 @@ from youtube_music_native.theme import DEFAULT_COLORS
 
 def immersive_offset(window):
     stage, content = window.findChild(QObject, "expandedPlayer"), window.findChild(QObject, "pageContent")
-    return stage and abs(stage.mapToScene(QPointF()).y() - content.mapToScene(QPointF()).y()) > 0.5
+    return stage and stage.isVisible() and abs(stage.mapToScene(QPointF()).y() - content.mapToScene(QPointF()).y()) > 0.5
 
 
 def visual_items(item):
@@ -48,7 +48,12 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     sidebar = window.findChild(QObject, "queueSidebar")
     bar = window.findChild(QObject, "queueSidebarScrollbar")
     assert pane and listing and now and sidebar and sidebar.isVisible()
-    assert listing.mapToScene(QPointF()).y() == now.mapToScene(QPointF()).y() + now.height()
+    # The larger view scrolls with the songs from the top of the list; the compact panel is pinned above it.
+    if shell.queueDetails:
+        assert listing.property("topMargin") == now.height()
+        assert abs(listing.mapToScene(QPointF()).y() - now.mapToScene(QPointF()).y()) < 1
+    else:
+        assert listing.mapToScene(QPointF()).y() == now.mapToScene(QPointF()).y() + now.height()
     assert not window.findChild(QObject, "queueHistoryList")
     assert not window.findChild(QObject, "pinnedQueueNextList")
     assert not any(entry["group"] == "Previously played" for entry in player.entries)
@@ -59,6 +64,20 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     assert bar.mapToScene(QPointF()).x() + bar.width() <= sidebar.mapToScene(QPointF()).x() + sidebar.width()
     if not exercise:
         return
+
+    # The now-playing view is on by default and shows the artwork at the full width of the list.
+    assert shell.queueDetails
+    artwork = next(child for child in visual_items(window.contentItem()) if child.objectName() == "queueNowPlayingArtwork")
+    assert artwork.isVisible() and artwork.width() == listing.width() and artwork.height() == artwork.width()
+    toggle = window.findChild(QObject, "nowPlayingViewToggle")
+    tall = now.height()
+    if output_dir:
+        assert window.grabWindow().save(str(output_dir / "queue-now-playing.png"))
+    QMetaObject.invokeMethod(toggle, "clicked")
+    QTest.qWait(40)
+    # Off restores the compact row pinned above the list.
+    assert not shell.queueDetails and now.height() < tall and listing.property("topMargin") == 0
+    assert listing.mapToScene(QPointF()).y() == now.mapToScene(QPointF()).y() + now.height()
 
     snapshot = player.queue.snapshot(player.position)
     fixture = dict(player.currentTrack)
@@ -312,13 +331,11 @@ def main():
                 content = window.findChild(QObject, "pageContent")
                 assert player_bar.x() == 12 and player_bar.width() == window.width() - 24
                 assert player_bar.height() == 92 and player_bar.y() + 104 == window.height()
-                like = window.findChild(QObject, "playerLike")
-                dislike = window.findChild(QObject, "playerDislike")
                 seek = window.findChild(QObject, "playbackSeek")
                 elapsed = window.findChild(QObject, "playbackElapsed")
                 duration = window.findChild(QObject, "playbackDuration")
                 transport = window.findChild(QObject, "playerTransport")
-                assert like and dislike and like.x() < dislike.x()
+                assert not window.findChild(QObject, "playerLike") and not window.findChild(QObject, "playerDislike")
                 assert elapsed and duration and seek and transport
                 assert abs(elapsed.x() - seek.x() - seek.property("leftPadding")) < 0.1
                 assert abs(duration.x() + duration.width() - seek.x() - seek.width() + seek.property("rightPadding")) < 0.1
@@ -573,7 +590,7 @@ def main():
                             QTest.qWait(80)
                             # Let the expanded player finish sliding up or down before taking the snapshot.
                             deadline = time.monotonic() + 2
-                            while time.monotonic() < deadline and (window.property("immersiveClosing") or immersive_offset(window)):
+                            while time.monotonic() < deadline and (window.property("immersiveClosing") or window.property("immersiveOpening") or immersive_offset(window)):
                                 QTest.qWait(10)
                             image = check()
                             if name in {"album", "playlist"}:

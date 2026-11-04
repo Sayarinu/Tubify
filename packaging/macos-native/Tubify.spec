@@ -79,7 +79,7 @@ app = BUNDLE(
         "LSApplicationCategoryType": "public.app-category.music",
         "NSHighResolutionCapable": True,
         "CFBundleURLTypes": [{"CFBundleURLName": "com.carter.youtube-music.native", "CFBundleURLSchemes": ["ytmusic-native"]}],
-        # Cast from Phone (off by default) answers SSDP/DIAL discovery on the local network.
+        # Mobile Sync (off by default) answers SSDP/DIAL discovery on the local network.
         "NSLocalNetworkUsageDescription": "Tubify uses your local network so the YouTube Music app on your phone can cast to it, when you turn on Cast from Phone.",
     },
 )

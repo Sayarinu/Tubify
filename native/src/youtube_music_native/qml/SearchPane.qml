@@ -25,6 +25,7 @@ Item {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
         id: results
+        WheelScroll { view: results; onScrolled: catalogState.saveScroll(view.contentY) }
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: 32; bottomMargin: 48; clip: true; model: root.overview ? root.sections : (root.result.items || [])
         ScrollBar.vertical: ScrollBar {}

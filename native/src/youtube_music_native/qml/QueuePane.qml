@@ -1,10 +1,14 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
+import "Theme.js" as Theme
 
 Item {
     id: root
     objectName: "queuePane"
     property bool showCloseButton: true
+    // The dock can show a larger now-playing view; the tray stays compact.
+    property bool showDetails: false
     property real gutter: 16
     property var draggedTrack: ({})
     property string draggingKey: ""
@@ -90,65 +94,98 @@ Item {
             if (point.x < 0 || point.x > queueList.width || point.y < 0 || point.y > queueList.height) return
             var delta = point.y < 32 ? -8 : point.y > queueList.height - 32 ? 8 : 0
             if (!delta) return
-            queueList.contentY = Math.max(queueList.originY, Math.min(queueList.originY + Math.max(0, queueList.contentHeight - queueList.height), queueList.contentY + delta))
+            queueList.contentY = Math.max(queueList.originY - queueList.topMargin, Math.min(queueList.originY + Math.max(0, queueList.contentHeight - queueList.height), queueList.contentY + delta))
             var scene = root.mapToItem(null, root.dragPosition.x, root.dragPosition.y)
             root.updateDrag(scene.x, scene.y)
         }
     }
 
+    // Tabbing through the larger view scrolls each control into sight.
+    Connections {
+        target: nowPanel.detailed ? root.Window.window : null
+        function onActiveFocusItemChanged() {
+            var focused = root.Window.window.activeFocusItem
+            for (var item = focused; item; item = item.parent) {
+                if (item !== nowPanel) continue
+                var top = focused.mapToItem(queueList.contentItem, 0, 0).y
+                if (top < queueList.contentY) queueList.contentY = top
+                else if (top + focused.height > queueList.contentY + queueList.height) queueList.contentY = top + focused.height - queueList.height
+                return
+            }
+        }
+    }
+    // The compact panel is pinned above the list. The larger view would crowd out the songs,
+    // so it sits in the list's content and scrolls away with them; the list's top margin makes room for it.
     Item {
         id: nowPanel
         objectName: "queueNowPlayingPanel"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.leftMargin: root.gutter
-        anchors.rightMargin: root.gutter
-        height: 152
-        Text {
-            text: "Now Playing"
-            color: themeState.foreground
-            font.pixelSize: 14
-            font.bold: true
-            y: 12
+        readonly property bool detailed: root.showDetails && playerState.hasTrack
+        // Switching the view on shows it, even when the list was scrolled down.
+        onDetailedChanged: if (detailed) Qt.callLater(() => queueList.contentY = queueList.originY - queueList.topMargin)
+        parent: detailed ? queueList.contentItem : root
+        x: detailed ? 0 : root.gutter
+        y: detailed ? queueList.originY - height : 0
+        width: queueList.width
+        height: nowHeading.height + nowContent.height + autoplaySwitch.height + 8
+        Item {
+            id: nowHeading
+            width: parent.width; height: 36
+            Text {
+                text: "Now Playing"
+                color: themeState.foreground
+                font.pixelSize: 14
+                font.bold: true
+                y: 12
+            }
+            IconButton {
+                objectName: "queueCollapseButton"
+                visible: root.showCloseButton
+                anchors.right: parent.right
+                y: 2
+                width: 36
+                height: 36
+                iconSize: 20
+                iconName: "right"
+                tip: "Close Queue"
+                onClicked: appState.toggleQueue()
+            }
         }
-        IconButton {
-            objectName: "queueCollapseButton"
-            visible: root.showCloseButton
-            anchors.right: parent.right
-            y: 2
-            width: 36
-            height: 36
-            iconSize: 20
-            iconName: "right"
-            tip: "Close Queue"
-            onClicked: appState.toggleQueue()
-        }
-        SongRow {
-            objectName: "queueSidebarSong-" + (root.currentEntry.key || "current")
-            anchors.left: parent.left
-            anchors.right: parent.right
-            y: 36
-            height: 64
-            visible: playerState.hasTrack
-            queueRow: true
-            media: root.currentEntry
-            menuContext: root.currentEntry.key ? ({queueKey: root.currentEntry.key}) : ({})
-            onActivated: if (root.currentEntry.key) playerState.selectKey(root.currentEntry.key)
-        }
-        Text {
-            x: 0; y: 54
-            visible: !playerState.hasTrack
-            text: "Choose a song to start listening"
+        Item {
+            id: nowContent
+            y: nowHeading.height
             width: parent.width
-            elide: Text.ElideRight
-            color: themeState.secondary
-            font.pixelSize: 13
+            height: nowPanel.detailed ? nowDetails.height + 4 : 68
+            Loader {
+                id: nowDetails
+                width: parent.width
+                active: nowPanel.detailed
+                sourceComponent: NowPlayingDetails { width: nowDetails.width }
+            }
+            SongRow {
+                objectName: "queueSidebarSong-" + (root.currentEntry.key || "current")
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 64
+                visible: playerState.hasTrack && !nowPanel.detailed
+                queueRow: true
+                media: root.currentEntry
+                menuContext: root.currentEntry.key ? ({queueKey: root.currentEntry.key}) : ({})
+                onActivated: if (root.currentEntry.key) playerState.selectKey(root.currentEntry.key)
+            }
+            Text {
+                y: 18
+                visible: !playerState.hasTrack
+                text: "Choose a song to start listening"
+                width: parent.width
+                elide: Text.ElideRight
+                color: themeState.secondary
+                font.pixelSize: 13
+            }
         }
         Switch {
             id: autoplaySwitch
             objectName: "queueAutoplay"
-            y: 104; width: parent.width; height: 40
+            y: nowContent.y + nowContent.height; width: parent.width; height: 40
             padding: 0
             spacing: 8
             text: "Autoplay"
@@ -191,6 +228,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 44; height: 24; radius: 12
                     color: autoplaySwitch.checked ? themeState.accent : themeState.progressTrack
+                    Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionMedium } }
                     border.width: autoplaySwitch.visualFocus ? 2 : 0
                     border.color: themeState.foreground
                     Rectangle {
@@ -198,7 +236,9 @@ Item {
                         x: 3 + autoplaySwitch.visualPosition * (parent.width - width - 6)
                         y: 3
                         width: 18; height: 18; radius: 9
+                        Behavior on x { enabled: !appState.reducedMotion && !autoplaySwitch.pressed; NumberAnimation { duration: Theme.motionMedium; easing.type: Easing.OutCubic } }
                         color: autoplaySwitch.checked ? themeState.onAccent : themeState.foreground
+                        Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionMedium } }
                         border.width: autoplaySwitch.checked ? 0 : 1
                         border.color: themeState.background
                     }
@@ -212,12 +252,18 @@ Item {
     ListView {
         id: queueList
         objectName: "queueUpcomingList"
-        anchors.top: nowPanel.bottom
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
+        WheelScroll { view: queueList }
+        anchors.fill: parent
+        anchors.topMargin: nowPanel.detailed ? 0 : nowPanel.height
         anchors.leftMargin: root.gutter
         anchors.rightMargin: root.gutter
+        topMargin: nowPanel.detailed ? nowPanel.height : 0
+        // Stay at the top when the panel changes height, for example when the artist preview arrives.
+        property real topEdge: 0
+        onTopMarginChanged: {
+            if (contentY <= topEdge + 1) contentY = originY - topMargin
+            topEdge = originY - topMargin
+        }
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         model: root.rows

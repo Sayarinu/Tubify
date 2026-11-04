@@ -29,6 +29,7 @@ class ShellController(QObject):
     playerViewChanged = Signal()
     playerViewChanging = Signal(bool)
     queueOpenChanged = Signal()
+    queueDetailsChanged = Signal()
     lyricsOpenChanged = Signal()
     lyricsWidthChanged = Signal()
     activeDockChanged = Signal()
@@ -52,6 +53,7 @@ class ShellController(QObject):
         self._playlists = self._fixture.get("playlists", [])
         self._expanded = False
         self._queue_open = self.settings.value("queueOpen", False, type=bool)
+        self._queue_details = self.settings.value("queueDetails", True, type=bool)
         self._lyrics_open = self.settings.value("lyricsOpen", False, type=bool)
         self._lyrics_width = max(280, min(520, self._integer_setting("lyricsWidth", 360)))
         self._active_dock = str(self.settings.value("activeDock", "Queue"))
@@ -235,6 +237,28 @@ class ShellController(QObject):
     @Property(bool, notify=queueOpenChanged)
     def queueOpen(self):
         return self._queue_open
+
+    @Property(bool, notify=queueDetailsChanged)
+    def queueDetails(self):
+        return self._queue_details
+
+    @Slot(bool)
+    def setQueueDetails(self, value):
+        if self._queue_details != value:
+            self._queue_details = value
+            self.settings.setValue("queueDetails", value)
+            self.settings.sync()
+            self.queueDetailsChanged.emit()
+
+    @Slot(bool)
+    def toggleNowPlayingView(self, queue_visible):
+        """Flip the view when the queue is on screen; otherwise bring the queue up showing it."""
+        if queue_visible:
+            self.setQueueDetails(not self._queue_details)
+            return
+        self.setQueueDetails(True)
+        self.setQueueOpen(True)
+        self.setActiveDock("Queue")
 
     @Property(bool, notify=lyricsOpenChanged)
     def lyricsOpen(self):

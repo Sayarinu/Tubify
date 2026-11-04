@@ -44,6 +44,7 @@ Item {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
         id: grid
+        WheelScroll { view: grid; onScrolled: catalogState.saveScroll(view.contentY) }
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         visible: !root.rows; clip: true; bottomMargin: 32
         property int columns: Math.max(1, Math.floor((width + 24) / (Theme.cardWidth + 24)))
@@ -68,6 +69,7 @@ Item {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
         id: songs
+        WheelScroll { view: songs; onScrolled: catalogState.saveScroll(view.contentY) }
         objectName: "librarySongs"
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         visible: root.rows; clip: true; bottomMargin: 32; model: root.result.items || []

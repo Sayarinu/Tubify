@@ -16,7 +16,7 @@ PAGES = {
     "appearanceSettingsDialog": "Appearance", "playbackSettings": "Playback",
     "lyricsSettingsDialog": "Lyrics", "desktopSettings": "Desktop",
     "discordSettingsDialog": "Discord Presence",
-    "lastFmSettingsDialog": "Last.fm", "castSettingsDialog": "Cast from Phone",
+    "lastFmSettingsDialog": "Last.fm", "castSettingsDialog": "Mobile Sync",
     "updateSettings": "Updates", "troubleshootingSettings": "Troubleshooting",
 }
 
@@ -142,7 +142,7 @@ def main():
                 QTest.qWait(30)
                 assert find("lastFmApiKey").property("text") == find("lastFmSecret").property("text") == ""
 
-                # Cast from Phone starts off and never opens network sockets in the fixture.
+                # Mobile Sync starts off and never opens network sockets in the fixture.
                 cast = shell.castState
                 QMetaObject.invokeMethod(find("castSettingsDialog"), "open")
                 QTest.qWait(30)

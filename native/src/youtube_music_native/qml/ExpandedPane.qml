@@ -14,8 +14,9 @@ Item {
     // Music videos play here; leaving the expanded player returns to audio only.
     readonly property bool videoShown: playerState.showingVideo && playerState.videoPreferred
     readonly property real videoWidth: Math.max(160, Math.min(width - 48, (height - metadata.height - 116) * 16 / 9, 1280))
-    Component.onCompleted: playerState.setVideoSurface(true)
+    Component.onCompleted: playerState.setVideoSurface(visible)
     Component.onDestruction: playerState.setVideoSurface(false)
+    onVisibleChanged: playerState.setVideoSurface(visible)
     function focusStage() { title.forceActiveFocus() }
 
     ArtworkBackdrop {

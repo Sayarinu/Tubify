@@ -6,7 +6,7 @@ SettingsPage {
     id: root
     property alias scrollView: scroll
     objectName: "castSettingsDialog"
-    title: "Cast from Phone"
+    title: "Mobile Sync"
     contentItem: ScrollView {
         id: scroll
         clip: true
@@ -16,7 +16,7 @@ SettingsPage {
             id: body
             width: scroll.availableWidth
             spacing: 12
-            SettingsCheckBox { objectName: "castEnabledOption"; text: "Let Phones Cast to Tubify"; checked: castState.enabled; onClicked: castState.setEnabled(checked) }
+            SettingsCheckBox { objectName: "castEnabledOption"; text: "Enable Mobile Sync"; checked: castState.enabled; onClicked: castState.setEnabled(checked) }
             Label {
                 Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary
                 text: "Experimental. Tubify shows up in the Cast menu of the YouTube Music app on phones connected to the same network. The phone can then play, pause, skip, seek and change the volume. This uses an unofficial YouTube connection that may stop working when YouTube changes it."
@@ -28,7 +28,7 @@ SettingsPage {
                 Layout.fillWidth: true
                 text: castState.name
                 maximumLength: 60
-                Accessible.name: "Cast device name"
+                Accessible.name: "Mobile Sync device name"
                 onEditingFinished: castState.setName(text)
             }
             Label {

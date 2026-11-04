@@ -95,8 +95,8 @@ def main():
                             assert cover_bounds.top() >= 0 and cover_bounds.bottom() <= bounds.top() + 1, (scale, size, cover_bounds)
                             assert shell.queueOpen == queue_open and shell.lyricsOpen == lyrics_open
                             shell.setExpanded(False)
-                            # Wait until the closed player has unloaded.
-                            settle(lambda: not window.findChild(QObject, "expandedPlayer"))
+                            # Wait until the closed player has slid away.
+                            settle(lambda: not stage.isVisible())
                             search, settings_button = find("searchField"), find("settingsButton")
                             assert search.x() + search.width() <= settings_button.x() + 0.1
                             for name in ("queueToggle", "lyricsToggle", "playerTransport"):
@@ -181,16 +181,23 @@ def main():
                 QTest.qWait(50)
                 assert not drawer.property("opened")
                 assert window.activeFocusItem() == toggle
-                # The expanded player slides up, reverses cleanly mid-close and unloads after sliding down.
+                # The expanded player slides up over the page, reverses cleanly mid-close and stays loaded after sliding down.
                 def stage_offset():
                     stage = window.findChild(QObject, "expandedPlayer")
                     return stage and stage.mapToScene(QPointF()).y() - content.mapToScene(QPointF()).y()
                 shell.setExpanded(True)
                 QTest.qWait(30)
                 assert stage_offset() > 1
-                settle(lambda: abs(stage_offset()) < 0.5)
+                # The page and navigation stay on screen until the pane has covered them, so the window never flashes empty.
                 stage = find("expandedPlayer")
+                # This step runs at the compact size, where the navigation rail stays in its closed drawer.
+                assert find("browseLoader").isVisible() and find("mainHeader").isVisible()
+                opening_area = stage.mapRectToScene(stage.boundingRect())
+                settle(lambda: not window.property("immersiveOpening") and abs(stage_offset()) < 0.5)
+                assert not find("browseLoader").isVisible() and not find("mainHeader").isVisible()
                 expanded_area = stage.mapRectToScene(stage.boundingRect())
+                # It slid in at its final size, so nothing re-lays out when the chrome goes.
+                assert (opening_area.x(), opening_area.width(), opening_area.height()) == (expanded_area.x(), expanded_area.width(), expanded_area.height())
                 shell.setExpanded(False)
                 QTest.qWait(120)
                 closing = find("expandedPlayer")
@@ -205,7 +212,9 @@ def main():
                 settle(lambda: abs(stage_offset()) < 0.5)
                 assert closing.isEnabled() and window.findChild(QObject, "expandedPlayer") == closing
                 shell.setExpanded(False)
-                settle(lambda: not window.findChild(QObject, "expandedPlayer"))
+                settle(lambda: not closing.isVisible())
+                # The pane survives the close, so reopening does not reload its artwork.
+                assert find("expandedPlayer") == closing
                 title = find("playerTitleText")
                 title.setProperty("text", "A long synthetic title that must stay still when reduced motion is enabled")
                 shell.setReducedMotion(True)
@@ -217,7 +226,7 @@ def main():
                 shell.setExpanded(True)
                 assert stage_offset() == 0
                 shell.setExpanded(False)
-                assert not find("immersiveLoader").property("active")
+                assert not find("immersiveLoader").isVisible()
                 for preset in theme.darkThemes + theme.lightThemes:
                     theme.selectTheme(preset["id"])
                     for scale in (80, 100, 150):

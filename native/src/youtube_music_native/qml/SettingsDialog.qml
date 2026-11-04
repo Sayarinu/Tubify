@@ -49,7 +49,7 @@ Popup {
                             required property var modelData
                             width: parent.width
                             spacing: 4
-                            Label { leftPadding: 12; bottomPadding: 4; text: modelData.title; font.pixelSize: Theme.textSmall; font.bold: true; color: themeState.secondary }
+                            Label { width: parent.width; leftPadding: 12; bottomPadding: 4; text: modelData.title; wrapMode: Text.Wrap; font.pixelSize: Theme.textBody; font.bold: true; color: themeState.foreground }
                             Repeater {
                                 model: modelData.pages
                                 Button {

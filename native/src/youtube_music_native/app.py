@@ -31,6 +31,7 @@ from .deep_links import DeepLinks, LinkError
 from .link_instance import LinkInstance
 from .lyric_view import LyricView
 from .desktop import Desktop
+from .artist_preview import ArtistPreview
 from .cast_receiver import CastReceiver
 from .discord_presence import DiscordPresence
 from .handoff import Handoff
@@ -60,6 +61,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("maintenanceState", controller.maintenanceState)
     if hasattr(controller, "discordState"):
         engine.rootContext().setContextProperty("discordState", controller.discordState)
+    if hasattr(controller, "artistPreview"):
+        engine.rootContext().setContextProperty("artistPreview", controller.artistPreview)
     if hasattr(controller, "castState"):
         engine.rootContext().setContextProperty("castState", controller.castState)
     if hasattr(controller, "trayState"):
@@ -233,6 +236,7 @@ def main(argv=None):
     controller.linkState = DeepLinks(browse, account, downloads, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     on_quit(controller.linkState.close)
     controller.handoffState = Handoff(player, parent=controller)
+    controller.artistPreview = ArtistPreview(player, controller, account.worker, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     controller.castState = CastReceiver(player, controller, data / "settings.ini", account.worker, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     on_quit(controller.castState.close)
     search = Search(controller, account, catalog, cache / "metadata.sqlite3", fixture=fixture, parent=controller)

@@ -21,6 +21,7 @@ Item {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
         id: songs
+        WheelScroll { view: songs; onScrolled: catalogState.saveScroll(view.contentY) }
         objectName: "collectionSongs"
         anchors.fill: parent; clip: true; bottomMargin: 24
         model: root.album.items || []

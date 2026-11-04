@@ -38,6 +38,7 @@ Item {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
         id: sections
+        WheelScroll { view: sections; onScrolled: catalogState.saveScroll(view.contentY) }
         objectName: "browseSections"
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: catalogState.route === "home" || catalogState.route === "explore" ? 46 : 32
@@ -119,6 +120,7 @@ Item {
 
         cacheBuffer: 0
         id: songList
+        WheelScroll { view: songList; onScrolled: catalogState.saveScroll(view.contentY) }
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: 32; bottomMargin: 48; clip: true; visible: root.songs || root.loading && root.loadingLayout === "rows"
         model: root.result.items || []; boundsBehavior: Flickable.StopAtBounds
@@ -156,6 +158,7 @@ Item {
 
         cacheBuffer: 0
         id: collectionGrid
+        WheelScroll { view: collectionGrid; onScrolled: catalogState.saveScroll(view.contentY) }
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
         topMargin: 32; bottomMargin: 48; clip: true
         visible: !root.songs && (root.result.items || []).length > 0 || root.loading && root.loadingLayout === "grid"

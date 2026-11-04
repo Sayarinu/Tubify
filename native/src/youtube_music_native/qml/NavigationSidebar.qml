@@ -12,7 +12,8 @@ Rectangle {
     // Emitted after a page or playlist is chosen, so the drawer can close.
     signal navigated()
     focus: true
-    visible: !appState.expanded
+    property bool collapsed: false
+    visible: !collapsed
     color: themeState.background
     Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: themeState.border }
     Item {
@@ -113,7 +114,9 @@ Rectangle {
         onClicked: appState.requestAction("newPlaylist")
     }
     ListView {
+        id: sidebarPlaylists
         objectName: "sidebarPlaylists"
+        WheelScroll { view: sidebarPlaylists }
         anchors.top: newPlaylist.bottom
         anchors.topMargin: 12
         anchors.bottom: parent.bottom

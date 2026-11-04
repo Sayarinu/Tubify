@@ -47,7 +47,7 @@ ApplicationWindow {
         }
     }
     property bool wideNavigation: true
-    readonly property bool compactNavigation: !appState.expanded && (appState.queueOpen || appState.lyricsOpen) && uiRoot.width < 780
+    readonly property bool compactNavigation: !window.chromeHidden && (appState.queueOpen || appState.lyricsOpen) && uiRoot.width < 780
     onCompactNavigationChanged: navigationDrawer.close()
     readonly property bool docksVisible: (appState.queueOpen || appState.lyricsOpen)
     readonly property bool bothDocks: appState.queueOpen && appState.lyricsOpen
@@ -83,8 +83,10 @@ ApplicationWindow {
     property var browseFocus: null
     property real browseWidth: 0
     property real browseHeight: 0
-    // Keeps the expanded player loaded while it slides back down.
+    // While the expanded player slides, it holds its full-size geometry and the page and navigation stay beneath it.
     property bool immersiveClosing: false
+    property bool immersiveOpening: false
+    readonly property bool chromeHidden: appState.expanded && !immersiveOpening
     function focusSearch() {
         appState.setExpanded(false)
         Qt.callLater(header.focusSearch)
@@ -101,7 +103,6 @@ ApplicationWindow {
             immersive.slide(entering)
         }
         function onPlayerViewChanged() {
-            if (appState.expanded) window.immersiveClosing = false
             Qt.callLater(function() {
                 if (appState.expanded && immersive.item) immersive.item.focusStage()
                 else if (window.browseFocus && window.browseFocus.visible && window.browseFocus.enabled) window.browseFocus.forceActiveFocus()
@@ -177,7 +178,8 @@ ApplicationWindow {
         id: sidebar
         parent: window.compactNavigation ? drawerContent : uiRoot
         wide: window.wideNavigation
-        width: appState.expanded ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (window.docksVisible ? 280 + 480 : 320)))
+        collapsed: window.chromeHidden
+        width: window.chromeHidden ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (window.docksVisible ? 280 + 480 : 320)))
         anchors.top: parent.top
         anchors.bottom: window.compactNavigation ? parent.bottom : player.top
         onNavigated: navigationDrawer.close()
@@ -188,6 +190,7 @@ ApplicationWindow {
         anchors.left: navigationEdge.right
         anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
         compactNavigation: window.compactNavigation
+        collapsed: window.chromeHidden
         onNavigationRequested: navigationDrawer.open()
         onSettingsRequested: settingsDialog.open()
         onAccountRequested: accountDialog.open()
@@ -209,7 +212,8 @@ ApplicationWindow {
         sections: [
             { title: "General", pages: [appearanceSettings, playbackSettings, lyricsSettings] },
             { title: "Application", pages: [desktopSettings] },
-            { title: "Connections", pages: [discordSettings, lastFmSettings, castSettings] },
+            { title: "Connections", pages: [discordSettings, lastFmSettings] },
+            { title: "Experimental Features", pages: [castSettings] },
             { title: "Support", pages: [updateSettings, troubleshootingSettings] }
         ]
         onClosed: header.focusSettingsButton()
@@ -262,10 +266,10 @@ ApplicationWindow {
             id: pages
             objectName: "browseLoader"
             // Keep the page and its viewport alive while the stage uses the available space.
-            width: appState.expanded ? window.browseWidth : parent.width
-            height: appState.expanded ? window.browseHeight : parent.height
-            visible: !appState.expanded
-            enabled: visible
+            width: window.chromeHidden ? window.browseWidth : parent.width
+            height: window.chromeHidden ? window.browseHeight : parent.height
+            visible: !window.chromeHidden
+            enabled: !appState.expanded
             // Pages ease in on every navigation instead of swapping abruptly.
             transform: Translate { id: pageShift }
             function enter() {
@@ -304,43 +308,52 @@ ApplicationWindow {
         Loader {
             id: immersive
             objectName: "immersiveLoader"
-            // While closing, hold the expanded geometry so the returning sidebar and header don't re-lay out the pane;
+            // While sliding, hold the expanded geometry so the sidebar and header beneath it don't re-lay out the pane;
             // content sits above them, and the docks and player bar above it.
-            property rect closingArea: Qt.rect(0, 0, 0, 0)
-            x: window.immersiveClosing ? closingArea.x - content.x : 0
-            y: window.immersiveClosing ? closingArea.y - content.y : 0
-            width: window.immersiveClosing ? closingArea.width : parent.width
-            height: window.immersiveClosing ? closingArea.height : parent.height
+            readonly property bool covering: window.immersiveOpening || window.immersiveClosing
+            property rect coverArea: Qt.rect(0, 0, 0, 0)
+            x: covering ? coverArea.x - content.x : 0
+            y: covering ? coverArea.y - content.y : 0
+            width: covering ? coverArea.width : parent.width
+            height: covering ? coverArea.height : parent.height
             z: 1
-            active: appState.expanded || window.immersiveClosing
+            // Stays loaded between opens, so its artwork is already on screen when it slides in.
+            active: playerState.hasTrack || appState.expanded || window.immersiveClosing
+            visible: appState.expanded || covering
             // The closing pane only animates; input and focus belong to the pages beneath it.
             enabled: appState.expanded
             sourceComponent: Component { ExpandedPane {} }
-            onLoaded: item.focusStage()
+            onLoaded: if (appState.expanded) item.focusStage()
             transform: Translate { id: immersiveShift }
             property bool opening: true
-            // Runs before the expanded flag flips, so the pane starts off-screen and stays loaded while closing.
+            // Runs before the expanded flag flips, so the pane starts off-screen and the chrome is still laid out.
             function slide(entering) {
                 immersiveSlide.stop()
-                // Only a close raises the flag; an open clears it after the flip so a reversal never unloads the pane.
-                if (!entering && !window.immersiveClosing) closingArea = Qt.rect(content.x, content.y, content.width, content.height)
-                if (!entering) window.immersiveClosing = !appState.reducedMotion
+                var shown = visible
+                if (!covering) {
+                    // Opening computes the area the pane will fill once the sidebar and header have gone.
+                    var bannerHeight = reconnectBanner.visible ? reconnectBanner.height : 0
+                    coverArea = entering ? Qt.rect(0, bannerHeight, content.x + content.width, content.y + content.height - bannerHeight)
+                                         : Qt.rect(content.x, content.y, content.width, content.height)
+                }
+                window.immersiveOpening = entering && !appState.reducedMotion
+                window.immersiveClosing = !entering && !appState.reducedMotion
                 if (appState.reducedMotion) {
                     immersiveShift.y = 0
                     return
                 }
                 // A fresh open starts below the content; reopening mid-close reverses from where it is.
-                if (entering && !active) immersiveShift.y = content.height
+                if (entering && !shown) immersiveShift.y = coverArea.height
                 opening = entering
-                immersiveTarget.to = entering ? 0 : closingArea.height
+                immersiveTarget.to = entering ? 0 : coverArea.height
                 immersiveSlide.start()
             }
             // The pane stays opaque: it still spans the sidebar while closing, so any fade would show its artwork over the page.
             SequentialAnimation {
                 id: immersiveSlide
                 NumberAnimation { id: immersiveTarget; target: immersiveShift; property: "y"; duration: Theme.motionSlow; easing.type: immersive.opening ? Easing.OutCubic : Easing.InCubic }
-                // Stopping to reverse skips this, so only a finished close unloads the pane.
-                ScriptAction { script: if (!appState.expanded) window.immersiveClosing = false }
+                // Stopping to reverse skips this, so the geometry is only released once a slide has finished.
+                ScriptAction { script: { window.immersiveOpening = false; window.immersiveClosing = false } }
             }
         }
 
@@ -377,7 +390,7 @@ ApplicationWindow {
         width: fittedQueueWidth
         Rectangle { width: 1; height: parent.height; color: themeState.border }
         DockHeader { id: queueHeader; title: "Queue"; tabbed: window.tabbedDocks; onCloseRequested: appState.setQueueOpen(false) }
-        QueuePane { anchors.fill: parent; anchors.topMargin: 48; showCloseButton: false }
+        QueuePane { anchors.fill: parent; anchors.topMargin: 48; showCloseButton: false; showDetails: appState.queueDetails }
         PanelResizeHandle {
             objectName: "queueResizeHandle"
             panelWidth: queueSidebar.width
@@ -388,6 +401,7 @@ ApplicationWindow {
 
     PlayerBar {
         id: player
+        queueVisible: showQueueDock
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         anchors.margins: 12
     }

@@ -157,3 +157,21 @@ def test_window_geometry_stays_on_connected_display(tmp_path):
     restored = ShellController(tmp_path / "settings.ini")
     assert restored.settings.value("windowX", type=int) == -1800
     assert restored.settings.value("windowY", type=int) == 100
+
+
+def test_now_playing_view_is_on_by_default_and_remembers_the_choice(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    controller = ShellController(tmp_path / "settings.ini")
+    assert controller.queueDetails
+    controller.toggleNowPlayingView(True)
+    assert not controller.queueDetails and not controller.queueOpen
+    restored = ShellController(tmp_path / "settings.ini")
+    assert not restored.queueDetails
+
+
+def test_now_playing_toggle_brings_up_a_hidden_queue_showing_the_view(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    controller = ShellController(tmp_path / "settings.ini")
+    controller.setQueueDetails(False)
+    controller.toggleNowPlayingView(False)
+    assert controller.queueOpen and controller.queueDetails and controller.activeDock == "Queue"
