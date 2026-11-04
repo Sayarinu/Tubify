@@ -15,6 +15,7 @@ on:
       - 'scripts/make-macos-signing-identity.sh'
       - 'scripts/native-appcast.py'
       - 'scripts/native-release-version.py'
+      - 'scripts/open-prs.py'
       - 'scripts/check-sparkle-key.swift'
       - 'scripts/build-native-windows.ps1'
       - 'scripts/build-native-windows-icon.py'
