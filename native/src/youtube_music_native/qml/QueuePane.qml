@@ -131,9 +131,9 @@ Item {
             id: nowHeading
             width: parent.width; height: 36
             Text {
-                text: "Now Playing"
+                text: "Now playing"
                 color: themeState.foreground
-                font.pixelSize: 14
+                font.pixelSize: 16
                 font.bold: true
                 y: 12
             }
@@ -154,7 +154,7 @@ Item {
             id: nowContent
             y: nowHeading.height
             width: parent.width
-            height: nowPanel.detailed ? nowDetails.height + 4 : 68
+            height: nowPanel.detailed ? nowDetails.height + 4 : 60
             Loader {
                 id: nowDetails
                 width: parent.width
@@ -165,7 +165,7 @@ Item {
                 objectName: "queueSidebarSong-" + (root.currentEntry.key || "current")
                 anchors.left: parent.left
                 anchors.right: parent.right
-                height: 64
+                height: 56
                 visible: playerState.hasTrack && !nowPanel.detailed
                 queueRow: true
                 media: root.currentEntry
@@ -246,7 +246,6 @@ Item {
             }
             onClicked: playerState.toggleAutoplay()
         }
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: themeState.border }
     }
 
     ListView {
@@ -304,40 +303,43 @@ Item {
             property bool songRow: !modelData.rowType
             property bool dropTarget: root.dropIndex === index && root.draggingKey !== modelData.key
             width: queueList.width
-            height: songRow ? 64 : modelData.rowType === "drop" ? 56 : modelData.rowType === "empty" ? 72 : 44
+            height: songRow ? 56 : modelData.rowType === "drop" ? 56 : modelData.rowType === "empty" ? 72 : 44
             opacity: songRow && root.draggingKey === modelData.key ? 0.38 : 1
             function focusEntry() { if (songRow) song.forceActiveFocus() }
             HoverHandler { id: rowHover }
             Text {
                 objectName: modelData.rowType === "manualHeading" ? "queueSectionHeading" : modelData.rowType === "sourceHeading" ? "queueNextHeading" : ""
                 visible: modelData.rowType === "manualHeading" || modelData.rowType === "sourceHeading"
-                text: modelData.rowType === "manualHeading" ? "Queued Songs" : playerState.nextGroup
+                text: modelData.rowType === "manualHeading" ? "Next in queue" : playerState.nextGroup
                 textFormat: Text.PlainText
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width - (clearQueue.visible ? clearQueue.width + 8 : 0)
                 elide: Text.ElideRight
                 color: themeState.foreground
-                font.pixelSize: 14
+                font.pixelSize: 16
                 font.bold: true
             }
             Button {
                 id: clearQueue
                 objectName: modelData.rowType === "manualHeading" ? "queueClearButton" : ""
                 visible: modelData.rowType === "manualHeading" && (playerState.manualCount > 0 || browseState.queueBusy)
-                text: browseState.queueBusy ? "Cancel" : "Clear"
+                text: browseState.queueBusy ? "Cancel" : "Clear queue"
                 Accessible.name: "Clear queued songs and cancel pending additions"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 height: 32
-                leftPadding: 12
-                rightPadding: 12
+                leftPadding: 4
+                rightPadding: 4
                 font.pixelSize: 13
-                palette.buttonText: themeState.foreground
+                font.bold: true
+                font.underline: hovered
+                palette.buttonText: hovered ? themeState.foreground : themeState.secondary
                 background: Rectangle {
-                    radius: 16
-                    color: parent.down ? themeState.border : parent.hovered ? themeState.hover : themeState.surface
-                    border.color: parent.visualFocus ? themeState.accent : themeState.border
+                    radius: 4
+                    color: "transparent"
+                    border.width: parent.visualFocus ? 2 : 0
+                    border.color: themeState.accent
                 }
                 onClicked: playerState.clearManualQueue()
             }
@@ -347,16 +349,16 @@ Item {
                 x: 0; y: 4
                 width: parent.width; height: 48
                 radius: 8
-                color: root.dropToManual ? themeState.selected : themeState.surface
+                // Quiet until a song is being dragged, then it reads as a target.
+                color: root.dropToManual ? themeState.selected : "transparent"
                 border.color: root.dropToManual ? themeState.accent : themeState.border
-                border.width: root.dropToManual ? 2 : 1
+                border.width: root.dropToManual ? 2 : root.draggingKey.length > 0 ? 1 : 0
                 Text {
                     anchors.fill: parent
                     anchors.margins: 8
-                    text: root.dropToManual ? "Drop to Queue" : "+  Drop Songs Here"
-                    color: themeState.foreground
+                    text: root.dropToManual ? "Drop to queue" : "Drop songs here"
+                    color: root.draggingKey.length > 0 ? themeState.foreground : themeState.secondary
                     font.pixelSize: 13
-                    font.bold: true
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
@@ -375,10 +377,10 @@ Item {
                 objectName: songRow ? "queueSidebarRowHighlight-" + modelData.key : ""
                 visible: queueEntry.songRow
                 anchors.fill: parent
-                radius: 4
+                radius: 6
                 color: queueEntry.dropTarget ? themeState.selected : rowHover.hovered || queueEntry.activeFocus ? themeState.hover : "transparent"
-                border.color: queueEntry.dropTarget ? themeState.accent : rowHover.hovered || queueEntry.activeFocus ? themeState.border : "transparent"
-                border.width: queueEntry.dropTarget || rowHover.hovered || queueEntry.activeFocus ? 1 : 0
+                border.color: queueEntry.dropTarget || queueEntry.activeFocus ? themeState.accent : "transparent"
+                border.width: queueEntry.dropTarget || queueEntry.activeFocus ? 1 : 0
             }
             Rectangle {
                 objectName: songRow ? "queueSidebarDropBefore-" + modelData.key : ""
@@ -433,6 +435,8 @@ Item {
             IconButton {
                 objectName: queueEntry.songRow ? "queueSidebarDrag-" + queueEntry.modelData.key : ""
                 visible: queueEntry.songRow
+                // Hidden at rest only: it stays clickable, draggable and focusable.
+                opacity: rowHover.hovered || queueEntry.activeFocus || root.draggingKey === queueEntry.modelData.key ? 1 : 0
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 width: 28

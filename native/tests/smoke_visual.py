@@ -120,6 +120,9 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     settle()
     assert not any(child.objectName() == "queueSidebarSong-" + history_key for child in visual_items(pane))
     assert item("queueNextHeading").property("text") == "Next From Fixture source"
+    assert item("queueSectionHeading").property("text") == "Next in queue"
+    # The reorder handle only shows on a hovered or focused row, but stays usable at rest.
+    assert item("queueSidebarDrag-" + player.queue.manual[0]["key"]).property("opacity") == 0
     save("queue-mixed")
     manual = [entry["key"] for entry in player.queue.manual]
     # Equal video IDs remain separate occurrences, with only the pinned row current.
@@ -195,7 +198,7 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     settle()
     assert listing.property("count") == 10004
     # Qt estimates total height while only visible delegates exist.
-    assert listing.property("contentHeight") > 64 * 9000, listing.property("contentHeight")
+    assert listing.property("contentHeight") > 56 * 9000, listing.property("contentHeight")
     fixed_y = now.mapToScene(QPointF()).y()
     listing.positionViewAtEnd()
     settle()

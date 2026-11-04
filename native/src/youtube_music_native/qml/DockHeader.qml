@@ -40,5 +40,4 @@ Item {
         width: 36; height: 36; iconName: "close"; tip: "Close " + root.title
         onClicked: root.closeRequested()
     }
-    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: themeState.border }
 }

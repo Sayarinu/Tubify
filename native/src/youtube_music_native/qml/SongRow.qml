@@ -44,12 +44,12 @@ FocusScope {
         objectName: root.queueRow ? "queueRowArtwork-" + (root.media.key || root.media.videoId || root.media.id || "") : ""
         visible: root.showArtwork
         x: root.queueRow ? 0 : root.tableLayout ? 44 : 8; anchors.verticalCenter: parent.verticalCenter
-        width: root.tableLayout || root.queueRow ? 40 : 48; height: width
-        radius: root.media.kind === "artist" ? width / 2 : 6
+        width: root.tableLayout ? 40 : 48; height: width
+        radius: root.media.kind === "artist" ? width / 2 : root.queueRow ? 4 : 6
         placeholder: root.media.kind === "artist" ? "profile" : "music"
         source: root.media.thumbnail || ""; mediaKey: root.media.videoId || root.media.id || ""; accent: root.media.accent || themeState.selected
-        Rectangle { anchors.centerIn: parent; width: 28; height: 28; radius: 14; color: themeState.accent; visible: root.media.kind !== "artist" && (hover.hovered || root.activeFocus) }
-        Symbol { anchors.centerIn: parent; name: root.currentSong && playerState.playing ? "pause" : "play"; width: 14; height: 14; color: themeState.onAccent; visible: root.media.kind !== "artist" && (hover.hovered || root.activeFocus) }
+        Rectangle { anchors.centerIn: parent; width: root.queueRow ? parent.width : 28; height: root.queueRow ? parent.height : 28; radius: root.queueRow ? parent.radius : 14; color: root.queueRow ? Qt.rgba(0, 0, 0, 0.55) : themeState.accent; visible: root.media.kind !== "artist" && (hover.hovered || root.activeFocus) }
+        Symbol { anchors.centerIn: parent; name: root.currentSong && playerState.playing ? "pause" : "play"; width: root.queueRow ? 18 : 14; height: width; color: root.queueRow ? "white" : themeState.onAccent; visible: root.media.kind !== "artist" && (hover.hovered || root.activeFocus) }
     }
     MouseArea {
         objectName: root.queueRow ? "queueArtworkActivate-" + (root.media.key || root.media.videoId || root.media.id || "") : ""
@@ -63,11 +63,11 @@ FocusScope {
     Text { id: rank; x: root.tableLayout ? 12 : root.showArtwork ? 68 : 16; width: root.number > 0 ? 28 : 0; visible: root.number > 0; anchors.verticalCenter: parent.verticalCenter; text: root.number; color: themeState.secondary; font.pixelSize: 14 }
     Column {
         objectName: root.queueRow ? "queueRowMetadata-" + (root.media.key || "") : ""
-        x: root.queueRow ? 52 : root.tableLayout ? root.showArtwork ? 100 : 48 : root.showArtwork ? root.number > 0 ? 104 : 72 : 56
+        x: root.queueRow ? 60 : root.tableLayout ? root.showArtwork ? 100 : 48 : root.showArtwork ? root.number > 0 ? 104 : 72 : 56
         anchors.verticalCenter: parent.verticalCenter
         width: Math.max(0, (root.showAlbum ? parent.width * 0.54 : parent.width - root.trailingWidth) - x); spacing: 3
         opacity: root.media.available === false ? 0.5 : 1
-        Text { width: parent.width; text: root.media.title || "Unavailable song"; textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.foreground; font.pixelSize: 14 }
+        Text { width: parent.width; text: root.media.title || "Unavailable song"; textFormat: Text.PlainText; elide: Text.ElideRight; color: root.queueRow && root.currentSong ? themeState.accent : themeState.foreground; font.pixelSize: 14 }
         Row {
             id: metadata
             width: parent.width; height: 18; spacing: 4; clip: true
