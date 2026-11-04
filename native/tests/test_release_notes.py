@@ -23,7 +23,7 @@ def test_notes_group_cleaned_pr_titles_and_link_each_download():
     text = notes.render("0.2.1", new, improvements, "Sayarinu/Tubify")
     above, below = text.split("\n---\n")
     assert "### New\n- Play music videos" in above and "### Improvements and fixes" in above
-    assert "native-v0.2.1/Tubify-0.2.1-linux-x86_64.pkg.tar.zst" in below and "windows-x64-setup.exe" in below
+    assert "Tubify-0.2.1/Tubify-0.2.1-linux-x86_64.pkg.tar.zst" in below and "windows-x64-setup.exe" in below
 
 
 def test_popup_shows_only_the_changes_without_markdown_headings():
@@ -31,3 +31,23 @@ def test_popup_shows_only_the_changes_without_markdown_headings():
 
     text = notes.render("0.2.1", ["Music videos"], ["Faster start"], "Sayarinu/Tubify")
     assert release_notes(text) == "New\n- Music videos\n\nImprovements and fixes\n- Faster start"
+
+
+def test_first_release_with_no_previous_tag_lists_recent_commits(tmp_path, monkeypatch):
+    calls = []
+
+    class Log:
+        stdout = "a\tLUNE-1 - First change\nb\tLUNE-2 - Second change\n"
+
+    def run(command, **kwargs):
+        calls.append(command)
+        return Log
+    monkeypatch.setattr(notes.subprocess, "run", run)
+    monkeypatch.setattr(notes.versioning, "github_pulls", lambda repository, token: lambda sha: [])
+    monkeypatch.setenv("GITHUB_REPOSITORY", "Sayarinu/Tubify")
+    monkeypatch.setenv("GH_TOKEN", "unused")
+    output = tmp_path / "notes.md"
+    assert notes.main(["notes", "0.8.1", "", str(output)]) == 0
+    assert "HEAD" in calls[0] and not any(".." in part for part in calls[0])
+    text = output.read_text(encoding="utf-8")
+    assert text.index("Second change") < text.index("First change") and "Tubify-0.8.1/" in text

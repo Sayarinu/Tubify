@@ -80,7 +80,7 @@ ruleset "Release branches" <<'JSON'
 JSON
 ruleset "Release tags" <<'JSON'
 {"name": "Release tags", "target": "tag", "enforcement": "active", "bypass_actors": [],
- "conditions": {"ref_name": {"include": ["refs/tags/Tubify-*", "refs/tags/native-v*"], "exclude": []}},
+ "conditions": {"ref_name": {"include": ["refs/tags/Tubify-*"], "exclude": []}},
  "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}, {"type": "update"}]}
 JSON
 

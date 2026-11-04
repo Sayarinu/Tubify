@@ -18,20 +18,16 @@ MAX_SIGNATURE = 4096
 # Installed by the Linux package: applies signed updates without a password prompt.
 LINUX_HELPER = '/usr/lib/youtube-music-native/apply-update'
 # Release tags: Tubify-X.Y.Z (stable) and Tubify-Experimental-X.Y.ZbN (experimental).
-# Releases up to and including LEGACY_TAGS_THROUGH keep the original native-vVERSION tags: apps
-# from before the new tags only look for native-v, so 0.7.0 is the bridge they update through.
 VERSION = re.compile(r'(\d+)\.(\d+)\.(\d+)(?:b(\d+))?')
-LEGACY_TAG = re.compile(r'native-v(\d+\.\d+\.\d+(?:b\d+)?)')
 STABLE_TAG = re.compile(r'Tubify-(\d+\.\d+\.\d+)')
 EXPERIMENTAL_TAG = re.compile(r'Tubify-Experimental-(\d+\.\d+\.\d+b\d+)')
-LEGACY_TAGS_THROUGH = (0, 7, 0, 1, 0)
 
 
 def tag_version(tag):
     """The version a release tag names, or None. Tubify- tags must agree with the version's channel."""
     if not isinstance(tag, str):
         return None
-    for pattern in (LEGACY_TAG, STABLE_TAG, EXPERIMENTAL_TAG):
+    for pattern in (STABLE_TAG, EXPERIMENTAL_TAG):
         match = pattern.fullmatch(tag)
         if match:
             return match.group(1)
@@ -59,8 +55,6 @@ def release_tag(version):
     key = version_key(version)
     if not key or tag_version(version):
         raise ValueError('Invalid Tubify version: ' + str(version))
-    if key <= LEGACY_TAGS_THROUGH:
-        return 'native-v' + version
     return ('Tubify-Experimental-' if key[3] == 0 else 'Tubify-') + version
 
 

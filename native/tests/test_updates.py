@@ -21,7 +21,7 @@ DATA = b'synthetic package'
 
 def release(system='linux', version='0.2.0'):
     name = updates.asset_name(version, system) or f'youtube-music-native-{version}-1-x86_64.pkg.tar.zst'
-    return {'tag_name': 'native-v'+version, 'assets': [{'name': name, 'size': len(DATA), 'digest': 'sha256:'+hashlib.sha256(DATA).hexdigest()}]}
+    return {'tag_name': updates.release_tag(version), 'assets': [{'name': name, 'size': len(DATA), 'digest': 'sha256:'+hashlib.sha256(DATA).hexdigest()}]}
 
 
 @pytest.mark.parametrize('system', ['linux', 'win32', 'darwin'])
@@ -37,7 +37,7 @@ def test_exact_platform_artifact_and_digest(system):
 def test_reject_ambiguous_or_wrong_releases(change):
     row = release()
     if change == 'wrong_version':
-        row['tag_name'] = 'native-v0.3.0'
+        row['tag_name'] = 'Tubify-0.3.0'
     elif change == 'duplicate':
         row['assets'] *= 2
     elif change == 'missing':
@@ -56,13 +56,13 @@ def test_download_verifies_before_atomic_publish(tmp_path, monkeypatch, body):
         calls.append(url)
         return io.BytesIO(json.dumps(release()).encode() if len(calls) == 1 else body)
     if body == DATA:
-        result = updates.download('native-v0.2.0', tmp_path, progress.append, opener)
+        result = updates.download('Tubify-0.2.0', tmp_path, progress.append, opener)
         assert Path(result['path']).read_bytes() == DATA and progress[-1]['percent'] == 100
     else:
         with pytest.raises(ValueError):
-            updates.download('native-v0.2.0', tmp_path, progress.append, opener)
+            updates.download('Tubify-0.2.0', tmp_path, progress.append, opener)
         assert not list(tmp_path.iterdir())
-    assert calls[1] == updates.BASE+'native-v0.2.0/'+release()['assets'][0]['name']
+    assert calls[1] == updates.BASE+'Tubify-0.2.0/'+release()['assets'][0]['name']
 
 
 def test_interrupted_download_leaves_no_executable(tmp_path):
@@ -74,7 +74,7 @@ def test_interrupted_download_leaves_no_executable(tmp_path):
         calls.append(True)
         return io.BytesIO(json.dumps(release(updates.sys.platform)).encode()) if len(calls) == 1 else Broken()
     with pytest.raises(OSError):
-        updates.download('native-v0.2.0', tmp_path, opener=opener)
+        updates.download('Tubify-0.2.0', tmp_path, opener=opener)
     assert not list(tmp_path.iterdir())
 
 
@@ -86,7 +86,7 @@ def test_daily_checks_and_stale_cache_never_install(tmp_path, monkeypatch):
     service._check_due()
     worker = service._worker
     assert len(worker.requests) == 1
-    worker.succeeded.emit(1, {'tag':'native-v9.0.0', 'stale':True})
+    worker.succeeded.emit(1, {'tag':'Tubify-9.0.0', 'stale':True})
     assert not service.updateAvailable
     service._check_due()
     assert len(worker.requests) == 1
@@ -95,7 +95,7 @@ def test_daily_checks_and_stale_cache_never_install(tmp_path, monkeypatch):
     service._check_due()
     assert len(worker.requests) == 1
     service.checkRelease()
-    worker.succeeded.emit(2, {'tag':'native-v9.0.0'})
+    worker.succeeded.emit(2, {'tag':'Tubify-9.0.0'})
     assert service.updateAvailable
     service.close()
 
@@ -155,7 +155,7 @@ def test_appcast_contains_signed_versioned_download(tmp_path):
     archive.write_bytes(DATA)
     signature = base64.b64encode(b's'*64).decode()
     result = code.appcast('0.2.0', archive, signature).decode()
-    assert 'native-v0.2.0/Tubify-0.2.0-macos-arm64.dmg' in result and signature in result
+    assert 'Tubify-0.2.0/Tubify-0.2.0-macos-arm64.dmg' in result and signature in result
     with pytest.raises(ValueError):
         code.appcast('../escape', archive, signature)
 
@@ -200,20 +200,20 @@ def test_update_preferences_use_shell_config_not_replaceable_cache(tmp_path):
 
 
 def test_release_lookup_carries_bounded_plain_notes_and_restart_rechecks(tmp_path, monkeypatch):
-    rows = [{'tag_name': 'native-v0.3.0', 'body': 'Line one\r\n' + 'x' * 3000}, {'tag_name': 'native-v0.2.0', 'body': 'old'}]
+    rows = [{'tag_name': 'Tubify-0.3.0', 'body': 'Line one\r\n' + 'x' * 3000}, {'tag_name': 'Tubify-0.2.0', 'body': 'old'}]
     result = maintenance.lookup_release(lambda request, timeout: io.BytesIO(json.dumps(rows).encode()))
-    assert result['tag'] == 'native-v0.3.0' and result['notes'].startswith('Line one\n')
+    assert result['tag'] == 'Tubify-0.3.0' and result['notes'].startswith('Line one\n')
     assert len(result['notes']) <= maintenance.NOTES_LIMIT + 1 and result['notes'].endswith('…')
     app = QCoreApplication.instance() or QCoreApplication([])
     monkeypatch.setattr(updates, 'supported', lambda: True)
     cache = tmp_path/'cache/release.json'
     cache.parent.mkdir()
-    cache.write_text(json.dumps({'tag': 'native-v99.0.0', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
+    cache.write_text(json.dumps({'tag': 'Tubify-99.0.0', 'checkedAt': '2026-01-01T00:00:00+00:00'}))
     service = maintenance.Maintenance(cache, object(), worker_factory=Worker)
     # A cached newer release is re-confirmed at startup instead of trusted.
     assert service._known_newer() and not service.updateAvailable
     service.checkRelease()
-    service._worker.succeeded.emit(1, {'tag': 'native-v99.0.0', 'notes': 'Header indicator'})
+    service._worker.succeeded.emit(1, {'tag': 'Tubify-99.0.0', 'notes': 'Header indicator'})
     assert service.updateAvailable and service.latestName == 'Tubify 99.0.0' and service.releaseNotes == 'Header indicator'
     service.close()
 
@@ -228,7 +228,7 @@ def test_third_party_notices_ship_with_the_package():
 
 def test_linux_updates_find_the_tubify_named_package_and_the_legacy_name():
     for name in ('Tubify-0.2.1-linux-x86_64.pkg.tar.zst', 'youtube-music-native-0.2.1-1-x86_64.pkg.tar.zst'):
-        row = {'tag_name': 'native-v0.2.1', 'assets': [
+        row = {'tag_name': 'Tubify-0.2.1', 'assets': [
             {'name': name, 'digest': 'sha256:' + hashlib.sha256(DATA).hexdigest(), 'size': len(DATA)},
             {'name': 'Tubify-0.2.1-linux-source.tar.gz', 'digest': 'sha256:' + '0' * 64, 'size': 10}]}
         assert updates.select_asset(row, 'linux')['name'] == name
@@ -250,7 +250,7 @@ def test_linux_release_downloads_its_signature_beside_the_package(tmp_path, monk
     def opener(url, **kwargs):
         calls.append(url)
         return io.BytesIO(json.dumps(signed_release()).encode() if len(calls) == 1 else SIGNATURE if url.endswith('.sig') else DATA)
-    result = updates.download('native-v0.2.0', tmp_path, opener=opener)
+    result = updates.download('Tubify-0.2.0', tmp_path, opener=opener)
     assert Path(result['signature_path']).read_bytes() == SIGNATURE and Path(result['path']).read_bytes() == DATA
     # A changed signature download leaves nothing that could be installed.
     for item in tmp_path.iterdir():
@@ -260,7 +260,7 @@ def test_linux_release_downloads_its_signature_beside_the_package(tmp_path, monk
         calls.append(url)
         return io.BytesIO(json.dumps(signed_release()).encode() if len(calls) == 1 else b'c2lnbmF0dXJF\n' if url.endswith('.sig') else DATA)
     with pytest.raises(ValueError):
-        updates.download('native-v0.2.0', tmp_path, opener=tampered)
+        updates.download('Tubify-0.2.0', tmp_path, opener=tampered)
     assert not list(tmp_path.iterdir())
 
 

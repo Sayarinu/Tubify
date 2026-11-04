@@ -26,16 +26,16 @@ def opener(rows):
 
 
 def test_release_filters_wrapper_drafts_and_prerelease():
-    rows = [{"tag_name": "v9.0.0"}, {"tag_name": "native-v0.1.1"}, {"tag_name": "native-v0.2.0"}, {"tag_name": "native-v8.0.0", "draft": True}, {"tag_name": "native-v7.0.0", "prerelease": True}, {"tag_name": "native-v0.3.0-beta"}]
-    assert lookup_release(opener(rows))["tag"] == "native-v0.2.0"
+    rows = [{"tag_name": "v9.0.0"}, {"tag_name": "Tubify-0.1.1"}, {"tag_name": "Tubify-0.2.0"}, {"tag_name": "Tubify-8.0.0", "draft": True}, {"tag_name": "Tubify-7.0.0", "prerelease": True}, {"tag_name": "Tubify-0.3.0-beta"}]
+    assert lookup_release(opener(rows))["tag"] == "Tubify-0.2.0"
 
 
 def test_pagination_and_limit():
     calls = []
     def fetch(request, **kwargs):
         calls.append(request.full_url)
-        return io.BytesIO(json.dumps([{"tag_name": "v1.0.0"}] * 100 if len(calls) == 1 else [{"tag_name": "native-v0.1.1"}]).encode())
-    assert lookup_release(fetch)["tag"] == "native-v0.1.1"
+        return io.BytesIO(json.dumps([{"tag_name": "v1.0.0"}] * 100 if len(calls) == 1 else [{"tag_name": "Tubify-0.1.1"}]).encode())
+    assert lookup_release(fetch)["tag"] == "Tubify-0.1.1"
     assert len(calls) == 2 and calls[1].endswith("page=2")
     with pytest.raises(ValueError):
         lookup_release(opener([{}] * 100))
@@ -46,7 +46,7 @@ def test_pagination_and_limit():
 def test_offline_cache_is_labeled_and_corruption_is_safe(tmp_path):
     path = tmp_path / "release.json"
     payload = {"action": "release", "cache_path": str(path)}
-    fresh = perform(payload, opener([{"tag_name": "native-v0.1.1"}]))
+    fresh = perform(payload, opener([{"tag_name": "Tubify-0.1.1"}]))
     def offline(*args, **kwargs):
         raise OSError("private path or signed URL")
     cached = perform(payload, offline)
@@ -82,9 +82,9 @@ def test_idle_controller_starts_no_worker_and_errors_are_retryable(tmp_path):
     worker.failed.emit(1, {"message": "SECRET"})
     assert not service.busy and "SECRET" not in service.status
     service.checkRelease()
-    worker.succeeded.emit(2, {"tag": "native-v9.0.0", "checkedAt": "2026-10-23T00:00:00+00:00", "stale": True})
+    worker.succeeded.emit(2, {"tag": "Tubify-9.0.0", "checkedAt": "2026-10-23T00:00:00+00:00", "stale": True})
     assert "Last known" in service.status and "Retry" in service.status
-    assert service.releaseUrl.endswith("/native-v9.0.0")
+    assert service.releaseUrl.endswith("/Tubify-9.0.0")
     service.exportDiagnostics(QUrl("https://private.invalid/report"))
     assert len(worker.requests) == 2
     service.close()
