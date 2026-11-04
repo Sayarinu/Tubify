@@ -38,6 +38,7 @@ from .handoff import Handoff
 from .tray import TrayPlayer
 from .lifecycle import Lifecycle
 from .startup import StartupRegistration
+from .macos import trusts_certificates
 from .theme import ThemeState
 from .color_picker import ColorSampler
 from .maintenance import Maintenance
@@ -317,6 +318,9 @@ def main(argv=None):
             args.screenshot.parent.mkdir(parents=True, exist_ok=True)
             image = window.grabWindow()
             failed = failed or image.isNull() or not image.save(str(args.screenshot))
+        if not trusts_certificates():
+            print("HTTPS has no trusted certificates.", file=sys.stderr)
+            failed = True
         window.close()
         app.exit(1 if failed else 0)
 
