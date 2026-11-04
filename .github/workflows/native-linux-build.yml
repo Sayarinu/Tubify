@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  build-native-arch:
+  build-native-linux:
     name: Install and upgrade on Linux
     runs-on: ubuntu-24.04
     steps:
@@ -35,18 +35,18 @@ jobs:
           docker run --rm --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace archlinux:latest bash -lc '
             set -euo pipefail
             pacman -Syu --noconfirm --needed base-devel git
-            source packaging/arch-native/PKGBUILD
+            source packaging/linux/PKGBUILD
             pacman -S --noconfirm --needed "${depends[@]}" "${makedepends[@]}" "${checkdepends[@]}"
             useradd --create-home builder
             chown -R builder:builder /workspace
-            runuser -u builder -- ./scripts/build-native-arch-package.sh --noconfirm
+            runuser -u builder -- ./scripts/build-native-linux-package.sh --noconfirm
             packages=(/workspace/dist/native/*.pkg.tar.zst)
             sources=(/workspace/dist/native/*.src.tar.gz)
-            ./scripts/check-native-arch-package.sh "${packages[0]}" "${sources[0]}"
+            ./scripts/check-native-linux-package.sh "${packages[0]}" "${sources[0]}"
           '
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: native-arch-package
+          name: native-linux-package
           path: |
             dist/native/*.pkg.tar.zst
             dist/native/*.src.tar.gz

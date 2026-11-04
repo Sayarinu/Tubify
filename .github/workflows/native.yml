@@ -4,13 +4,13 @@ on:
   pull_request:
     paths:
       - 'native/**'
-      - 'packaging/macos-native/**'
-      - 'packaging/windows-native/**'
-      - 'packaging/arch-native/**'
+      - 'packaging/macos/**'
+      - 'packaging/windows/**'
+      - 'packaging/linux/**'
       - 'packaging/bundle_contents.py'
-      - 'scripts/build-native-arch-package.sh'
-      - 'scripts/check-native-arch-package.sh'
-      - '.github/workflows/native-arch-build.yml'
+      - 'scripts/build-native-linux-package.sh'
+      - 'scripts/check-native-linux-package.sh'
+      - '.github/workflows/native-linux-build.yml'
       - 'scripts/build-native-macos.sh'
       - 'scripts/make-macos-signing-identity.sh'
       - 'scripts/sign-native-macos.sh'
@@ -68,10 +68,10 @@ jobs:
           python3 scripts/native-release-version.py
           echo "Release version: $(grep '^version=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2) ($(grep '^level=' "$GITHUB_OUTPUT" | tail -n 1 | cut -d= -f2))" >> "$GITHUB_STEP_SUMMARY"
 
-  arch-app:
+  linux-app:
     name: Linux packages
     needs: version
-    uses: ./.github/workflows/native-arch-build.yml
+    uses: ./.github/workflows/native-linux-build.yml
     with:
       version: ${{ needs.version.outputs.version }}
 
@@ -276,7 +276,7 @@ jobs:
   # environment and sign with a throwaway identity, to test this same path.
   sign:
     name: Sign release downloads
-    needs: [version, macos-app, arch-app]
+    needs: [version, macos-app, linux-app]
     runs-on: macos-latest
     environment: ${{ needs.version.outputs.publish == 'true' && 'release' || '' }}
     steps:
@@ -289,7 +289,7 @@ jobs:
           path: unsigned
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: native-arch-package
+          name: native-linux-package
           path: unsigned
       - name: Install the pinned signing dependency
         if: needs.version.outputs.publish == 'true'
@@ -327,7 +327,7 @@ jobs:
           package="dist/native/Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
           cp unsigned/youtube-music-native-*-x86_64.pkg.tar.zst "$package"
           "$RUNNER_TEMP/signing/bin/python" -I native/src/youtube_music_native/updates/package_signature.py \
-            "$package" packaging/macos-native/sparkle-public-key.txt
+            "$package" packaging/macos/sparkle-public-key.txt
           test -s "$package.sig"
           rm "$package"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -363,7 +363,7 @@ jobs:
 
   release-assets:
     name: Assemble and verify all release downloads
-    needs: [version, shared-code, windows-app, macos-verify, sign, arch-app]
+    needs: [version, shared-code, windows-app, macos-verify, sign, linux-app]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -379,7 +379,7 @@ jobs:
           path: release
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: native-arch-package
+          name: native-linux-package
           path: release
       - name: Require every download type and generate checksums
         working-directory: release

@@ -218,7 +218,7 @@ def test_file_open_and_cold_start_are_deferred_until_ready(tmp_path):
 
 def test_package_registers_only_native_handler():
     root = Path(__file__).resolve().parents[2]
-    desktop = (root / "packaging/arch-native/youtube-music-native.desktop").read_text()
+    desktop = (root / "packaging/linux/youtube-music-native.desktop").read_text()
     assert "Exec=youtube-music-native -- %u" in desktop and "MimeType=x-scheme-handler/ytmusic-native;" in desktop
 
 

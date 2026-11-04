@@ -100,7 +100,7 @@ def test_daily_checks_and_stale_cache_never_install(tmp_path, monkeypatch):
     service.close()
 
 
-def test_arch_auth_cancel_relaunches_without_elevating_gui(tmp_path, monkeypatch):
+def test_linux_auth_cancel_relaunches_without_elevating_gui(tmp_path, monkeypatch):
     package = tmp_path/'package.pkg.tar.zst'
     package.write_bytes(DATA)
     def exited(pid, signal):
@@ -109,13 +109,13 @@ def test_arch_auth_cancel_relaunches_without_elevating_gui(tmp_path, monkeypatch
     calls = []
     monkeypatch.setattr(updates.subprocess, 'run', lambda argv: calls.append(argv) or SimpleNamespace(returncode=126))
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: calls.append(argv))
-    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest()) == 126
+    assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest()) == 126
     assert calls[0][:3] == ['/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/pacman']
     assert calls[1] == ['/usr/bin/youtube-music-native']
     assert json.loads((tmp_path/'result.json').read_text()) == {'success':False}
 
 
-def test_arch_password_fallback_installs_a_private_verified_copy(tmp_path, monkeypatch):
+def test_linux_password_fallback_installs_a_private_verified_copy(tmp_path, monkeypatch):
     package = tmp_path/'package.pkg.tar.zst'
     package.write_bytes(DATA)
     monkeypatch.setattr(updates.os, 'kill', lambda pid, signal: (_ for _ in ()).throw(ProcessLookupError()))
@@ -128,14 +128,14 @@ def test_arch_password_fallback_installs_a_private_verified_copy(tmp_path, monke
         installed.append((copy, copy.parent.stat().st_mode & 0o777, copy.read_bytes()))
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(updates.subprocess, 'run', run)
-    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest()) == 0
+    assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest()) == 0
     copy, mode, data = installed[0]
     assert copy.parent != tmp_path and copy.name == package.name and data == DATA
     if sys.platform != 'win32':
         assert mode == 0o700
     assert not copy.parent.exists()
     monkeypatch.setattr(updates.subprocess, 'run', lambda argv: pytest.fail('A changed package must not install'))
-    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest()) == 1
+    assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest()) == 1
 
 
 def test_tampered_installer_never_launches(tmp_path, monkeypatch):
@@ -264,7 +264,7 @@ def test_linux_release_downloads_its_signature_beside_the_package(tmp_path, monk
     assert not list(tmp_path.iterdir())
 
 
-def test_arch_signed_update_uses_the_passwordless_helper_when_installed(tmp_path, monkeypatch):
+def test_linux_signed_update_uses_the_passwordless_helper_when_installed(tmp_path, monkeypatch):
     package = tmp_path/'package.pkg.tar.zst'
     package.write_bytes(DATA)
     signature = tmp_path/'package.pkg.tar.zst.sig'
@@ -274,14 +274,14 @@ def test_arch_signed_update_uses_the_passwordless_helper_when_installed(tmp_path
     calls = []
     monkeypatch.setattr(updates.subprocess, 'run', lambda argv: calls.append(argv) or SimpleNamespace(returncode=0))
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: None)
-    monkeypatch.setattr(updates, 'ARCH_HELPER', str(helper))
+    monkeypatch.setattr(updates, 'LINUX_HELPER', str(helper))
     # Installs from before the helper existed still update, with the old password prompt.
-    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest(), signature) == 0
+    assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest(), signature) == 0
     assert calls[-1][2] == '/usr/bin/pacman'
     helper.write_text('')
-    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest(), signature) == 0
+    assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest(), signature) == 0
     assert calls[-1] == ['/usr/bin/pkexec', '--disable-internal-agent', str(helper), str(package), str(signature)]
-    assert updates.install_arch(123, package, hashlib.sha256(DATA).hexdigest()) == 0
+    assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest()) == 0
     assert calls[-1][2] == '/usr/bin/pacman'
 
 

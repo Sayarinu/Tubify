@@ -58,7 +58,7 @@ PY
 iconutil -c icns "$iconset" -o "$native_build_root/Tubify.icns"
 
 TUBIFY_ICON="$native_build_root/Tubify.icns" "$native_python" -m PyInstaller --noconfirm --clean \
-  --distpath "$native_build_root/dist" --workpath "$native_build_root/work" packaging/macos-native/Tubify.spec
+  --distpath "$native_build_root/dist" --workpath "$native_build_root/work" packaging/macos/Tubify.spec
 
 app="$native_build_root/dist/Tubify.app"
 [[ "$(lipo -archs "$app/Contents/MacOS/Tubify")" == "arm64" ]] || { printf '%s\n' 'Tubify executable is not arm64.' >&2; exit 1; }

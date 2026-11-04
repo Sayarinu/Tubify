@@ -1,4 +1,4 @@
-"""Ed25519 signatures that let the Arch update helper trust a downloaded package.
+"""Ed25519 signatures that let the Linux update helper trust a downloaded package.
 
 Releases are signed with the same update key as the macOS appcast. The root-owned
 helper only installs a package whose signature matches the installed public key,

@@ -65,7 +65,7 @@ app = BUNDLE(
     version=VERSION,
     info_plist={
         "CFBundleDisplayName": "Tubify",
-        "SUPublicEDKey": (ROOT / "packaging/macos-native/sparkle-public-key.txt").read_text().strip(),
+        "SUPublicEDKey": (ROOT / "packaging/macos/sparkle-public-key.txt").read_text().strip(),
         "SUFeedURL": "https://github.com/Sayarinu/Tubify/releases/download/" + release_tag(VERSION) + "/appcast.xml",
         "SUEnableAutomaticChecks": False,
         "SUAutomaticallyUpdate": False,

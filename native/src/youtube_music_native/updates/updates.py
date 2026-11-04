@@ -15,8 +15,8 @@ from urllib.request import Request, urlopen
 BASE = 'https://github.com/Sayarinu/Tubify/releases/download/'
 MAX_DOWNLOAD = 1024 * 1024 * 1024
 MAX_SIGNATURE = 4096
-# Installed by the Arch package: applies signed updates without a password prompt.
-ARCH_HELPER = '/usr/lib/youtube-music-native/apply-update'
+# Installed by the Linux package: applies signed updates without a password prompt.
+LINUX_HELPER = '/usr/lib/youtube-music-native/apply-update'
 # Release tags: Tubify-X.Y.Z (stable) and Tubify-Experimental-X.Y.ZbN (experimental).
 # Releases up to and including LEGACY_TAGS_THROUGH keep the original native-vVERSION tags: apps
 # from before the new tags only look for native-v, so 0.7.0 is the bridge they update through.
@@ -218,7 +218,7 @@ def verified_copy(path, digest, directory):
     return copy
 
 
-def install_arch(parent, package, digest, signature=None):
+def install_linux(parent, package, digest, signature=None):
     for _ in range(120):
         try:
             os.kill(parent, 0)
@@ -231,12 +231,12 @@ def install_arch(parent, package, digest, signature=None):
     result = 1
     try:
         with tempfile.TemporaryDirectory(prefix='tubify-update-') as private:
-            if signature and Path(ARCH_HELPER).is_file():
+            if signature and Path(LINUX_HELPER).is_file():
                 with path.open('rb') as handle:
                     if hashlib.file_digest(handle, 'sha256').hexdigest() != digest:
                         raise ValueError('Installer changed')
                 # The helper checks the release signature as root, so polkit allows it without a password.
-                command = [ARCH_HELPER, str(path), str(signature)]
+                command = [LINUX_HELPER, str(path), str(signature)]
             else:
                 # pacman installs whatever file it is given, so hand it a verified copy in a
                 # private directory rather than the file in the user-writable updates folder.
@@ -251,4 +251,4 @@ def install_arch(parent, package, digest, signature=None):
 
 
 if __name__ == '__main__':
-    raise SystemExit(install_arch(int(sys.argv[1]), sys.argv[2], sys.argv[3], *sys.argv[4:5]))
+    raise SystemExit(install_linux(int(sys.argv[1]), sys.argv[2], sys.argv[3], *sys.argv[4:5]))

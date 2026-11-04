@@ -1,4 +1,4 @@
-"""The root-owned Arch update helper that polkit allows without a password."""
+"""The root-owned Linux update helper that polkit allows without a password."""
 import base64
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
@@ -11,9 +11,9 @@ import pytest
 
 from youtube_music_native.updates import package_signature
 
-pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="The helper is only installed by the Arch package")
+pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="The helper is only installed by the Linux package")
 
-HELPER = Path(__file__).resolve().parents[2] / "packaging" / "arch-native" / "apply-update"
+HELPER = Path(__file__).resolve().parents[2] / "packaging" / "linux" / "apply-update"
 
 
 def load(tmp_path, monkeypatch, name="youtube-music-native", version="0.3.0-1", installed="0.2.0-1"):

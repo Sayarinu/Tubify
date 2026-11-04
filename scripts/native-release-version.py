@@ -36,7 +36,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "native/pyproject.toml"
-PKGBUILD = ROOT / "packaging/arch-native/PKGBUILD"
+PKGBUILD = ROOT / "packaging/linux/PKGBUILD"
 VERSION_LINE = re.compile(r'^version = "(\d+)\.(\d+)\.(\d+)"$', re.M)
 STABLE_BRANCH, EXPERIMENTAL_BRANCH = "refs/heads/main", "refs/heads/experimental"
 # Label names are matched case-insensitively; the release:* names are accepted from older PRs.

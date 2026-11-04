@@ -47,7 +47,7 @@ if [[ -n "${TUBIFY_SPARKLE_PRIVATE_KEY:-}" ]]; then
   mkdir "$work/sparkle"
   tar -xf "$work/sparkle.tar.xz" -C "$work/sparkle"
   # Fail closed if a secret was rotated without updating the bundled trust anchor.
-  swift scripts/check-sparkle-key.swift packaging/macos-native/sparkle-public-key.txt
+  swift scripts/check-sparkle-key.swift packaging/macos/sparkle-public-key.txt
   signature="$(python3 -I native/sign_update.py "$work/sparkle/bin/sign_update" "$image")"
   python3 -I scripts/native-appcast.py "$version" "$image" "$signature" "$output/appcast.xml"
 fi

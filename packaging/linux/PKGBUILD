@@ -30,25 +30,25 @@ check() {
   python -m pytest native/tests -q
   python native/tests/smoke_runtime.py
   dbus-run-session -- python native/tests/smoke_desktop.py
-  desktop-file-validate packaging/arch-native/youtube-music-native.desktop
+  desktop-file-validate packaging/linux/youtube-music-native.desktop
 }
 
 package() {
   cd "${srcdir}/${pkgname}-${pkgver}"
   python -m installer --destdir="$pkgdir" native/dist/*.whl
-  install -Dm644 packaging/arch-native/youtube-music-native.desktop \
+  install -Dm644 packaging/linux/youtube-music-native.desktop \
     "$pkgdir/usr/share/applications/youtube-music-native.desktop"
   install -Dm644 native/src/youtube_music_native/assets/music.svg \
     "$pkgdir/usr/share/icons/hicolor/scalable/apps/tubify.svg"
   # Signed in-app updates: a root-owned helper that polkit lets local wheel users run
   # without a password; it installs only newer packages signed with the release key.
-  install -Dm755 packaging/arch-native/apply-update \
+  install -Dm755 packaging/linux/apply-update \
     "$pkgdir/usr/lib/$pkgname/apply-update"
-  install -Dm644 packaging/macos-native/sparkle-public-key.txt \
+  install -Dm644 packaging/macos/sparkle-public-key.txt \
     "$pkgdir/usr/lib/$pkgname/update-public-key"
-  install -Dm644 packaging/arch-native/studio.nouvellelune.tubify.update.policy \
+  install -Dm644 packaging/linux/studio.nouvellelune.tubify.update.policy \
     "$pkgdir/usr/share/polkit-1/actions/studio.nouvellelune.tubify.update.policy"
-  install -Dm644 packaging/arch-native/50-tubify-update.rules \
+  install -Dm644 packaging/linux/50-tubify-update.rules \
     "$pkgdir/usr/share/polkit-1/rules.d/50-tubify-update.rules"
   install -Dm644 native/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 native/src/youtube_music_native/assets/Roboto-OFL.txt \

@@ -16,21 +16,30 @@ python -m pytest tests -q
 
 Playback needs FFmpeg and Deno on `PATH`, and libmpv where the system library loader can find it: installed system-wide or on `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS). On Windows, libmpv's DLL directory must be on `PATH`.
 
+## Repository layout
+
+| Path | Holds |
+|---|---|
+| `native/src/youtube_music_native/` | The app. Core modules are at the top; features are in `account/`, `catalog/`, `playback/`, `lyrics/`, `artwork/`, `downloads/`, `integrations/`, `system/` and `updates/`. |
+| `native/src/youtube_music_native/qml/` | The UI: `Main.qml`, then `components/`, `pages/`, `player/`, `settings/`, `dialogs/` and `shell/`. |
+| `native/tests/` | Unit tests (`test_*`) and smoke tests (`smoke_*`). |
+| `packaging/` | Package definitions, in `linux/`, `macos/` and `windows/`. |
+| `scripts/` | Build, signing and release tools. |
+| `docs/` | This documentation. |
+
 ## Packages
 
-Build each package on its own operating system:
+Build each package on its own operating system. Requirements and details are on each platform's page.
 
-| Platform | Command | Output |
+| Platform | Page | Output |
 |---|---|---|
-| Linux x86_64 (pacman) | `./scripts/build-native-arch-package.sh` | `dist/native/youtube-music-native-*.pkg.tar.zst` (published as `Tubify-<version>-linux-x86_64.pkg.tar.zst`) |
-| macOS (Apple Silicon) | `./scripts/build-native-macos.sh` | `dist/native/Tubify-<version>-macos-arm64.dmg` |
-| Windows x64 | `./scripts/build-native-windows.ps1` | `dist/native/Tubify-<version>-windows-x64-setup.exe` |
-
-Platform notes are in [`platforms/macos`](../platforms/macos/README.md) and [`platforms/windows`](../platforms/windows/README.md).
+| Linux x86_64 (pacman) | [Linux](platforms/linux.md) | `Tubify-<version>-linux-x86_64.pkg.tar.zst` |
+| macOS (Apple Silicon) | [macOS](platforms/macos.md) | `Tubify-<version>-macos-arm64.dmg` |
+| Windows x64 | [Windows](platforms/windows.md) | `Tubify-<version>-windows-x64-setup.exe` |
 
 ## Releases
 
-Every merge to `main` is built, tested on all three platforms and published as a versioned release. A pull request's label decides how big the version bump is: no label for a patch, **Feature** for a minor bump, **Major Release** for a major bump. The full release process is in [`docs/releases`](releases/README.md).
+See [Releases](releases.md).
 
 ## Licensing
 
@@ -40,4 +49,4 @@ Tubify is MIT licensed (see [`LICENSE`](../LICENSE)). Packages that bundle third
 
 Both builds bundle Qt themselves, so `native/pyproject.toml` depends on `PySide6-Essentials`, not the full `PySide6`, which adds Chromium, 3D and charting. [`packaging/bundle_contents.py`](../packaging/bundle_contents.py) then keeps only the QML modules and Controls style Tubify uses, drops Qt's translations and fails the build if a finished bundle holds unneeded files or passes its size limits.
 
-If you import a new Qt module in Python or QML, add it to that file. `native/tests/test_bundle_contents.py` fails until you do. The Arch package uses the system's Qt and isn't affected.
+If you import a new Qt module in Python or QML, add it to that file. `native/tests/test_bundle_contents.py` fails until you do. The Linux package uses the system's Qt and isn't affected.
