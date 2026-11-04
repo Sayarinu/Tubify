@@ -84,6 +84,8 @@ Open the disk image and drag **Tubify** to **Applications**. Tubify isn't notari
 sudo pacman -U Tubify-<version>-linux-x86_64.pkg.tar.zst
 ```
 
+Download only the `.pkg.tar.zst` file. If a `.pkg.tar.zst.sig` file from the release is in the same folder, pacman reads it as a GPG signature and reports a corrupted package; delete that file and try again.
+
 pacman installs everything Tubify needs. In-app updates install without a password for administrators (members of `wheel`) signed in at the machine. Tubify checks that each update is a newer release signed with its release key before installing it. Other accounts are asked for an administrator password. The first update from a version without this feature asks for your password one last time.
 
 </details>

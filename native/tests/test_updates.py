@@ -264,6 +264,21 @@ def test_a_release_without_a_signature_is_refused(system):
         updates.select_asset(row, system)
 
 
+def test_linux_prefers_the_signature_name_pacman_ignores():
+    row = release('linux')
+    package = row['assets'][0]['name']
+    row['assets'].append(asset_row(package + '.ed25519', SIGNATURE))
+    assert updates.select_asset(row, 'linux')['signature']['name'] == package + '.ed25519'
+    del row['assets'][1]
+    assert updates.select_asset(row, 'linux')['signature']['name'] == package + '.ed25519'
+
+
+def test_releases_with_only_the_older_signature_name_still_install():
+    row = release('linux')
+    assert updates.select_asset(row, 'linux')['signature']['name'] == row['assets'][0]['name'] + '.sig'
+    assert updates.select_asset(release('win32'), 'win32')['signature']['name'].endswith('.exe.sig')
+
+
 def test_macos_relies_on_sparkle_rather_than_a_separate_signature():
     assert 'signature' not in updates.select_asset(release('darwin'), 'darwin')
 
