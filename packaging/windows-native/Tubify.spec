@@ -38,7 +38,7 @@ analysis = Analysis(
         + collect_submodules("winrt")
         + ["PySide6.QtNetwork", "keyring.backends.Windows"]
     ),
-    excludes=["tkinter", "jeepney", "gi", "PySide6.QtTest"],
+    excludes=["tkinter", "jeepney", "gi", "PySide6.QtTest", "setuptools", "pkg_resources"],
 )
 # PyInstaller collects every QML module and style Qt provides; keep only what Tubify uses.
 analysis.binaries = needed_entries(analysis.binaries)

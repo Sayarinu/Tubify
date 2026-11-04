@@ -45,7 +45,7 @@ analysis = Analysis(
         "PySide6.QtNetwork",
         "MediaPlayer", "AppKit", "Foundation", "keyring.backends.macOS",
     ],
-    excludes=["tkinter", "jeepney", "gi", "PySide6.QtTest"],
+    excludes=["tkinter", "jeepney", "gi", "PySide6.QtTest", "setuptools", "pkg_resources"],
 )
 # PyInstaller collects every QML module and style Qt provides; keep only what Tubify uses.
 analysis.binaries = needed_entries(analysis.binaries)

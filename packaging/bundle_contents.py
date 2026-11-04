@@ -16,7 +16,8 @@ import sys
 UNNEEDED_QT_LIBRARY = re.compile(
     r"^(lib)?Qt6?("
     r"3D|Bluetooth|Charts|DataVisualization|Designer|Graphs|Help|HttpServer|LabsAnimation|LabsSharedImage|LabsStyleKit|LabsSynchronizer|"
-    r"LabsWavefrontMesh|Location|Multimedia|Nfc|Pdf|Positioning|Quick3D|QuickControls2(FluentWinUI3|Fusion|Imagine|Material|Universal|Windows)|"
+    r"LabsWavefrontMesh|Location|Multimedia|Nfc|Pdf|Positioning|QmlDesignSupport|QmlLocalStorage|QmlXmlListModel|Quick3D|"
+    r"QuickControls2(FluentWinUI3|Fusion|Imagine|Material|Native|Universal|Windows)|QuickNativeStyle|QuickShapesDesignHelpers|"
     r"QuickDesigner|QuickParticles|QuickScene2D|QuickScene3D|QuickTest|QuickTimeline|QuickVectorImage|RemoteObjects|Scxml|Sensors|SerialBus|"
     r"SerialPort|Sql|StateMachine|Test|TextToSpeech|UiTools|VirtualKeyboard|WebChannel|WebEngine|WebSockets|WebView"
     r")",
@@ -24,7 +25,7 @@ UNNEEDED_QT_LIBRARY = re.compile(
 # Under PySide6's qml folder, the only modules Tubify's QML and Qt's file dialogs import.
 NEEDED_QML_MODULES = ("Qt/labs/folderlistmodel", "Qt/labs/qmlmodels", "QtCore", "QtQml", "QtQuick")
 UNNEEDED_QUICK_MODULES = {
-    "LocalStorage", "Particles", "Pdf", "Scene2D", "Scene3D", "Timeline", "tooling", "VectorImage", "VirtualKeyboard",
+    "LocalStorage", "NativeStyle", "Particles", "Pdf", "Scene2D", "Scene3D", "Timeline", "tooling", "VectorImage", "VirtualKeyboard",
 }
 NEEDED_CONTROLS_FOLDERS = {"Basic", "impl"}
 UNNEEDED_QT_PLUGINS = {"designer", "generic", "qmltooling", "sqldrivers"}
@@ -41,7 +42,7 @@ def _qml_file_is_needed(path):
     if not any(path == module or path.startswith(module + "/") for module in NEEDED_QML_MODULES):
         return False
     parts = path.split("/")
-    if parts[:2] == ["QtQml", "StateMachine"]:
+    if parts[0] == "QtQml" and len(parts) > 2 and parts[1] in {"StateMachine", "XmlListModel"}:
         return False
     # QtQuick/Dialogs/quickimpl/qml/+Material and the like are per-style file dialog variants.
     if any(part.startswith("+") for part in parts):

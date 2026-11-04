@@ -72,7 +72,7 @@ try {
     $bundled = @($roots) + @(Get-UcrtDependencies $roots) + @($deno)
     $bundled | Sort-Object -Unique | ForEach-Object { Copy-Item -LiteralPath $_ -Destination $helpers -Force }
 
-    & $python packaging/bundle_contents.py $appOutput --max-files 1200 --max-mb 750
+    & $python packaging/bundle_contents.py $appOutput --max-files 700 --max-mb 480
     if ($LASTEXITCODE -ne 0) { throw "The Tubify bundle ships more than it needs." }
 
     $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
