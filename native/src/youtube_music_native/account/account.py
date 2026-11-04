@@ -20,6 +20,7 @@ class Account(QObject):
     changed = Signal()
     connectedChanged = Signal()
     sessionChanged = Signal()
+    signedOut = Signal()
 
     def __init__(self, settings_path, fixture=False, worker=None, parent=None, clock=time.time,
                  open_url=QDesktopServices.openUrl, default_browser=browsers.default_browser):
@@ -218,6 +219,8 @@ class Account(QObject):
         self.connectedChanged.emit()
         if self._operation in {"import_session", "import_browser", "sign_out"}:
             self.sessionChanged.emit()
+        if self._operation == "sign_out":
+            self.signedOut.emit()
         captured = result.get("captured") or 0
         if self._operation == "restore" and self._connected and captured and self._clock() - captured > RENEW_AFTER:
             # Refresh rotating Google cookies before they lapse; failure leaves the current session alone.

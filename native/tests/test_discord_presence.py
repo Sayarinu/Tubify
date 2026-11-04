@@ -7,6 +7,8 @@ from PySide6.QtCore import QCoreApplication, QObject, QSettings, Signal
 from PySide6.QtNetwork import QLocalServer
 from PySide6.QtTest import QTest
 
+import pytest
+
 from youtube_music_native.integrations.discord_presence import DEFAULT_APPLICATION_ID, DiscordPipe, DiscordPresence, activity_for, ipc_paths
 
 
@@ -95,6 +97,15 @@ def test_paths_are_platform_local():
     paths = ipc_paths("linux", {"XDG_RUNTIME_DIR": "/fixture/runtime"})
     assert paths[0] == "/fixture/runtime/discord-ipc-0"
     assert "/fixture/runtime/app/com.discordapp.Discord/discord-ipc-0" in paths
+
+
+@pytest.mark.parametrize("environment", [{}, {"TMPDIR": "/tmp"}, {"TMPDIR": "/tmp/", "TEMP": "/tmp"}])
+def test_shared_tmp_is_never_searched_for_the_discord_socket(environment):
+    assert not [path for path in ipc_paths("linux", environment) if path.startswith("/tmp/")]
+
+
+def test_a_private_temporary_directory_is_still_searched():
+    assert "/private/var/folders/xy/T/discord-ipc-0" in ipc_paths("darwin", {"TMPDIR": "/private/var/folders/xy/T/"})
 
 
 def test_disabled_idle_then_state_transitions_and_throttle(tmp_path):

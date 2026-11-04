@@ -2,10 +2,24 @@
 
 import json
 from pathlib import Path
+import sqlite3
 import time
 import zlib
 
 from .database import connect
+
+
+def wipe_metadata(path):
+    """Best effort after sign-out; a cache that can't be opened holds nothing the app will read."""
+    store = None
+    try:
+        store = MetadataStore(path)
+        store.wipe()
+    except (OSError, sqlite3.Error):
+        pass
+    finally:
+        if store:
+            store.close()
 
 
 class MetadataStore:
@@ -48,6 +62,12 @@ class MetadataStore:
                 if route not in keep_routes:
                     stale.append((key,))
             self.db.executemany("DELETE FROM views WHERE key=?", stale)
+
+    def wipe(self):
+        """Remove every cached view from disk, including the free pages SQLite would otherwise keep."""
+        with self.db:
+            self.db.execute("DELETE FROM views")
+        self.db.execute("VACUUM")
 
     def close(self):
         self.db.close()

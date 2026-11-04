@@ -20,6 +20,15 @@ class ProbeError(RuntimeError):
     pass
 
 
+def private_directory(path):
+    """Create a per-user data directory, tightening one left more open by an earlier version or by umask."""
+    path = Path(path)
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if sys.platform != "win32":
+        path.chmod(0o700)
+    return path
+
+
 def hidden_window():
     """Keyword arguments that stop a console program flashing a window on Windows."""
     if os.name == "nt":

@@ -43,7 +43,8 @@ def ipc_paths(platform=sys.platform, environment=None):
     env = os.environ if environment is None else environment
     if platform == "win32":
         return ["discord-ipc-" + str(index) for index in range(10)]
-    roots = list(dict.fromkeys(env.get(key) for key in ("XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP") if env.get(key))) + ["/tmp"]
+    # Shared /tmp is left out: another local user could create the socket there and read what's playing.
+    roots = list(dict.fromkeys(env.get(key) for key in ("XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP") if env.get(key) and env[key].rstrip("/") != "/tmp"))
     # Flatpak exposes the same IPC endpoint beneath its application runtime folder.
     roots += [str(PurePosixPath(root) / "app/com.discordapp.Discord") for root in roots[:]]
     return [str(PurePosixPath(root) / ("discord-ipc-" + str(index))) for root in dict.fromkeys(roots) for index in range(10)]

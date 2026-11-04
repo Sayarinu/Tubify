@@ -969,3 +969,17 @@ def test_queue_rows_notify_only_when_the_queue_changes(tmp_path):
     player.appendContext([{"videoId": "wxyzabcdefg", "title": "Last"}])
     assert notified and player.entries[-1]["title"] == "Last"
     player.close()
+
+
+def test_forgetting_the_queue_leaves_nothing_on_disk(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.playTracks(TRACKS, 0, "Private playlist")
+    player.forgetQueue()
+    assert not player.hasTrack and not player.playing
+    player.close()
+    saved = (tmp_path / "playback.json").read_text()
+    assert TRACKS[0]["title"] not in saved and "Private playlist" not in saved
+    restored = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    assert not restored.hasTrack
+    restored.close()
