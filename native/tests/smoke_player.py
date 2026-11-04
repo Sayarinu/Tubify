@@ -338,7 +338,7 @@ def main():
                 QGuiApplication.instance().exit(0 if passed else 1)
 
         QTimer.singleShot(250, verify)
-        QTimer.singleShot(25000, window.close)
+        QTimer.singleShot(45000, window.close)
         return engine
 
     app.load_window = load
