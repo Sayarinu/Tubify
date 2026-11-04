@@ -173,6 +173,15 @@ class Lounge(QObject):
             self.stop()
             self.start()
 
+    def forget(self):
+        """Drop this screen's identity; a new one is created on the next connection, with no phones paired."""
+        running = self._running
+        self.stop()
+        self.settings.remove("cast/screenId")
+        self.session.token, self.session.token_expiry = "", 0
+        if running:
+            self.start()
+
     def send(self, name, payload=None):
         if self.ready:
             self._outbox.append((name, {key: str(value) for key, value in (payload or {}).items()}))
