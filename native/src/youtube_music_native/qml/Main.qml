@@ -315,7 +315,8 @@ ApplicationWindow {
             x: covering ? coverArea.x - content.x : 0
             y: covering ? coverArea.y - content.y : 0
             width: covering ? coverArea.width : parent.width
-            height: covering ? coverArea.height : parent.height
+            // The player reaches the bar; pages keep their gap above it.
+            height: covering ? coverArea.height : parent.height + content.anchors.bottomMargin
             z: 1
             // Stays loaded between opens, so its artwork is already on screen when it slides in.
             active: playerState.hasTrack || appState.expanded || window.immersiveClosing
@@ -333,8 +334,9 @@ ApplicationWindow {
                 if (!covering) {
                     // Opening computes the area the pane will fill once the sidebar and header have gone.
                     var bannerHeight = reconnectBanner.visible ? reconnectBanner.height : 0
-                    coverArea = entering ? Qt.rect(0, bannerHeight, content.x + content.width, content.y + content.height - bannerHeight)
-                                         : Qt.rect(content.x, content.y, content.width, content.height)
+                    var gap = content.anchors.bottomMargin
+                    coverArea = entering ? Qt.rect(0, bannerHeight, content.x + content.width, content.y + content.height + gap - bannerHeight)
+                                         : Qt.rect(content.x, content.y, content.width, content.height + gap)
                 }
                 window.immersiveOpening = entering && !appState.reducedMotion
                 window.immersiveClosing = !entering && !appState.reducedMotion
@@ -397,6 +399,15 @@ ApplicationWindow {
             onResized: function(value) { appState.setQueueWidth(value) }
             onFinished: appState.saveSidebarWidths()
         }
+    }
+
+    // The bar floats with margins around it; the sliding player must not show through them.
+    Rectangle {
+        objectName: "playerBarBackdrop"
+        visible: immersive.covering
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        anchors.top: player.top
+        color: themeState.background
     }
 
     PlayerBar {

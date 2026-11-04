@@ -153,6 +153,8 @@ def main():
                         assert browsing.property("contentY") == old_scroll
                         assert find("queuePane") == queue_pane and find("lyricsPane") == lyrics_pane
                         assert find("playerBar") == transport and transport.isVisible()
+                        # The stage's backdrop reaches the bar, with no strip of page colour between them.
+                        assert abs(stage.mapToScene(QPointF(0, stage.height())).y() - transport.mapToScene(QPointF()).y()) < 1
                         tabbed = queue_open and lyrics_open and size[0] < 1040
                         assert bool(find("queueSidebar").isVisible()) == (queue_open and (not tabbed or shell.activeDock == "Queue"))
                         lyric_visible = lyrics_open and (not tabbed or shell.activeDock == "Lyrics")
@@ -197,7 +199,14 @@ def main():
                     settle()
                 shell.setQueueOpen(False)
                 shell.setLyricsOpen(False)
+                # While the stage slides, nothing shows through the margins around the bar.
                 shell.setExpanded(True)
+                assert window.property("immersiveOpening") and find("playerBarBackdrop").isVisible()
+                backdrop_bounds = find("playerBarBackdrop").mapRectToScene(find("playerBarBackdrop").boundingRect())
+                assert backdrop_bounds.bottom() >= window.height() - 1 and backdrop_bounds.left() <= 0 and backdrop_bounds.right() >= window.width() - 1
+                while window.property("immersiveOpening"):
+                    QTest.qWait(10)
+                assert not find("playerBarBackdrop").isVisible()
                 settle()
                 # Bottom controls toggle the same panels without leaving the stage.
                 QMetaObject.invokeMethod(find("queueToggle"), "clicked")
