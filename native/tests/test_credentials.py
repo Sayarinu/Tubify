@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from youtube_music_native.account.credentials import CHUNK_SIZE, Credentials, CredentialError, SERVICE, USERNAME, default_chunk_size, secure_backend, single_record
+from youtube_music_native.account.credentials import CHUNK_SIZE, Credentials, CredentialError, OLD_ENTRIES, OLD_SERVICE, SERVICE, USERNAME, remove_old_entries, default_chunk_size, secure_backend, single_record
 from youtube_music_native.account.session import from_headers
 
 
@@ -160,3 +160,34 @@ def test_failed_single_record_save_keeps_the_previous_session():
 
 def test_only_macos_defaults_to_a_single_record():
     assert single_record("darwin") and not single_record("win32") and not single_record("linux")
+
+
+def old_session(backend, **options):
+    Credentials(backend, service=OLD_SERVICE, **options).save(session(), {"name": "Synthetic"})
+
+
+@pytest.mark.parametrize("options", [{"inline": True}, {"inline": False, "chunk_size": 64}])
+def test_old_entries_are_removed_and_never_read_as_the_session(options):
+    backend = Vault()
+    old_session(backend, **options)
+    backend.values[OLD_ENTRIES[0]] = "synthetic-lyrics-key"
+    assert Credentials(backend).load() is None
+    remove_old_entries(backend)
+    assert not backend.values
+
+
+def test_removing_old_entries_leaves_the_current_session_alone():
+    backend = Vault()
+    Credentials(backend).save(session(), {"name": "Synthetic"})
+    old_session(backend)
+    remove_old_entries(backend)
+    assert Credentials(backend).load().profile == {"name": "Synthetic"}
+    assert not [key for key in backend.values if key[0].startswith(OLD_SERVICE)]
+
+
+def test_an_unreadable_old_entry_does_not_block_startup():
+    backend = Vault()
+    backend.values[OLD_SERVICE, USERNAME] = "malformed"
+    remove_old_entries(backend)
+    assert not backend.values
+    remove_old_entries(backend)

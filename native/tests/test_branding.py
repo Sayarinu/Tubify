@@ -31,8 +31,20 @@ def test_tubify_display_name_preserves_package_desktop_and_credential_ids():
     assert desktop["Icon"] == "tubify"
     packaging = (NATIVE.parent / "packaging/linux/PKGBUILD").read_text()
     assert '$pkgdir/usr/share/icons/hicolor/scalable/apps/tubify.svg' in packaging
-    assert APP_ID == "com.carter.youtube-music-native"
-    assert (SERVICE, USERNAME) == ("com.carter.youtube-music.native", "session")
+    assert APP_ID == "studio.nouvellelune.tubify"
+    assert (SERVICE, USERNAME) == ("studio.nouvellelune.tubify", "session")
+
+
+def test_the_old_personal_identifier_is_only_used_to_clean_up():
+    # Old entries must be found to be removed, so the name stays in exactly these two modules.
+    allowed = {"account/credentials.py", "system/startup.py"}
+    package = NATIVE / "src/youtube_music_native"
+    found = {str(path.relative_to(package)).replace("\\", "/") for path in package.rglob("*")
+             if path.suffix in {".py", ".qml", ".js"} and "com.carter" in path.read_text(encoding="utf-8")}
+    assert found == allowed
+    # The Linux source package doesn't include the other platforms' packaging.
+    for spec in (NATIVE.parent / "packaging").glob("*/Tubify.spec"):
+        assert "com.carter" not in spec.read_text(encoding="utf-8")
 
 
 def test_mpris_display_branding_keeps_desktop_and_bus_identifiers():

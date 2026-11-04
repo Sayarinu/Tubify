@@ -10,7 +10,10 @@ from uuid import uuid4
 from .session import Session
 
 
-SERVICE = "com.carter.youtube-music.native"
+SERVICE = "studio.nouvellelune.tubify"
+# Entries earlier builds left behind. They are only ever deleted, never read back into use.
+OLD_SERVICE = "com.carter.youtube-music.native"
+OLD_ENTRIES = ((OLD_SERVICE + ".lyrics", "better-lyrics"),)
 USERNAME = "session"
 # Windows credentials allow 2560 bytes. ASCII chunks also fit UTF-16 encoding.
 CHUNK_SIZE = 800
@@ -65,13 +68,14 @@ class StoredAccount:
 
 
 class Credentials:
-    def __init__(self, backend=None, chunk_size=None, inline=None):
+    def __init__(self, backend=None, chunk_size=None, inline=None, service=SERVICE):
+        self.service = service
         self.chunk_size = chunk_size or default_chunk_size()
         self.inline = single_record() if inline is None else inline
         self.backend = backend if backend is not None else secure_backend()
 
     def _manifest(self):
-        raw = self.backend.get_password(SERVICE, USERNAME)
+        raw = self.backend.get_password(self.service, USERNAME)
         if raw is None:
             return None
         try:
@@ -93,7 +97,7 @@ class Credentials:
         return manifest
 
     def _chunk_service(self, manifest, index):
-        return f"{SERVICE}.session.{manifest['id']}.{index}"
+        return f"{self.service}.session.{manifest['id']}.{index}"
 
     def _remove_chunks(self, manifest):
         if manifest:
@@ -129,7 +133,7 @@ class Credentials:
                 previous = None
             encoded = base64.b64encode(json.dumps({"session": session.to_payload(), "profile": profile}, separators=(",", ":")).encode()).decode("ascii")
             if self.inline and len(encoded) <= LARGE_CHUNK:
-                self.backend.set_password(SERVICE, USERNAME, json.dumps({"version": 2, "data": encoded}))
+                self.backend.set_password(self.service, USERNAME, json.dumps({"version": 2, "data": encoded}))
                 self._remove_chunks(previous)
                 return
             parts = [encoded[index:index + self.chunk_size] for index in range(0, len(encoded), self.chunk_size)]
@@ -142,7 +146,7 @@ class Credentials:
                     self.backend.set_password(self._chunk_service(manifest, index), USERNAME, part)
                 # Commit the pointer only after all secret chunks are safely stored.
                 committing = True
-                self.backend.set_password(SERVICE, USERNAME, json.dumps(manifest))
+                self.backend.set_password(self.service, USERNAME, json.dumps(manifest))
             except Exception:
                 # A lost vault reply can follow a successful commit. Keep chunks
                 # when the pointer outcome is uncertain instead of breaking it.
@@ -160,11 +164,26 @@ class Credentials:
             try:
                 manifest = self._manifest()
             except CorruptManifest:
-                self.backend.delete_password(SERVICE, USERNAME)
+                self.backend.delete_password(self.service, USERNAME)
                 return
             if manifest is None:
                 return
-            self.backend.delete_password(SERVICE, USERNAME)
+            self.backend.delete_password(self.service, USERNAME)
             self._remove_chunks(manifest)
         except Exception:
             raise CredentialError("Sign-out could not clear the session. Unlock your keyring and retry.") from None
+
+
+def remove_old_entries(backend=None):
+    """Delete what earlier builds stored under the old identifier. Raises CredentialError if the keyring is unavailable."""
+    backend = backend if backend is not None else secure_backend()
+    try:
+        Credentials(backend, service=OLD_SERVICE).clear()
+    except CredentialError:
+        # An entry this build isn't allowed to touch shouldn't block sign-in or ask again on every launch.
+        pass
+    for service, name in OLD_ENTRIES:
+        try:
+            backend.delete_password(service, name)
+        except Exception:
+            pass

@@ -65,7 +65,7 @@ app = BUNDLE(
     collected,
     name="Tubify.app",
     icon=os.environ.get("TUBIFY_ICON"),
-    bundle_identifier="com.carter.youtube-music.native",
+    bundle_identifier="studio.nouvellelune.tubify",
     version=VERSION,
     info_plist={
         "CFBundleDisplayName": "Tubify",
@@ -82,7 +82,7 @@ app = BUNDLE(
         "LSMinimumSystemVersion": "12.0",
         "LSApplicationCategoryType": "public.app-category.music",
         "NSHighResolutionCapable": True,
-        "CFBundleURLTypes": [{"CFBundleURLName": "com.carter.youtube-music.native", "CFBundleURLSchemes": ["ytmusic-native"]}],
+        "CFBundleURLTypes": [{"CFBundleURLName": "studio.nouvellelune.tubify", "CFBundleURLSchemes": ["ytmusic-native"]}],
         # Mobile Sync (off by default) answers SSDP/DIAL discovery on the local network.
         "NSLocalNetworkUsageDescription": "Tubify uses your local network so the YouTube Music app on your phone can cast to it, when you turn on Cast from Phone.",
     },
