@@ -177,7 +177,7 @@ class Maintenance(QObject):
         self.window = None
         self.prepare_restart = lambda: None
         self._tag, self._available, self._progress = "", False, 0
-        self._notes, self._downgrade = "", False
+        self._notes, self._downgrade, self._switching = "", False, False
         self._mac = None
         self.settings = getattr(shell, "settings", None)
         if self.settings is None:
@@ -210,6 +210,11 @@ class Maintenance(QObject):
 
     @Property(bool, notify=changed)
     def switchingChannel(self):
+        """The offered build moves this install onto the selected channel."""
+        return self._available and self._switching
+
+    @Property(bool, notify=changed)
+    def downgrading(self):
         """The offered build is an older stable release replacing an experimental one."""
         return self._available and self._downgrade
 
@@ -220,7 +225,7 @@ class Maintenance(QObject):
         self._channel = channel
         self.settings.setValue("updates/channel", channel)
         self.settings.sync()
-        self._tag, self._available, self._downgrade, self._notes = "", False, False, ""
+        self._tag, self._available, self._downgrade, self._switching, self._notes = "", False, False, False, ""
         self.changed.emit()
         self.checkRelease()
 
@@ -293,12 +298,17 @@ class Maintenance(QObject):
         except (OSError, ValueError, TypeError, AttributeError):
             return False
 
+    def _channel_differs(self):
+        """The selected channel isn't the one this build came from, so a switch may be waiting."""
+        return updates.is_experimental(self.currentVersion) != (self._channel == "experimental")
+
     def start(self):
         if self.installSupported:
             self.timer.start()
-            # Re-confirm a known update right away so the header indicator returns
+            # Re-confirm a known update or a chosen switch right away so the offer returns
             # after a restart; cached data alone never advertises an install.
-            QTimer.singleShot(3000 if self._known_newer() else 5000, self.checkRelease if self._known_newer() else self._check_due)
+            due = self._known_newer() or self._channel_differs()
+            QTimer.singleShot(3000 if due else 5000, self.checkRelease if due else self._check_due)
         for partial in (Path(self._cache).parent / "updates").glob("*.part"):
             partial.unlink(missing_ok=True)
         receipt = Path(self._cache).parent / "updates/result.json"
@@ -372,7 +382,7 @@ class Maintenance(QObject):
     def checkRelease(self):
         if self.busy:
             return
-        self._available, self._downgrade = False, False
+        self._available, self._downgrade, self._switching = False, False, False
         self.settings.setValue("updates/lastAttempt", time.time())
         self._status = "Checking for " + self._channel + " releases…"
         self._request("release", {"cache_path": self._cache, "channel": self._channel})
@@ -423,13 +433,15 @@ class Maintenance(QObject):
             else:
                 self._url = REPOSITORY + "/releases/tag/" + tag
                 # Leaving the experimental channel offers the latest stable build even when it is older.
-                switching = bool(current) and latest < current and updates.is_experimental(self.currentVersion) and self._channel == "stable"
+                downgrade = bool(current) and latest < current and updates.is_experimental(self.currentVersion) and self._channel == "stable"
+                # Experimental also offers newer stable releases, which are ordinary updates for a stable build.
+                switching = self._channel_differs() and updates.is_experimental(tag) == (self._channel == "experimental")
                 if result.get("stale"):
                     self._status = "Offline or lookup failed. Last known " + self._channel + " release: " + label + ". Checked " + result.get("checkedAt", "unknown") + ". Retry for current status."
-                elif current and (latest > current or switching):
-                    self._tag, self._available, self._downgrade = tag, True, switching
+                elif current and (latest > current or downgrade):
+                    self._tag, self._available, self._downgrade, self._switching = tag, True, downgrade, switching
                     self._notes = release_notes(result.get("notes"))
-                    self._status = (label + " is available to switch back to Stable." if switching else label + " is available.")
+                    self._status = (label + " is available to switch to " + self._channel.capitalize() + "." if switching else label + " is available.")
                 elif current == latest:
                     self._status = "You have the latest " + self._channel + " release, " + label + "."
                 else:

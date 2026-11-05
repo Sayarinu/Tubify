@@ -36,7 +36,7 @@ SettingsPage {
             }
             Label {
                 Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12
-                text: "Experimental builds get new features first and may have rough edges. Choose Stable to return to the latest full release at any time."
+                text: "Experimental builds get new features first and may have rough edges. Change the channel at any time to switch builds and restart."
             }
             SettingsCheckBox {
                 text: "Check Automatically for Updates"
@@ -47,7 +47,7 @@ SettingsPage {
             Flow {
                 Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8
                 ThemeActionButton { objectName: "checkReleaseButton"; text: "Check for Updates"; enabled: !maintenanceState.busy; onClicked: maintenanceState.checkRelease() }
-                ThemeActionButton { objectName: "installUpdateButton"; text: maintenanceState.switchingChannel ? "Switch to Stable" : Qt.platform.os === "osx" ? "Update…" : "Update & Restart"; visible: maintenanceState.updateAvailable && maintenanceState.installSupported; enabled: !maintenanceState.busy; onClicked: maintenanceState.installUpdate() }
+                ThemeActionButton { objectName: "installUpdateButton"; text: maintenanceState.switchingChannel ? (Qt.platform.os === "osx" ? "Switch…" : "Switch & Restart") : Qt.platform.os === "osx" ? "Update…" : "Update & Restart"; visible: maintenanceState.updateAvailable && maintenanceState.installSupported; enabled: !maintenanceState.busy; onClicked: maintenanceState.installUpdate() }
                 ThemeActionButton { text: "Cancel Download"; visible: maintenanceState.downloading; onClicked: maintenanceState.cancelUpdate() }
                 ThemeActionButton { text: "Release Details"; visible: !!maintenanceState.releaseUrl; onClicked: Qt.openUrlExternally(maintenanceState.releaseUrl) }
             }
