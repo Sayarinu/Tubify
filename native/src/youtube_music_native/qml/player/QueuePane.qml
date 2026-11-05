@@ -8,8 +8,6 @@ Item {
     id: root
     objectName: "queuePane"
     property bool showCloseButton: true
-    // The dock can show a larger now-playing view; the tray stays compact.
-    property bool showDetails: false
     property real gutter: 16
     property var draggedTrack: ({})
     property string draggingKey: ""
@@ -95,37 +93,16 @@ Item {
             if (point.x < 0 || point.x > queueList.width || point.y < 0 || point.y > queueList.height) return
             var delta = point.y < 32 ? -8 : point.y > queueList.height - 32 ? 8 : 0
             if (!delta) return
-            queueList.contentY = Math.max(queueList.originY - queueList.topMargin, Math.min(queueList.originY + Math.max(0, queueList.contentHeight - queueList.height), queueList.contentY + delta))
+            queueList.contentY = Math.max(queueList.originY, Math.min(queueList.originY + Math.max(0, queueList.contentHeight - queueList.height), queueList.contentY + delta))
             var scene = root.mapToItem(null, root.dragPosition.x, root.dragPosition.y)
             root.updateDrag(scene.x, scene.y)
         }
     }
 
-    // Tabbing through the larger view scrolls each control into sight.
-    Connections {
-        target: nowPanel.detailed ? root.Window.window : null
-        function onActiveFocusItemChanged() {
-            var focused = root.Window.window.activeFocusItem
-            for (var item = focused; item; item = item.parent) {
-                if (item !== nowPanel) continue
-                var top = focused.mapToItem(queueList.contentItem, 0, 0).y
-                if (top < queueList.contentY) queueList.contentY = top
-                else if (top + focused.height > queueList.contentY + queueList.height) queueList.contentY = top + focused.height - queueList.height
-                return
-            }
-        }
-    }
-    // The compact panel is pinned above the list. The larger view would crowd out the songs,
-    // so it sits in the list's content and scrolls away with them; the list's top margin makes room for it.
     Item {
         id: nowPanel
         objectName: "queueNowPlayingPanel"
-        readonly property bool detailed: root.showDetails && playerState.hasTrack
-        // Switching the view on shows it, even when the list was scrolled down.
-        onDetailedChanged: if (detailed) Qt.callLater(() => queueList.contentY = queueList.originY - queueList.topMargin)
-        parent: detailed ? queueList.contentItem : root
-        x: detailed ? 0 : root.gutter
-        y: detailed ? queueList.originY - height : 0
+        x: root.gutter
         width: queueList.width
         height: nowHeading.height + nowContent.height + autoplaySwitch.height + 8
         Item {
@@ -155,19 +132,13 @@ Item {
             id: nowContent
             y: nowHeading.height
             width: parent.width
-            height: nowPanel.detailed ? nowDetails.height + 4 : 60
-            Loader {
-                id: nowDetails
-                width: parent.width
-                active: nowPanel.detailed
-                sourceComponent: NowPlayingDetails { width: nowDetails.width }
-            }
+            height: 60
             SongRow {
                 objectName: "queueSidebarSong-" + (root.currentEntry.key || "current")
                 anchors.left: parent.left
                 anchors.right: parent.right
                 height: 56
-                visible: playerState.hasTrack && !nowPanel.detailed
+                visible: playerState.hasTrack
                 queueRow: true
                 media: root.currentEntry
                 menuContext: root.currentEntry.key ? ({queueKey: root.currentEntry.key}) : ({})
@@ -254,16 +225,9 @@ Item {
         objectName: "queueUpcomingList"
         WheelScroll { view: queueList }
         anchors.fill: parent
-        anchors.topMargin: nowPanel.detailed ? 0 : nowPanel.height
+        anchors.topMargin: nowPanel.height
         anchors.leftMargin: root.gutter
         anchors.rightMargin: root.gutter
-        topMargin: nowPanel.detailed ? nowPanel.height : 0
-        // Stay at the top when the panel changes height, for example when the artist preview arrives.
-        property real topEdge: 0
-        onTopMarginChanged: {
-            if (contentY <= topEdge + 1) contentY = originY - topMargin
-            topEdge = originY - topMargin
-        }
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         model: root.rows

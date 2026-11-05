@@ -24,8 +24,7 @@ class ArtistPreview(QObject):
         self.settle.setInterval(SETTLE_MS)
         self.settle.timeout.connect(self._load)
         player.changed.connect(self._refresh)
-        shell.queueOpenChanged.connect(self._refresh)
-        shell.queueDetailsChanged.connect(self._refresh)
+        shell.panelChanged.connect(self._refresh)
         if worker:
             worker.succeeded.connect(self._succeeded)
             worker.failed.connect(self._failed)
@@ -61,7 +60,7 @@ class ArtistPreview(QObject):
             self.changed.emit()
 
     def _refresh(self):
-        if not (self.shell.queueOpen and self.shell.queueDetails):
+        if not self.shell.nowPlayingOpen:
             self.settle.stop()
             return
         identifier, name = self._current_artist()

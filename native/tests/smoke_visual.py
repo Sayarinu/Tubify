@@ -45,15 +45,11 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     pane = window.findChild(QObject, "queuePane")
     listing = window.findChild(QObject, "queueUpcomingList")
     now = window.findChild(QObject, "queueNowPlayingPanel")
-    sidebar = window.findChild(QObject, "queueSidebar")
+    sidebar = window.findChild(QObject, "sidePanel")
     bar = window.findChild(QObject, "queueSidebarScrollbar")
     assert pane and listing and now and sidebar and sidebar.isVisible()
-    # The larger view scrolls with the songs from the top of the list; the compact panel is pinned above it.
-    if shell.queueDetails:
-        assert listing.property("topMargin") == now.height()
-        assert abs(listing.mapToScene(QPointF()).y() - now.mapToScene(QPointF()).y()) < 1
-    else:
-        assert listing.mapToScene(QPointF()).y() == now.mapToScene(QPointF()).y() + now.height()
+    # The now-playing row is pinned above the list.
+    assert listing.mapToScene(QPointF()).y() == now.mapToScene(QPointF()).y() + now.height()
     assert not window.findChild(QObject, "queueHistoryList")
     assert not window.findChild(QObject, "pinnedQueueNextList")
     assert not any(entry["group"] == "Previously played" for entry in player.entries)
@@ -65,19 +61,20 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     if not exercise:
         return
 
-    # The now-playing view is on by default and shows the artwork at the full width of the list.
-    assert shell.queueDetails
-    artwork = next(child for child in visual_items(window.contentItem()) if child.objectName() == "queueNowPlayingArtwork")
-    assert artwork.isVisible() and artwork.width() == listing.width() and artwork.height() == artwork.width()
+    # The now-playing panel replaces the queue and shows the artwork at the full width of the panel.
     toggle = window.findChild(QObject, "nowPlayingViewToggle")
-    tall = now.height()
-    if output_dir:
-        assert window.grabWindow().save(str(output_dir / "queue-now-playing.png"))
     QMetaObject.invokeMethod(toggle, "clicked")
     QTest.qWait(40)
-    # Off restores the compact row pinned above the list.
-    assert not shell.queueDetails and now.height() < tall and listing.property("topMargin") == 0
-    assert listing.mapToScene(QPointF()).y() == now.mapToScene(QPointF()).y() + now.height()
+    assert shell.nowPlayingOpen and not pane.isVisible()
+    artwork = next(child for child in visual_items(window.contentItem()) if child.objectName() == "queueNowPlayingArtwork")
+    assert artwork.isVisible() and artwork.height() == artwork.width() and artwork.width() >= sidebar.width() - 48
+    if output_dir:
+        assert window.grabWindow().save(str(output_dir / "now-playing-panel.png"))
+    QMetaObject.invokeMethod(toggle, "clicked")
+    QTest.qWait(40)
+    shell.setQueueOpen(True)
+    QTest.qWait(40)
+    assert pane.isVisible()
 
     snapshot = player.queue.snapshot(player.position)
     fixture = dict(player.currentTrack)
@@ -528,8 +525,8 @@ def main():
                     assert rail.width() == shell.sidebarWidth and shell.sidebarWidth >= 276
                     shell.toggleQueue()
                     QTest.qWait(60)
-                    queue = window.findChild(QObject, "queueSidebar")
-                    queue_handle = window.findChild(QObject, "queueResizeHandle")
+                    queue = window.findChild(QObject, "sidePanel")
+                    queue_handle = window.findChild(QObject, "panelResizeHandle")
                     assert queue and queue.isVisible() and queue_handle
                     line = queue_handle.findChild(QObject, "panelResizeLine")
                     line_box = line.mapRectToScene(line.boundingRect())
