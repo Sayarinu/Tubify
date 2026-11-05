@@ -374,40 +374,86 @@ ApplicationWindow {
         objectName: "sidePanel"
         // Holds on to the panel being closed while it slides out.
         property string page: appState.panel
-        Connections { target: appState; function onPanelChanged() { if (appState.panel) sidePanel.page = appState.panel } }
+        // What's drawn: during a switch it stays on the old panel until that has faded out.
+        property string shownPage: page
+        property string openPanel: appState.panel
+        Connections {
+            target: appState
+            function onPanelChanged() {
+                var wasOpen = sidePanel.openPanel !== ""
+                sidePanel.openPanel = appState.panel
+                if (appState.panel) sidePanel.showPage(appState.panel, wasOpen)
+            }
+        }
+        function showPage(name, animated) {
+            page = name
+            if (!animated || appState.reducedMotion) {
+                // A closed panel opening has its own slide.
+                pageSwitch.stop()
+                panelBody.opacity = 1
+                panelPages.shift = 0
+                shownPage = name
+            } else if (pageSwitch.running || shownPage !== name) {
+                pageSwitch.restart()
+            }
+        }
+        SequentialAnimation {
+            id: pageSwitch
+            NumberAnimation { target: panelBody; property: "opacity"; to: 0; duration: Theme.motionFast; easing.type: Easing.InCubic }
+            ScriptAction { script: { sidePanel.shownPage = sidePanel.page; window.restorePanelFocus() } }
+            ParallelAnimation {
+                NumberAnimation { target: panelBody; property: "opacity"; to: 1; duration: Theme.motionMedium; easing.type: Easing.OutCubic }
+                NumberAnimation { target: panelPages; property: "shift"; from: 12; to: 0; duration: Theme.motionMedium; easing.type: Easing.OutCubic }
+            }
+        }
         property string queueTab: "Queue"
         shown: window.panelOpen
         anchors.top: parent.top; anchors.topMargin: window.panelGap
         anchors.right: parent.right; anchors.rightMargin: window.panelGap
         anchors.bottom: player.top; anchors.bottomMargin: window.panelGap
         width: window.panelWidth
-        // Tinted from the artwork, and held back so the lyrics stay readable over bright covers.
-        ArtworkBackdrop {
-            objectName: "lyricsBackdrop"
-            anchors.fill: parent
-            visible: sidePanel.page === "Lyrics"
-            opacity: 0.65
-            source: playerState.currentTrack.thumbnail || ""
-            mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""
-            // Rounded to the card; the software renderer has no masks and keeps square corners.
-            layer.enabled: visible && GraphicsInfo.api !== GraphicsInfo.Software
-            layer.effect: MultiEffect { maskEnabled: true; maskSource: panelMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1; autoPaddingEnabled: false }
-        }
         Rectangle { id: panelMask; anchors.fill: parent; radius: sidePanel.radius; visible: false; layer.enabled: true; layer.smooth: true }
+        Item {
+            id: panelBody
+            objectName: "panelBody"
+            anchors.fill: parent
+            // Keeps the incoming pane inside the card while it slides.
+            clip: pageSwitch.running
+            // Tinted from the artwork, and held back so the lyrics stay readable over bright covers.
+            ArtworkBackdrop {
+                objectName: "lyricsBackdrop"
+                anchors.fill: parent
+                visible: sidePanel.shownPage === "Lyrics"
+                opacity: 0.65
+                source: playerState.currentTrack.thumbnail || ""
+                mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""
+                // Rounded to the card; the software renderer has no masks and keeps square corners.
+                layer.enabled: visible && GraphicsInfo.api !== GraphicsInfo.Software
+                layer.effect: MultiEffect { maskEnabled: true; maskSource: panelMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1; autoPaddingEnabled: false }
+            }
+            Item {
+                id: panelPages
+                property real shift: 0
+                anchors.fill: parent
+                anchors.topMargin: panelHeader.height
+                transform: Translate { x: panelPages.shift }
+                LyricsPane { visible: sidePanel.shownPage === "Lyrics"; anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16 }
+                QueuePane { visible: sidePanel.shownPage === "Queue" && sidePanel.queueTab === "Queue"; anchors.fill: parent; showCloseButton: false }
+                RecentlyPlayedPane { visible: sidePanel.shownPage === "Queue" && sidePanel.queueTab === "Recently played"; anchors.fill: parent }
+                NowPlayingPane { visible: sidePanel.shownPage === "NowPlaying"; anchors.fill: parent }
+            }
+        }
         DockHeader {
             id: panelHeader
             // Its divider continues the line under the page header, whose height collapses in the full player.
             height: header.fullHeight - window.panelGap
-            title: sidePanel.page === "NowPlaying" ? "Now Playing" : sidePanel.page
-            tabs: sidePanel.page === "Queue" ? ["Queue", "Recently played"] : []
+            title: sidePanel.shownPage === "NowPlaying" ? "Now Playing" : sidePanel.shownPage
+            tabs: sidePanel.shownPage === "Queue" ? ["Queue", "Recently played"] : []
             currentTab: sidePanel.queueTab
+            labelOpacity: panelBody.opacity
             onTabSelected: tab => sidePanel.queueTab = tab
             onCloseRequested: appState.setPanel("")
         }
-        LyricsPane { visible: sidePanel.page === "Lyrics"; anchors.fill: parent; anchors.topMargin: panelHeader.height; anchors.leftMargin: 16; anchors.rightMargin: 16 }
-        QueuePane { visible: sidePanel.page === "Queue" && sidePanel.queueTab === "Queue"; anchors.fill: parent; anchors.topMargin: panelHeader.height; showCloseButton: false }
-        RecentlyPlayedPane { visible: sidePanel.page === "Queue" && sidePanel.queueTab === "Recently played"; anchors.fill: parent; anchors.topMargin: panelHeader.height }
-        NowPlayingPane { visible: sidePanel.page === "NowPlaying"; anchors.fill: parent; anchors.topMargin: panelHeader.height }
         Rectangle { objectName: "panelBorder"; anchors.fill: parent; radius: sidePanel.radius; color: "transparent"; border.color: themeState.border }
         PanelResizeHandle {
             objectName: "panelResizeHandle"

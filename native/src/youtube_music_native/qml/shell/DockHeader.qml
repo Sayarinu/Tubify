@@ -8,6 +8,8 @@ Item {
     required property string title
     property var tabs: []
     property string currentTab: ""
+    // The title and tabs fade with the panel's content; the divider and close button stay put.
+    property real labelOpacity: 1
     signal tabSelected(string tab)
     signal closeRequested()
     function focusControl() {
@@ -22,6 +24,7 @@ Item {
         anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter
         anchors.right: closeButton.left; anchors.rightMargin: 8
         visible: root.tabs.length === 0
+        opacity: root.labelOpacity
         text: root.title
         elide: Text.ElideRight
         font.bold: true; font.pixelSize: 16; color: themeState.foreground
@@ -29,6 +32,7 @@ Item {
     Row {
         x: 16; height: parent.height; spacing: 20
         visible: root.tabs.length > 0
+        opacity: root.labelOpacity
         Repeater {
             id: tabButtons
             model: root.tabs
