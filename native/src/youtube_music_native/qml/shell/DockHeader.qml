@@ -17,6 +17,7 @@ Item {
     }
     width: parent.width
     height: 48
+    Rectangle { objectName: "panelHeaderDivider"; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: themeState.border }
     Text {
         anchors.left: parent.left; anchors.leftMargin: 16; anchors.verticalCenter: parent.verticalCenter
         anchors.right: closeButton.left; anchors.rightMargin: 8
@@ -56,7 +57,6 @@ Item {
                         objectName: "dockTabUnderline-" + tab.modelData
                         visible: tab.selected
                         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 4
                         height: 2; radius: 1
                         color: themeState.accent
                     }

@@ -1,7 +1,7 @@
 import QtQuick
 import "../Theme.js" as Theme
 
-// The side panel: slides in from the right edge when opened and back out when closed.
+// The side panel, a card matching the player bar: slides in past the right edge when opened and back out when closed.
 // Switching between panels swaps the content at once.
 Rectangle {
     id: root
@@ -11,7 +11,10 @@ Rectangle {
     readonly property bool leaving: slide.running && !shown
     visible: shown || leaving
     enabled: shown
-    color: themeState.background
+    radius: 12
+    color: themeState.surface
+    // Clears the margin between the card and the window edge when sliding.
+    readonly property real travel: width + anchors.rightMargin
     transform: Translate { id: shift }
     onShownChanged: {
         var reversing = slide.running
@@ -22,8 +25,8 @@ Rectangle {
             return
         }
         // A fresh open starts off the right edge, faded; a reversal continues from where the panel is.
-        if (shown && !reversing) { shift.x = width; opacity = 0 }
-        slideX.to = shown ? 0 : width
+        if (shown && !reversing) { shift.x = travel; opacity = 0 }
+        slideX.to = shown ? 0 : travel
         slideX.easing.type = shown ? Easing.OutCubic : Easing.InCubic
         fade.to = 1
         slide.start()

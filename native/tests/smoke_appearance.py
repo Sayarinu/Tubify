@@ -49,7 +49,7 @@ def main():
 
         def verify():
             try:
-                root, content, panel, bar = (find(name) for name in ("scaledContent", "pageContent", "sidePanel", "playerBar"))
+                root, content, side_panel, bar = (find(name) for name in ("scaledContent", "pageContent", "sidePanel", "playerBar"))
                 settings = find("appearanceSettingsDialog")
                 initial = (player.position, player.playing, player.currentTrack)
                 dpr = window.devicePixelRatio()
@@ -73,9 +73,9 @@ def main():
                             assert bounds.left() >= 0 and bounds.right() <= size[0] + 0.1
                             assert bounds.bottom() <= size[1] and bounds.height() > 0
                             # With a panel open the page keeps 480 px; it only gets less once the panel is down to its 280 px minimum.
-                            if panel.isVisible():
-                                assert panel.width() >= 280
-                                assert content.width() >= 480 - 0.1 or abs(panel.width() - 280) < 0.1, (scale, size, content.width())
+                            if side_panel.isVisible():
+                                assert side_panel.width() >= 280
+                                assert content.width() >= 480 - 0.1 or abs(side_panel.width() - 280) < 0.1, (scale, size, content.width())
                             else:
                                 assert content.width() >= 320 - 0.1
                             shell.setExpanded(True)
