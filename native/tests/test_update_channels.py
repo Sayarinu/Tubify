@@ -110,13 +110,25 @@ def test_experimental_channel_offers_newer_builds_and_stable_offers_the_way_back
     item = service(tmp_path, monkeypatch, '0.6.0', 'experimental')
     item.checkRelease()
     item._worker.succeeded.emit(1, {'tag': 'Tubify-Experimental-0.7.0b1', 'notes': 'Try it'})
-    assert item.updateAvailable and not item.switchingChannel and item.latestName == 'Tubify Experimental 0.7.0b1' and item.status == 'Tubify Experimental 0.7.0b1 is available.'
+    assert item.updateAvailable and item.switchingChannel and not item.downgrading and item.latestName == 'Tubify Experimental 0.7.0b1' and item.status == 'Tubify Experimental 0.7.0b1 is available to switch to Experimental.'
+    # A newer build goes through the password-free helper.
+    item.installUpdate()
+    item._worker.succeeded.emit(2, {'name': 'x.pkg.tar.zst', 'path': '/tmp/x', 'sha256': '0' * 64, 'size': 1})
+    assert item._worker.requests[-1][1]['asset']['downgrade'] is False
     item.close()
+
+    # On the experimental channel, updating between experimental builds isn't a switch, and neither is a newer stable release for a stable build.
+    for installed, tag in (('0.7.0b1', 'Tubify-Experimental-0.7.0b2'), ('0.6.0', 'Tubify-0.7.0')):
+        item = service(tmp_path / installed, monkeypatch, installed, 'experimental')
+        item.checkRelease()
+        item._worker.succeeded.emit(1, {'tag': tag})
+        assert item.updateAvailable and not item.switchingChannel and not item.downgrading
+        item.close()
 
     item = service(tmp_path / 'back', monkeypatch, '0.7.0b1', 'stable')
     item.checkRelease()
     item._worker.succeeded.emit(1, {'tag': 'Tubify-0.6.0', 'notes': 'Stable'})
-    assert item.updateAvailable and item.switchingChannel and item.latestName == 'Tubify 0.6.0' and item.status == 'Tubify 0.6.0 is available to switch back to Stable.'
+    assert item.updateAvailable and item.switchingChannel and item.downgrading and item.latestName == 'Tubify 0.6.0' and item.status == 'Tubify 0.6.0 is available to switch to Stable.'
     # The download is installed as a downgrade so Linux never uses the newer-only helper.
     item.installUpdate()
     item._worker.succeeded.emit(2, {'name': 'Tubify-0.6.0-linux-x86_64.pkg.tar.zst', 'path': '/tmp/x', 'sha256': '0' * 64, 'size': 1})
@@ -128,6 +140,25 @@ def test_experimental_channel_offers_newer_builds_and_stable_offers_the_way_back
     item.checkRelease()
     item._worker.succeeded.emit(1, {'tag': 'Tubify-0.6.0'})
     assert not item.updateAvailable
+    item.close()
+
+
+@pytest.mark.parametrize('installed,channel,due', [
+    ('0.7.0', 'experimental', True),
+    ('0.7.0b1', 'stable', True),
+    ('0.7.0', 'stable', False),
+    ('0.7.0b1', 'experimental', False),
+])
+def test_a_chosen_switch_is_offered_again_after_a_restart(tmp_path, monkeypatch, installed, channel, due):
+    item = service(tmp_path, monkeypatch, installed, channel)
+    # With automatic checks off, and a check moments ago, only the switch still looks for a release.
+    item.setAutomaticChecks(False)
+    item.settings.setValue('updates/lastAttempt', maintenance.time.time())
+    scheduled = []
+    monkeypatch.setattr(maintenance.QTimer, 'singleShot', lambda delay, action: scheduled.append(action))
+    item.start()
+    scheduled[0]()
+    assert bool(item._worker and item._worker.requests) == due
     item.close()
 
 
