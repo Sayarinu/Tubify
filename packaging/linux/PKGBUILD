@@ -6,7 +6,7 @@ arch=('x86_64')
 url='https://github.com/Sayarinu/Tubify'
 license=('MIT')
 depends=(
-  'python>=3.12' 'pyside6>=6.8' 'qt6-svg' 'qt6-imageformats'
+  'python>=3.14' 'pyside6>=6.8' 'qt6-svg' 'qt6-imageformats'
   'python-keyring>=25.7' 'python-ytmusicapi>=1.12.3' 'python-mpv>=1.0.8'
   'python-jeepney>=0.9' 'yt-dlp>=2026.08.19' 'yt-dlp-ejs' 'deno' 'ffmpeg'
   'python-brotli' 'python-mutagen' 'python-pycryptodomex' 'python-websockets'
