@@ -6,7 +6,7 @@ import sys
 import time
 from urllib.parse import parse_qs, urlparse
 
-from ..compat import VIDEO_FORMAT, edl, extractor_options
+from ..compat import VIDEO_FORMAT, extractor_options
 
 
 class SourceError(RuntimeError):
@@ -128,7 +128,7 @@ class Sources:
         return bool(info) and info.get("vcodec") == "none" and str(info.get("url", "")).startswith("https://")
 
     def _resolve_video(self, video_id):
-        """Resolve a music video as one mpv-playable EDL of its video and audio streams."""
+        """Resolve a music video's picture stream, which plays alongside the song's audio."""
         if self.auth.session is None:
             self.auth.restore()
         if self.auth.session is None:
@@ -136,12 +136,13 @@ class Sources:
         try:
             info = self._extract("video", {"format": VIDEO_FORMAT}, video_id)
             formats = (info or {}).get("requested_formats") or [info or {}]
-            urls = [str(value.get("url", "")) for value in formats]
-            if not urls or not all(url.startswith("https://") for url in urls) or not any(value.get("vcodec") not in {None, "none"} for value in formats):
+            stream = next((value for value in formats if value.get("vcodec") not in {None, "none"}), {})
+            url = str(stream.get("url", ""))
+            if not url.startswith("https://"):
                 raise SourceError("No video format is available. Playing audio instead.")
-            expires = min((float(parse_qs(urlparse(url).query).get("expire", [time.time() + 300])[0]) for url in urls), default=time.time() + 300)
-            headers = (formats[0].get("http_headers") or info.get("http_headers") or {})
-            return {"kind": "remote", "video": True, "source": edl(urls) if len(urls) > 1 else urls[0],
+            expires = float(parse_qs(urlparse(url).query).get("expire", [time.time() + 300])[0])
+            headers = stream.get("http_headers") or info.get("http_headers") or {}
+            return {"kind": "remote", "video": True, "source": url,
                     "headers": [f"{k}: {v}" for k, v in headers.items() if "\n" not in str(k) + str(v) and "\r" not in str(k) + str(v)],
                     "expires": expires, "videoId": video_id}
         except SourceError:

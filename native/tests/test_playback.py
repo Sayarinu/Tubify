@@ -38,11 +38,22 @@ class FakeAudio(QObject):
     deviceFailed = Signal()
     outputChanged = Signal()
     optionsChanged = Signal(dict)
+    videoAttached = Signal(int, bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.loads = []
+        self.stops = 0
         self.paused = False
+        self.video, self.attached = [], []
+
+    def setVideo(self, enabled):
+        self.video.append(enabled)
+        return enabled
+
+    def attachVideo(self, source):
+        self.attached.append(source)
+        return len(self.attached)
 
     def load(self, source, position, paused):
         self.loads.append((source, position, paused))
@@ -60,7 +71,7 @@ class FakeAudio(QObject):
         self.updated.emit({"time-pos": value})
 
     def stop(self):
-        pass
+        self.stops += 1
 
     def close(self):
         pass
