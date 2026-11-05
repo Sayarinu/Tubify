@@ -36,6 +36,8 @@ WARM_LIMIT, WARM_WINDOW = 4, 10.
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
 
 
+RECENT_LIMIT = 50
+
 class Playback(QObject):
     changed = Signal()
     # The queue list has its own signal: rebuilding and handing QML thousands of rows
@@ -45,11 +47,14 @@ class Playback(QObject):
     positionChanged = Signal()
     manualQueueCleared = Signal()
     trackStarted = Signal("QVariantMap")
+    recentChanged = Signal()
     stateSaveFailed = Signal()
     seeked = Signal(float)
 
     def __init__(self, data_dir, worker, radio_worker=None, cache_path=None, fixture=None, audio_factory=Audio, parent=None, prefetch_worker=None):
         super().__init__(parent)
+        self._recent = []
+        self.trackStarted.connect(self._remember_recent)
         self.data_dir = Path(data_dir)
         self.path = self.data_dir / "playback.json"
         self.worker, self.radio_worker, self.cache_path = worker, radio_worker, str(cache_path or self.data_dir / "metadata.sqlite3")
@@ -151,6 +156,26 @@ class Playback(QObject):
     @Property(str, notify=changed)
     def nextGroup(self):
         return "Next From " + self.queue.source_label if self.queue.source_label else "Next Up"
+
+    def _remember_recent(self, track):
+        identifier = track.get("videoId") or track.get("id")
+        others = [item for item in self._recent if (item.get("videoId") or item.get("id")) != identifier]
+        self._recent = [dict(track)] + others[:RECENT_LIMIT]
+        self.recentChanged.emit()
+
+    @Property("QVariantList", notify=recentChanged)
+    def recentTracks(self):
+        """Songs started this session before the latest one, newest first and without repeats."""
+        return self._recent[1:]
+
+    @Slot("QVariantMap")
+    def replay(self, track):
+        """Play an earlier song now without disturbing the rest of the queue."""
+        if not self.hasTrack:
+            self.play(track)
+            return
+        self.enqueue([track], next=True)
+        self.next()
 
     def _entry_groups(self):
         return (("Now playing", [self.queue.current] if self.queue.current else []),

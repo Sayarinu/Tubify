@@ -23,7 +23,10 @@ Item {
     property var currentEntry: allEntries.find(entry => entry.current) || ({})
     property var queueEntries: allEntries.filter(entry => entry.group === "Next in queue")
     property var nextEntries: allEntries.filter(entry => !entry.current && entry.group !== "Next in queue")
-    property var rows: [{rowType: "manualHeading"}].concat(queueEntries, [{rowType: "drop"}, {rowType: "sourceHeading"}], nextEntries.length ? nextEntries : [{rowType: "empty"}])
+    readonly property bool dragging: draggingKey.length > 0
+    // An empty "Next in queue" section stays hidden; while dragging, the drop band stands in for it.
+    readonly property bool showManualHeading: queueEntries.length > 0 || browseState.queueBusy
+    property var rows: (showManualHeading ? [{rowType: "manualHeading"}] : []).concat(queueEntries, [{rowType: "sourceHeading"}], nextEntries.length ? nextEntries : [{rowType: "empty"}])
 
     function clearDrop() {
         dropKey = ""
@@ -37,11 +40,15 @@ Item {
         clearDrop()
         var point = queueList.mapFromItem(null, sceneX, sceneY)
         if (point.x < 0 || point.x > queueList.width || point.y < 0 || point.y > queueList.height) return
+        if (point.y < dropBand.height) {
+            dropToManual = true
+            return
+        }
         var contentY = point.y + queueList.contentY
         var index = queueList.indexAt(point.x + queueList.contentX, contentY)
         var row = index >= 0 ? rows[index] : null
         if (!row) return
-        if (row.rowType === "drop" || row.rowType === "manualHeading") {
+        if (row.rowType === "manualHeading") {
             dropToManual = true
             return
         }
@@ -132,12 +139,12 @@ Item {
             id: nowContent
             y: nowHeading.height
             width: parent.width
-            height: 60
+            height: 68
             SongRow {
                 objectName: "queueSidebarSong-" + (root.currentEntry.key || "current")
                 anchors.left: parent.left
                 anchors.right: parent.right
-                height: 56
+                height: 64
                 visible: playerState.hasTrack
                 queueRow: true
                 media: root.currentEntry
@@ -268,7 +275,7 @@ Item {
             property bool songRow: !modelData.rowType
             property bool dropTarget: root.dropIndex === index && root.draggingKey !== modelData.key
             width: queueList.width
-            height: songRow ? 56 : modelData.rowType === "drop" ? 56 : modelData.rowType === "empty" ? 72 : 44
+            height: songRow ? 64 : modelData.rowType === "empty" ? 72 : 44
             opacity: songRow && root.draggingKey === modelData.key ? 0.38 : 1
             function focusEntry() { if (songRow) song.forceActiveFocus() }
             HoverHandler { id: rowHover }
@@ -307,29 +314,6 @@ Item {
                     border.color: themeState.accent
                 }
                 onClicked: playerState.clearManualQueue()
-            }
-            Rectangle {
-                objectName: modelData.rowType === "drop" ? "queueSidebarAddToQueueDrop" : ""
-                visible: modelData.rowType === "drop"
-                x: 0; y: 4
-                width: parent.width; height: 48
-                radius: 8
-                // Quiet until a song is being dragged, then it reads as a target.
-                color: root.dropToManual ? themeState.selected : "transparent"
-                border.color: root.dropToManual ? themeState.accent : themeState.border
-                border.width: root.dropToManual ? 2 : root.draggingKey.length > 0 ? 1 : 0
-                Text {
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    text: root.dropToManual ? "Drop to queue" : "Drop songs here"
-                    color: root.draggingKey.length > 0 ? themeState.foreground : themeState.secondary
-                    font.pixelSize: 13
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                }
-                Accessible.role: Accessible.StaticText
-                Accessible.name: "Drop songs here to add them to the end of queued songs"
             }
             Text {
                 visible: modelData.rowType === "empty"
@@ -420,6 +404,30 @@ Item {
                 }
             }
         }
+    }
+    // Lies over the top of the list during a drag, so the rows being reordered never shift under the pointer.
+    Rectangle {
+        id: dropBand
+        objectName: "queueSidebarAddToQueueDrop"
+        visible: root.dragging
+        x: queueList.x; y: queueList.y
+        width: queueList.width; height: 44
+        radius: 8
+        color: root.dropToManual ? themeState.selected : themeState.surface
+        border.color: root.dropToManual ? themeState.accent : themeState.border
+        border.width: root.dropToManual ? 2 : 1
+        Text {
+            anchors.fill: parent
+            anchors.margins: 8
+            text: root.dropToManual ? "Drop to queue" : "Drop here to add to queue"
+            color: themeState.foreground
+            font.pixelSize: 13
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+        Accessible.role: Accessible.StaticText
+        Accessible.name: "Drop songs here to add them to the end of queued songs"
     }
     QueueDragPreview {
         objectName: "queueDragPreview"

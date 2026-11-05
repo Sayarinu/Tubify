@@ -55,7 +55,7 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     assert not any(entry["group"] == "Previously played" for entry in player.entries)
     upcoming = [entry for entry in player.entries if not entry["current"]]
     source = [entry for entry in upcoming if entry["group"] != "Next in queue"]
-    assert listing.property("count") == len(upcoming) + 3 + int(not source)
+    assert listing.property("count") == len(upcoming) + 1 + int(not source) + int(len(upcoming) > len(source))
     assert bar.mapToScene(QPointF()).x() >= listing.mapToScene(QPointF()).x() + listing.width() - 1
     assert bar.mapToScene(QPointF()).x() + bar.width() <= sidebar.mapToScene(QPointF()).x() + sidebar.width()
     if not exercise:
@@ -76,12 +76,32 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     QTest.qWait(40)
     assert pane.isVisible()
 
+    # The second tab lists earlier songs; choosing one plays it and returns nothing else to the queue.
+    tab = next(child for child in visual_items(window.contentItem()) if child.objectName() == "dockTab-Recently played")
+    QMetaObject.invokeMethod(tab, "clicked")
+    QTest.qWait(40)
+    recent = window.findChild(QObject, "recentlyPlayedPane")
+    assert recent.isVisible() and not pane.isVisible()
+    replayed = dict(player.currentTrack)
+    player.trackStarted.emit({**replayed, "videoId": "recent000001", "title": "Earlier fixture song"})
+    player.trackStarted.emit(replayed)
+    QTest.qWait(40)
+    assert len(player.recentTracks) >= 1 and window.findChild(QObject, "recentlyPlayedList").property("count") == len(player.recentTracks)
+    if output_dir:
+        assert window.grabWindow().save(str(output_dir / "queue-recently-played.png"))
+    QMetaObject.invokeMethod(next(child for child in visual_items(window.contentItem()) if child.objectName() == "dockTab-Queue"), "clicked")
+    QTest.qWait(40)
+    assert pane.isVisible() and not recent.isVisible()
+
     snapshot = player.queue.snapshot(player.position)
     fixture = dict(player.currentTrack)
     tracks = [{**fixture, "title": "Queue fixture " + str(i)} for i in range(7)]
 
     def item(name):
         return next(child for child in visual_items(window.contentItem()) if child.objectName() == name and child.isVisible())
+
+    def item_visible(name):
+        return any(child.objectName() == name and child.isVisible() for child in visual_items(window.contentItem()))
 
     def row(key):
         return item("queueSidebarSong-" + key)
@@ -100,6 +120,9 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
         start = origin.mapToScene(point).toPoint()
         QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=start)
         QTest.mouseMove(window, start + QPointF(0, 12).toPoint(), delay=25)
+        # A target can be one that only exists once the drag has begun.
+        settle()
+        target = target() if callable(target) else target
         QTest.mouseMove(window, target, delay=25)
         settle()
         preview = item("queueDragPreview")
@@ -136,9 +159,10 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     player.clearManualQueue()
     settle()
     source_key = player.queue.remaining[0]["key"]
-    target = item("queueSidebarAddToQueueDrop")
-    assert target.height() == 48
-    drag(source_key, target.mapToScene(target.boundingRect().center()).toPoint(), handle=False)
+    # The empty section stays out of the way until a drag needs somewhere to land.
+    assert not item_visible("queueSidebarAddToQueueDrop")
+    assert not item_visible("queueSectionHeading")
+    drag(source_key, lambda: item("queueSidebarAddToQueueDrop").mapToScene(item("queueSidebarAddToQueueDrop").boundingRect().center()).toPoint(), handle=False)
     assert player.manualCount == 1 and player.queue.manual[-1]["key"] == source_key
     another = player.queue.remaining[0]["key"]
     row(another).forceActiveFocus()
@@ -173,6 +197,8 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     assert download.isVisible() and download.property("status") == "ready"
     metadata = item("queueRowMetadata-" + player.queue.current["key"])
     assert metadata.width() >= 100
+    # Rows hold two lines, so a song with an album cannot overlap the row below it.
+    assert metadata.height() <= row(player.queue.current["key"]).height()
     assert metadata.x() + metadata.width() <= download.x()
     save("queue-narrow-downloaded")
     downloads._track_states = {fixture["videoId"]: "downloading"}
@@ -187,20 +213,19 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
 
     player.playTracks([])
     settle()
-    assert listing.property("count") == 4
-    assert now.isVisible() and item("queueSidebarAddToQueueDrop").height() == 48
+    assert listing.property("count") == 2
+    assert now.isVisible() and not item_visible("queueSidebarAddToQueueDrop")
     save("queue-empty")
     player.playTracks([fixture], source_label="Fixture source")
     player.enqueue([fixture] * 10000)
     settle()
-    assert listing.property("count") == 10004
+    assert listing.property("count") == 10003
     # Qt estimates total height while only visible delegates exist.
     assert listing.property("contentHeight") > 56 * 9000, listing.property("contentHeight")
     fixed_y = now.mapToScene(QPointF()).y()
     listing.positionViewAtEnd()
     settle()
     assert now.mapToScene(QPointF()).y() == fixed_y and now.isVisible()
-    assert item("queueSidebarAddToQueueDrop").height() == 48
     count = sum(child.metaObject().className().startswith("SongRow_") for child in visual_items(pane))
     assert 0 < count < 50, count
     save("queue-long-manual-end")

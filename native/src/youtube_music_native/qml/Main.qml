@@ -363,6 +363,7 @@ ApplicationWindow {
         // Holds on to the panel being closed while it slides out.
         property string page: appState.panel
         Connections { target: appState; function onPanelChanged() { if (appState.panel) sidePanel.page = appState.panel } }
+        property string queueTab: "Queue"
         shown: window.panelOpen
         anchors.top: parent.top
         anchors.right: parent.right
@@ -381,10 +382,14 @@ ApplicationWindow {
         DockHeader {
             id: panelHeader
             title: sidePanel.page === "NowPlaying" ? "Now Playing" : sidePanel.page
+            tabs: sidePanel.page === "Queue" ? ["Queue", "Recently played"] : []
+            currentTab: sidePanel.queueTab
+            onTabSelected: tab => sidePanel.queueTab = tab
             onCloseRequested: appState.setPanel("")
         }
         LyricsPane { visible: sidePanel.page === "Lyrics"; anchors.fill: parent; anchors.topMargin: panelHeader.height; anchors.leftMargin: 16; anchors.rightMargin: 16 }
-        QueuePane { visible: sidePanel.page === "Queue"; anchors.fill: parent; anchors.topMargin: panelHeader.height; showCloseButton: false }
+        QueuePane { visible: sidePanel.page === "Queue" && sidePanel.queueTab === "Queue"; anchors.fill: parent; anchors.topMargin: panelHeader.height; showCloseButton: false }
+        RecentlyPlayedPane { visible: sidePanel.page === "Queue" && sidePanel.queueTab === "Recently played"; anchors.fill: parent; anchors.topMargin: panelHeader.height }
         NowPlayingPane { visible: sidePanel.page === "NowPlaying"; anchors.fill: parent; anchors.topMargin: panelHeader.height }
         PanelResizeHandle {
             objectName: "panelResizeHandle"
