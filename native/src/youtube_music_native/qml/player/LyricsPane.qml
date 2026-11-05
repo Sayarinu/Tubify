@@ -81,9 +81,7 @@ Item {
     Column {
         id: emptyState
         objectName: "lyricEmptyState"
-        anchors.top: parent.top
-        anchors.topMargin: 24
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.centerIn: parent
         width: Math.max(0, parent.width - 32)
         spacing: 12
         visible: !root.hasLyrics
@@ -97,20 +95,10 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             font.pixelSize: 14
         }
-        Text {
-            width: parent.width
-            text: lyricState.data.status || ""
-            textFormat: Text.PlainText
-            visible: !!text
-            wrapMode: Text.Wrap
-            maximumLineCount: 3
-            elide: Text.ElideRight
-            font.pixelSize: 12
-            color: themeState.secondary
-        }
         ThemeActionButton {
+            objectName: "lyricRetry"
             anchors.horizontalCenter: parent.horizontalCenter
-            visible: !lyricState.busy
+            visible: !!lyricState.error && !lyricState.busy
             text: "Retry"
             onClicked: lyricState.refresh()
         }
@@ -119,10 +107,7 @@ Item {
     ListView {
         id: lines
         objectName: "lyricLines"
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: status.top
+        anchors.fill: parent
         visible: root.hasLyrics
         clip: true
         spacing: 8
@@ -138,8 +123,6 @@ Item {
         onDraggingChanged: if (dragging) root.pauseFollow()
         onMovementEnded: if (!root.following) root.pauseFollow()
         onCountChanged: Qt.callLater(root.centerCurrent)
-        // Follow/status controls change this viewport without resizing the pane.
-        onHeightChanged: Qt.callLater(root.centerCurrent)
         Keys.onPressed: event => root.scrollWithKey(event)
         WheelHandler {
             target: null
@@ -221,50 +204,14 @@ Item {
         }
     }
 
-    Column {
-        id: status
-        objectName: "lyricStatus"
-        anchors.left: parent.left
-        anchors.right: parent.right
+    ThemeActionButton {
+        objectName: "followLyrics"
+        anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.margins: 12
-        spacing: 8
-        visible: root.hasLyrics
-        ThemeActionButton {
-            objectName: "followLyrics"
-            anchors.horizontalCenter: parent.horizontalCenter
-            visible: root.timed && !root.following
-            text: "Follow Lyrics"
-            onClicked: root.followCurrent()
-        }
-        Text {
-            objectName: "lyricSource"
-            width: parent.width
-            text: [lyricState.data.source || "", lyricState.data.cached ? "Saved lyrics" : "", root.hasLyrics ? (lyricState.data.syncLevel === "syllable" ? "Syllable timing" : lyricState.data.syncLevel === "word" ? "Word timing" : root.timed ? "Line timing" : "Unsynced lyrics") : "", lyricState.data.match === "approximate" ? "Approximate match" : ""].filter(Boolean).join(" · ")
-            textFormat: Text.PlainText
-            color: themeState.secondary
-            font.pixelSize: 12
-            wrapMode: Text.Wrap
-            visible: !!text
-        }
-        Text {
-            objectName: "lyricRefreshStatus"
-            width: parent.width
-            maximumLineCount: 2
-            elide: Text.ElideRight
-            text: lyricState.busy ? "Refreshing lyrics…" : lyricState.error || lyricState.data.status || ""
-            textFormat: Text.PlainText
-            color: themeState.secondary
-            font.pixelSize: 12
-            wrapMode: Text.Wrap
-            visible: !!text
-        }
-        ThemeActionButton {
-            visible: !!lyricState.error && !lyricState.busy
-            text: "Retry"
-            onClicked: lyricState.refresh()
-        }
-        onHeightChanged: Qt.callLater(root.centerCurrent)
+        anchors.bottomMargin: 12
+        visible: root.timed && !root.following
+        text: "Follow Lyrics"
+        onClicked: root.followCurrent()
     }
 
     Connections {
