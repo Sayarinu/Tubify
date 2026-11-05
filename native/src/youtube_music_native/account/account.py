@@ -8,6 +8,7 @@ from PySide6.QtGui import QDesktopServices
 
 from . import browsers
 from ..jobs import Worker
+from ..util import needs_reconnect
 
 MUSIC_URL = "https://music.youtube.com/"
 RENEW_AFTER = 7 * 24 * 3600
@@ -39,6 +40,7 @@ class Account(QObject):
         self._fixture = fixture
         self.worker = None if fixture else (worker if worker is not None else Worker(self))
         self._request = None
+        self._verify_request = None
         self._operation = ""
         self._busy = False
         self._connected = False
@@ -203,6 +205,13 @@ class Account(QObject):
         self.connectedChanged.emit()
 
     def _succeeded(self, identifier, result):
+        if identifier == self._verify_request:
+            self._verify_request = None
+            captured = result.get("captured") or 0
+            if captured and self._clock() - captured > RENEW_AFTER:
+                # Refresh rotating Google cookies before they lapse; failure leaves the current session alone.
+                self.renew()
+            return
         if identifier != self._request:
             return
         self._request = None
@@ -225,12 +234,18 @@ class Account(QObject):
             self.sessionChanged.emit()
         if self._operation == "sign_out":
             self.signedOut.emit()
-        captured = result.get("captured") or 0
-        if self._operation == "restore" and self._connected and captured and self._clock() - captured > RENEW_AFTER:
-            # Refresh rotating Google cookies before they lapse; failure leaves the current session alone.
-            self.renew()
+        if self._operation == "restore" and self._connected:
+            # The browser may have rotated the saved cookies while the app was closed. This doesn't hold
+            # up the account state, and being offline says nothing about the session.
+            self._verify_request = self.worker.request("verify_session")
 
     def _failed(self, identifier, error):
+        if identifier == self._verify_request:
+            self._verify_request = None
+            # A sign-in or sign-out in progress settles the session itself.
+            if needs_reconnect(error) and not self._busy:
+                self.requireReconnect(error.get("message", "Your session needs reconnecting."))
+            return
         if identifier != self._request:
             return
         self._request = None
