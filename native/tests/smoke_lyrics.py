@@ -132,7 +132,8 @@ def main():
         # Upcoming lines recede behind the current one.
         assert item("lyricText-1").property("color").name().upper() == theme.secondary
         assert item("lyricText-1").property("color").alphaF() < 0.7
-        assert "Saved lyrics" in pane.findChild(QObject, "lyricSource").property("text")
+        # Lyrics fill the pane, with no source or timing details beneath them.
+        assert lines.height() == pane.height()
         player.seek(original[-1]["start"])
         centered(39)
         player.seek(original[12]["start"])
@@ -184,12 +185,6 @@ def main():
             assert pane.property("following")
             centered(20)
             player.seek(original[12]["start"])
-            centered(12)
-
-        # Footer layout changes must recenter even when the pane itself is unchanged.
-        status = pane.findChild(QObject, "lyricStatus")
-        for padding in (24, 76, 12):
-            QQmlProperty(status, "anchors.bottomMargin").write(padding)
             centered(12)
 
         # Keyboard scrolling pauses; explicit seek restores following even inside the same line.
@@ -266,18 +261,27 @@ def main():
         plain = item("lyricLine-0")
         assert item("lyricText-0").property("color").name().upper() == theme.foreground
         assert QAccessible.queryAccessibleInterface(plain).role() == QAccessible.Role.StaticText
-        assert not follow.isVisible() and "Unsynced lyrics" in pane.findChild(QObject, "lyricSource").property("text")
+        assert not follow.isVisible()
         old_position = player.position
         click(plain)
         assert player.position == old_position
         lyrics._error = "Could not refresh while offline."
         lyrics.changed.emit()
         QTest.qWait(80)
-        assert lines.isVisible() and pane.findChild(QObject, "lyricRefreshStatus").isVisible()
+        # A failed refresh keeps the lyrics already on screen.
+        assert lines.isVisible()
         lyrics._data = {"available": False, "lines": []}
         lyrics.changed.emit()
         QTest.qWait(80)
-        assert not lines.isVisible() and pane.findChild(QObject, "lyricEmptyState").isVisible()
+        empty, retry = pane.findChild(QObject, "lyricEmptyState"), pane.findChild(QObject, "lyricRetry")
+        assert not lines.isVisible() and empty.isVisible() and retry.isVisible()
+        assert abs(empty.y() + empty.height() / 2 - pane.height() / 2) < 1, "The message should sit in the middle of the panel"
+        # A song with no lyrics is not a failure, so there is nothing to retry.
+        lyrics._error = ""
+        lyrics.changed.emit()
+        QTest.qWait(80)
+        assert empty.isVisible() and not retry.isVisible()
+        assert abs(empty.y() + empty.height() / 2 - pane.height() / 2) < 1
         assert not warnings, warnings
         window.close()
         lyrics.close()

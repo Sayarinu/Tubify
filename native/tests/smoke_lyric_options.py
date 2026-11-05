@@ -77,7 +77,7 @@ def main():
                 label = next(node for node in visual_items(pane) if node.objectName() == "lyricText-0")
                 timestamp = next(node for node in visual_items(pane) if node.objectName() == "lyricTimestamp-0")
                 assert timestamp.isVisible() and timestamp.property("text") == "0:00"
-                assert "<font" in label.property("text") and "Word timing" in pane.findChild(QObject, "lyricSource").property("text")
+                assert "<font" in label.property("text")
                 before = label.property("text")
                 player.seek(4.)
                 QTest.qWait(80)
