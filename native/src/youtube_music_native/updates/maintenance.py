@@ -177,7 +177,7 @@ class Maintenance(QObject):
         self.window = None
         self.prepare_restart = lambda: None
         self._tag, self._available, self._progress = "", False, 0
-        self._notes, self._downgrade, self._switching = "", False, False
+        self._notes, self._downgrade, self._switching, self._confirming = "", False, False, False
         self._mac = None
         self.settings = getattr(shell, "settings", None)
         if self.settings is None:
@@ -226,6 +226,7 @@ class Maintenance(QObject):
         self.settings.setValue("updates/channel", channel)
         self.settings.sync()
         self._tag, self._available, self._downgrade, self._switching, self._notes = "", False, False, False, ""
+        self._confirming = False
         self.changed.emit()
         self.checkRelease()
 
@@ -331,6 +332,13 @@ class Maintenance(QObject):
     def installUpdate(self):
         if not self.installSupported or not self._available or self.busy:
             return
+        # An offer can wait for hours while newer releases ship, so install what is newest now.
+        # The offer stays up meanwhile, so the button can retry if this lookup fails.
+        self._confirming = True
+        self._status = "Checking for the latest release…"
+        self._request("release", {"cache_path": self._cache, "channel": self._channel})
+
+    def _begin_install(self):
         if sys.platform == "darwin":
             if self._downgrade:
                 # Sparkle only installs newer builds; an older stable build is a manual download.
@@ -405,6 +413,7 @@ class Maintenance(QObject):
         action = self._pending.pop(identifier, None)
         if action is None:
             return
+        confirming, self._confirming = self._confirming, False
         if action == "download":
             if result.get("error"):
                 self._status = result["error"]
@@ -442,10 +451,14 @@ class Maintenance(QObject):
                     self._tag, self._available, self._downgrade, self._switching = tag, True, downgrade, switching
                     self._notes = release_notes(result.get("notes"))
                     self._status = (label + " is available to switch to " + self._channel.capitalize() + "." if switching else label + " is available.")
-                elif current == latest:
-                    self._status = "You have the latest " + self._channel + " release, " + label + "."
+                    if confirming:
+                        self._begin_install()
                 else:
-                    self._status = "The latest " + self._channel + " release is " + label + ". This build has a different version."
+                    self._available, self._downgrade, self._switching = False, False, False
+                    if current == latest:
+                        self._status = "You have the latest " + self._channel + " release, " + label + "."
+                    else:
+                        self._status = "The latest " + self._channel + " release is " + label + ". This build has a different version."
                 if result.get("warning"):
                     self._status += " " + result["warning"]
         self.changed.emit()
@@ -455,6 +468,7 @@ class Maintenance(QObject):
         self._result(identifier, {"error": "This operation could not finish. Retry when ready."})
 
     def close(self):
+        self._confirming = False
         self.timer.stop()
         if self._worker:
             self._worker.close()
