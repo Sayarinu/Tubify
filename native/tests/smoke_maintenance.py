@@ -46,7 +46,10 @@ def main():
                     QTest.qWait(50)
                     assert not popup.property("visible")
                     QMetaObject.invokeMethod(dialog, "open")
-                    QTest.qWait(50)
+                    # A popup takes its final height once a frame has been prepared, which can lag on a slow runner.
+                    deadline = time.monotonic() + 5
+                    while not (dialog.property("visible") and dialog.property("height") * shell.uiScaleFactor < window.height()) and time.monotonic() < deadline:
+                        QTest.qWait(20)
                     assert dialog.property("visible") and dialog.property("height") * shell.uiScaleFactor < window.height()
                     service.exportDiagnostics(QUrl.fromLocalFile(str(report)))
                     deadline = time.monotonic() + 10

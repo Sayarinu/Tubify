@@ -48,6 +48,10 @@ class Audio(QObject):
         @self.player.event_callback("audio-reconfig")
         def reconfigured(event):
             self.outputChanged.emit()
+        # The source format is only known once audio has decoded, which audio-reconfig can come before.
+        @self.player.event_callback("playback-restart")
+        def restarted(event):
+            self.outputChanged.emit()
         for name in ("time-pos", "duration", "pause", "volume", "paused-for-cache"):
             self.player.observe_property(name, lambda key, value: self.updated.emit({key: value}))
 
