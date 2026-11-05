@@ -8,6 +8,8 @@ Item {
     id: root
     objectName: "downloadsPane"
     property real gutter: Theme.gutter(width)
+    // Next to an open panel, the panel's own gap replaces the right gutter.
+    readonly property real rightGutter: appState.panel ? 0 : gutter
     property string selectedKind: "All"
     property var selectedEntry: ({})
     property bool blockingShortcuts: options.opened || removal.opened
@@ -28,7 +30,7 @@ Item {
         id: list
         WheelScroll { view: list }
         objectName: "downloadsList"
-        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         clip: true; bottomMargin: 32
         model: root.entries
         ScrollBar.vertical: ScrollBar {}

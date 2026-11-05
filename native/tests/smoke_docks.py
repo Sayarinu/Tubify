@@ -59,6 +59,9 @@ def main():
                         # The panel never squeezes the page below 480 px unless it is already at its 280 px minimum.
                         assert content.width() >= 480 or panel.width() == 280, (size, content.width())
                         assert content.x() + content.width() + 12 == panel.x()
+                        # The panel's gap replaces the page's right gutter.
+                        page = window.findChild(QObject, "browseSections")
+                        assert page.isVisible() and page.mapToScene(QPointF(page.width(), 0)).x() + 12 == panel.x()
                         assert bar.isVisible()
                         search = window.findChild(QObject, "searchField")
                         settings = window.findChild(QObject, "settingsButton")

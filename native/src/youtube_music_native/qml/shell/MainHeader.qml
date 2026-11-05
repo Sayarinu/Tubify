@@ -73,7 +73,7 @@ Item {
         id: profileButton
         objectName: "profileButton"
         anchors.right: parent.right
-        anchors.rightMargin: header.width < 480 ? 8 : 32
+        anchors.rightMargin: appState.panel ? 0 : header.width < 480 ? 8 : 32
         y: 10
         width: 44; height: 44
         iconName: "profile"
