@@ -20,7 +20,8 @@ Item {
     property bool collapsed: false
     // How far the divider runs past the header, to meet the side panel's divider.
     property real dividerExtension: 0
-    height: collapsed ? 0 : 64
+    readonly property real fullHeight: 64
+    height: collapsed ? 0 : fullHeight
     visible: !collapsed
     Rectangle { objectName: "mainHeaderDivider"; anchors.left: parent.left; anchors.right: parent.right; anchors.rightMargin: -header.dividerExtension; anchors.bottom: parent.bottom; height: 1; color: themeState.border }
     IconButton { id: navigationToggle; objectName: "navigationToggle"; visible: header.compactNavigation; x: 8; y: 10; width: 36; height: 44; iconName: "menu"; tip: "Open Navigation"; Keys.onShortcutOverride: function(event) { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return) event.accepted = true }; Keys.onReturnPressed: header.navigationRequested(); onClicked: header.navigationRequested() }

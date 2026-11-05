@@ -90,18 +90,19 @@ def test_one_panel_opens_at_a_time_and_is_remembered(tmp_path):
     assert ShellController(path).panel == ""
 
 
-def test_full_player_and_panels_replace_each_other(tmp_path):
+def test_full_player_and_panels_stay_open_together(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     shell = ShellController(tmp_path / "settings.ini")
-    measured = []
-    shell.playerViewChanging.connect(lambda entering: measured.append((entering, shell.panel)))
     shell.setQueueOpen(True)
     shell.setExpanded(True)
-    assert shell.expanded and shell.panel == ""
+    assert shell.expanded and shell.queueOpen
     shell.setLyricsOpen(True)
-    assert not shell.expanded and shell.lyricsOpen
-    # The slide measures the page without a panel in both directions.
-    assert measured == [(True, ""), (False, "")]
+    assert shell.expanded and shell.lyricsOpen and not shell.queueOpen
+    shell.setPanel("")
+    assert shell.expanded
+    shell.setPanel("Queue")
+    shell.setExpanded(False)
+    assert not shell.expanded and shell.queueOpen
     assert not ShellController(tmp_path / "settings.ini").expanded
 
 

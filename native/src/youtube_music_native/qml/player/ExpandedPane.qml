@@ -6,15 +6,18 @@ import "../components"
 Item {
     id: root
     objectName: "expandedPlayer"
+    // Space taken by the side panel floating on the right. The background still runs underneath it.
+    property real rightInset: 0
+    readonly property real stageWidth: width - rightInset
     readonly property var track: playerState.currentTrack
     readonly property var artists: track.artists && track.artists.length ? track.artists : track.artist ? [{name: track.artist}] : []
     readonly property var album: typeof track.album === "object" && track.album ? track.album : ({})
     readonly property string albumName: typeof track.album === "string" ? track.album : album.name || track.albumName || track.albumTitle || ""
     readonly property string albumId: album.id || album.browseId || ""
-    readonly property real coverSize: Math.max(80, Math.min(width - 48, height - metadata.height - 64 - (modeSwitch.visible ? 52 : 0), 720))
+    readonly property real coverSize: Math.max(80, Math.min(stageWidth - 48, height - metadata.height - 64 - (modeSwitch.visible ? 52 : 0), 720))
     // Music videos play here; leaving the expanded player returns to audio only.
     readonly property bool videoShown: playerState.showingVideo && playerState.videoPreferred
-    readonly property real videoWidth: Math.max(160, Math.min(width - 48, (height - metadata.height - 116) * 16 / 9, 1280))
+    readonly property real videoWidth: Math.max(160, Math.min(stageWidth - 48, (height - metadata.height - 116) * 16 / 9, 1280))
     Component.onCompleted: playerState.setVideoSurface(visible)
     Component.onDestruction: playerState.setVideoSurface(false)
     onVisibleChanged: playerState.setVideoSurface(visible)
@@ -26,8 +29,9 @@ Item {
         mediaKey: root.track.videoId || root.track.id || ""
     }
     Column {
-        anchors.centerIn: parent
-        width: Math.min(root.width - 48, 760)
+        x: (root.stageWidth - width) / 2
+        anchors.verticalCenter: parent.verticalCenter
+        width: Math.min(root.stageWidth - 48, 760)
         spacing: 24
         Row {
             id: modeSwitch
@@ -86,7 +90,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(implicitWidth, parent.width)
                 text: root.track.title || "Nothing Playing"
-                pixelSize: root.width < 600 ? 24 : 32; bold: true
+                pixelSize: root.stageWidth < 600 ? 24 : 32; bold: true
                 maximumLineCount: 2
                 underlineOnHover: false
                 Accessible.role: Accessible.Button

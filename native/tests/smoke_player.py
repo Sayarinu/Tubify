@@ -149,16 +149,16 @@ def main():
                         assert stage and stage.isVisible() and stage.width() >= 320
                         assert not find("navigationRail").isVisible() and not find("mainHeader").isVisible()
                         assert find("browsePane") == browse_page and not browse_page.isVisible()
-                        # The page holds its size under the stage; one that had a panel beside it has already taken that space.
-                        assert find("browseLoader").width() == old_width or old_panel
-                        assert browsing.property("contentY") == old_scroll or old_panel
+                        # The page holds its size under the stage.
+                        assert find("browseLoader").width() == old_width
+                        assert browsing.property("contentY") == old_scroll
                         assert find("queuePane") == queue_pane and find("lyricsPane") == lyrics_pane
                         assert find("playerBar") == transport and transport.isVisible()
                         # The stage's backdrop reaches the bar, with no strip of page colour between them.
                         assert abs(stage.mapToScene(QPointF(0, stage.height())).y() - transport.mapToScene(QPointF()).y()) < 1
-                        # The full player replaces any open panel.
-                        assert shell.panel == "" and not lyrics._active
-                        assert 80 <= cover.width() <= stage.width() - 48
+                        # Any open panel stays, beside the cover.
+                        assert shell.panel == old_panel and lyrics._active == (old_panel == "Lyrics")
+                        assert 80 <= cover.width() <= stage.width() - stage.property("rightInset") - 48
                         # The stage's column only lays out once it is drawn again at this window size.
                         deadline = time.monotonic() + 2
                         while cover.mapToItem(stage, QPointF()).y() < 0 and time.monotonic() < deadline:
@@ -177,7 +177,7 @@ def main():
                         settle()
                         assert not shell.expanded and browse_page.isVisible()
                         assert window.activeFocusItem() == old_focus, (size, panel)
-                        assert browsing.property("contentY") == old_scroll or old_panel
+                        assert browsing.property("contentY") == old_scroll
                     QMetaObject.invokeMethod(toggle, "clicked")
                     settle()
                     deadline = time.monotonic() + 2
@@ -212,7 +212,9 @@ def main():
                 settle()
                 shell.setPanelWidth(280)
                 theme = args[11]
-                # Opening the queue leaves the stage; the switch matrix below checks the switch in the panel.
+                # The switch matrix below checks the switch in the panel, away from the stage.
+                shell.setExpanded(False)
+                settle()
                 shell.setQueueOpen(True)
                 settle()
                 settle_docks()
@@ -256,7 +258,9 @@ def main():
                 settle()
                 while window.property("immersiveOpening"):
                     QTest.qWait(10)
-                assert shell.expanded and shell.panel == ""
+                assert shell.expanded and shell.queueOpen
+                shell.setQueueOpen(False)
+                settle_docks()
                 # Old downloaded metadata retains readable artist/album fallback strings.
                 legacy = {**track, "videoId": "stage000002", "artists": [], "artist": "Legacy artist", "album": "Legacy album", "thumbnail": "", "largeThumbnail": ""}
                 player.playTracks([legacy])

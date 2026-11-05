@@ -222,9 +222,6 @@ class ShellController(QObject):
     def setPanel(self, value):
         if value and value not in SIDE_PANELS:
             return
-        # Leave the full player first: it measures the page before the panel takes its space.
-        if value:
-            self.setExpanded(False)
         if value != self._panel:
             self._panel = value
             self.settings.setValue("sidePanel", value)
@@ -291,9 +288,6 @@ class ShellController(QObject):
     @Slot(bool)
     def setExpanded(self, value):
         if self._expanded != value:
-            # The full player takes the screen; it measures the area it will fill from the page without a panel.
-            if value:
-                self.setPanel("")
             self.playerViewChanging.emit(value)
             self._expanded = value
             self.playerViewChanged.emit()

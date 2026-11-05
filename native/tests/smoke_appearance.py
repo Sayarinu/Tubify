@@ -88,7 +88,10 @@ def main():
                             cover_bounds = cover.mapRectToScene(cover.boundingRect())
                             assert cover_bounds.left() >= 0 and cover_bounds.right() <= size[0] + 1
                             assert cover_bounds.top() >= 0 and cover_bounds.bottom() <= bounds.top() + 1, (scale, size, cover_bounds)
-                            assert shell.panel == ""
+                            # An open panel stays, without covering the artwork.
+                            assert shell.panel == name
+                            if name:
+                                assert side_panel.isVisible() and cover_bounds.right() <= side_panel.mapRectToScene(side_panel.boundingRect()).left() + 0.1, (scale, size)
                             shell.setExpanded(False)
                             # Wait until the closed player has slid away.
                             settle(lambda: not stage.isVisible())
@@ -223,6 +226,7 @@ def main():
                 assert stage_offset() == 0
                 shell.setExpanded(False)
                 assert not find("immersiveLoader").isVisible()
+                shell.setPanel("")
                 for preset in theme.darkThemes + theme.lightThemes:
                     theme.selectTheme(preset["id"])
                     for scale in (80, 100, 150):
