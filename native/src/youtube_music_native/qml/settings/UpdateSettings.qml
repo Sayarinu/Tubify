@@ -20,8 +20,9 @@ SettingsPage {
             spacing: 16
             Label { objectName: "installedVersion"; text: maintenanceState.versionName; textFormat: Text.PlainText; color: themeState.foreground; font.bold: true }
             Label { objectName: "updateStatus"; Layout.fillWidth: true; text: maintenanceState.status; textFormat: Text.PlainText; color: themeState.foreground; wrapMode: Text.Wrap }
-            RowLayout {
+            ColumnLayout {
                 Layout.fillWidth: true
+                spacing: 6
                 Label { text: "Update Channel"; color: themeState.foreground }
                 ThemedComboBox {
                     objectName: "updateChannelOption"
