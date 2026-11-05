@@ -64,6 +64,7 @@ jobs:
       publish: ${{ steps.choose.outputs.publish }}
       prerelease: ${{ steps.choose.outputs.prerelease }}
       tag: ${{ steps.choose.outputs.tag }}
+      stable: ${{ steps.choose.outputs.stable }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -82,6 +83,7 @@ jobs:
     uses: ./.github/workflows/native-linux-build.yml
     with:
       version: ${{ needs.version.outputs.version }}
+      oldest-switch-version: ${{ needs.version.outputs.stable }}
       # Pull requests and forks can build with a placeholder; releases fail without the real key.
       update-public-key: ${{ vars.TUBIFY_UPDATE_PUBLIC_KEY || (needs.version.outputs.publish != 'true' && 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' || '') }}
 
