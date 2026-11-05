@@ -174,6 +174,20 @@ def main():
                 assert window.property("immersiveOpening") and stage.width() == window.width()
                 wait(lambda: not window.property("immersiveOpening"))
                 assert stage.width() == window.width() and panel.isVisible()
+                # The artwork moves along with the panel instead of jumping when the slide starts.
+                artwork = window.findChild(QObject, "immersiveArtwork")
+                artwork_center = lambda: artwork.mapToScene(QPointF(artwork.width() / 2, 0)).x()
+                beside_panel = artwork_center()
+                centered = stage.width() / 2
+                assert centered - beside_panel > 100
+                shell.setPanel("")
+                assert abs(artwork_center() - beside_panel) <= 2
+                wait(lambda: not panel.isVisible())
+                assert abs(artwork_center() - centered) <= 1
+                shell.setQueueOpen(True)
+                assert abs(artwork_center() - centered) <= 2
+                wait(lambda: abs(offset()) < 0.5)
+                assert abs(artwork_center() - beside_panel) <= 1
                 shell.setExpanded(False)
                 assert window.property("immersiveClosing") and stage.width() == window.width() and panel.isVisible()
                 wait(lambda: not window.property("immersiveClosing"))

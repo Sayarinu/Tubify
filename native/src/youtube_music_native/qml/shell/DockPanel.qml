@@ -15,6 +15,8 @@ Rectangle {
     color: themeState.surface
     // Clears the margin between the card and the window edge when sliding.
     readonly property real travel: width + anchors.rightMargin
+    // How much of the panel's slide is done, from 0 (off screen) to 1 (in place), for what moves along with it.
+    readonly property real revealed: visible && travel > 0 ? 1 - shift.x / travel : 0
     transform: Translate { id: shift }
     onShownChanged: {
         var reversing = slide.running
