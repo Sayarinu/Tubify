@@ -146,10 +146,24 @@ def main():
                 assert panel.isVisible() and panel.isEnabled() and offset() > panel.width() - 1 and panel.property("opacity") < 0.1
                 assert content.x() + content.width() + 12 == panel.x()
                 wait(lambda: abs(offset()) < 0.5 and panel.property("opacity") == 1)
-                # Switching panels swaps the content at once.
+                # Switching panels fades the old one out, then brings the new one in, while the card stays put.
+                body = window.findChild(QObject, "panelBody")
                 shell.setLyricsOpen(True)
-                assert lyric.isVisible() and not queue.isVisible() and abs(offset()) < 0.5 and panel.property("opacity") == 1
+                assert queue.isVisible() and not lyric.isVisible() and lyrics._active and abs(offset()) < 0.5 and panel.property("opacity") == 1
+                wait(lambda: lyric.isVisible() and body.property("opacity") == 1)
+                assert not queue.isVisible()
+                # Quick switches end on the last panel chosen.
+                shell.setPanel("NowPlaying")
                 shell.setQueueOpen(True)
+                shell.setLyricsOpen(True)
+                wait(lambda: body.property("opacity") == 1 and lyric.isVisible() and not now.isVisible())
+                assert not queue.isVisible()
+                # A panel opening from closed only slides.
+                shell.setPanel("")
+                wait(lambda: not panel.isVisible())
+                shell.setQueueOpen(True)
+                assert queue.isVisible() and body.property("opacity") == 1
+                wait(lambda: abs(offset()) < 0.5 and panel.property("opacity") == 1)
                 # The header's buttons stay in front of the panel for the whole slide, leaving and arriving.
                 profile = window.findChild(QObject, "profileButton")
                 profile_edge = lambda: profile.mapToScene(QPointF(profile.width(), 0)).x()

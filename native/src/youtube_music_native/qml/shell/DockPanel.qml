@@ -2,7 +2,6 @@ import QtQuick
 import "../Theme.js" as Theme
 
 // The side panel, a card matching the player bar: slides in past the right edge when opened and back out when closed.
-// Switching between panels swaps the content at once.
 Rectangle {
     id: root
     // Whether the panel occupies its place in the layout.

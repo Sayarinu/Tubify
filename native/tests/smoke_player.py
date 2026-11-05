@@ -100,9 +100,9 @@ def main():
             QTest.qWait(80)
 
         def settle_docks():
-            # A closed dock stays drawn while it slides out.
+            # A closed dock stays drawn while it slides out, and a switch between panels takes a moment to land.
             for _ in range(100):
-                if not any(find(name).property("leaving") for name in ("sidePanel",)):
+                if not find("sidePanel").property("leaving") and find("panelBody").property("opacity") == 1:
                     return
                 QTest.qWait(10)
 

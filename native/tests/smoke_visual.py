@@ -64,7 +64,12 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     # The now-playing panel replaces the queue and shows the artwork at the full width of the panel.
     toggle = window.findChild(QObject, "nowPlayingViewToggle")
     QMetaObject.invokeMethod(toggle, "clicked")
-    QTest.qWait(40)
+    # The panel switch takes a moment to land.
+    body = window.findChild(QObject, "panelBody")
+    for _ in range(200):
+        if not pane.isVisible() and body.property("opacity") == 1:
+            break
+        QTest.qWait(10)
     assert shell.nowPlayingOpen and not pane.isVisible()
     artwork = next(child for child in visual_items(window.contentItem()) if child.objectName() == "queueNowPlayingArtwork")
     assert artwork.isVisible() and artwork.height() == artwork.width() and artwork.width() >= sidebar.width() - 48
