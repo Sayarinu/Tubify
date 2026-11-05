@@ -8,6 +8,9 @@ Item {
     objectName: "expandedPlayer"
     // Space taken by the side panel floating on the right. The background still runs underneath it.
     property real rightInset: 0
+    // Where that space is right now while the panel slides. Only the stage's position follows it:
+    // sizing from it would reload the artwork on every frame.
+    property real slidingInset: rightInset
     readonly property real stageWidth: width - rightInset
     readonly property var track: playerState.currentTrack
     readonly property var artists: track.artists && track.artists.length ? track.artists : track.artist ? [{name: track.artist}] : []
@@ -29,7 +32,7 @@ Item {
         mediaKey: root.track.videoId || root.track.id || ""
     }
     Column {
-        x: (root.stageWidth - width) / 2
+        x: (root.width - root.slidingInset - width) / 2
         anchors.verticalCenter: parent.verticalCenter
         width: Math.min(root.stageWidth - 48, 760)
         spacing: 24

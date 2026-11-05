@@ -64,6 +64,8 @@ ApplicationWindow {
     readonly property real panelWidth: Math.min(appState.panelWidth, panelBudget)
     // What the panel and its gaps take from the right of the window. The full player's background runs underneath.
     readonly property real panelSpace: panelOpen ? panelWidth + 2 * panelGap : 0
+    // The same space, following the panel while it slides.
+    readonly property real panelSlideSpace: (panelWidth + 2 * panelGap) * sidePanel.revealed
     function restorePanelFocus() {
         Qt.callLater(function() {
             // A panel sliding out is disabled at once, which drops its focus to the window root.
@@ -327,7 +329,7 @@ ApplicationWindow {
             visible: appState.expanded || covering
             // The closing pane only animates; input and focus belong to the pages beneath it.
             enabled: appState.expanded
-            sourceComponent: Component { ExpandedPane { rightInset: window.panelSpace } }
+            sourceComponent: Component { ExpandedPane { rightInset: window.panelSpace; slidingInset: window.panelSlideSpace } }
             onLoaded: if (appState.expanded) item.focusStage()
             transform: Translate { id: immersiveShift }
             property bool opening: true
