@@ -10,11 +10,13 @@ from PySide6.QtCore import QObject, Property, Signal, Slot
 from .library import SECTIONS
 from ..util import needs_reconnect
 
-SORT_KEYS = ("title", "artist", "album", "duration")
+SORT_KEYS = ("number", "title", "artist", "album", "duration")
 SORTABLE_ROUTES = {"album", "playlist"}
 # The provider ignores `order` for these library sections, so it is applied here.
 CLIENT_ORDER_ROUTES = {"library_playlists", "library_liked"}
-ORDER_SORTS = {"a_to_z": ("title", False), "z_to_a": ("title", True)}
+# Song lists number their rows, so these orders apply to every section offering them.
+NUMBER_ORDERS = {"number_ascending": ("number", False), "number_descending": ("number", True)}
+ORDER_SORTS = {"a_to_z": ("title", False), "z_to_a": ("title", True), **NUMBER_ORDERS}
 # Library sections are kept in memory so revisits render instantly, then revalidate.
 MEMORY_ROUTES = set(SECTIONS.values()) | {"history"}
 MEMORY_TTL = 300
@@ -31,6 +33,8 @@ def _without_positions(data):
 
 
 def sort_value(item, key):
+    if key == "number":
+        return (False, item.get("position", 0))
     if key == "duration":
         value = item.get("duration")
         return (not isinstance(value, (int, float)) or value <= 0, value if isinstance(value, (int, float)) else 0)
@@ -118,14 +122,21 @@ class CatalogView(QObject):
     def sortDescending(self):
         return self._effective_sort()[1]
 
+    @Property(bool, notify=changed)
+    def reordered(self):
+        """The rows differ from the collection's own order."""
+        key, descending = self._effective_sort()
+        return key not in {"", "number"} or descending
+
     def _scope(self):
         return f"{self._route}:{self._params.get('id', '')}" if self._route in SORTABLE_ROUTES else None
 
     def _effective_sort(self):
-        if self._route in CLIENT_ORDER_ROUTES:
-            return ORDER_SORTS.get(self._params.get("order"), ("", False))
+        order = self._params.get("order")
+        if self._route in CLIENT_ORDER_ROUTES or order in NUMBER_ORDERS:
+            return ORDER_SORTS.get(order, ("", False))
         scope = self._scope()
-        return self._sorts.get(scope, ("", False)) if scope else ("", False)
+        return self._sorts.get(scope, ("number", False)) if scope else ("", False)
 
     @Slot(str)
     def sortBy(self, key):
@@ -133,7 +144,7 @@ class CatalogView(QObject):
         scope = self._scope()
         if not scope or key and key not in SORT_KEYS:
             return
-        current, descending = self._sorts.get(scope, ("", False))
+        current, descending = self._sorts.get(scope, ("number", False))
         if not key or key == current and descending:
             self._sorts.pop(scope, None)
         elif key == current:
@@ -149,7 +160,7 @@ class CatalogView(QObject):
         scope = self._scope()
         if not scope or key and key not in SORT_KEYS:
             return
-        if key:
+        if key and (key, bool(descending)) != ("number", False):
             self._sorts[scope] = (key, bool(descending))
         else:
             self._sorts.pop(scope, None)
@@ -172,7 +183,7 @@ class CatalogView(QObject):
         items = self._data.get("items")
         if not isinstance(items, list):
             return
-        if key and self._data.get("cursor") is not None and self.worker:
+        if self.reordered and self._data.get("cursor") is not None and self.worker:
             # A sort must cover the whole collection, so fetch every remaining page first.
             if not self._loading_all:
                 self._loading_all = True

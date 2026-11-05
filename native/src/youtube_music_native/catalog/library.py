@@ -5,10 +5,13 @@ from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 SECTIONS = {"Playlists": "library_playlists", "Songs": "library_songs", "Albums": "library_albums", "Artists": "library_artists", "Subscriptions": "library_subscriptions", "Liked songs": "library_liked", "History": "history"}
 ORDERS = {"Recently added": "recently_added", "A to Z": "a_to_z", "Z to A": "z_to_a"}
+NUMBER_ORDERS = {"Number ascending": "number_ascending", "Number descending": "number_descending"}
+NUMBERED_SECTIONS = {"Songs", "Liked songs"}
 
 
 class Library(QObject):
     changed = Signal()
+    ordersChanged = Signal()
     dialogRequested = Signal(str, dict)
     chooserRequested = Signal(dict)
     editFinished = Signal()
@@ -37,9 +40,17 @@ class Library(QObject):
     def selectedSection(self):
         return self._selected
 
-    @Property("QVariantList", constant=True)
+    def _orders(self):
+        return {**ORDERS, **NUMBER_ORDERS} if self._selected in NUMBERED_SECTIONS else ORDERS
+
+    def _set_section(self, section):
+        if section != self._selected:
+            self._selected = section
+            self.ordersChanged.emit()
+
+    @Property("QVariantList", notify=ordersChanged)
     def orders(self):
-        return list(ORDERS)
+        return list(self._orders())
 
     @Property(str, notify=changed)
     def selectedOrder(self):
@@ -89,8 +100,8 @@ class Library(QObject):
                 self.move(pending[1], 1)
         selected = next((name for name, route in SECTIONS.items() if route == self.view.route), None)
         if selected:
-            self._selected = selected
-            self._order = next((name for name, order in ORDERS.items() if order == self.view.parameters.get("order")), "Recently added")
+            self._set_section(selected)
+            self._order = next((name for name, order in self._orders().items() if order == self.view.parameters.get("order")), "Recently added")
             self.changed.emit()
 
     @Slot(str)
@@ -99,8 +110,10 @@ class Library(QObject):
             return
         if self.shell.page != "Library":
             self.shell.restoreNavigation("Library", self.shell.query)
-        self._selected = section
-        params = {"order": ORDERS[self._order]}
+        self._set_section(section)
+        if self._order not in self._orders():
+            self._order = "Recently added"
+        params = {"order": self._orders()[self._order]}
         if self.fixture:
             songs = [{**track, "kind": "song", "videoId": "fixture0001", "available": True} for shelf in self.fixture.get("shelves", []) for track in shelf.get("items", [])]
             kind = "playlist" if section == "Playlists" else "album" if section == "Albums" else "artist" if section in {"Artists", "Subscriptions"} else "song"
@@ -112,13 +125,13 @@ class Library(QObject):
 
     @Slot(str)
     def sort(self, order):
-        if order in ORDERS and order != self._order:
+        if order in self._orders() and order != self._order:
             self._order = order
             self.select(self._selected)
 
     @Slot()
     def history(self):
-        self._selected = "History"
+        self._set_section("History")
         self.shell.navigate("Library")
 
     def _action(self, action):

@@ -1,20 +1,18 @@
 import QtQuick
 import QtQuick.Controls
 
-// Column label that sorts the current collection: ascending, descending, then original order.
+// Column label that sorts the current collection: ascending, descending, then by number.
 AbstractButton {
     id: root
     property string label: ""
     property string sortKey: ""
-    // The "#" header (empty key) marks the original order and never shows a direction.
     readonly property bool active: catalogState.sortKey === sortKey
-    readonly property bool directional: active && sortKey !== ""
     implicitWidth: row.implicitWidth + 8
     implicitHeight: 32
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
     Accessible.role: Accessible.ColumnHeader
-    Accessible.name: sortKey ? "Sort by " + label + (directional ? (catalogState.sortDescending ? ", descending" : ", ascending") : "") : "Original order"
+    Accessible.name: "Sort by " + (sortKey === "number" ? "number" : label) + (active ? (catalogState.sortDescending ? ", descending" : ", ascending") : "")
     onClicked: catalogState.sortBy(sortKey)
     contentItem: Row {
         id: row
@@ -28,7 +26,7 @@ AbstractButton {
         Symbol {
             anchors.verticalCenter: parent.verticalCenter
             width: 14; height: 14
-            visible: root.directional
+            visible: root.active
             name: catalogState.sortDescending ? "down" : "up"
             color: themeState.accent
         }

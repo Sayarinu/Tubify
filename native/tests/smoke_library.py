@@ -27,11 +27,28 @@ def main():
                 assert view.route == "library_playlists" and window.findChild(QObject, "libraryPane")
                 library.select("Songs")
                 assert all(item["kind"] == "song" for item in view.data["items"])
+                # Library songs are numbered, and the numbers sort both ways.
+                library.sort("Number descending")
+                QTest.qWait(50)
+                rows = window.findChild(QObject, "librarySongs")
+                numbers = [node.property("number") for node in rows.property("contentItem").childItems() if node.property("number")]
+                assert numbers and numbers == sorted(numbers, reverse=True) and numbers[0] == len(view.data["items"]), numbers
+                library.sort("Recently added")
                 library.history()
                 assert view.route == "history"
                 browse.open({"kind": "playlist", "id": "PLfixture", "title": "Fixture playlist"})
                 QTest.qWait(50)
                 assert window.findChild(QObject, "collectionPane") and view.data["editable"]
+                # The # column sorts by number, with its direction showing and the arrow beside the dropdown.
+                number_header, direction = window.findChild(QObject, "sortDefault"), window.findChild(QObject, "collectionSortDirection")
+                assert number_header.property("active") and direction.property("visible")
+                assert QMetaObject.invokeMethod(number_header, "clicked")
+                QTest.qWait(50)
+                positions = [item["position"] for item in view.data["items"]]
+                assert view.sortKey == "number" and view.sortDescending and positions == sorted(positions, reverse=True)
+                assert QMetaObject.invokeMethod(direction, "clicked")
+                QTest.qWait(50)
+                assert not view.sortDescending and [item["position"] for item in view.data["items"]] == sorted(positions)
                 shell.requestAction("newPlaylist")
                 QTest.qWait(50)
                 field = window.findChild(QObject, "playlistNameField")
