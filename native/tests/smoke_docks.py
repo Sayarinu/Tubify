@@ -81,22 +81,24 @@ def main():
                     QMetaObject.invokeMethod(window.findChild(QObject, toggle), "clicked")
                     QTest.qWait(40)
                     assert shell.panel == "" and not panel.isVisible()
-                # Each kind of panel keeps its own width.
-                shell.setLyricsWidth(500)
-                shell.setQueueWidth(460)
-                shell.setLyricsOpen(True)
-                QTest.qWait(40)
-                assert panel.width() == 500
+                # Every panel has the same size.
+                shell.setPanelWidth(460)
+                sizes = set()
+                for name in ("Lyrics", "Queue", "NowPlaying"):
+                    shell.setPanel(name)
+                    QTest.qWait(40)
+                    sizes.add((panel.width(), panel.height()))
+                    assert panel.width() == 460 and content.width() >= 480
+                assert len(sizes) == 1
                 shell.setQueueOpen(True)
                 QTest.qWait(40)
-                assert panel.width() == 460 and content.width() >= 480
                 handle = window.findChild(QObject, "panelResizeHandle")
                 point = handle.mapToScene(QPointF(handle.width()/2, 150)).toPoint()
                 QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=point)
                 QTest.mouseMove(window, point + QPointF(50, 0).toPoint(), delay=30)
                 QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=point + QPointF(50, 0).toPoint())
                 QTest.qWait(40)
-                assert shell.queueWidth < 460 and shell.lyricsWidth == 500
+                assert shell.panelWidth < 460
 
                 # Opening a panel slides it in from the right edge; closing slides it out while the page takes its space.
                 def offset():

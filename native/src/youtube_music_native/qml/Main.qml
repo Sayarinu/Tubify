@@ -61,7 +61,7 @@ ApplicationWindow {
     readonly property real panelGap: 12
     // The panel never takes the last 480 px from the page; below that it stops at its 280 px minimum.
     readonly property real panelBudget: Math.max(280, uiRoot.width - navigationEdge.width - 480 - 2 * panelGap)
-    readonly property real panelWidth: Math.min(sidePanel.page === "Lyrics" ? appState.lyricsWidth : appState.queueWidth, panelBudget)
+    readonly property real panelWidth: Math.min(appState.panelWidth, panelBudget)
     function restorePanelFocus() {
         Qt.callLater(function() {
             // A panel sliding out is disabled at once, which drops its focus to the window root.
@@ -405,7 +405,7 @@ ApplicationWindow {
         PanelResizeHandle {
             objectName: "panelResizeHandle"
             panelWidth: sidePanel.width
-            onResized: function(value) { if (sidePanel.page === "Lyrics") appState.setLyricsWidth(value); else appState.setQueueWidth(value) }
+            onResized: function(value) { appState.setPanelWidth(value) }
             onFinished: appState.saveSidebarWidths()
         }
     }

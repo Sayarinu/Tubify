@@ -210,7 +210,7 @@ def main():
                     QTest.qWait(10)
                 assert not find("playerBarBackdrop").isVisible()
                 settle()
-                shell.setQueueWidth(280)
+                shell.setPanelWidth(280)
                 theme = args[11]
                 # Opening the queue leaves the stage; the switch matrix below checks the switch in the panel.
                 shell.setQueueOpen(True)

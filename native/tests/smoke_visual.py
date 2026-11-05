@@ -188,8 +188,8 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     assert not browse.queueBusy and not player.manualCount
     # Completed/progress indicators stay present without hovering, including narrow docks.
     saved_download_states = dict(downloads._track_states)
-    saved_width = shell.queueWidth
-    shell.setQueueWidth(280)
+    saved_width = shell.panelWidth
+    shell.setPanelWidth(280)
     downloads._track_states = {fixture["videoId"]: "ready"}
     downloads.changed.emit()
     settle()
@@ -207,7 +207,7 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     assert download.isVisible() and download.property("status") == "downloading"
     downloads._track_states = saved_download_states
     downloads.changed.emit()
-    shell.setQueueWidth(saved_width)
+    shell.setPanelWidth(saved_width)
     settle()
     save("queue-source-only")
 
@@ -569,7 +569,7 @@ def main():
                     QTest.qWait(40)
                     assert queue.width() > initial_queue_width
                     shell.setSidebarWidth(240)
-                    shell.setQueueWidth(360)
+                    shell.setPanelWidth(360)
                     shell.saveSidebarWidths()
                     shell.toggleQueue()
                     QTest.mouseMove(window, QPointF(800, 700).toPoint(), delay=20)
