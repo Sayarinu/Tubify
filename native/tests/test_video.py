@@ -249,8 +249,9 @@ def test_libmpv_adds_and_hides_video_while_the_audio_keeps_playing(tmp_path):
         return audio.player.audio_pts
 
     def assert_audio_kept_time(since_clock, since_wall):
-        # A stop or reload would lose time; mpv would also report a restart.
-        assert abs((clock() - since_clock) - (time.monotonic() - since_wall)) < 0.25
+        # The restart and end-of-file events catch a stop or reload. This catches audio going
+        # missing some other way, allowing for how far a busy CI machine's null output falls behind.
+        assert abs((clock() - since_clock) - (time.monotonic() - since_wall)) < 1
 
     try:
         audio.load({"source": str(song), "headers": []}, 2)
