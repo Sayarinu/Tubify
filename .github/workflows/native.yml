@@ -115,11 +115,15 @@ jobs:
         timeout-minutes: 15
         run: |
           for attempt in 1 2 3; do
-            timeout 180 sudo sh -c 'apt-get update && apt-get install -y --download-only libmpv2 ffmpeg' && break
+            # Each timeout runs inside sudo with apt-get as its direct child, so its kill always lands.
+            # Otherwise apt-get can outlive it and keep the lock from the next attempt.
+            sudo timeout --kill-after=15 90 apt-get update \
+              && sudo timeout --kill-after=15 180 apt-get install -y --download-only libmpv2 ffmpeg \
+              && break
             echo "Package download attempt $attempt stalled or failed."
             sleep 15
           done
-          sudo apt-get install -y libmpv2 ffmpeg
+          sudo apt-get -o DPkg::Lock::Timeout=60 install -y libmpv2 ffmpeg
       # Homebrew checks each bottle's digest, so a cached download can't change what gets installed.
       - name: Find the runner image for the Homebrew cache
         if: runner.os == 'macOS'
