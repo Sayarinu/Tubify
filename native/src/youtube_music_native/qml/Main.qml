@@ -186,9 +186,11 @@ ApplicationWindow {
     MainHeader {
         id: header
         anchors.left: navigationEdge.right
-        anchors.right: window.panelOpen ? sidePanel.left : parent.right
-        anchors.rightMargin: window.panelOpen ? window.panelGap : 0
-        dividerExtension: anchors.rightMargin
+        // Follows the panel's slide, so its buttons never end up underneath the panel.
+        anchors.right: parent.right
+        anchors.rightMargin: window.panelSlideSpace
+        dividerExtension: Math.min(window.panelGap, anchors.rightMargin)
+        panelRevealed: sidePanel.revealed
         compactNavigation: window.compactNavigation
         collapsed: window.chromeHidden
         onNavigationRequested: navigationDrawer.open()

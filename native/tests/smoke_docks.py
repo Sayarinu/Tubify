@@ -150,6 +150,23 @@ def main():
                 shell.setLyricsOpen(True)
                 assert lyric.isVisible() and not queue.isVisible() and abs(offset()) < 0.5 and panel.property("opacity") == 1
                 shell.setQueueOpen(True)
+                # The header's buttons stay in front of the panel for the whole slide, leaving and arriving.
+                profile = window.findChild(QObject, "profileButton")
+                profile_edge = lambda: profile.mapToScene(QPointF(profile.width(), 0)).x()
+                clear_of_panel = lambda: profile_edge() <= panel.mapToScene(QPointF()).x() + 0.5
+                beside_open_panel = profile_edge()
+                shell.setPanel("")
+                assert panel.isVisible() and panel.property("leaving") and not panel.isEnabled() and queue.isVisible()
+                assert abs(profile_edge() - beside_open_panel) <= 2
+                while panel.isVisible():
+                    assert clear_of_panel()
+                    QTest.qWait(10)
+                assert profile_edge() > beside_open_panel
+                shell.setQueueOpen(True)
+                while abs(offset()) >= 0.5 or panel.property("opacity") < 1:
+                    assert clear_of_panel()
+                    QTest.qWait(10)
+                assert abs(profile_edge() - beside_open_panel) <= 1
                 shell.setPanel("")
                 assert panel.isVisible() and panel.property("leaving") and not panel.isEnabled() and queue.isVisible()
                 assert content.x() + content.width() == window.findChild(QObject, "scaledContent").width()

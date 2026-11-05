@@ -21,6 +21,8 @@ Item {
     // How far the divider runs past the header, to meet the side panel's divider.
     property real dividerExtension: 0
     readonly property real fullHeight: 64
+    // How far the side panel has slid in; its gap replaces the header's right gutter.
+    property real panelRevealed: 0
     height: collapsed ? 0 : fullHeight
     visible: !collapsed
     Rectangle { objectName: "mainHeaderDivider"; anchors.left: parent.left; anchors.right: parent.right; anchors.rightMargin: -header.dividerExtension; anchors.bottom: parent.bottom; height: 1; color: themeState.border }
@@ -76,7 +78,7 @@ Item {
         id: profileButton
         objectName: "profileButton"
         anchors.right: parent.right
-        anchors.rightMargin: appState.panel ? 0 : header.width < 480 ? 8 : 32
+        anchors.rightMargin: (1 - header.panelRevealed) * (header.width < 480 ? 8 : 32)
         y: 10
         width: 44; height: 44
         iconName: "profile"
