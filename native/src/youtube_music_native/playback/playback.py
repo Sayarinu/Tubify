@@ -30,6 +30,7 @@ SOURCE_MARGIN = 60
 PREFETCH_AHEAD = 3
 # An unanswered click older than this is presumed stuck and its worker is restarted.
 STALE_REQUEST_SECONDS = 4
+VIDEO_FIRST_FRAME_MS = 20000
 PREFETCH_RETRY_SECONDS = 120
 # Hover and focus pre-resolution is limited to a few songs per window.
 WARM_LIMIT, WARM_WINDOW = 4, 10.
@@ -96,7 +97,11 @@ class Playback(QObject):
         self._video_surface, self._video_preferred = False, True
         self._source_video, self._video_failed = False, ""
         self._video_request, self._video_worker = None, None
-        self._video_source, self._video_attach, self._video_attached = None, None, False
+        self._video_source, self._video_attach, self._video_attached, self._video_ready = None, None, False, False
+        self._video_timeout = QTimer(self)
+        self._video_timeout.setSingleShot(True)
+        self._video_timeout.setInterval(VIDEO_FIRST_FRAME_MS)
+        self._video_timeout.timeout.connect(self._video_timed_out)
         self.video_store = None
         self.stateSaveFailed.connect(self._save_failed)
         if fixture:
@@ -271,7 +276,12 @@ class Playback(QObject):
 
     @Property(bool, notify=changed)
     def showingVideo(self):
-        return self._source_video and self._loaded
+        return self._source_video and self._loaded and self._video_ready
+
+    @Property(bool, notify=changed)
+    def videoLoading(self):
+        """Video is wanted but has no picture yet, so the artwork stays up."""
+        return self._wants_video() and not self.showingVideo and not self._stopped and (self._loaded or self._busy)
 
     @Property(QObject, notify=changed)
     def videoFrames(self):
@@ -289,9 +299,13 @@ class Playback(QObject):
             if self._wants_video():
                 self._show_video()
             elif self._source_video:
-                self._source_video = False
-                self.audio.setVideo(False)
+                self._hide_video()
         self.changed.emit()
+
+    def _hide_video(self):
+        self._source_video, self._video_ready = False, False
+        self._video_timeout.stop()
+        self.audio.setVideo(False)
 
     def _show_video(self):
         if self._source_video or self._video_attach is not None or self._video_request is not None:
@@ -299,10 +313,13 @@ class Playback(QObject):
         video_id = self.currentTrack.get("videoId", "")
         if self._video_attached:
             self._source_video = self.audio.setVideo(True)
+            self._video_timeout.start()
         elif self._fresh(self._video_source, video_id):
             self._video_attach = self.audio.attachVideo(self._video_source) or None
             if self._video_attach is None:
                 self._video_failed = video_id
+            else:
+                self._video_timeout.start()
         else:
             self._video_worker = self._click_lane()
             self._video_request = self._video_worker.request("resolve", {"data_dir": str(self.data_dir), "videoId": video_id, "available": self.currentTrack.get("available", True), "video": True})
@@ -315,9 +332,13 @@ class Playback(QObject):
     @Slot(int, bool)
     def _video_finished(self, token, succeeded):
         if token != self._video_attach:
+            if succeeded and self._video_attach is None and not self._source_video and self.audio:
+                # It finished opening after the wait for it ended, and adding a track shows it.
+                self.audio.setVideo(False)
             return
         self._video_attach = None
         if not succeeded:
+            self._video_timeout.stop()
             self._video_unavailable()
             return
         # Adding a track also shows it, so hide it if video stopped being wanted meanwhile.
@@ -325,9 +346,27 @@ class Playback(QObject):
         self._source_video = True
         self._sync_video()
 
+    @Slot()
+    def _video_first_frame(self):
+        if self._source_video or self._video_attach is not None:
+            self._video_ready = True
+            self._video_timeout.stop()
+            self.changed.emit()
+
+    @Slot()
+    def _video_timed_out(self):
+        # The song carries on; a stream that never draws must not leave the spinner running.
+        self._video_attach = None
+        if self._source_video:
+            self._hide_video()
+        elif self.audio:
+            self.audio.setVideo(False)
+        self._video_unavailable()
+
     def _forget_video(self):
         self._source_video, self._video_request, self._video_worker = False, None, None
-        self._video_source, self._video_attach, self._video_attached = None, None, False
+        self._video_source, self._video_attach, self._video_attached, self._video_ready = None, None, False, False
+        self._video_timeout.stop()
 
     @Slot(bool)
     def setVideoSurface(self, visible):
@@ -568,6 +607,7 @@ class Playback(QObject):
             audio.outputChanged.connect(self._output_changed)
             audio.optionsChanged.connect(self._audio_options_changed)
             audio.videoAttached.connect(self._video_finished)
+            audio.videoFirstFrame.connect(self._video_first_frame)
             audio.setSpeakerFill(self._speaker_fill)
             audio.volume(self.outputVolume)
             self.audio = audio

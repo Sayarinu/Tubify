@@ -35,6 +35,7 @@ class VideoFrames(QObject):
     """Owns the mpv render context and produces QImages on the GUI thread."""
 
     frameReady = Signal()
+    firstFrame = Signal()
     _wake = Signal()
 
     def __init__(self, player, parent=None):
@@ -45,6 +46,7 @@ class VideoFrames(QObject):
         self.context = mpv.MpvRenderContext(player, "sw")
         self.image = QImage()
         self.target = QSize(640, 360)
+        self._active, self._awaiting_first = False, False
         self._wake.connect(self._render, Qt.ConnectionType.QueuedConnection)
         # mpv calls this from its own thread; only a queued signal crosses back.
         self.context.update_cb = self._wake.emit
@@ -52,9 +54,14 @@ class VideoFrames(QObject):
     def request_size(self, width, height):
         self.target = QSize(max(0, int(width)), max(0, int(height)))
 
+    def start(self):
+        """Expect a new video; the next frame drawn counts as its first."""
+        self._active, self._awaiting_first = True, True
+
     @Slot()
     def _render(self):
-        if self.context is None or not self.context.update():
+        # A frame mpv queued before the video was hidden must not count as the next one.
+        if self.context is None or not self.context.update() or not self._active:
             return
         try:
             video_width = int(self.player.width or 0)
@@ -86,8 +93,12 @@ class VideoFrames(QObject):
         self._mpv._mpv_render_context_render(self.context.handle, params)
         del buffer
         self.frameReady.emit()
+        if self._awaiting_first:
+            self._awaiting_first = False
+            self.firstFrame.emit()
 
     def clear(self):
+        self._active = False
         self.image = QImage()
         self.frameReady.emit()
 
