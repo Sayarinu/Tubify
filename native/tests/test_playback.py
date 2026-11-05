@@ -983,3 +983,31 @@ def test_forgetting_the_queue_leaves_nothing_on_disk(tmp_path):
     restored = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
     assert not restored.hasTrack
     restored.close()
+
+
+def test_recent_tracks_list_earlier_songs_newest_first_without_repeats(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    first, second, third = ({"videoId": name, "title": name} for name in ("first", "second", "third"))
+    assert player.recentTracks == []
+    for track in (first, second, third, first):
+        player.trackStarted.emit(track)
+    assert [track["videoId"] for track in player.recentTracks] == ["third", "second"]
+    for index in range(100):
+        player.trackStarted.emit({"videoId": str(index)})
+    assert len(player.recentTracks) == 50
+
+
+def test_replay_plays_an_earlier_song_and_keeps_the_rest_of_the_queue(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    earlier = {"videoId": "earlier", "title": "Earlier"}
+    player.replay(earlier)
+    assert player.currentTrack["videoId"] == "earlier"
+    player.playTracks([{"videoId": name, "title": name} for name in ("one", "two", "three")])
+    player.replay(earlier)
+    assert player.currentTrack["videoId"] == "earlier"
+    assert [entry["track"]["videoId"] for entry in player.queue.remaining] == ["two", "three"]
+    player.next()
+    assert player.currentTrack["videoId"] == "two"
+

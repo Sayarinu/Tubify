@@ -113,7 +113,7 @@ FocusScope {
             objectName: "songAlbumMetadata-" + (root.media.videoId || root.media.id || "")
             width: parent.width
             height: 18
-            visible: root.showArtwork && !root.tableLayout && !!(root.media.album && root.media.album.name)
+            visible: root.showArtwork && !root.tableLayout && !root.queueRow && !!(root.media.album && root.media.album.name)
             clip: true
             Text {
                 id: albumName
