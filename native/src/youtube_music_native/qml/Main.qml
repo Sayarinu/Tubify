@@ -184,6 +184,7 @@ ApplicationWindow {
         anchors.left: navigationEdge.right
         anchors.right: window.panelOpen ? sidePanel.left : parent.right
         anchors.rightMargin: window.panelOpen ? window.panelGap : 0
+        dividerExtension: anchors.rightMargin
         compactNavigation: window.compactNavigation
         collapsed: window.chromeHidden
         onNavigationRequested: navigationDrawer.open()

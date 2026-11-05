@@ -55,6 +55,7 @@ def main():
                         page_line = window.findChild(QObject, "mainHeaderDivider")
                         panel_line = window.findChild(QObject, "panelHeaderDivider")
                         assert panel_line.mapToScene(QPointF()).y() == page_line.mapToScene(QPointF()).y()
+                        assert page_line.mapToScene(QPointF(page_line.width(), 0)).x() == panel.x()
                         assert panel.width() >= 280
                         # The panel never squeezes the page below 480 px unless it is already at its 280 px minimum.
                         assert content.width() >= 480 or panel.width() == 280, (size, content.width())
