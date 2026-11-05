@@ -3,7 +3,7 @@
 import tempfile
 import traceback
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QMetaObject, QObject, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
 
@@ -34,13 +34,19 @@ def shelves(start, end):
     return [{"title": f"Shelf {number}", "layout": "cards", "items": [{**song, "kind": "album", "id": f"MPRE{number}"} for song in songs(number * 10, number * 10 + 6)]} for number in range(start, end)]
 
 
+def visual_items(item):
+    yield item
+    for child in item.childItems():
+        yield from visual_items(child)
+
+
 def main():
     original, passed = app.load_window, []
 
     def load(*args, **kwargs):
         engine = original(*args, **kwargs)
         window = engine.rootObjects()[0]
-        shell, view, library = args[0], args[3], args[9]
+        shell, view, browse, library = args[0], args[3], args[5], args[9]
 
         def wait(condition=lambda: False, milliseconds=1500):
             for _ in range(milliseconds // 10):
@@ -161,6 +167,31 @@ def main():
                 QTest.qWait(100)
                 assert results.property("contentY") == position
 
+                # Selecting the current landing page scrolls smoothly to the top and keeps its rows.
+                shell.navigate("Home")
+                worker.requests.clear()
+                browse.fixture = None
+                view.showLocal("home", {"title": "Home", "items": [], "shelves": shelves(0, 12), "cursor": None}, {})
+                assert wait(lambda: find("browseSections") and find("browseSections").property("count") == 12)
+                home = find("browseSections")
+                QTest.qWait(100)
+                home.setProperty("contentY", 1500.0)
+                button = next(item for item in visual_items(window.contentItem()) if item.objectName() == "navigationButton-Home")
+                assert QMetaObject.invokeMethod(button, "clicked")
+                QTest.qWait(60)
+                top = home.property("originY") - home.property("topMargin")
+                assert top < home.property("contentY") < 1500.0, home.property("contentY")  # Partway there: animated.
+                assert wait(lambda: home.property("contentY") == top), home.property("contentY")
+                assert worker.requests[-1]["refresh"] and worker.requests[-1]["route"] == "home" and view.revalidating
+                assert home.property("count") == 12
+                worker.succeeded.emit(len(worker.requests), {"title": "Home", "items": [], "shelves": shelves(0, 6), "cursor": 6})
+                assert wait(lambda: home.property("count") == 6)
+                QTest.qWait(100)
+                assert home.property("contentY") == top
+                # Scrolling and the sidebar replace the buttons that used to do this.
+                visible = [item.property("text") for item in visual_items(window.contentItem()) if item.isVisible()]
+                assert not {"Refresh", "Load More", "More Music"} & {text for text in visible if isinstance(text, str)}, visible
+
                 assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                 passed.append(True)
             except Exception:
@@ -178,7 +209,7 @@ def main():
         result = app.main(["--fixture", "--data-dir", folder])
     app.load_window = original
     assert result == 0 and passed
-    print("Automatic paging kept the scroll position in playlists, Home, Library and search.")
+    print("Paging kept the scroll position in playlists, Home, Library and search; selecting Home returned to the top and refreshed.")
 
 
 if __name__ == "__main__":

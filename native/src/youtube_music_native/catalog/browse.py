@@ -255,6 +255,18 @@ class Browse(QObject):
         return route == {"Home": "home", "Explore": "explore", "Downloads": "downloads"}.get(page)
 
     @Slot(str)
+    def selectTab(self, page):
+        """Selecting Home or Explore shows fresh data; the other tabs keep themselves up to date."""
+        at_root = self.atTabRoot(page)
+        if page in {"Home", "Explore"} and not self.fixture:
+            if at_root:
+                self.view.refreshFromTop()
+                return
+            self.view.expectFresh(page.lower())
+        if not at_root:
+            self.shell.navigate(page)
+
+    @Slot(str)
     def navigate(self, page):
         self._cancel_local_navigation()
         self._history = []
