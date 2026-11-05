@@ -9,10 +9,8 @@ class Player(QObject):
 
 
 class Shell(QObject):
-    queueOpenChanged = Signal()
-    queueDetailsChanged = Signal()
-    queueOpen = True
-    queueDetails = True
+    panelChanged = Signal()
+    nowPlayingOpen = True
 
 
 class Worker(QObject):
@@ -70,11 +68,11 @@ def test_returning_to_an_artist_uses_the_cache():
 
 def test_nothing_is_looked_up_while_the_view_is_hidden():
     player, shell, worker, preview = build()
-    shell.queueDetails = False
+    shell.nowPlayingOpen = False
     play(player, "UCone", "One")
     assert not preview.settle.isActive() and not worker.requests and preview.name == ""
-    shell.queueDetails = True
-    shell.queueDetailsChanged.emit()
+    shell.nowPlayingOpen = True
+    shell.panelChanged.emit()
     assert preview.name == "One" and preview.settle.isActive()
 
 

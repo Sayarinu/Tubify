@@ -6,7 +6,7 @@ arch=('x86_64')
 url='https://github.com/Sayarinu/Tubify'
 license=('MIT')
 depends=(
-  'python>=3.12' 'pyside6>=6.8' 'qt6-svg' 'qt6-imageformats'
+  'python>=3.14' 'pyside6>=6.8' 'qt6-svg' 'qt6-imageformats'
   'python-keyring>=25.7' 'python-ytmusicapi>=1.12.3' 'python-mpv>=1.0.8'
   'python-jeepney>=0.9' 'yt-dlp>=2026.08.19' 'yt-dlp-ejs' 'deno' 'ffmpeg'
   'python-brotli' 'python-mutagen' 'python-pycryptodomex' 'python-websockets'
@@ -48,6 +48,9 @@ package() {
   install -d "$pkgdir/usr/lib/$pkgname"
   printf '%s\n' "${_update_public_key:?Build with scripts/build-native-linux-package.sh}" > "$pkgdir/usr/lib/$pkgname/update-public-key"
   chmod 644 "$pkgdir/usr/lib/$pkgname/update-public-key"
+  # How far an experimental build can switch back to Stable without a password. Empty allows none.
+  printf '%s\n' "${_oldest_switch_version:-}" > "$pkgdir/usr/lib/$pkgname/oldest-switch-version"
+  chmod 644 "$pkgdir/usr/lib/$pkgname/oldest-switch-version"
   install -Dm644 packaging/linux/studio.nouvellelune.tubify.update.policy \
     "$pkgdir/usr/share/polkit-1/actions/studio.nouvellelune.tubify.update.policy"
   install -Dm644 packaging/linux/50-tubify-update.rules \

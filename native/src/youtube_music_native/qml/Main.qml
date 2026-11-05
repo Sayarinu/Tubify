@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Effects
 import QtQuick.Window
 import "Theme.js" as Theme
 import "components"
@@ -53,39 +54,30 @@ ApplicationWindow {
         }
     }
     property bool wideNavigation: true
-    readonly property bool compactNavigation: !window.chromeHidden && (appState.queueOpen || appState.lyricsOpen) && uiRoot.width < 780
+    readonly property bool compactNavigation: !window.chromeHidden && window.panelOpen && uiRoot.width < 780
     onCompactNavigationChanged: navigationDrawer.close()
-    readonly property bool docksVisible: (appState.queueOpen || appState.lyricsOpen)
-    readonly property bool bothDocks: appState.queueOpen && appState.lyricsOpen
-    readonly property bool tabbedDocks: bothDocks && uiRoot.width - navigationEdge.width < 1040
-    // Docks never take the last 480 px from the page; below that they stop at their 280 px minimum.
-    readonly property real dockBudget: Math.max(280, uiRoot.width - navigationEdge.width - 480)
-    readonly property real dockExtra: appState.queueWidth + appState.lyricsWidth - 560
-    readonly property real fittedExtra: Math.min(dockExtra, Math.max(0, dockBudget - 560))
-    readonly property real fittedQueueWidth: bothDocks && !tabbedDocks
-        ? 280 + (dockExtra > 0 ? fittedExtra * (appState.queueWidth - 280) / dockExtra : 0)
-        : Math.min(appState.queueWidth, dockBudget)
-    readonly property real fittedLyricsWidth: bothDocks && !tabbedDocks
-        ? 280 + (dockExtra > 0 ? fittedExtra * (appState.lyricsWidth - 280) / dockExtra : 0)
-        : Math.min(appState.lyricsWidth, dockBudget)
-    readonly property bool showQueueDock: docksVisible && appState.queueOpen && (!tabbedDocks || appState.activeDock === "Queue")
-    readonly property bool showLyricsDock: docksVisible && appState.lyricsOpen && (!tabbedDocks || appState.activeDock === "Lyrics")
-    readonly property bool lyricsActive: showLyricsDock
-    function restoreDockFocus() {
+    readonly property bool panelOpen: appState.panel !== ""
+    // The panel card keeps the player bar's margin from the window edge, from the bar and from the page.
+    readonly property real panelGap: 12
+    // The panel never takes the last 480 px from the page; below that it stops at its 280 px minimum.
+    readonly property real panelBudget: Math.max(280, uiRoot.width - navigationEdge.width - 480 - 2 * panelGap)
+    readonly property real panelWidth: Math.min(appState.panelWidth, panelBudget)
+    // What the panel and its gaps take from the right of the window. The full player's background runs underneath.
+    readonly property real panelSpace: panelOpen ? panelWidth + 2 * panelGap : 0
+    // The same space, following the panel while it slides.
+    readonly property real panelSlideSpace: (panelWidth + 2 * panelGap) * sidePanel.revealed
+    function restorePanelFocus() {
         Qt.callLater(function() {
-            // A dock sliding out is disabled at once, which drops its focus to the window root.
+            // A panel sliding out is disabled at once, which drops its focus to the window root.
             var focused = window.activeFocusItem
             if (focused && (!focused.visible || !focused.enabled || !focused.parent)) {
-                if (showLyricsDock) lyricsHeader.focusControl()
-                else if (showQueueDock) queueHeader.focusControl()
-                else player.focusDockToggle(appState.activeDock)
+                if (window.panelOpen) panelHeader.focusControl()
+                else player.focusPanelToggle(sidePanel.page)
             }
         })
     }
-    onShowLyricsDockChanged: restoreDockFocus()
-    onShowQueueDockChanged: restoreDockFocus()
-    onLyricsActiveChanged: lyricState.setActive(lyricsActive)
-    Component.onCompleted: lyricState.setActive(lyricsActive)
+    Component.onCompleted: lyricState.setActive(appState.lyricsOpen)
+    Connections { target: appState; function onPanelChanged() { lyricState.setActive(appState.lyricsOpen); window.restorePanelFocus() } }
     property var browseFocus: null
     property real browseWidth: 0
     property real browseHeight: 0
@@ -185,7 +177,7 @@ ApplicationWindow {
         parent: window.compactNavigation ? drawerContent : uiRoot
         wide: window.wideNavigation
         collapsed: window.chromeHidden
-        width: window.chromeHidden ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (window.docksVisible ? 280 + 480 : 320)))
+        width: window.chromeHidden ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (window.panelOpen ? 280 + 480 + 2 * window.panelGap : 320)))
         anchors.top: parent.top
         anchors.bottom: window.compactNavigation ? parent.bottom : player.top
         onNavigated: navigationDrawer.close()
@@ -194,7 +186,11 @@ ApplicationWindow {
     MainHeader {
         id: header
         anchors.left: navigationEdge.right
-        anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
+        // Follows the panel's slide, so its buttons never end up underneath the panel.
+        anchors.right: parent.right
+        anchors.rightMargin: window.panelSlideSpace
+        dividerExtension: Math.min(window.panelGap, anchors.rightMargin)
+        panelRevealed: sidePanel.revealed
         compactNavigation: window.compactNavigation
         collapsed: window.chromeHidden
         onNavigationRequested: navigationDrawer.open()
@@ -267,7 +263,8 @@ ApplicationWindow {
         id: content
         objectName: "pageContent"
         anchors.left: navigationEdge.right
-        anchors.right: showLyricsDock ? lyricsSidebar.left : showQueueDock ? queueSidebar.left : parent.right
+        anchors.right: window.panelOpen ? sidePanel.left : parent.right
+        anchors.rightMargin: window.panelOpen ? window.panelGap : 0
         anchors.top: reconnectBanner.bottom
         anchors.bottom: player.top
         anchors.bottomMargin: 12
@@ -325,7 +322,7 @@ ApplicationWindow {
             property rect coverArea: Qt.rect(0, 0, 0, 0)
             x: covering ? coverArea.x - content.x : 0
             y: covering ? coverArea.y - content.y : 0
-            width: covering ? coverArea.width : parent.width
+            width: covering ? coverArea.width : parent.width + window.panelSpace
             // The player reaches the bar; pages keep their gap above it.
             height: covering ? coverArea.height : parent.height + content.anchors.bottomMargin
             z: 1
@@ -334,7 +331,7 @@ ApplicationWindow {
             visible: appState.expanded || covering
             // The closing pane only animates; input and focus belong to the pages beneath it.
             enabled: appState.expanded
-            sourceComponent: Component { ExpandedPane {} }
+            sourceComponent: Component { ExpandedPane { rightInset: window.panelSpace; slidingInset: window.panelSlideSpace } }
             onLoaded: if (appState.expanded) item.focusStage()
             transform: Translate { id: immersiveShift }
             property bool opening: true
@@ -346,8 +343,8 @@ ApplicationWindow {
                     // Opening computes the area the pane will fill once the sidebar and header have gone.
                     var bannerHeight = reconnectBanner.visible ? reconnectBanner.height : 0
                     var gap = content.anchors.bottomMargin
-                    coverArea = entering ? Qt.rect(0, bannerHeight, content.x + content.width, content.y + content.height + gap - bannerHeight)
-                                         : Qt.rect(content.x, content.y, content.width, content.height + gap)
+                    coverArea = entering ? Qt.rect(0, bannerHeight, content.x + content.width + window.panelSpace, content.y + content.height + gap - bannerHeight)
+                                         : Qt.rect(content.x, content.y, content.width + window.panelSpace, content.height + gap)
                 }
                 window.immersiveOpening = entering && !appState.reducedMotion
                 window.immersiveClosing = !entering && !appState.reducedMotion
@@ -373,49 +370,95 @@ ApplicationWindow {
     }
 
     DockPanel {
-        id: lyricsSidebar
-        objectName: "lyricsSidebar"
-        dock: "Lyrics"
-        shown: showLyricsDock
-        anchors.top: parent.top
-        anchors.right: showQueueDock ? queueSidebar.left : parent.right
-        anchors.bottom: player.top
-        width: fittedLyricsWidth
-        // Tinted from the artwork, and held back so the lyrics stay readable over bright covers.
-        ArtworkBackdrop {
-            objectName: "lyricsBackdrop"
+        id: sidePanel
+        objectName: "sidePanel"
+        // Holds on to the panel being closed while it slides out.
+        property string page: appState.panel
+        // What's drawn: during a switch it stays on the old panel until that has faded out.
+        property string shownPage: page
+        property string openPanel: appState.panel
+        Connections {
+            target: appState
+            function onPanelChanged() {
+                var wasOpen = sidePanel.openPanel !== ""
+                sidePanel.openPanel = appState.panel
+                if (appState.panel) sidePanel.showPage(appState.panel, wasOpen)
+            }
+        }
+        function showPage(name, animated) {
+            page = name
+            if (!animated || appState.reducedMotion) {
+                // A closed panel opening has its own slide.
+                pageSwitch.stop()
+                panelBody.opacity = 1
+                panelPages.shift = 0
+                shownPage = name
+            } else if (pageSwitch.running || shownPage !== name) {
+                pageSwitch.restart()
+            }
+        }
+        SequentialAnimation {
+            id: pageSwitch
+            NumberAnimation { target: panelBody; property: "opacity"; to: 0; duration: Theme.motionFast; easing.type: Easing.InCubic }
+            ScriptAction { script: { sidePanel.shownPage = sidePanel.page; window.restorePanelFocus() } }
+            ParallelAnimation {
+                NumberAnimation { target: panelBody; property: "opacity"; to: 1; duration: Theme.motionMedium; easing.type: Easing.OutCubic }
+                NumberAnimation { target: panelPages; property: "shift"; from: 12; to: 0; duration: Theme.motionMedium; easing.type: Easing.OutCubic }
+            }
+        }
+        property string queueTab: "Queue"
+        shown: window.panelOpen
+        anchors.top: parent.top; anchors.topMargin: window.panelGap
+        anchors.right: parent.right; anchors.rightMargin: window.panelGap
+        anchors.bottom: player.top; anchors.bottomMargin: window.panelGap
+        width: window.panelWidth
+        Rectangle { id: panelMask; anchors.fill: parent; radius: sidePanel.radius; visible: false; layer.enabled: true; layer.smooth: true }
+        Item {
+            id: panelBody
+            objectName: "panelBody"
             anchors.fill: parent
-            opacity: 0.65
-            source: playerState.currentTrack.thumbnail || ""
-            mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""
+            // Keeps the incoming pane inside the card while it slides.
+            clip: pageSwitch.running
+            // Tinted from the artwork, and held back so the lyrics stay readable over bright covers.
+            ArtworkBackdrop {
+                objectName: "lyricsBackdrop"
+                anchors.fill: parent
+                visible: sidePanel.shownPage === "Lyrics"
+                opacity: 0.65
+                source: playerState.currentTrack.thumbnail || ""
+                mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""
+                // Rounded to the card; the software renderer has no masks and keeps square corners.
+                layer.enabled: visible && GraphicsInfo.api !== GraphicsInfo.Software
+                layer.effect: MultiEffect { maskEnabled: true; maskSource: panelMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1; autoPaddingEnabled: false }
+            }
+            Item {
+                id: panelPages
+                property real shift: 0
+                anchors.fill: parent
+                anchors.topMargin: panelHeader.height
+                transform: Translate { x: panelPages.shift }
+                LyricsPane { visible: sidePanel.shownPage === "Lyrics"; anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16 }
+                QueuePane { visible: sidePanel.shownPage === "Queue" && sidePanel.queueTab === "Queue"; anchors.fill: parent; showCloseButton: false }
+                RecentlyPlayedPane { visible: sidePanel.shownPage === "Queue" && sidePanel.queueTab === "Recently played"; anchors.fill: parent }
+                NowPlayingPane { visible: sidePanel.shownPage === "NowPlaying"; anchors.fill: parent }
+            }
         }
-        Rectangle { width: 1; height: parent.height; color: themeState.border }
-        DockHeader { id: lyricsHeader; title: "Lyrics"; tabbed: window.tabbedDocks; onCloseRequested: appState.setLyricsOpen(false) }
-        LyricsPane { anchors.fill: parent; anchors.topMargin: 48; anchors.leftMargin: 16; anchors.rightMargin: 16 }
-        PanelResizeHandle {
-            objectName: "lyricsResizeHandle"
-            panelWidth: lyricsSidebar.width
-            onResized: function(value) { appState.setLyricsWidth(value) }
-            onFinished: appState.saveSidebarWidths()
+        DockHeader {
+            id: panelHeader
+            // Its divider continues the line under the page header, whose height collapses in the full player.
+            height: header.fullHeight - window.panelGap
+            title: sidePanel.shownPage === "NowPlaying" ? "Now Playing" : sidePanel.shownPage
+            tabs: sidePanel.shownPage === "Queue" ? ["Queue", "Recently played"] : []
+            currentTab: sidePanel.queueTab
+            labelOpacity: panelBody.opacity
+            onTabSelected: tab => sidePanel.queueTab = tab
+            onCloseRequested: appState.setPanel("")
         }
-    }
-
-    DockPanel {
-        id: queueSidebar
-        objectName: "queueSidebar"
-        dock: "Queue"
-        shown: showQueueDock
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.bottom: player.top
-        width: fittedQueueWidth
-        Rectangle { width: 1; height: parent.height; color: themeState.border }
-        DockHeader { id: queueHeader; title: "Queue"; tabbed: window.tabbedDocks; onCloseRequested: appState.setQueueOpen(false) }
-        QueuePane { anchors.fill: parent; anchors.topMargin: 48; showCloseButton: false; showDetails: appState.queueDetails }
+        Rectangle { objectName: "panelBorder"; anchors.fill: parent; radius: sidePanel.radius; color: "transparent"; border.color: themeState.border }
         PanelResizeHandle {
-            objectName: "queueResizeHandle"
-            panelWidth: queueSidebar.width
-            onResized: function(value) { appState.setQueueWidth(value) }
+            objectName: "panelResizeHandle"
+            panelWidth: sidePanel.width
+            onResized: function(value) { appState.setPanelWidth(value) }
             onFinished: appState.saveSidebarWidths()
         }
     }
@@ -431,7 +474,6 @@ ApplicationWindow {
 
     PlayerBar {
         id: player
-        queueVisible: showQueueDock
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         anchors.margins: 12
     }

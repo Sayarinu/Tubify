@@ -9,6 +9,8 @@ Item {
     // Do not incubate delegates for another route while the page is being replaced.
     property var artist: (catalogState.route === "artist") ? catalogState.data : ({})
     property real gutter: Theme.gutter(width)
+    // Next to an open panel, the panel's own gap replaces the right gutter.
+    readonly property real rightGutter: appState.panel ? 0 : gutter
     property bool descriptionExpanded: false
     Image { id: hero; objectName: "artistHero"; y: (sections.headerItem ? sections.headerItem.y : 0) - sections.contentY; width: root.width; height: 400; source: root.artist.hero || ""; visible: !!root.artist.hero; asynchronous: true; fillMode: Image.PreserveAspectCrop; opacity: 0.45 }
     Rectangle { y: hero.y; width: root.width; height: 400; visible: !!root.artist.hero; gradient: Gradient { GradientStop { position: 0; color: "#00000000" } GradientStop { position: 1; color: themeState.background } } }
@@ -17,7 +19,7 @@ Item {
         cacheBuffer: 0
         id: sections
         WheelScroll { view: sections; onScrolled: catalogState.saveScroll(view.contentY) }
-        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         clip: true; spacing: 36; bottomMargin: 48
         model: root.artist.shelves || []; ScrollBar.vertical: ScrollBar {}
         header: Item {

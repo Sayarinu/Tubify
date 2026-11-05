@@ -52,7 +52,7 @@ $appOutput = Join-Path $buildRoot "dist\Tubify"
 New-Item -ItemType Directory -Force -Path $buildRoot, $output | Out-Null
 try {
     $venv = Join-Path $buildRoot "venv"
-    uv venv --quiet --python 3.12 $venv
+    uv venv --quiet --python 3.14 $venv
     if ($LASTEXITCODE -ne 0) { throw "uv could not create the Windows build environment." }
     $python = Join-Path $venv "Scripts\python.exe"
     # Everything shipped comes from the committed lockfile, checked by hash.

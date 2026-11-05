@@ -15,6 +15,7 @@ Item {
     // Horizontal inset of the content inside the footer; views that already apply the page
     // gutter through their anchors leave this at 0.
     property real gutter: 0
+    property real rightGutter: gutter
     property bool showTitle: false
     // Rows match SongRow: 64px tall, cover inset from the row edge, text after the cover.
     property real rowHeight: 64
@@ -29,7 +30,7 @@ Item {
     property real cellWidth: Theme.cardWidth + 24
     property real cellHeight: Theme.cardHeight + 24
     property int columns: Math.max(1, Math.floor(contentWidth / cellWidth))
-    readonly property real contentWidth: Math.max(0, width - 2 * gutter)
+    readonly property real contentWidth: Math.max(0, width - gutter - rightGutter)
     readonly property real titleHeight: showTitle ? 54 : 0
     // Fill what the viewport has left under the header, so the skeleton never adds scrolling.
     readonly property real available: view ? view.height - view.topMargin - view.bottomMargin - (view.headerItem ? view.headerItem.height : 0) : 0

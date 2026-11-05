@@ -197,6 +197,8 @@ def main(argv=None):
         with open(output, "a", encoding="utf-8") as handle:
             handle.write(f"version={version}\nlevel={level}\nprevious={previous}\n")
             handle.write(f"prerelease={'true' if 'b' in version else 'false'}\n")
+            newest = newest_stable_tag()
+            handle.write(f"stable={text(newest[0]) if newest else ''}\n")
             handle.write(f"tag={updates.release_tag(version)}\n")
             handle.write(f"publish={'true' if is_release(os.environ) else 'false'}\n")
     print(version)

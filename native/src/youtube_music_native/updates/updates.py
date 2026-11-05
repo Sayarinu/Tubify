@@ -21,6 +21,8 @@ SIGNATURE_SUFFIXES = ('.ed25519', '.sig')
 # Installed by the Linux package: applies signed updates without a password prompt.
 LINUX_HELPER = '/usr/lib/youtube-music-native/apply-update'
 LINUX_PUBLIC_KEY = '/usr/lib/youtube-music-native/update-public-key'
+# The helper's answer when a build is older than it may install without a password.
+HELPER_REFUSED = 5
 # Release tags: Tubify-X.Y.Z (stable) and Tubify-Experimental-X.Y.ZbN (experimental).
 VERSION = re.compile(r'(\d+)\.(\d+)\.(\d+)(?:b(\d+))?')
 STABLE_TAG = re.compile(r'Tubify-(\d+\.\d+\.\d+)')
@@ -213,10 +215,9 @@ def launch_installer(asset, parent_pid):
         # Copy before package replacement: the helper survives GUI/worker shutdown.
         helper = path.parent / 'install.py'
         shutil.copyfile(__file__, helper)
-        # The password-free helper only installs newer builds; switching back to an
-        # older stable build goes through pacman with the usual password prompt.
-        signature = [asset['signature_path']] if asset.get('signature_path') and not asset.get('downgrade') else []
-        subprocess.Popen([sys.executable, '-I', str(helper), str(parent_pid), str(path), asset['sha256'], *signature],
+        signature = [asset['signature_path']] if asset.get('signature_path') else []
+        downgrade = ['downgrade'] if signature and asset.get('downgrade') else []
+        subprocess.Popen([sys.executable, '-I', str(helper), str(parent_pid), str(path), asset['sha256'], *signature, *downgrade],
                          start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -234,7 +235,7 @@ def verified_copy(path, digest, directory):
     return copy
 
 
-def install_linux(parent, package, digest, signature=None):
+def install_linux(parent, package, digest, signature=None, downgrade=False):
     for _ in range(120):
         try:
             os.kill(parent, 0)
@@ -247,17 +248,20 @@ def install_linux(parent, package, digest, signature=None):
     result = 1
     try:
         with tempfile.TemporaryDirectory(prefix='tubify-update-') as private:
+            use_password = True
             if signature and Path(LINUX_HELPER).is_file():
                 with path.open('rb') as handle:
                     if hashlib.file_digest(handle, 'sha256').hexdigest() != digest:
                         raise ValueError('Installer changed')
                 # The helper checks the release signature as root, so polkit allows it without a password.
-                command = [LINUX_HELPER, str(path), str(signature)]
-            else:
+                result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', LINUX_HELPER, str(path), str(signature)]).returncode
+                # A switch back the helper won't allow can still go ahead with a password.
+                use_password = downgrade and result == HELPER_REFUSED
+            if use_password:
                 # pacman installs whatever file it is given, so hand it a verified copy in a
                 # private directory rather than the file in the user-writable updates folder.
                 command = ['/usr/bin/pacman', '-U', '--noconfirm', str(verified_copy(path, digest, Path(private)))]
-            result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', *command]).returncode
+                result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', *command]).returncode
     except (OSError, ValueError):
         pass
     finally:
@@ -267,4 +271,4 @@ def install_linux(parent, package, digest, signature=None):
 
 
 if __name__ == '__main__':
-    raise SystemExit(install_linux(int(sys.argv[1]), sys.argv[2], sys.argv[3], *sys.argv[4:5]))
+    raise SystemExit(install_linux(int(sys.argv[1]), sys.argv[2], sys.argv[3], *sys.argv[4:5], downgrade=sys.argv[5:6] == ['downgrade']))

@@ -1,50 +1,37 @@
 import QtQuick
 import "../Theme.js" as Theme
 
-// A side dock that slides in from the right edge when opened and back out when closed.
-// Tab switches and responsive re-layouts show or hide it at once; only opening or closing the panel slides.
+// The side panel, a card matching the player bar: slides in past the right edge when opened and back out when closed.
 Rectangle {
     id: root
-    // Whether the dock occupies its place in the layout.
+    // Whether the panel occupies its place in the layout.
     required property bool shown
-    // "Queue" or "Lyrics": whose open intent decides whether a visibility change slides.
-    required property string dock
-    // Read from appState on demand: the dock tab can change before the open flag notifies.
-    function isOpen() { return dock === "Queue" ? appState.queueOpen : appState.lyricsOpen }
-    // Keeps the dock drawn while it slides out over the page that has already taken its space.
+    // Keeps the panel drawn while it slides out over the page that has already taken its space.
     readonly property bool leaving: slide.running && !shown
-    property bool seenOpen: false
-    Component.onCompleted: seenOpen = isOpen()
     visible: shown || leaving
     enabled: shown
-    color: themeState.background
+    radius: 12
+    color: themeState.surface
+    // Clears the margin between the card and the window edge when sliding.
+    readonly property real travel: width + anchors.rightMargin
+    // How much of the panel's slide is done, from 0 (off screen) to 1 (in place), for what moves along with it.
+    readonly property real revealed: visible && travel > 0 ? 1 - shift.x / travel : 0
     transform: Translate { id: shift }
     onShownChanged: {
-        var open = isOpen()
-        var animate = open !== seenOpen && !appState.reducedMotion
-        seenOpen = open
         var reversing = slide.running
         slide.stop()
-        if (!animate) {
+        if (appState.reducedMotion) {
             shift.x = 0
             opacity = 1
             return
         }
-        // A fresh open starts off the right edge, faded; a reversal continues from where the dock is.
-        if (shown && !reversing) { shift.x = width; opacity = 0 }
-        slideX.to = shown ? 0 : width
+        // A fresh open starts off the right edge, faded; a reversal continues from where the panel is.
+        if (shown && !reversing) { shift.x = travel; opacity = 0 }
+        slideX.to = shown ? 0 : travel
         slideX.easing.type = shown ? Easing.OutCubic : Easing.InCubic
-        // Closing stays opaque: a dock beside it has already moved underneath, and fading would blend the two.
         fade.to = 1
         slide.start()
     }
-    // Open intent can change without moving the dock (closing a hidden tab); record it after any slide decision.
-    Connections {
-        target: appState
-        function onQueueOpenChanged() { Qt.callLater(root.recordIntent) }
-        function onLyricsOpenChanged() { Qt.callLater(root.recordIntent) }
-    }
-    function recordIntent() { seenOpen = isOpen() }
     ParallelAnimation {
         id: slide
         NumberAnimation { id: slideX; target: shift; property: "x"; duration: Theme.motionSlow }

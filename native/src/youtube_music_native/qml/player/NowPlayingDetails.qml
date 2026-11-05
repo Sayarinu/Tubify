@@ -3,7 +3,7 @@ import QtQuick.Controls
 import "../Theme.js" as Theme
 import "../components"
 
-// The queue dock's larger now-playing view: artwork, song and a preview of the first artist.
+// The now-playing panel's content: artwork, song and a preview of the first artist.
 Column {
     id: root
     objectName: "queueNowPlayingDetails"

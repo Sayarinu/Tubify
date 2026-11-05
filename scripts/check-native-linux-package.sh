@@ -14,6 +14,8 @@ pacman -U --noconfirm "$native_package"
 pacman -Qk youtube-music-native
 desktop-file-validate /usr/share/applications/youtube-music-native.desktop
 test -r /usr/share/licenses/youtube-music-native/LICENSE
+test -r /usr/lib/youtube-music-native/oldest-switch-version
+test "$(stat -c '%U %a' /usr/lib/youtube-music-native/oldest-switch-version)" = 'root 644'
 test -r /usr/share/licenses/youtube-music-native/Roboto-OFL.txt
 test -r /usr/share/licenses/youtube-music-native/lucide-NOTICE.txt
 runuser -u "$native_test_user" -- env -u PYTHONPATH youtube-music-native-check --help

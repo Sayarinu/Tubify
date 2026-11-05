@@ -15,10 +15,13 @@ def fit_window_geometry(saved, available):
                  max(target.y(), min(saved.y(), target.y() + target.height() - height)), width, height)
 
 
+SIDE_PANELS = {"Queue", "Lyrics", "NowPlaying"}
+
+
 class ShellController(QObject):
     pageChanged = Signal()
     sidebarChanged = Signal()
-    queueWidthChanged = Signal()
+    panelWidthChanged = Signal()
     volumeChanged = Signal()
     navigationRequested = Signal(str)
     searchRequested = Signal(str)
@@ -28,11 +31,7 @@ class ShellController(QObject):
     menuRequested = Signal(dict, dict)
     playerViewChanged = Signal()
     playerViewChanging = Signal(bool)
-    queueOpenChanged = Signal()
-    queueDetailsChanged = Signal()
-    lyricsOpenChanged = Signal()
-    lyricsWidthChanged = Signal()
-    activeDockChanged = Signal()
+    panelChanged = Signal()
     appearanceChanged = Signal()
 
     def __init__(self, settings_path, fixture=None, parent=None):
@@ -45,24 +44,16 @@ class ShellController(QObject):
         self._page = "Home"
         self._query = ""
         self._sidebar_width = max(180, min(420, self._integer_setting("sidebarWidth", 240)))
-        self._queue_width = max(280, min(520, self._integer_setting("queueWidth", 360)))
+        self._panel_width = max(280, min(520, self._integer_setting("panelWidth", 360)))
         self._volume = max(0, min(100, self._integer_setting("volume", 70)))
         self._unmuted_volume = max(1, min(100, self._integer_setting("lastVolume", self._volume or 70)))
         self._fixture = fixture or {}
         self._shelves = self._fixture.get("shelves", [])
         self._playlists = self._fixture.get("playlists", [])
         self._expanded = False
-        self._queue_open = self.settings.value("queueOpen", False, type=bool)
-        self._queue_details = self.settings.value("queueDetails", True, type=bool)
-        self._lyrics_open = self.settings.value("lyricsOpen", False, type=bool)
-        self._lyrics_width = max(280, min(520, self._integer_setting("lyricsWidth", 360)))
-        self._active_dock = str(self.settings.value("activeDock", "Queue"))
-        if self._active_dock not in {"Queue", "Lyrics"}:
-            self._active_dock = "Queue"
-        if self._lyrics_open and not self._queue_open:
-            self._active_dock = "Lyrics"
-        elif self._queue_open and not self._lyrics_open:
-            self._active_dock = "Queue"
+        self._panel = str(self.settings.value("sidePanel", ""))
+        if self._panel not in SIDE_PANELS:
+            self._panel = ""
 
     def _integer_setting(self, key, default):
         try:
@@ -148,20 +139,9 @@ class ShellController(QObject):
     def sidebarWidth(self):
         return self._sidebar_width
 
-    @Property(int, notify=queueWidthChanged)
-    def queueWidth(self):
-        return self._queue_width
-
-    @Property(int, notify=lyricsWidthChanged)
-    def lyricsWidth(self):
-        return self._lyrics_width
-
-    @Slot(float)
-    def setLyricsWidth(self, value):
-        width = max(280, min(520, round(value)))
-        if width != self._lyrics_width:
-            self._lyrics_width = width
-            self.lyricsWidthChanged.emit()
+    @Property(int, notify=panelWidthChanged)
+    def panelWidth(self):
+        return self._panel_width
 
     @Property("QVariantList", constant=True)
     def shelves(self):
@@ -221,95 +201,68 @@ class ShellController(QObject):
             self.sidebarChanged.emit()
 
     @Slot(float)
-    def setQueueWidth(self, value):
+    def setPanelWidth(self, value):
         width = max(280, min(520, round(value)))
-        if width != self._queue_width:
-            self._queue_width = width
-            self.queueWidthChanged.emit()
+        if width != self._panel_width:
+            self._panel_width = width
+            self.panelWidthChanged.emit()
 
     @Slot()
     def saveSidebarWidths(self):
         self.settings.setValue("sidebarWidth", self._sidebar_width)
-        self.settings.setValue("queueWidth", self._queue_width)
-        self.settings.setValue("lyricsWidth", self._lyrics_width)
+        self.settings.setValue("panelWidth", self._panel_width)
         self.settings.sync()
 
-    @Property(bool, notify=queueOpenChanged)
-    def queueOpen(self):
-        return self._queue_open
-
-    @Property(bool, notify=queueDetailsChanged)
-    def queueDetails(self):
-        return self._queue_details
-
-    @Slot(bool)
-    def setQueueDetails(self, value):
-        if self._queue_details != value:
-            self._queue_details = value
-            self.settings.setValue("queueDetails", value)
-            self.settings.sync()
-            self.queueDetailsChanged.emit()
-
-    @Slot(bool)
-    def toggleNowPlayingView(self, queue_visible):
-        """Flip the view when the queue is on screen; otherwise bring the queue up showing it."""
-        if queue_visible:
-            self.setQueueDetails(not self._queue_details)
-            return
-        self.setQueueDetails(True)
-        self.setQueueOpen(True)
-        self.setActiveDock("Queue")
-
-    @Property(bool, notify=lyricsOpenChanged)
-    def lyricsOpen(self):
-        return self._lyrics_open
-
-    @Property(str, notify=activeDockChanged)
-    def activeDock(self):
-        return self._active_dock
-
-    def _save_docks(self):
-        self.settings.setValue("queueOpen", self._queue_open)
-        self.settings.setValue("lyricsOpen", self._lyrics_open)
-        self.settings.setValue("activeDock", self._active_dock)
-        self.settings.sync()
+    @Property(str, notify=panelChanged)
+    def panel(self):
+        """The open side panel, or an empty string. At most one is ever open."""
+        return self._panel
 
     @Slot(str)
-    def setActiveDock(self, value):
-        if value not in {"Queue", "Lyrics"}:
+    def setPanel(self, value):
+        if value and value not in SIDE_PANELS:
             return
-        if value == "Queue" and not self._queue_open or value == "Lyrics" and not self._lyrics_open:
-            return
-        if self._active_dock != value:
-            self._active_dock = value
-            self.activeDockChanged.emit()
-        self._save_docks()
+        if value != self._panel:
+            self._panel = value
+            self.settings.setValue("sidePanel", value)
+            self.settings.sync()
+            self.panelChanged.emit()
+
+    @Slot(str)
+    def togglePanel(self, value):
+        self.setPanel("" if self._panel == value else value)
+
+    @Property(bool, notify=panelChanged)
+    def queueOpen(self):
+        return self._panel == "Queue"
+
+    @Property(bool, notify=panelChanged)
+    def lyricsOpen(self):
+        return self._panel == "Lyrics"
+
+    @Property(bool, notify=panelChanged)
+    def nowPlayingOpen(self):
+        return self._panel == "NowPlaying"
 
     @Slot(bool)
     def setQueueOpen(self, value):
-        if self._queue_open == value:
-            return
-        self._queue_open = value
-        self.setActiveDock("Queue" if value else "Lyrics")
-        self.queueOpenChanged.emit()
-        self._save_docks()
+        self.setPanel("Queue" if value else "" if self.queueOpen else self._panel)
 
     @Slot(bool)
     def setLyricsOpen(self, value):
-        if self._lyrics_open == value:
-            return
-        self._lyrics_open = value
-        self.setActiveDock("Lyrics" if value else "Queue")
-        self.lyricsOpenChanged.emit()
-        self._save_docks()
+        self.setPanel("Lyrics" if value else "" if self.lyricsOpen else self._panel)
 
     @Slot()
     def toggleQueue(self):
-        self.setQueueOpen(not self._queue_open)
+        self.togglePanel("Queue")
 
     @Slot()
     def toggleLyrics(self):
-        self.setLyricsOpen(not self._lyrics_open)
+        self.togglePanel("Lyrics")
+
+    @Slot()
+    def toggleNowPlaying(self):
+        self.togglePanel("NowPlaying")
 
     @Slot(int)
     def setVolume(self, value):
@@ -352,8 +305,7 @@ class ShellController(QObject):
         self.settings.setValue("width", max(920, min(7680, width)))
         self.settings.setValue("height", max(620, min(4320, height)))
         self.settings.setValue("sidebarWidth", self._sidebar_width)
-        self.settings.setValue("queueWidth", self._queue_width)
-        self.settings.setValue("lyricsWidth", self._lyrics_width)
+        self.settings.setValue("panelWidth", self._panel_width)
         self.settings.setValue("volume", self._volume)
         self.settings.setValue("lastVolume", self._unmuted_volume)
         self.settings.sync()

@@ -1,13 +1,15 @@
 #!/usr/bin/python3 -I
-"""Install a signed, newer Tubify package as root. Runs through pkexec.
+"""Install a signed Tubify package as root. Runs through pkexec.
 
 Polkit lets local, active wheel users run this without a password, so it must only
-ever install a genuine Tubify release that is newer than the installed one:
-the package bytes are read once, checked against the release signing key, and
-installed from a root-only copy so the user's file cannot change afterwards.
+ever install a genuine Tubify release that is either newer than the installed one, or
+a stable release an experimental build may switch back to. The package bytes are read
+once, checked against the release signing key, and installed from a root-only copy so
+the user's file cannot change afterwards.
 """
 import os
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -16,6 +18,12 @@ import tempfile
 from youtube_music_native.updates.package_signature import verify
 
 PUBLIC_KEY = Path("/usr/lib/youtube-music-native/update-public-key")
+# The newest stable release when this package was built. An experimental build can
+# switch back as far as this without a password, so older releases with known bugs
+# can't be reinstalled silently. Missing or empty means no switching back.
+OLDEST_SWITCH = Path("/usr/lib/youtube-music-native/oldest-switch-version")
+STABLE = re.compile(r"\d+\.\d+\.\d+(?:-\d+)?")
+EXPERIMENTAL = re.compile(r"\d+\.\d+\.\d+b\d+(?:-\d+)?")
 PACKAGE = "youtube-music-native"
 LIMIT = 1024 * 1024 * 1024
 ENV = {"PATH": "/usr/bin", "LC_ALL": "C"}
@@ -38,6 +46,24 @@ def field(output, name):
         if key.strip() == name:
             return value.strip()
     return ""
+
+
+def compare(left, right):
+    result = subprocess.run(["/usr/bin/vercmp", left, right], capture_output=True, text=True, env=ENV)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def may_install(version, current):
+    order = compare(version, current)
+    if order == "1":
+        return True
+    if order != "-1" or not EXPERIMENTAL.fullmatch(current) or not STABLE.fullmatch(version):
+        return False
+    try:
+        oldest = OLDEST_SWITCH.read_text().strip()
+    except OSError:
+        return False
+    return bool(STABLE.fullmatch(oldest)) and compare(version, oldest) in {"0", "1"}
 
 
 def main(argv):
@@ -65,10 +91,8 @@ def main(argv):
         installed = subprocess.run(["/usr/bin/pacman", "-Q", PACKAGE], capture_output=True, text=True, env=ENV)
         if installed.returncode == 0:
             current = installed.stdout.split()[-1]
-            # A signed but older release must not be installable without a password.
-            order = subprocess.run(["/usr/bin/vercmp", version, current], capture_output=True, text=True, env=ENV)
-            if order.returncode != 0 or order.stdout.strip() != "1":
-                print("The update is not newer than the installed version.", file=sys.stderr)
+            if not may_install(version, current):
+                print("The update is not one this version can install without a password.", file=sys.stderr)
                 return 5
         return subprocess.run(["/usr/bin/pacman", "-U", "--noconfirm", str(package)], env=ENV).returncode
 

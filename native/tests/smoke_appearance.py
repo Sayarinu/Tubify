@@ -49,7 +49,7 @@ def main():
 
         def verify():
             try:
-                root, content, queue, lyrics, bar = (find(name) for name in ("scaledContent", "pageContent", "queueSidebar", "lyricsSidebar", "playerBar"))
+                root, content, side_panel, bar = (find(name) for name in ("scaledContent", "pageContent", "sidePanel", "playerBar"))
                 settings = find("appearanceSettingsDialog")
                 initial = (player.position, player.playing, player.currentTrack)
                 dpr = window.devicePixelRatio()
@@ -62,9 +62,8 @@ def main():
                     factor = scale / 100
                     for size in ((1600, 900), (1280, 820), (920, 620)):
                         window.resize(*size)
-                        for queue_open, lyrics_open in ((False, False), (True, False), (False, True), (True, True)):
-                            shell.setQueueOpen(queue_open)
-                            shell.setLyricsOpen(lyrics_open)
+                        for name in ("", "Queue", "Lyrics", "NowPlaying"):
+                            shell.setPanel(name)
                             QTest.qWait(35)
                             assert abs(root.width() * factor - size[0]) < 0.1
                             assert abs(root.height() * factor - size[1]) < 0.1
@@ -73,16 +72,12 @@ def main():
                             bounds = bar.mapRectToScene(bar.boundingRect())
                             assert bounds.left() >= 0 and bounds.right() <= size[0] + 0.1
                             assert bounds.bottom() <= size[1] and bounds.height() > 0
-                            # With docks open the page keeps 480 px; it only gets less once a lone dock is down to its 280 px minimum.
-                            docks = [dock for dock in (queue, lyrics) if dock.isVisible()]
-                            if docks:
-                                assert content.width() >= 480 - 0.1 or (len(docks) == 1 and abs(docks[0].width() - 280) < 0.1), (scale, size, content.width())
+                            # With a panel open the page keeps 480 px; it only gets less once the panel is down to its 280 px minimum.
+                            if side_panel.isVisible():
+                                assert side_panel.width() >= 280
+                                assert content.width() >= 480 - 0.1 or abs(side_panel.width() - 280) < 0.1, (scale, size, content.width())
                             else:
                                 assert content.width() >= 320 - 0.1
-                            if queue.isVisible():
-                                assert queue.width() >= 280
-                            if lyrics.isVisible():
-                                assert lyrics.width() >= 280
                             shell.setExpanded(True)
                             stage = find("expandedPlayer")
                             # Wait until the expanded player fills the content area.
@@ -93,10 +88,14 @@ def main():
                             cover_bounds = cover.mapRectToScene(cover.boundingRect())
                             assert cover_bounds.left() >= 0 and cover_bounds.right() <= size[0] + 1
                             assert cover_bounds.top() >= 0 and cover_bounds.bottom() <= bounds.top() + 1, (scale, size, cover_bounds)
-                            assert shell.queueOpen == queue_open and shell.lyricsOpen == lyrics_open
+                            # An open panel stays, without covering the artwork.
+                            assert shell.panel == name
+                            if name:
+                                assert side_panel.isVisible() and cover_bounds.right() <= side_panel.mapRectToScene(side_panel.boundingRect()).left() + 0.1, (scale, size)
                             shell.setExpanded(False)
                             # Wait until the closed player has slid away.
                             settle(lambda: not stage.isVisible())
+                            shell.setPanel(name)
                             search, settings_button = find("searchField"), find("settingsButton")
                             assert search.x() + search.width() <= settings_button.x() + 0.1
                             for name in ("queueToggle", "lyricsToggle", "playerTransport"):
@@ -227,6 +226,7 @@ def main():
                 assert stage_offset() == 0
                 shell.setExpanded(False)
                 assert not find("immersiveLoader").isVisible()
+                shell.setPanel("")
                 for preset in theme.darkThemes + theme.lightThemes:
                     theme.selectTheme(preset["id"])
                     for scale in (80, 100, 150):

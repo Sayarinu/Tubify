@@ -218,6 +218,7 @@ OPERATIONS = {
     "import_session": _account_change(lambda service, payload: service.import_session(payload["path"])),
     "import_browser": _account_change(lambda service, payload: service.import_browser([name for name in payload.get("browsers", []) if isinstance(name, str)])),
     "sign_out": _account_change(lambda service, payload: service.sign_out()),
+    "verify_session": lambda service, payload, resources, progress: service.verify(),
     "account_history": _account_history,
     "account_action": _account_action,
     "catalog": _catalog,
