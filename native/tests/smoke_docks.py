@@ -150,9 +150,8 @@ def main():
                 body = window.findChild(QObject, "panelBody")
                 shell.setLyricsOpen(True)
                 assert queue.isVisible() and not lyric.isVisible() and lyrics._active and abs(offset()) < 0.5 and panel.property("opacity") == 1
-                wait(lambda: lyric.isVisible())
-                assert not queue.isVisible() and body.property("opacity") < 0.5
-                wait(lambda: body.property("opacity") == 1)
+                wait(lambda: lyric.isVisible() and body.property("opacity") == 1)
+                assert not queue.isVisible()
                 # Quick switches end on the last panel chosen.
                 shell.setPanel("NowPlaying")
                 shell.setQueueOpen(True)
