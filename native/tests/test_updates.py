@@ -398,6 +398,33 @@ def test_linux_signed_update_uses_the_passwordless_helper_when_installed(tmp_pat
     assert calls[-1][2] == '/usr/bin/pacman'
 
 
+def test_refused_switch_back_falls_back_to_a_password_but_a_refused_update_does_not(tmp_path, monkeypatch):
+    package = tmp_path/'package.pkg.tar.zst'
+    package.write_bytes(DATA)
+    signature = tmp_path/'package.pkg.tar.zst.sig'
+    signature.write_bytes(SIGNATURE)
+    helper = tmp_path/'apply-update'
+    helper.write_text('')
+    monkeypatch.setattr(updates.os, 'kill', lambda pid, signal: (_ for _ in ()).throw(ProcessLookupError()))
+    monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: None)
+    monkeypatch.setattr(updates, 'LINUX_HELPER', str(helper))
+    digest = hashlib.sha256(DATA).hexdigest()
+
+    def installs(answer, downgrade):
+        calls = []
+        def run(argv):
+            calls.append(argv[2])
+            return SimpleNamespace(returncode=answer if argv[2] == str(helper) else 0)
+        monkeypatch.setattr(updates.subprocess, 'run', run)
+        return updates.install_linux(123, package, digest, signature, downgrade=downgrade), calls
+
+    assert installs(0, True) == (0, [str(helper)])
+    assert installs(updates.HELPER_REFUSED, True) == (0, [str(helper), '/usr/bin/pacman'])
+    assert installs(updates.HELPER_REFUSED, False) == (updates.HELPER_REFUSED, [str(helper)])
+    # Anything else, such as a bad signature or a dismissed prompt, never reaches pacman.
+    assert installs(3, True) == (3, [str(helper)])
+
+
 def test_linux_installer_helper_receives_the_signature(tmp_path, monkeypatch):
     package = tmp_path/'package.pkg.tar.zst'
     package.write_bytes(DATA)

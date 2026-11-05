@@ -1,6 +1,7 @@
 // Administrators (wheel) at the machine install signed Tubify updates without a password.
-// The helper only accepts packages signed with the Tubify release key that are newer
-// than the installed version; everyone else keeps the default admin prompt.
+// The helper only accepts packages signed with the Tubify release key that are newer than
+// the installed version, or a recent stable release replacing an experimental build;
+// everyone else keeps the default admin prompt.
 polkit.addRule(function(action, subject) {
     if (action.id == "studio.nouvellelune.tubify.update" &&
         subject.local && subject.active && subject.isInGroup("wheel")) {
