@@ -259,7 +259,7 @@ class Catalog:
         return data
 
     def _home(self, client, route, params, limit, data):
-        # Fetch every shelf once; "More Music" pages through this same response
+        # Fetch every shelf once; scrolling pages through this same response
         # instead of splicing a newer, differently ordered one onto it.
         limit = max(limit, HOME_SHELVES)
         data["shelves"] = arrange_home(shelves(client.get_home(limit=limit)))

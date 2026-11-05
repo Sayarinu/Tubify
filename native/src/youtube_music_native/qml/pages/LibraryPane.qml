@@ -10,7 +10,8 @@ Item {
     // Next to an open panel, the panel's own gap replaces the right gutter.
     readonly property real rightGutter: appState.panel ? 0 : gutter
     // Do not incubate delegates for another route while the page is being replaced.
-    property var result: (catalogState.route.indexOf("library_") === 0 || catalogState.route === "history") ? catalogState.data : ({})
+    readonly property bool current: catalogState.route.indexOf("library_") === 0 || catalogState.route === "history"
+    property var result: current ? catalogState.data : ({})
     property bool history: catalogState.route === "history"
     property bool rows: history || catalogState.route === "library_songs" || catalogState.route === "library_liked"
     Component {
@@ -43,6 +44,10 @@ Item {
             }
         }
     }
+    property list<QtObject> pagers: [
+        AutoPager { view: grid; active: root.current; cursor: root.result.cursor },
+        AutoPager { view: songs; active: root.current; cursor: root.result.cursor }
+    ]
     GridView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
@@ -52,7 +57,7 @@ Item {
         visible: !root.rows; clip: true; bottomMargin: 32
         property int columns: Math.max(1, Math.floor((width + 24) / (Theme.cardWidth + 24)))
         cellWidth: width / columns; cellHeight: cellWidth + 84
-        model: root.result.items || []; ScrollBar.vertical: ScrollBar {}
+        model: root.current ? catalogState.itemsModel : null; ScrollBar.vertical: ScrollBar {}
         header: Loader { width: grid.width; height: 158; sourceComponent: controls }
         delegate: MediaCard {
             required property var modelData
@@ -61,11 +66,9 @@ Item {
             onPlayRequested: item => browseState.play(item)
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
-        onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Column {
             width: grid.width
             LoadingSkeleton { width: parent.width; view: grid; mode: "grid"; columns: grid.columns; cellWidth: grid.cellWidth; cellHeight: grid.cellHeight }
-            Item { width: parent.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
         }
     }
     ListView {
@@ -75,7 +78,7 @@ Item {
         WheelScroll { view: songs; onScrolled: catalogState.saveScroll(view.contentY) }
         objectName: "librarySongs"
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
-        visible: root.rows; clip: true; bottomMargin: 32; model: root.result.items || []
+        visible: root.rows; clip: true; bottomMargin: 32; model: root.current ? catalogState.itemsModel : null
         ScrollBar.vertical: ScrollBar {}
         header: Loader { width: songs.width; height: root.history ? 96 : 158; sourceComponent: controls }
         delegate: SongRow {
@@ -86,11 +89,9 @@ Item {
             onActivated: item => browseState.play(item)
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
-        onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Column {
             width: songs.width
             LoadingSkeleton { width: parent.width; view: songs; mode: "rows" }
-            Item { width: parent.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
         }
     }
     Column {

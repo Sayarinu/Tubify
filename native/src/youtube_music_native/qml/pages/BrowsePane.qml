@@ -11,7 +11,8 @@ Item {
     // Next to an open panel, the panel's own gap replaces the right gutter.
     readonly property real rightGutter: appState.panel ? 0 : gutter
     // Do not incubate delegates for another route while the page is being replaced.
-    property var result: (["album", "playlist", "artist", "search", "downloads", "history"].indexOf(catalogState.route) < 0 && catalogState.route.indexOf("library_") !== 0) ? catalogState.data : ({})
+    readonly property bool current: ["album", "playlist", "artist", "search", "downloads", "history"].indexOf(catalogState.route) < 0 && catalogState.route.indexOf("library_") !== 0
+    property var result: current ? catalogState.data : ({})
     property bool landing: catalogState.route === "home" || catalogState.route === "explore"
     property bool songs: (root.result.items || []).length > 0 && (root.result.items || []).every(item => (item.kind || "song") === "song")
     // While a page loads, the view its route will fill stays visible so its header shows above the skeleton.
@@ -37,6 +38,11 @@ Item {
     }
     Component.onCompleted: restoreScroll()
     Connections { target: catalogState; function onChanged() { root.restoreScroll() } }
+    property list<QtObject> pagers: [
+        AutoPager { view: sections; active: root.current; cursor: root.result.cursor },
+        AutoPager { view: songList; active: root.current; cursor: root.result.cursor },
+        AutoPager { view: collectionGrid; active: root.current; cursor: root.result.cursor }
+    ]
     ListView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
@@ -47,7 +53,7 @@ Item {
         topMargin: catalogState.route === "home" || catalogState.route === "explore" ? 46 : 32
         clip: true; spacing: 80; boundsBehavior: Flickable.StopAtBounds
         visible: (root.result.shelves || []).length > 0 || root.loading && root.loadingLayout === "shelves"
-        model: root.result.shelves || []
+        model: root.current ? catalogState.shelvesModel : null
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
         ScrollBar.vertical: ScrollBar {
             objectName: "browseSectionsScrollbar"
@@ -112,7 +118,7 @@ Item {
             LoadingSkeleton { id: sectionsSkeleton; width: parent.width; view: sections; mode: "shelves"; shelfSpacing: sections.spacing }
             Item {
                 width: parent.width; height: sectionsSkeleton.active ? 0 : 64; visible: !sectionsSkeleton.active
-                Row { anchors.centerIn: parent; spacing: 16; ThemeActionButton { text: "More Music"; visible: root.result.cursor !== undefined && root.result.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() } ThemeActionButton { text: "Refresh"; enabled: !catalogState.busy; onClicked: catalogState.refresh() } }
+                Row { anchors.centerIn: parent; spacing: 16; ThemeActionButton { text: "Refresh"; enabled: !catalogState.busy; onClicked: catalogState.refresh() } }
             }
         }
     }
@@ -126,7 +132,7 @@ Item {
         WheelScroll { view: songList; onScrolled: catalogState.saveScroll(view.contentY) }
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         topMargin: 32; bottomMargin: 48; clip: true; visible: root.songs || root.loading && root.loadingLayout === "rows"
-        model: root.result.items || []; boundsBehavior: Flickable.StopAtBounds
+        model: root.current ? catalogState.itemsModel : null; boundsBehavior: Flickable.StopAtBounds
         ScrollBar.vertical: ScrollBar {
             parent: root
             anchors.left: songList.right
@@ -147,11 +153,9 @@ Item {
         }
         delegate: SongRow { required property int index; required property var modelData; width: songList.width; media: modelData; number: index + 1; onActivated: browseState.playAt(index) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
-        onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Column {
             width: songList.width
             LoadingSkeleton { width: parent.width; view: songList; mode: "rows"; textInset: 104 }
-            Item { width: parent.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
         }
     }
 
@@ -165,7 +169,7 @@ Item {
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         topMargin: 32; bottomMargin: 48; clip: true
         visible: !root.songs && (root.result.items || []).length > 0 || root.loading && root.loadingLayout === "grid"
-        cellWidth: Theme.cardWidth + 24; cellHeight: Theme.cardHeight + 24; model: root.result.items || []
+        cellWidth: Theme.cardWidth + 24; cellHeight: Theme.cardHeight + 24; model: root.current ? catalogState.itemsModel : null
         ScrollBar.vertical: ScrollBar {
             parent: root
             anchors.left: collectionGrid.right
@@ -175,11 +179,9 @@ Item {
         header: Column { width: collectionGrid.width; spacing: 20; bottomPadding: 32; Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; font.pixelSize: 32; font.bold: true; color: themeState.foreground } }
         delegate: MediaCard { required property var modelData; width: Theme.cardWidth; media: modelData; onActivated: item => browseState.open(item); onPlayRequested: item => browseState.play(item) }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
-        onAtYEndChanged: if (atYEnd && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Column {
             width: collectionGrid.width
             LoadingSkeleton { width: parent.width; view: collectionGrid; mode: "grid"; cellWidth: collectionGrid.cellWidth; cellHeight: collectionGrid.cellHeight }
-            Item { width: parent.width; height: visible ? 72 : 0; visible: root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
         }
     }
 
@@ -198,5 +200,6 @@ Item {
         Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Refresh to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15; color: themeState.secondary }
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; primary: !accountState.connected; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
     }
+    BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && !root.loading }
     Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(600, root.width - 48); padding: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music. Refresh when you’re online." : ""); visible: text.length > 0; color: themeState.secondary; background: Rectangle { color: themeState.surface; radius: 4 } }
 }
