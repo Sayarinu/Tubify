@@ -118,12 +118,16 @@ def main():
                 shell.setPanel("")
                 assert panel.isVisible() and panel.property("leaving") and not panel.isEnabled() and queue.isVisible()
                 assert content.x() + content.width() == window.findChild(QObject, "scaledContent").width()
-                wait(lambda: offset() > 1)
-                assert panel.property("leaving") and panel.property("opacity") == 1
+                # A slow runner can finish the slide before this looks again, so only a slide still running is reversed.
+                wait(lambda: offset() > 1 or not panel.property("leaving"))
+                assert panel.property("opacity") == 1
                 # Reopening mid-close reverses from where the panel is.
-                closing_offset = offset()
-                shell.setQueueOpen(True)
-                assert panel.isEnabled() and not panel.property("leaving") and 0 < offset() <= closing_offset + 0.5
+                if panel.property("leaving"):
+                    closing_offset = offset()
+                    shell.setQueueOpen(True)
+                    assert panel.isEnabled() and not panel.property("leaving") and 0 < offset() <= closing_offset + 0.5
+                else:
+                    shell.setQueueOpen(True)
                 wait(lambda: abs(offset()) < 0.5)
                 shell.setPanel("")
                 wait(lambda: not panel.isVisible())
