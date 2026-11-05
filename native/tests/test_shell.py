@@ -66,36 +66,54 @@ def test_sidebar_widths_are_bounded(tmp_path):
     assert controller.queueWidth == 280
 
 
-def test_independent_docks_remember_intent_width_and_last_opened(tmp_path):
+def test_one_panel_opens_at_a_time_and_is_remembered(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     path = tmp_path / "settings.ini"
     shell = ShellController(path)
-    assert not shell.lyricsOpen and not shell.queueOpen
+    assert shell.panel == "" and not shell.lyricsOpen and not shell.queueOpen and not shell.nowPlayingOpen
     shell.toggleLyrics()
-    assert shell.lyricsOpen and not shell.queueOpen and shell.activeDock == "Lyrics"
+    assert shell.lyricsOpen and shell.panel == "Lyrics"
     shell.toggleQueue()
-    assert shell.lyricsOpen and shell.queueOpen and shell.activeDock == "Queue"
-    shell.setActiveDock("Lyrics")
+    assert shell.queueOpen and not shell.lyricsOpen
+    shell.toggleNowPlaying()
+    assert shell.nowPlayingOpen and not shell.queueOpen
     shell.setLyricsWidth(412)
     shell.setQueueWidth(468)
     shell.saveSidebarWidths()
     restored = ShellController(path)
-    assert restored.lyricsOpen and restored.queueOpen and restored.activeDock == "Lyrics"
+    assert restored.nowPlayingOpen
     assert (restored.lyricsWidth, restored.queueWidth) == (412, 468)
+    # Closing a panel that is not open leaves the open one alone.
     restored.setLyricsOpen(False)
-    assert restored.queueOpen and restored.activeDock == "Queue"
-    restored.setActiveDock("Lyrics")
-    assert restored.activeDock == "Queue"
-    restored.setQueueOpen(False)
-    assert not restored.lyricsOpen and not restored.queueOpen
+    assert restored.nowPlayingOpen
+    restored.toggleNowPlaying()
+    assert restored.panel == ""
+    assert ShellController(path).panel == ""
 
 
-def test_invalid_dock_preferences_use_safe_defaults(tmp_path):
+def test_full_player_and_panels_replace_each_other(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    shell = ShellController(tmp_path / "settings.ini")
+    measured = []
+    shell.playerViewChanging.connect(lambda entering: measured.append((entering, shell.panel)))
+    shell.setQueueOpen(True)
+    shell.setExpanded(True)
+    assert shell.expanded and shell.panel == ""
+    shell.setLyricsOpen(True)
+    assert not shell.expanded and shell.lyricsOpen
+    # The slide measures the page without a panel in both directions.
+    assert measured == [(True, ""), (False, "")]
+    assert not ShellController(tmp_path / "settings.ini").expanded
+
+
+def test_invalid_panel_preferences_use_safe_defaults(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     path = tmp_path / "settings.ini"
-    path.write_text("[General]\nlyricsOpen=true\nqueueOpen=false\nactiveDock=invalid\nlyricsWidth=invalid\n")
+    path.write_text("[General]\nsidePanel=invalid\nlyricsWidth=invalid\n")
     shell = ShellController(path)
-    assert shell.activeDock == "Lyrics" and shell.lyricsWidth == 360
+    assert shell.panel == "" and shell.lyricsWidth == 360
+    shell.setPanel("invalid")
+    assert shell.panel == ""
     shell.setLyricsWidth(999)
     assert shell.lyricsWidth == 520
     shell.setLyricsWidth(1)
@@ -157,21 +175,3 @@ def test_window_geometry_stays_on_connected_display(tmp_path):
     restored = ShellController(tmp_path / "settings.ini")
     assert restored.settings.value("windowX", type=int) == -1800
     assert restored.settings.value("windowY", type=int) == 100
-
-
-def test_now_playing_view_is_on_by_default_and_remembers_the_choice(tmp_path):
-    app = QCoreApplication.instance() or QCoreApplication([])
-    controller = ShellController(tmp_path / "settings.ini")
-    assert controller.queueDetails
-    controller.toggleNowPlayingView(True)
-    assert not controller.queueDetails and not controller.queueOpen
-    restored = ShellController(tmp_path / "settings.ini")
-    assert not restored.queueDetails
-
-
-def test_now_playing_toggle_brings_up_a_hidden_queue_showing_the_view(tmp_path):
-    app = QCoreApplication.instance() or QCoreApplication([])
-    controller = ShellController(tmp_path / "settings.ini")
-    controller.setQueueDetails(False)
-    controller.toggleNowPlayingView(False)
-    assert controller.queueOpen and controller.queueDetails and controller.activeDock == "Queue"

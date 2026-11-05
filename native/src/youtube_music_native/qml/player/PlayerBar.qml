@@ -6,7 +6,7 @@ import "../components"
 Rectangle {
     id: root
     objectName: "playerBar"
-    function focusDockToggle(name) { if (name === "Lyrics") lyricsToggle.forceActiveFocus(); else queueToggle.forceActiveFocus() }
+    function focusPanelToggle(name) { (name === "Lyrics" ? lyricsToggle : name === "NowPlaying" ? nowPlayingToggle : queueToggle).forceActiveFocus() }
     function focusImmersiveToggle() { immersiveToggle.forceActiveFocus() }
     height: 92
     radius: 12
@@ -15,7 +15,6 @@ Rectangle {
     readonly property bool sleepMenuOpen: sleepMenu.opened
     property bool compact: width < 1100
     readonly property bool dense: width < 850
-    property bool queueVisible: false
     Connections {
         target: appState
         function onAppearanceChanged() { titleViewport.updateScroll(); artistViewport.updateScroll() }
@@ -213,15 +212,7 @@ Rectangle {
             tip: visible && playbackOptions.sleepRemaining > 0 ? "Sleep Timer: pauses in " + Theme.timeLabel(playbackOptions.sleepRemaining) : "Sleep Timer"
             onClicked: sleepMenu.opened ? sleepMenu.close() : sleepMenu.popup(sleepButton, (sleepButton.width - sleepMenu.width) / 2, -sleepMenu.height - 8)
         }
-        IconButton {
-            objectName: "nowPlayingViewToggle"
-            implicitWidth: root.dense ? 36 : 44
-            readonly property bool active: root.queueVisible && appState.queueDetails
-            iconName: "nowPlaying"
-            tip: active ? "Hide Now Playing View" : "Show Now Playing View"
-            iconColor: active ? themeState.accent : themeState.secondary
-            onClicked: appState.toggleNowPlayingView(root.queueVisible)
-        }
+        IconButton { implicitWidth: root.dense ? 36 : 44; id: nowPlayingToggle; objectName: "nowPlayingViewToggle"; iconName: "nowPlaying"; tip: appState.nowPlayingOpen ? "Close Now Playing" : "Now Playing"; iconColor: appState.nowPlayingOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleNowPlaying() }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: queueToggle; objectName: "queueToggle"; iconName: "queue"; tip: appState.queueOpen ? "Close Queue" : "Queue"; iconColor: appState.queueOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleQueue() }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: lyricsToggle; objectName: "lyricsToggle"; iconName: "music"; tip: appState.lyricsOpen ? "Close Lyrics" : "Lyrics"; iconColor: appState.lyricsOpen ? themeState.accent : themeState.secondary; onClicked: appState.toggleLyrics() }
         IconButton { implicitWidth: root.dense ? 36 : 44; id: volume; iconName: appState.volume > 0 ? "volume" : "muted"; tip: root.compact ? "Volume" : appState.volume > 0 ? "Mute" : "Unmute"; onClicked: root.compact ? volumePopup.open() : appState.toggleMute() }

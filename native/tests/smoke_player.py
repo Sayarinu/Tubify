@@ -102,7 +102,7 @@ def main():
         def settle_docks():
             # A closed dock stays drawn while it slides out.
             for _ in range(100):
-                if not any(find(name).property("leaving") for name in ("queueSidebar", "lyricsSidebar")):
+                if not any(find(name).property("leaving") for name in ("sidePanel",)):
                     return
                 QTest.qWait(10)
 
@@ -130,9 +130,8 @@ def main():
                 toggle = find("immersiveToggle")
                 for size in ((1600, 900), (1280, 820), (920, 620)):
                     window.resize(*size)
-                    for queue_open, lyrics_open in ((False, False), (True, False), (False, True), (True, True)):
-                        shell.setQueueOpen(queue_open)
-                        shell.setLyricsOpen(lyrics_open)
+                    for panel in ("", "Queue", "Lyrics", "NowPlaying"):
+                        shell.setPanel(panel)
                         settle()
                         settle_docks()
                         browsing.setProperty("contentY", 100)
@@ -140,6 +139,7 @@ def main():
                         old_scroll = browsing.property("contentY")
                         old_focus = window.activeFocusItem()
                         old_width = find("browseLoader").width()
+                        old_panel = shell.panel
                         QTest.keyClick(window, Qt.Key.Key_F)
                         settle()
                         while window.property("immersiveOpening"):
@@ -149,20 +149,22 @@ def main():
                         assert stage and stage.isVisible() and stage.width() >= 320
                         assert not find("navigationRail").isVisible() and not find("mainHeader").isVisible()
                         assert find("browsePane") == browse_page and not browse_page.isVisible()
-                        assert find("browseLoader").width() == old_width
-                        assert browsing.property("contentY") == old_scroll
+                        # The page holds its size under the stage; one that had a panel beside it has already taken that space.
+                        assert find("browseLoader").width() == old_width or old_panel
+                        assert browsing.property("contentY") == old_scroll or old_panel
                         assert find("queuePane") == queue_pane and find("lyricsPane") == lyrics_pane
                         assert find("playerBar") == transport and transport.isVisible()
                         # The stage's backdrop reaches the bar, with no strip of page colour between them.
                         assert abs(stage.mapToScene(QPointF(0, stage.height())).y() - transport.mapToScene(QPointF()).y()) < 1
-                        tabbed = queue_open and lyrics_open and size[0] < 1040
-                        assert bool(find("queueSidebar").isVisible()) == (queue_open and (not tabbed or shell.activeDock == "Queue"))
-                        lyric_visible = lyrics_open and (not tabbed or shell.activeDock == "Lyrics")
-                        assert bool(find("lyricsSidebar").isVisible()) == lyric_visible
-                        assert lyrics._active == lyric_visible
+                        # The full player replaces any open panel.
+                        assert shell.panel == "" and not lyrics._active
                         assert 80 <= cover.width() <= stage.width() - 48
+                        # The stage's column only lays out once it is drawn again at this window size.
+                        deadline = time.monotonic() + 2
+                        while cover.mapToItem(stage, QPointF()).y() < 0 and time.monotonic() < deadline:
+                            QTest.qWait(10)
                         point = cover.mapToItem(stage, QPointF())
-                        assert point.y() >= 0 and point.y() + cover.height() <= stage.height()
+                        assert point.y() >= 0 and point.y() + cover.height() <= stage.height(), (size, panel, point.y(), cover.height(), stage.height())
                         art = cover.findChild(QObject, "coverArtwork")
                         deadline = time.monotonic() + 2
                         while not cover.property("ready") and time.monotonic() < deadline:
@@ -174,8 +176,8 @@ def main():
                         QTest.keyClick(window, Qt.Key.Key_Escape)
                         settle()
                         assert not shell.expanded and browse_page.isVisible()
-                        assert window.activeFocusItem() == old_focus, (size, queue_open, lyrics_open)
-                        assert browsing.property("contentY") == old_scroll
+                        assert window.activeFocusItem() == old_focus, (size, panel)
+                        assert browsing.property("contentY") == old_scroll or old_panel
                     QMetaObject.invokeMethod(toggle, "clicked")
                     settle()
                     deadline = time.monotonic() + 2
@@ -208,32 +210,13 @@ def main():
                     QTest.qWait(10)
                 assert not find("playerBarBackdrop").isVisible()
                 settle()
-                # Bottom controls toggle the same panels without leaving the stage.
-                QMetaObject.invokeMethod(find("queueToggle"), "clicked")
-                QMetaObject.invokeMethod(find("lyricsToggle"), "clicked")
-                settle()
-                assert shell.expanded and shell.queueOpen and shell.lyricsOpen
-                window.resize(1600, 900)
-                settle()
-                shell.setLyricsOpen(False)
                 shell.setQueueWidth(280)
                 theme = args[11]
-                # Tabbing to Autoplay in the larger view scrolls it into sight above the player bar.
-                window.resize(920, 620)
+                # Opening the queue leaves the stage; the switch matrix below checks the switch in the panel.
+                shell.setQueueOpen(True)
                 settle()
-                autoplay, listing = find("queueAutoplay"), find("queueUpcomingList")
-                find("immersiveToggle").forceActiveFocus()
-                listing.setProperty("contentY", listing.property("originY") - listing.property("topMargin"))
-                settle()
-                autoplay.forceActiveFocus()
-                settle()
-                list_area, autoplay_area = listing.mapRectToScene(listing.boundingRect()), autoplay.mapRectToScene(autoplay.boundingRect())
-                assert autoplay_area.bottom() <= list_area.bottom() + 1 and autoplay_area.top() >= list_area.top() - 1
-                window.resize(1600, 900)
-                settle()
-                # The switch matrix below checks the switch itself, in the compact panel.
-                shell.setQueueDetails(False)
-                settle()
+                settle_docks()
+                assert not shell.expanded
                 # Autoplay glides between its states, and Reduce Motion jumps.
                 thumb = find("queueAutoplayThumb")
                 positions = []
@@ -258,17 +241,22 @@ def main():
                         check_autoplay(window, player, theme, options.output_dir, f"autoplay-{scale}-{palette}")
                 theme.selectTheme("classic-dark")
                 shell.setUiScale(100)
-                shell.setQueueDetails(True)
                 shell.setReducedMotion(False)
                 window.resize(1600, 900)
                 shell.setLyricsOpen(True)
                 settle()
                 lyrics.seekLine(1)
                 assert player.position == 5 and lyrics.currentLine == 1
-                shell.setLyricsOpen(False)
+                shell.setQueueOpen(True)
                 settle()
+                settle_docks()
                 check_queue(window, shell, player, browse, downloads, None, True)
-                assert shell.expanded
+                assert shell.queueOpen
+                shell.setExpanded(True)
+                settle()
+                while window.property("immersiveOpening"):
+                    QTest.qWait(10)
+                assert shell.expanded and shell.panel == ""
                 # Old downloaded metadata retains readable artist/album fallback strings.
                 legacy = {**track, "videoId": "stage000002", "artists": [], "artist": "Legacy artist", "album": "Legacy album", "thumbnail": "", "largeThumbnail": ""}
                 player.playTracks([legacy])
