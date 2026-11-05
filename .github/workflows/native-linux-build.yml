@@ -20,7 +20,7 @@ jobs:
     name: Install and upgrade on Linux
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Only the tag gate below reads history.
           fetch-depth: ${{ !startsWith(github.ref, 'refs/tags/') && 1 || 0 }}
@@ -32,6 +32,13 @@ jobs:
           test "$tagged" = "$(python -c 'import pathlib,tomllib; print(tomllib.loads(pathlib.Path("native/pyproject.toml").read_text())["project"]["version"])')"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
           python native/release_gate.py
+      # Pacman checks each package's signature, so a cached download can't change what gets installed.
+      - name: Restore downloaded Arch packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/pacman-packages
+          key: arch-packages-${{ hashFiles('.github/workflows/native-linux-build.yml', 'packaging/linux/PKGBUILD') }}
+          restore-keys: arch-packages-
       - name: Stamp the release version
         run: python3 scripts/native-release-version.py --stamp "${{ inputs.version }}"
       - name: Build, install, launch and upgrade in a clean Linux container
@@ -39,9 +46,13 @@ jobs:
           TUBIFY_UPDATE_PUBLIC_KEY: ${{ inputs.update-public-key }}
         run: |
           # The image and the dated package archive are both pinned, so a build only changes when a commit moves them.
-          docker run --rm --env TUBIFY_UPDATE_PUBLIC_KEY --volume "${GITHUB_WORKSPACE}:/workspace" --workdir /workspace \
+          mkdir -p "${RUNNER_TEMP}/pacman-packages"
+          docker run --rm --env TUBIFY_UPDATE_PUBLIC_KEY --env RUNNER_OWNER="$(id -u):$(id -g)" \
+            --volume "${GITHUB_WORKSPACE}:/workspace" --volume "${RUNNER_TEMP}/pacman-packages:/var/cache/pacman/pkg" --workdir /workspace \
             archlinux@sha256:ece6c971fec3c532fd508bce299a446deaf469feecbfe7c353e995bc1a5e7bba bash -lc '
             set -euo pipefail
+            # Later steps run as the runner user, and need to read and clean up what the container wrote.
+            trap "chown -R $RUNNER_OWNER /workspace /var/cache/pacman/pkg" EXIT
             echo "Server=https://archive.archlinux.org/repos/2026/11/03/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist
             pacman -Syyuu --noconfirm --needed base-devel git
             source packaging/linux/PKGBUILD
@@ -53,7 +64,7 @@ jobs:
             sources=(/workspace/dist/native/*.src.tar.gz)
             ./scripts/check-native-linux-package.sh "${packages[0]}" "${sources[0]}"
           '
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: native-linux-package
           path: |
