@@ -39,6 +39,8 @@ def main():
             normal.setSpeakerFill(True)
             normal.load(sources["stereo"], paused=True)
             wait_for(lambda: normal._ready)
+            # libmpv reports the output format a moment after the file is ready.
+            wait_for(lambda: normal.player.audio_out_params)
             assert normal.player.audio_channels == "auto-safe"
             assert normal.player.audio_out_params["channels"] == "stereo"
             assert normal.player.af == []
