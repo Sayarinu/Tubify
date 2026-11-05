@@ -96,6 +96,30 @@ def test_browser_sign_in_is_validated_before_replacing_the_saved_session(monkeyp
     assert "private-first" in credentials.load().session.headers["cookie"]
 
 
+def test_verify_tells_a_signed_out_reply_from_a_network_failure(tmp_path):
+    path = tmp_path / "browser.json"
+    path.write_text(json.dumps({"cookie": "__Secure-3PAPISID=private-cookie"}))
+    service = AuthService(Credentials(MemoryVault(), inline=False), lambda session: Catalog())
+    service.import_session(path)
+    assert service.verify() == {"captured": service.session.captured}
+
+    class SignedOut(Catalog):
+        def get_account_info(self):
+            raise KeyError("Unable to find 'accountName'")
+
+    service.client = SignedOut()
+    with pytest.raises(AuthError):
+        service.verify()
+
+    class Offline(Catalog):
+        def get_account_info(self):
+            raise ConnectionError()
+
+    service.client = Offline()
+    with pytest.raises(ConnectionError):
+        service.verify()
+
+
 def test_safe_error_asks_to_reconnect_only_for_rejected_sessions():
     from ytmusicapi.exceptions import YTMusicServerError
 

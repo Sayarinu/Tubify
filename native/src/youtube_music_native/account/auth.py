@@ -89,6 +89,17 @@ class AuthService:
             self.client = self.catalog_factory(self.session)
         return self.client
 
+    def verify(self):
+        """Raise AuthError if YouTube Music no longer treats the saved session as signed in."""
+        client = self.catalog()
+        try:
+            account = client.get_account_info()
+        except (KeyError, IndexError, TypeError):
+            # A signed-out reply has no account section. Network and server errors pass through, and don't count as signed out.
+            account = None
+        profile_from_account(account)
+        return {"captured": self.session.captured}
+
     def sign_out(self):
         self.credentials.clear()
         self.session, self.client, self.profile = None, None, {}

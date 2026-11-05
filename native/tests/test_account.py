@@ -30,19 +30,19 @@ def test_restore_and_failed_reconnect_keep_cached_identity(tmp_path):
     account.requireReconnect("Session expired")
     assert not account.connected and account.reconnect
     account.importFile(QUrl.fromLocalFile(str(tmp_path / "browser.json")))
-    worker.failed.emit(2, {"code": "offline", "message": "Offline"})
+    worker.failed.emit(3, {"code": "offline", "message": "Offline"})
     assert account.profile["name"] == "Listener"
     assert account.reconnect and not account.busy
     assert changes == []
     account.importFile(QUrl.fromLocalFile(str(tmp_path / "browser.json")))
-    worker.succeeded.emit(3, {"connected": True, "profile": {"name": "Listener"}})
+    worker.succeeded.emit(4, {"connected": True, "profile": {"name": "Listener"}})
     assert account.connected and not account.reconnect
     assert changes == [True]
     signed_out = []
     account.signedOut.connect(lambda: signed_out.append(True))
     account.signOut()
     assert not signed_out, "Nothing is removed until sign-out has succeeded"
-    worker.succeeded.emit(4, {"connected": False, "profile": {}})
+    worker.succeeded.emit(5, {"connected": False, "profile": {}})
     assert not account.connected and account.profile == {}
     assert changes == [True, True] and signed_out == [True]
 
@@ -282,15 +282,66 @@ def test_expired_session_is_renewed_from_the_browser_before_asking(tmp_path):
     account, worker, opened = browser_account(tmp_path, clock)
     account.settings.setValue("signInBrowser", "firefox")
     worker.succeeded.emit(1, {"connected": True, "profile": {"name": "Listener"}, "captured": 1.})
+    assert worker.requests[-1] == ("verify_session", None)
+    worker.succeeded.emit(2, {"captured": 1.})
     assert worker.requests[-1] == ("import_browser", {"browsers": ["firefox"]})
-    worker.failed.emit(2, {"code": "NoBrowserSession", "message": "none"})
+    worker.failed.emit(3, {"code": "NoBrowserSession", "message": "none"})
     assert account.connected and not account.reconnect and opened == []
     account.requireReconnect("Session expired")
-    assert len(worker.requests) == 2 and account.reconnect and account.message == "Session expired"
+    assert len(worker.requests) == 3 and account.reconnect and account.message == "Session expired"
     clock[0] += 3600
     account._reconnect = False
     account.requireReconnect("Session expired")
     assert worker.requests[-1][0] == "import_browser" and not account.reconnect
+    worker.succeeded.emit(4, {"connected": True, "profile": {"name": "Listener"}, "browser": "firefox"})
+    assert account.connected and not account.reconnect
+
+
+def restored_account(tmp_path):
+    account, worker, opened = browser_account(tmp_path, [1000.])
+    account.settings.setValue("signInBrowser", "firefox")
+    worker.succeeded.emit(1, {"connected": True, "profile": {"name": "Listener"}, "captured": 900.})
+    assert worker.requests[-1] == ("verify_session", None) and account.connected and not account.busy
+    return account, worker
+
+
+def test_session_youtube_music_no_longer_accepts_is_renewed_at_launch(tmp_path):
+    account, worker = restored_account(tmp_path)
+    worker.failed.emit(2, {"code": "AuthError", "message": "Signed out"})
+    assert worker.requests[-1] == ("import_browser", {"browsers": ["firefox"]}) and not account.reconnect
+    worker.succeeded.emit(3, {"connected": True, "profile": {"name": "Listener"}, "browser": "firefox", "captured": 1000.})
+    assert account.connected and not account.reconnect
+    # A renewed session has just been validated, so it isn't checked again.
+    assert len(worker.requests) == 3
+
+
+def test_session_that_cannot_be_renewed_at_launch_asks_to_sign_in_again(tmp_path):
+    account, worker = restored_account(tmp_path)
+    worker.failed.emit(2, {"code": "reconnect", "message": "Session rejected"})
+    worker.failed.emit(3, {"code": "NoBrowserSession", "message": "none"})
+    assert account.reconnect and account.message == "Session rejected"
+
+
+def test_valid_session_is_not_read_from_the_browser_at_launch(tmp_path):
+    account, worker = restored_account(tmp_path)
+    worker.succeeded.emit(2, {"captured": 900.})
+    assert len(worker.requests) == 2 and account.connected
+
+
+def test_offline_launch_keeps_the_saved_session(tmp_path):
+    for code in ("offline", "provider_error", "timeout", "cancelled"):
+        account, worker = restored_account(tmp_path)
+        message = account.message
+        worker.failed.emit(2, {"code": code, "message": "Try later"})
+        assert len(worker.requests) == 2 and account.connected and not account.reconnect and account.message == message
+
+
+def test_launch_check_does_not_interrupt_a_sign_in_under_way(tmp_path):
+    account, worker = restored_account(tmp_path)
+    account.signIn()
+    assert worker.requests[-1][0] == "import_browser"
+    worker.failed.emit(2, {"code": "AuthError", "message": "Signed out"})
+    assert not account.reconnect and len(worker.requests) == 3
     worker.succeeded.emit(3, {"connected": True, "profile": {"name": "Listener"}, "browser": "firefox"})
     assert account.connected and not account.reconnect
 
