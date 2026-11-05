@@ -115,7 +115,8 @@ def test_experimental_channel_offers_newer_builds_and_stable_offers_the_way_back
     assert item.updateAvailable and item.switchingChannel and not item.downgrading and item.latestName == 'Tubify Experimental 0.7.0b1' and item.status == 'Tubify Experimental 0.7.0b1 is available to switch to Experimental.'
     # A newer build goes through the password-free helper.
     item.installUpdate()
-    item._worker.succeeded.emit(2, {'name': 'x.pkg.tar.zst', 'path': '/tmp/x', 'sha256': '0' * 64, 'size': 1})
+    item._worker.succeeded.emit(2, {'tag': 'Tubify-Experimental-0.7.0b1', 'notes': 'Try it'})
+    item._worker.succeeded.emit(3, {'name': 'x.pkg.tar.zst', 'path': '/tmp/x', 'sha256': '0' * 64, 'size': 1})
     assert item._worker.requests[-1][1]['asset']['downgrade'] is False
     item.close()
 
@@ -133,7 +134,8 @@ def test_experimental_channel_offers_newer_builds_and_stable_offers_the_way_back
     assert item.updateAvailable and item.switchingChannel and item.downgrading and item.latestName == 'Tubify 0.6.0' and item.status == 'Tubify 0.6.0 is available to switch to Stable.'
     # The download is marked as a downgrade, so Linux can fall back to a password if the helper refuses it.
     item.installUpdate()
-    item._worker.succeeded.emit(2, {'name': 'Tubify-0.6.0-linux-x86_64.pkg.tar.zst', 'path': '/tmp/x', 'sha256': '0' * 64, 'size': 1})
+    item._worker.succeeded.emit(2, {'tag': 'Tubify-0.6.0', 'notes': 'Stable'})
+    item._worker.succeeded.emit(3, {'name': 'Tubify-0.6.0-linux-x86_64.pkg.tar.zst', 'path': '/tmp/x', 'sha256': '0' * 64, 'size': 1})
     assert item._worker.requests[-1] == ('maintenance', {'action': 'install', 'asset': {'name': 'Tubify-0.6.0-linux-x86_64.pkg.tar.zst', 'path': '/tmp/x', 'sha256': '0' * 64, 'size': 1, 'downgrade': True}, 'parent_pid': item._worker.requests[-1][1]['parent_pid']})
     item.close()
 
@@ -170,7 +172,76 @@ def test_mac_switching_back_points_to_the_download(tmp_path, monkeypatch):
     item.checkRelease()
     item._worker.succeeded.emit(1, {'tag': 'Tubify-0.6.0'})
     item.installUpdate()
+    item._worker.succeeded.emit(2, {'tag': 'Tubify-0.6.0'})
     assert 'download it from Release Details' in item.status and item._worker.requests[-1][1]['action'] == 'release'
+    item.close()
+
+
+def offered(tmp_path, monkeypatch, installed, channel, tag):
+    """A service showing an offer for ``tag``, with the update button just clicked."""
+    monkeypatch.setattr(maintenance.sys, 'platform', 'linux')
+    item = service(tmp_path, monkeypatch, installed, channel)
+    item.checkRelease()
+    item._worker.succeeded.emit(1, {'tag': tag})
+    assert item.updateAvailable
+    item.installUpdate()
+    assert item._worker.requests[-1][1] == {'action': 'release', 'cache_path': item._cache, 'channel': channel} and item.updateAvailable and item.busy
+    return item
+
+
+@pytest.mark.parametrize('installed,channel,waiting,newest', [
+    # An older stable offer made before a newer stable release shipped must not move the app backwards.
+    ('0.8.3b5', 'stable', 'Tubify-0.8.2', 'Tubify-0.8.3'),
+    ('0.7.0b1', 'experimental', 'Tubify-Experimental-0.7.0b2', 'Tubify-Experimental-0.7.0b3'),
+])
+def test_clicking_update_installs_the_newest_release_not_the_waiting_offer(tmp_path, monkeypatch, installed, channel, waiting, newest):
+    item = offered(tmp_path, monkeypatch, installed, channel, waiting)
+    item._worker.succeeded.emit(2, {'tag': newest, 'notes': 'Newest'})
+    action = item._worker.requests[-1][1]
+    assert action['action'] == 'download' and action['tag'] == newest
+    assert not item.downgrading and item.latestName == updates.release_name(newest) and item.releaseNotes == 'Newest'
+    item.close()
+
+
+@pytest.mark.parametrize('failure', [
+    {'error': 'Release information is unavailable.'},
+    {'tag': 'Tubify-0.8.2', 'checkedAt': '2026-01-01T00:00:00+00:00', 'stale': True},
+    {'tag': 'not-a-release'},
+])
+def test_a_failed_lookup_installs_nothing_and_keeps_the_offer_to_retry(tmp_path, monkeypatch, failure):
+    item = offered(tmp_path, monkeypatch, '0.8.3b5', 'stable', 'Tubify-0.8.2')
+    item._worker.succeeded.emit(2, failure)
+    assert len(item._worker.requests) == 2 and item.updateAvailable and not item.busy
+    # Clicking again looks up again.
+    item.installUpdate()
+    item._worker.succeeded.emit(3, {'tag': 'Tubify-0.8.3'})
+    assert item._worker.requests[-1][1]['action'] == 'download' and item._worker.requests[-1][1]['tag'] == 'Tubify-0.8.3'
+    item.close()
+
+
+def test_an_ordinary_check_after_a_failed_click_does_not_install(tmp_path, monkeypatch):
+    item = offered(tmp_path, monkeypatch, '0.8.3b5', 'stable', 'Tubify-0.8.2')
+    item._worker.succeeded.emit(2, {'error': 'Release information is unavailable.'})
+    item.checkRelease()
+    item._worker.succeeded.emit(3, {'tag': 'Tubify-0.8.3'})
+    assert item.updateAvailable and item._worker.requests[-1][1]['action'] == 'release'
+    item.close()
+
+
+def test_a_click_with_nothing_newer_left_withdraws_the_offer(tmp_path, monkeypatch):
+    item = offered(tmp_path, monkeypatch, '0.7.0b1', 'experimental', 'Tubify-Experimental-0.7.0b2')
+    item._worker.succeeded.emit(2, {'tag': 'Tubify-Experimental-0.7.0b1'})
+    assert len(item._worker.requests) == 2 and not item.updateAvailable and item.status.startswith('You have the latest')
+    item.close()
+
+
+def test_sparkle_gets_the_newest_release_after_a_click(tmp_path, monkeypatch):
+    item = offered(tmp_path, monkeypatch, '0.7.0', 'stable', 'Tubify-0.7.1')
+    monkeypatch.setattr(maintenance.sys, 'platform', 'darwin')
+    installed = []
+    item._mac = type('Mac', (), {'install': lambda self, tag: installed.append(tag)})()
+    item._worker.succeeded.emit(2, {'tag': 'Tubify-0.7.2'})
+    assert installed == ['Tubify-0.7.2'] and len(item._worker.requests) == 2
     item.close()
 
 
