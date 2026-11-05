@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Effects
 import QtQuick.Window
 import "Theme.js" as Theme
 import "components"
@@ -56,8 +57,10 @@ ApplicationWindow {
     readonly property bool compactNavigation: !window.chromeHidden && window.panelOpen && uiRoot.width < 780
     onCompactNavigationChanged: navigationDrawer.close()
     readonly property bool panelOpen: appState.panel !== ""
+    // The panel card keeps the player bar's margin from the window edge, from the bar and from the page.
+    readonly property real panelGap: 12
     // The panel never takes the last 480 px from the page; below that it stops at its 280 px minimum.
-    readonly property real panelBudget: Math.max(280, uiRoot.width - navigationEdge.width - 480)
+    readonly property real panelBudget: Math.max(280, uiRoot.width - navigationEdge.width - 480 - 2 * panelGap)
     readonly property real panelWidth: Math.min(sidePanel.page === "Lyrics" ? appState.lyricsWidth : appState.queueWidth, panelBudget)
     function restorePanelFocus() {
         Qt.callLater(function() {
@@ -170,7 +173,7 @@ ApplicationWindow {
         parent: window.compactNavigation ? drawerContent : uiRoot
         wide: window.wideNavigation
         collapsed: window.chromeHidden
-        width: window.chromeHidden ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (window.panelOpen ? 280 + 480 : 320)))
+        width: window.chromeHidden ? 0 : window.compactNavigation ? navigationDrawer.width : Math.min(appState.sidebarWidth, Math.max(180, uiRoot.width - (window.panelOpen ? 280 + 480 + 2 * window.panelGap : 320)))
         anchors.top: parent.top
         anchors.bottom: window.compactNavigation ? parent.bottom : player.top
         onNavigated: navigationDrawer.close()
@@ -180,6 +183,7 @@ ApplicationWindow {
         id: header
         anchors.left: navigationEdge.right
         anchors.right: window.panelOpen ? sidePanel.left : parent.right
+        anchors.rightMargin: window.panelOpen ? window.panelGap : 0
         compactNavigation: window.compactNavigation
         collapsed: window.chromeHidden
         onNavigationRequested: navigationDrawer.open()
@@ -253,6 +257,7 @@ ApplicationWindow {
         objectName: "pageContent"
         anchors.left: navigationEdge.right
         anchors.right: window.panelOpen ? sidePanel.left : parent.right
+        anchors.rightMargin: window.panelOpen ? window.panelGap : 0
         anchors.top: reconnectBanner.bottom
         anchors.bottom: player.top
         anchors.bottomMargin: 12
@@ -365,9 +370,9 @@ ApplicationWindow {
         Connections { target: appState; function onPanelChanged() { if (appState.panel) sidePanel.page = appState.panel } }
         property string queueTab: "Queue"
         shown: window.panelOpen
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.bottom: player.top
+        anchors.top: parent.top; anchors.topMargin: window.panelGap
+        anchors.right: parent.right; anchors.rightMargin: window.panelGap
+        anchors.bottom: player.top; anchors.bottomMargin: window.panelGap
         width: window.panelWidth
         // Tinted from the artwork, and held back so the lyrics stay readable over bright covers.
         ArtworkBackdrop {
@@ -377,10 +382,15 @@ ApplicationWindow {
             opacity: 0.65
             source: playerState.currentTrack.thumbnail || ""
             mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""
+            // Rounded to the card; the software renderer has no masks and keeps square corners.
+            layer.enabled: visible && GraphicsInfo.api !== GraphicsInfo.Software
+            layer.effect: MultiEffect { maskEnabled: true; maskSource: panelMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1; autoPaddingEnabled: false }
         }
-        Rectangle { width: 1; height: parent.height; color: themeState.border }
+        Rectangle { id: panelMask; anchors.fill: parent; radius: sidePanel.radius; visible: false; layer.enabled: true; layer.smooth: true }
         DockHeader {
             id: panelHeader
+            // Its divider continues the line under the page header.
+            height: header.height - window.panelGap
             title: sidePanel.page === "NowPlaying" ? "Now Playing" : sidePanel.page
             tabs: sidePanel.page === "Queue" ? ["Queue", "Recently played"] : []
             currentTab: sidePanel.queueTab
@@ -391,6 +401,7 @@ ApplicationWindow {
         QueuePane { visible: sidePanel.page === "Queue" && sidePanel.queueTab === "Queue"; anchors.fill: parent; anchors.topMargin: panelHeader.height; showCloseButton: false }
         RecentlyPlayedPane { visible: sidePanel.page === "Queue" && sidePanel.queueTab === "Recently played"; anchors.fill: parent; anchors.topMargin: panelHeader.height }
         NowPlayingPane { visible: sidePanel.page === "NowPlaying"; anchors.fill: parent; anchors.topMargin: panelHeader.height }
+        Rectangle { objectName: "panelBorder"; anchors.fill: parent; radius: sidePanel.radius; color: "transparent"; border.color: themeState.border }
         PanelResizeHandle {
             objectName: "panelResizeHandle"
             panelWidth: sidePanel.width

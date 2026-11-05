@@ -15,8 +15,8 @@ Item {
         visible: playerState.hasTrack
         clip: true
         contentWidth: availableWidth
-        contentHeight: details.height + 16
-        NowPlayingDetails { id: details; width: scroller.availableWidth }
+        contentHeight: details.height + 32
+        NowPlayingDetails { id: details; y: 16; width: scroller.availableWidth }
     }
     Text {
         anchors.left: parent.left; anchors.right: parent.right

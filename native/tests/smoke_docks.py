@@ -49,12 +49,17 @@ def main():
                         assert panel.isVisible() and pane.isVisible()
                         assert [other.isVisible() for other in (lyric, queue, now)].count(True) == 1
                         assert lyrics._active == (name == "Lyrics")
-                        assert panel.x() + panel.width() == size[0]
+                        # The card lines up with the player bar, and its header divider with the page's.
+                        assert panel.x() + panel.width() == bar.x() + bar.width() == size[0] - 12
+                        assert panel.y() + panel.height() + 12 == bar.y()
+                        page_line = window.findChild(QObject, "mainHeaderDivider")
+                        panel_line = window.findChild(QObject, "panelHeaderDivider")
+                        assert panel_line.mapToScene(QPointF()).y() == page_line.mapToScene(QPointF()).y()
                         assert panel.width() >= 280
                         # The panel never squeezes the page below 480 px unless it is already at its 280 px minimum.
                         assert content.width() >= 480 or panel.width() == 280, (size, content.width())
-                        assert content.x() + content.width() == panel.x()
-                        assert bar.isVisible() and bar.y() >= panel.y() + panel.height()
+                        assert content.x() + content.width() + 12 == panel.x()
+                        assert bar.isVisible()
                         search = window.findChild(QObject, "searchField")
                         settings = window.findChild(QObject, "settingsButton")
                         assert search.x() + search.width() <= settings.x()
@@ -109,7 +114,7 @@ def main():
                 shell.setQueueOpen(True)
                 # The slide starts synchronously from off the right edge, faded out.
                 assert panel.isVisible() and panel.isEnabled() and offset() > panel.width() - 1 and panel.property("opacity") < 0.1
-                assert content.x() + content.width() == panel.x()
+                assert content.x() + content.width() + 12 == panel.x()
                 wait(lambda: abs(offset()) < 0.5 and panel.property("opacity") == 1)
                 # Switching panels swaps the content at once.
                 shell.setLyricsOpen(True)
