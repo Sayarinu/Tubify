@@ -7,6 +7,8 @@ Item {
     id: root
     objectName: "libraryPane"
     property real gutter: Theme.gutter(width)
+    // Next to an open panel, the panel's own gap replaces the right gutter.
+    readonly property real rightGutter: appState.panel ? 0 : gutter
     // Do not incubate delegates for another route while the page is being replaced.
     property var result: (catalogState.route.indexOf("library_") === 0 || catalogState.route === "history") ? catalogState.data : ({})
     property bool history: catalogState.route === "history"
@@ -46,7 +48,7 @@ Item {
         cacheBuffer: 0
         id: grid
         WheelScroll { view: grid; onScrolled: catalogState.saveScroll(view.contentY) }
-        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         visible: !root.rows; clip: true; bottomMargin: 32
         property int columns: Math.max(1, Math.floor((width + 24) / (Theme.cardWidth + 24)))
         cellWidth: width / columns; cellHeight: cellWidth + 84
@@ -72,7 +74,7 @@ Item {
         id: songs
         WheelScroll { view: songs; onScrolled: catalogState.saveScroll(view.contentY) }
         objectName: "librarySongs"
-        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         visible: root.rows; clip: true; bottomMargin: 32; model: root.result.items || []
         ScrollBar.vertical: ScrollBar {}
         header: Loader { width: songs.width; height: root.history ? 96 : 158; sourceComponent: controls }

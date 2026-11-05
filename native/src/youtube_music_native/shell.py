@@ -21,7 +21,7 @@ SIDE_PANELS = {"Queue", "Lyrics", "NowPlaying"}
 class ShellController(QObject):
     pageChanged = Signal()
     sidebarChanged = Signal()
-    queueWidthChanged = Signal()
+    panelWidthChanged = Signal()
     volumeChanged = Signal()
     navigationRequested = Signal(str)
     searchRequested = Signal(str)
@@ -32,7 +32,6 @@ class ShellController(QObject):
     playerViewChanged = Signal()
     playerViewChanging = Signal(bool)
     panelChanged = Signal()
-    lyricsWidthChanged = Signal()
     appearanceChanged = Signal()
 
     def __init__(self, settings_path, fixture=None, parent=None):
@@ -45,14 +44,13 @@ class ShellController(QObject):
         self._page = "Home"
         self._query = ""
         self._sidebar_width = max(180, min(420, self._integer_setting("sidebarWidth", 240)))
-        self._queue_width = max(280, min(520, self._integer_setting("queueWidth", 360)))
+        self._panel_width = max(280, min(520, self._integer_setting("panelWidth", 360)))
         self._volume = max(0, min(100, self._integer_setting("volume", 70)))
         self._unmuted_volume = max(1, min(100, self._integer_setting("lastVolume", self._volume or 70)))
         self._fixture = fixture or {}
         self._shelves = self._fixture.get("shelves", [])
         self._playlists = self._fixture.get("playlists", [])
         self._expanded = False
-        self._lyrics_width = max(280, min(520, self._integer_setting("lyricsWidth", 360)))
         self._panel = str(self.settings.value("sidePanel", ""))
         if self._panel not in SIDE_PANELS:
             self._panel = ""
@@ -141,20 +139,9 @@ class ShellController(QObject):
     def sidebarWidth(self):
         return self._sidebar_width
 
-    @Property(int, notify=queueWidthChanged)
-    def queueWidth(self):
-        return self._queue_width
-
-    @Property(int, notify=lyricsWidthChanged)
-    def lyricsWidth(self):
-        return self._lyrics_width
-
-    @Slot(float)
-    def setLyricsWidth(self, value):
-        width = max(280, min(520, round(value)))
-        if width != self._lyrics_width:
-            self._lyrics_width = width
-            self.lyricsWidthChanged.emit()
+    @Property(int, notify=panelWidthChanged)
+    def panelWidth(self):
+        return self._panel_width
 
     @Property("QVariantList", constant=True)
     def shelves(self):
@@ -214,17 +201,16 @@ class ShellController(QObject):
             self.sidebarChanged.emit()
 
     @Slot(float)
-    def setQueueWidth(self, value):
+    def setPanelWidth(self, value):
         width = max(280, min(520, round(value)))
-        if width != self._queue_width:
-            self._queue_width = width
-            self.queueWidthChanged.emit()
+        if width != self._panel_width:
+            self._panel_width = width
+            self.panelWidthChanged.emit()
 
     @Slot()
     def saveSidebarWidths(self):
         self.settings.setValue("sidebarWidth", self._sidebar_width)
-        self.settings.setValue("queueWidth", self._queue_width)
-        self.settings.setValue("lyricsWidth", self._lyrics_width)
+        self.settings.setValue("panelWidth", self._panel_width)
         self.settings.sync()
 
     @Property(str, notify=panelChanged)
@@ -236,9 +222,6 @@ class ShellController(QObject):
     def setPanel(self, value):
         if value and value not in SIDE_PANELS:
             return
-        # Leave the full player first: it measures the page before the panel takes its space.
-        if value:
-            self.setExpanded(False)
         if value != self._panel:
             self._panel = value
             self.settings.setValue("sidePanel", value)
@@ -305,9 +288,6 @@ class ShellController(QObject):
     @Slot(bool)
     def setExpanded(self, value):
         if self._expanded != value:
-            # The full player takes the screen; it measures the area it will fill from the page without a panel.
-            if value:
-                self.setPanel("")
             self.playerViewChanging.emit(value)
             self._expanded = value
             self.playerViewChanged.emit()
@@ -325,8 +305,7 @@ class ShellController(QObject):
         self.settings.setValue("width", max(920, min(7680, width)))
         self.settings.setValue("height", max(620, min(4320, height)))
         self.settings.setValue("sidebarWidth", self._sidebar_width)
-        self.settings.setValue("queueWidth", self._queue_width)
-        self.settings.setValue("lyricsWidth", self._lyrics_width)
+        self.settings.setValue("panelWidth", self._panel_width)
         self.settings.setValue("volume", self._volume)
         self.settings.setValue("lastVolume", self._unmuted_volume)
         self.settings.sync()

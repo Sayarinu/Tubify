@@ -8,6 +8,8 @@ Item {
     id: root
     objectName: "browsePane"
     property real gutter: Theme.gutter(width)
+    // Next to an open panel, the panel's own gap replaces the right gutter.
+    readonly property real rightGutter: appState.panel ? 0 : gutter
     // Do not incubate delegates for another route while the page is being replaced.
     property var result: (["album", "playlist", "artist", "search", "downloads", "history"].indexOf(catalogState.route) < 0 && catalogState.route.indexOf("library_") !== 0) ? catalogState.data : ({})
     property bool landing: catalogState.route === "home" || catalogState.route === "explore"
@@ -41,7 +43,7 @@ Item {
         id: sections
         WheelScroll { view: sections; onScrolled: catalogState.saveScroll(view.contentY) }
         objectName: "browseSections"
-        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         topMargin: catalogState.route === "home" || catalogState.route === "explore" ? 46 : 32
         clip: true; spacing: 80; boundsBehavior: Flickable.StopAtBounds
         visible: (root.result.shelves || []).length > 0 || root.loading && root.loadingLayout === "shelves"
@@ -122,7 +124,7 @@ Item {
         cacheBuffer: 0
         id: songList
         WheelScroll { view: songList; onScrolled: catalogState.saveScroll(view.contentY) }
-        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         topMargin: 32; bottomMargin: 48; clip: true; visible: root.songs || root.loading && root.loadingLayout === "rows"
         model: root.result.items || []; boundsBehavior: Flickable.StopAtBounds
         ScrollBar.vertical: ScrollBar {
@@ -160,7 +162,7 @@ Item {
         cacheBuffer: 0
         id: collectionGrid
         WheelScroll { view: collectionGrid; onScrolled: catalogState.saveScroll(view.contentY) }
-        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         topMargin: 32; bottomMargin: 48; clip: true
         visible: !root.songs && (root.result.items || []).length > 0 || root.loading && root.loadingLayout === "grid"
         cellWidth: Theme.cardWidth + 24; cellHeight: Theme.cardHeight + 24; model: root.result.items || []
@@ -182,7 +184,7 @@ Item {
     }
 
     ScrollView {
-        anchors.fill: parent; anchors.margins: root.gutter
+        anchors.fill: parent; anchors.margins: root.gutter; anchors.rightMargin: root.rightGutter
         visible: catalogState.route === "moods" && root.moodItems().length > 0
         Flow {
             width: parent.width; spacing: 16

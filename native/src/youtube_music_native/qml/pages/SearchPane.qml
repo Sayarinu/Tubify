@@ -6,6 +6,8 @@ import "../components"
 Item {
     id: root
     property real gutter: Theme.gutter(width)
+    // Next to an open panel, the panel's own gap replaces the right gutter.
+    readonly property real rightGutter: appState.panel ? 0 : gutter
     // Do not incubate delegates for another route while the page is being replaced.
     property var result: (catalogState.route === "search") ? catalogState.data : ({})
     // "All" shows a grouped overview; a specific filter shows the full paged list.
@@ -27,7 +29,7 @@ Item {
         cacheBuffer: 0
         id: results
         WheelScroll { view: results; onScrolled: catalogState.saveScroll(view.contentY) }
-        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.gutter
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         topMargin: 32; bottomMargin: 48; clip: true; model: root.overview ? root.sections : (root.result.items || [])
         ScrollBar.vertical: ScrollBar {}
         header: Column {

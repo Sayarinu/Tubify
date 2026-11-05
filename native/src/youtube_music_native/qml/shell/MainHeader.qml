@@ -18,9 +18,12 @@ Item {
     function focusSettingsButton() { settingsButton.forceActiveFocus() }
     function showQuery(query) { search.text = query }
     property bool collapsed: false
-    height: collapsed ? 0 : 64
+    // How far the divider runs past the header, to meet the side panel's divider.
+    property real dividerExtension: 0
+    readonly property real fullHeight: 64
+    height: collapsed ? 0 : fullHeight
     visible: !collapsed
-    Rectangle { objectName: "mainHeaderDivider"; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: themeState.border }
+    Rectangle { objectName: "mainHeaderDivider"; anchors.left: parent.left; anchors.right: parent.right; anchors.rightMargin: -header.dividerExtension; anchors.bottom: parent.bottom; height: 1; color: themeState.border }
     IconButton { id: navigationToggle; objectName: "navigationToggle"; visible: header.compactNavigation; x: 8; y: 10; width: 36; height: 44; iconName: "menu"; tip: "Open Navigation"; Keys.onShortcutOverride: function(event) { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return) event.accepted = true }; Keys.onReturnPressed: header.navigationRequested(); onClicked: header.navigationRequested() }
     IconButton { x: header.compactNavigation ? 44 : header.width < 480 ? 8 : 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; onClicked: { appState.setExpanded(false); browseState.back() } }
     ThemedTextField {
@@ -73,7 +76,7 @@ Item {
         id: profileButton
         objectName: "profileButton"
         anchors.right: parent.right
-        anchors.rightMargin: header.width < 480 ? 8 : 32
+        anchors.rightMargin: appState.panel ? 0 : header.width < 480 ? 8 : 32
         y: 10
         width: 44; height: 44
         iconName: "profile"

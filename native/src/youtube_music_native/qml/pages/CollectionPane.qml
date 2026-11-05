@@ -12,6 +12,8 @@ Item {
     // Do not incubate delegates for another route while the page is being replaced.
     property var album: (catalogState.route === "album" || catalogState.route === "playlist") ? catalogState.data : ({})
     property real margin: Theme.gutter(width)
+    // Next to an open panel the gutter narrows, leaving room for the scrollbar that overlays the rows.
+    readonly property real rightMargin: appState.panel ? 12 : margin
     property bool compact: width < 1000
     property bool descriptionExpanded: false
     property string durationLabel: {
@@ -44,7 +46,7 @@ Item {
                 }
                 Column {
                     id: summary
-                    x: cover.x + cover.width + 28; width: parent.width - x - root.margin
+                    x: cover.x + cover.width + 28; width: parent.width - x - root.rightMargin
                     anchors.verticalCenter: parent.verticalCenter; spacing: 10
                     Text { text: root.playlist ? root.album.privacy === "PRIVATE" ? "PRIVATE PLAYLIST" : "PLAYLIST" : "ALBUM"; color: themeState.accent; font.pixelSize: 12; font.bold: true; font.letterSpacing: 1 }
                     Text { width: parent.width; text: root.album.title || (root.playlist ? "Playlist" : "Album"); textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight; color: themeState.foreground; font.pixelSize: root.compact ? 32 : 48; font.bold: true }
@@ -76,14 +78,14 @@ Item {
                 IconButton { anchors.verticalCenter: parent.verticalCenter; visible: !!catalogState.sortKey; iconName: catalogState.sortDescending ? "down" : "up"; tip: catalogState.sortDescending ? "Descending" : "Ascending"; onClicked: catalogState.setSort(catalogState.sortKey, !catalogState.sortDescending) }
                 IconButton { anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: root.playlist ? "Playlist Options" : "Album Options"; onClicked: appState.showMenu({kind: root.playlist ? "playlist" : "album", id: catalogState.parameters.id, title: root.album.title, owned: root.playlist && !!root.album.editable}, {}) }
             }
-            Text { x: root.margin; width: parent.width - 2 * root.margin; text: actionsState.message || downloadsState.message || ""; visible: !!text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 14; bottomPadding: 12 }
+            Text { x: root.margin; width: parent.width - root.margin - root.rightMargin; text: actionsState.message || downloadsState.message || ""; visible: !!text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 14; bottomPadding: 12 }
             Item {
                 width: parent.width; height: 40
-                Rectangle { anchors.bottom: parent.bottom; x: root.margin; width: parent.width - 2 * root.margin; height: 1; color: themeState.border }
+                Rectangle { anchors.bottom: parent.bottom; x: root.margin; width: parent.width - root.margin - root.rightMargin; height: 1; color: themeState.border }
                 SortHeader { objectName: "sortDefault"; x: root.margin + 8; anchors.verticalCenter: parent.verticalCenter; label: "#"; sortKey: "" }
                 SortHeader { objectName: "sortTitle"; x: root.margin + (root.playlist ? 96 : 44); anchors.verticalCenter: parent.verticalCenter; label: "TITLE"; sortKey: "title" }
-                SortHeader { objectName: "sortAlbum"; x: root.margin + (parent.width - 2 * root.margin) * 0.56; anchors.verticalCenter: parent.verticalCenter; visible: root.playlist && !root.compact; label: "ALBUM"; sortKey: "album" }
-                SortHeader { objectName: "sortDuration"; anchors.right: parent.right; anchors.rightMargin: root.margin + 52; anchors.verticalCenter: parent.verticalCenter; label: "TIME"; sortKey: "duration" }
+                SortHeader { objectName: "sortAlbum"; x: root.margin + (parent.width - root.margin - root.rightMargin) * 0.56; anchors.verticalCenter: parent.verticalCenter; visible: root.playlist && !root.compact; label: "ALBUM"; sortKey: "album" }
+                SortHeader { objectName: "sortDuration"; anchors.right: parent.right; anchors.rightMargin: root.rightMargin + 52; anchors.verticalCenter: parent.verticalCenter; label: "TIME"; sortKey: "duration" }
             }
         }
         delegate: Item {
@@ -91,7 +93,7 @@ Item {
             required property var modelData
             width: songs.width; height: 64
             SongRow {
-                x: root.margin; width: parent.width - 2 * root.margin; height: parent.height
+                x: root.margin; width: parent.width - root.margin - root.rightMargin; height: parent.height
                 showArtwork: root.playlist; showDuration: true; tableLayout: true; showAlbum: root.playlist && !root.compact
                 menuContext: ({playlistId: root.playlist ? catalogState.parameters.id : "", index: parent.index})
                 media: parent.modelData; number: (parent.modelData.position !== undefined ? parent.modelData.position : parent.index) + 1; onActivated: browseState.playAt(parent.index)
@@ -102,7 +104,7 @@ Item {
         footer: Column {
             width: songs.width
             // Table rows: number column first, playlist covers at 44px, album rows without artwork.
-            LoadingSkeleton { width: parent.width; view: songs; gutter: root.margin; mode: "rows"; coverInset: 44; coverSize: root.playlist ? 40 : 0; textInset: root.playlist ? 100 : 48; showDuration: true }
+            LoadingSkeleton { width: parent.width; view: songs; gutter: root.margin; rightGutter: root.rightMargin; mode: "rows"; coverInset: 44; coverSize: root.playlist ? 40 : 0; textInset: root.playlist ? 100 : 48; showDuration: true }
             Text { width: parent.width; padding: 24; text: "Add songs from a song’s menu."; visible: root.playlist && !catalogState.busy && !catalogState.error && !(root.album.items || []).length; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; color: themeState.secondary; font.pixelSize: 16 }
             ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Load More"; visible: root.album.cursor !== undefined && root.album.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
         }

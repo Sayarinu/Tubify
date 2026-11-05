@@ -61,7 +61,9 @@ ApplicationWindow {
     readonly property real panelGap: 12
     // The panel never takes the last 480 px from the page; below that it stops at its 280 px minimum.
     readonly property real panelBudget: Math.max(280, uiRoot.width - navigationEdge.width - 480 - 2 * panelGap)
-    readonly property real panelWidth: Math.min(sidePanel.page === "Lyrics" ? appState.lyricsWidth : appState.queueWidth, panelBudget)
+    readonly property real panelWidth: Math.min(appState.panelWidth, panelBudget)
+    // What the panel and its gaps take from the right of the window. The full player's background runs underneath.
+    readonly property real panelSpace: panelOpen ? panelWidth + 2 * panelGap : 0
     function restorePanelFocus() {
         Qt.callLater(function() {
             // A panel sliding out is disabled at once, which drops its focus to the window root.
@@ -184,6 +186,7 @@ ApplicationWindow {
         anchors.left: navigationEdge.right
         anchors.right: window.panelOpen ? sidePanel.left : parent.right
         anchors.rightMargin: window.panelOpen ? window.panelGap : 0
+        dividerExtension: anchors.rightMargin
         compactNavigation: window.compactNavigation
         collapsed: window.chromeHidden
         onNavigationRequested: navigationDrawer.open()
@@ -315,7 +318,7 @@ ApplicationWindow {
             property rect coverArea: Qt.rect(0, 0, 0, 0)
             x: covering ? coverArea.x - content.x : 0
             y: covering ? coverArea.y - content.y : 0
-            width: covering ? coverArea.width : parent.width
+            width: covering ? coverArea.width : parent.width + window.panelSpace
             // The player reaches the bar; pages keep their gap above it.
             height: covering ? coverArea.height : parent.height + content.anchors.bottomMargin
             z: 1
@@ -324,7 +327,7 @@ ApplicationWindow {
             visible: appState.expanded || covering
             // The closing pane only animates; input and focus belong to the pages beneath it.
             enabled: appState.expanded
-            sourceComponent: Component { ExpandedPane {} }
+            sourceComponent: Component { ExpandedPane { rightInset: window.panelSpace } }
             onLoaded: if (appState.expanded) item.focusStage()
             transform: Translate { id: immersiveShift }
             property bool opening: true
@@ -336,8 +339,8 @@ ApplicationWindow {
                     // Opening computes the area the pane will fill once the sidebar and header have gone.
                     var bannerHeight = reconnectBanner.visible ? reconnectBanner.height : 0
                     var gap = content.anchors.bottomMargin
-                    coverArea = entering ? Qt.rect(0, bannerHeight, content.x + content.width, content.y + content.height + gap - bannerHeight)
-                                         : Qt.rect(content.x, content.y, content.width, content.height + gap)
+                    coverArea = entering ? Qt.rect(0, bannerHeight, content.x + content.width + window.panelSpace, content.y + content.height + gap - bannerHeight)
+                                         : Qt.rect(content.x, content.y, content.width + window.panelSpace, content.height + gap)
                 }
                 window.immersiveOpening = entering && !appState.reducedMotion
                 window.immersiveClosing = !entering && !appState.reducedMotion
@@ -389,8 +392,8 @@ ApplicationWindow {
         Rectangle { id: panelMask; anchors.fill: parent; radius: sidePanel.radius; visible: false; layer.enabled: true; layer.smooth: true }
         DockHeader {
             id: panelHeader
-            // Its divider continues the line under the page header.
-            height: header.height - window.panelGap
+            // Its divider continues the line under the page header, whose height collapses in the full player.
+            height: header.fullHeight - window.panelGap
             title: sidePanel.page === "NowPlaying" ? "Now Playing" : sidePanel.page
             tabs: sidePanel.page === "Queue" ? ["Queue", "Recently played"] : []
             currentTab: sidePanel.queueTab
@@ -405,7 +408,7 @@ ApplicationWindow {
         PanelResizeHandle {
             objectName: "panelResizeHandle"
             panelWidth: sidePanel.width
-            onResized: function(value) { if (sidePanel.page === "Lyrics") appState.setLyricsWidth(value); else appState.setQueueWidth(value) }
+            onResized: function(value) { appState.setPanelWidth(value) }
             onFinished: appState.saveSidebarWidths()
         }
     }

@@ -36,6 +36,7 @@ def main():
                 queue = window.findChild(QObject, "queuePane")
                 now = window.findChild(QObject, "nowPlayingPane")
                 bar = window.findChild(QObject, "playerBar")
+                panel_header_height = lambda: window.findChild(QObject, "panelHeaderDivider").parentItem().height()
                 baseline = (player.position, player.playing, player.currentTrack, shell.page)
                 # The layout matrix checks where the panel lands, so it runs without the open/close slide; the slide is checked below.
                 shell.setReducedMotion(True)
@@ -55,10 +56,14 @@ def main():
                         page_line = window.findChild(QObject, "mainHeaderDivider")
                         panel_line = window.findChild(QObject, "panelHeaderDivider")
                         assert panel_line.mapToScene(QPointF()).y() == page_line.mapToScene(QPointF()).y()
+                        assert page_line.mapToScene(QPointF(page_line.width(), 0)).x() == panel.x()
                         assert panel.width() >= 280
                         # The panel never squeezes the page below 480 px unless it is already at its 280 px minimum.
                         assert content.width() >= 480 or panel.width() == 280, (size, content.width())
                         assert content.x() + content.width() + 12 == panel.x()
+                        # The panel's gap replaces the page's right gutter.
+                        page = window.findChild(QObject, "browseSections")
+                        assert page.isVisible() and page.mapToScene(QPointF(page.width(), 0)).x() + 12 == panel.x()
                         assert bar.isVisible()
                         search = window.findChild(QObject, "searchField")
                         settings = window.findChild(QObject, "settingsButton")
@@ -69,34 +74,59 @@ def main():
                     QTest.qWait(40)
                     assert shell.panel == "" and not panel.isVisible() and not lyrics._active
                     assert window.activeFocusItem().isVisible()
-                # The bar's controls replace whichever view is open, including the full player.
-                window.resize(1600, 900)
-                for toggle, name in (("queueToggle", "Queue"), ("lyricsToggle", "Lyrics"), ("nowPlayingViewToggle", "NowPlaying")):
+                # The bar's controls open each panel over the full player, whose stage moves aside.
+                for size in ((1600, 900), (920, 620)):
+                    window.resize(*size)
                     shell.setExpanded(True)
-                    assert shell.panel == ""
                     QTest.qWait(40)
-                    QMetaObject.invokeMethod(window.findChild(QObject, toggle), "clicked")
+                    stage = window.findChild(QObject, "expandedPlayer")
+                    artwork = window.findChild(QObject, "immersiveArtwork")
+                    artwork_center = lambda: artwork.mapToScene(QPointF(artwork.width() / 2, 0)).x()
+                    # The background runs under the bar and panel to the window edge.
+                    assert stage.isVisible() and stage.x() == 0 and stage.width() == size[0]
+                    assert abs(artwork_center() - size[0] / 2) <= 1, (size, artwork_center())
+                    for toggle, name in (("queueToggle", "Queue"), ("lyricsToggle", "Lyrics"), ("nowPlayingViewToggle", "NowPlaying")):
+                        QMetaObject.invokeMethod(window.findChild(QObject, toggle), "clicked")
+                        QTest.qWait(40)
+                        assert shell.panel == name and shell.expanded and panel.isVisible() and stage.isVisible()
+                        assert stage.width() == size[0] and abs(artwork_center() - (size[0] - window.property("panelSpace")) / 2) <= 1
+                        assert artwork.mapToScene(QPointF(artwork.width(), 0)).x() <= panel.x()
+                        # Its header keeps its height though the page header has collapsed.
+                        assert panel_header_height() == 52
+                        QMetaObject.invokeMethod(window.findChild(QObject, toggle), "clicked")
+                        QTest.qWait(40)
+                        assert shell.panel == "" and shell.expanded and not panel.isVisible()
+                    # Leaving and entering the full player leave the panel open.
+                    shell.setQueueOpen(True)
                     QTest.qWait(40)
-                    assert shell.panel == name and not shell.expanded and panel.isVisible()
-                    QMetaObject.invokeMethod(window.findChild(QObject, toggle), "clicked")
+                    QMetaObject.invokeMethod(window.findChild(QObject, "immersiveToggle"), "clicked")
                     QTest.qWait(40)
-                    assert shell.panel == "" and not panel.isVisible()
-                # Each kind of panel keeps its own width.
-                shell.setLyricsWidth(500)
-                shell.setQueueWidth(460)
-                shell.setLyricsOpen(True)
-                QTest.qWait(40)
-                assert panel.width() == 500
+                    assert not shell.expanded and shell.queueOpen and panel.isVisible()
+                    QMetaObject.invokeMethod(window.findChild(QObject, "immersiveToggle"), "clicked")
+                    QTest.qWait(40)
+                    assert shell.expanded and shell.queueOpen and panel.isVisible()
+                    shell.setPanel("")
+                    shell.setExpanded(False)
+                    QTest.qWait(40)
+                window.resize(1600, 900)
+                # Every panel has the same size.
+                shell.setPanelWidth(460)
+                sizes = set()
+                for name in ("Lyrics", "Queue", "NowPlaying"):
+                    shell.setPanel(name)
+                    QTest.qWait(40)
+                    sizes.add((panel.width(), panel.height()))
+                    assert panel.width() == 460 and content.width() >= 480
+                assert len(sizes) == 1
                 shell.setQueueOpen(True)
                 QTest.qWait(40)
-                assert panel.width() == 460 and content.width() >= 480
                 handle = window.findChild(QObject, "panelResizeHandle")
                 point = handle.mapToScene(QPointF(handle.width()/2, 150)).toPoint()
                 QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=point)
                 QTest.mouseMove(window, point + QPointF(50, 0).toPoint(), delay=30)
                 QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=point + QPointF(50, 0).toPoint())
                 QTest.qWait(40)
-                assert shell.queueWidth < 460 and shell.lyricsWidth == 500
+                assert shell.panelWidth < 460
 
                 # Opening a panel slides it in from the right edge; closing slides it out while the page takes its space.
                 def offset():
@@ -134,6 +164,20 @@ def main():
                 else:
                     shell.setQueueOpen(True)
                 wait(lambda: abs(offset()) < 0.5)
+                shell.setPanel("")
+                wait(lambda: not panel.isVisible())
+                # The full player slides up and down behind an open panel, spanning the window throughout.
+                shell.setQueueOpen(True)
+                wait(lambda: abs(offset()) < 0.5)
+                shell.setExpanded(True)
+                stage = window.findChild(QObject, "expandedPlayer")
+                assert window.property("immersiveOpening") and stage.width() == window.width()
+                wait(lambda: not window.property("immersiveOpening"))
+                assert stage.width() == window.width() and panel.isVisible()
+                shell.setExpanded(False)
+                assert window.property("immersiveClosing") and stage.width() == window.width() and panel.isVisible()
+                wait(lambda: not window.property("immersiveClosing"))
+                assert shell.queueOpen and not stage.isVisible()
                 shell.setPanel("")
                 wait(lambda: not panel.isVisible())
                 # Reduced motion shows and hides the panel without sliding.
