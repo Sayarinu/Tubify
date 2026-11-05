@@ -15,7 +15,11 @@ FocusScope {
     // Duration and hover actions share the trailing edge: More, then the time column, then Download.
     readonly property real durationRight: 56
     readonly property real durationWidth: 48
-    readonly property real trailingWidth: queueRow ? 68 : showDuration ? durationRight + durationWidth + 8 + 44 + 4 : 104
+    // A hovered parent can hold the actions open while the pointer is on its own controls beside the row.
+    property bool actionsHeld: false
+    readonly property bool actionsShown: hover.hovered || actionsHeld
+    // Queue text only gives up the actions' space while they show, or while a download indicator stays in it.
+    readonly property real trailingWidth: queueRow ? (actionsShown || root.activeFocus || downloadButton.visible ? 68 : 0) : showDuration ? durationRight + durationWidth + 8 + 44 + 4 : 104
     property string downloadStatus: downloadsState.trackStates[media.videoId || media.id] || media.downloadState || ""
     readonly property bool currentSong: playerState.hasTrack && (queueRow && media.key ? !!media.current : (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id))
     readonly property var artistItems: {
@@ -193,7 +197,7 @@ FocusScope {
         anchors.right: root.showDuration && !root.queueRow ? durationLabel.left : parent.right
         anchors.rightMargin: root.queueRow ? 32 : root.showDuration ? 8 : 56
         anchors.verticalCenter: parent.verticalCenter
-        visible: hover.hovered || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued"
+        visible: root.actionsShown || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued"
         quiet: root.queueRow
         media: ({kind: "song", id: root.media.videoId || root.media.id || "", videoId: root.media.videoId || "", title: root.media.title || "", thumbnail: root.media.thumbnail || ""})
     }
@@ -202,7 +206,7 @@ FocusScope {
         objectName: root.queueRow ? "queueRowMore-" + (root.media.videoId || root.media.id || "") : ""
         anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
         iconName: "more"; tip: "More options for " + (root.media.title || "song")
-        visible: hover.hovered || root.activeFocus
+        visible: root.actionsShown || root.activeFocus
         quiet: root.queueRow
         onClicked: root.menuRequested(root.media)
     }

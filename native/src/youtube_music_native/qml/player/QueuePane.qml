@@ -274,6 +274,7 @@ Item {
             required property int index
             property bool songRow: !modelData.rowType
             property bool dropTarget: root.dropIndex === index && root.draggingKey !== modelData.key
+            readonly property bool actionsShown: rowHover.hovered || activeFocus || root.draggingKey === modelData.key
             width: queueList.width
             height: songRow ? 64 : modelData.rowType === "empty" ? 72 : 44
             opacity: songRow && root.draggingKey === modelData.key ? 0.38 : 1
@@ -352,7 +353,9 @@ Item {
                 visible: queueEntry.songRow
                 focus: queueEntry.songRow
                 anchors.fill: parent
-                anchors.rightMargin: 28
+                // The text runs under the drag handle's space until the handle shows.
+                anchors.rightMargin: queueEntry.actionsShown ? 28 : 0
+                actionsHeld: queueEntry.actionsShown
                 reorderable: queueEntry.songRow
                 queueRow: true
                 media: queueEntry.modelData
@@ -385,7 +388,7 @@ Item {
                 objectName: queueEntry.songRow ? "queueSidebarDrag-" + queueEntry.modelData.key : ""
                 visible: queueEntry.songRow
                 // Hidden at rest only: it stays clickable, draggable and focusable.
-                opacity: rowHover.hovered || queueEntry.activeFocus || root.draggingKey === queueEntry.modelData.key ? 1 : 0
+                opacity: queueEntry.actionsShown ? 1 : 0
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 width: 28

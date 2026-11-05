@@ -8,7 +8,7 @@ import time
 import traceback
 import wave
 
-from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
+from PySide6.QtCore import QObject, QMetaObject, QPoint, QPointF, QTimer, Qt
 from PySide6.QtGui import QAccessible, QColor, QGuiApplication, QImage
 from PySide6.QtQml import QQmlProperty
 from PySide6.QtTest import QTest
@@ -186,6 +186,20 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     clear.clicked.emit()
     settle()
     assert not browse.queueBusy and not player.manualCount
+    # Queue text uses the whole row until hovering makes room for the row's actions.
+    upcoming = player.queue.remaining[0]["key"]
+    resting_row, resting_text = row(upcoming), item("queueRowMetadata-" + upcoming)
+    window.contentItem().forceActiveFocus()
+    QTest.mouseMove(window, QPoint(1, 1))
+    settle()
+    assert resting_text.x() + resting_text.width() == resting_row.width() == resting_row.parentItem().width()
+    QTest.mouseMove(window, resting_row.mapToScene(QPointF(70, 20)).toPoint())
+    settle()
+    more = item("queueRowMore-" + (resting_row.property("media")["videoId"] or resting_row.property("media")["id"]))
+    assert more.isVisible() and resting_text.x() + resting_text.width() <= more.x() - 32
+    assert resting_row.width() == resting_row.parentItem().width() - 28
+    QTest.mouseMove(window, QPoint(1, 1))
+    settle()
     # Completed/progress indicators stay present without hovering, including narrow docks.
     saved_download_states = dict(downloads._track_states)
     saved_width = shell.panelWidth
