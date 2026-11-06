@@ -530,7 +530,7 @@ class Browse(QObject):
 
     @Slot()
     def playView(self):
-        if self.view.data.get("downloadKey") or self.view.sortKey:
+        if self.view.data.get("downloadKey") or self.view.reordered:
             # A sorted view plays exactly in the order shown.
             self.playItems(self.view.data.get("items", []), self.view.data.get("title", ""))
         elif self.view.route in {"album", "playlist"} and not self.fixture:

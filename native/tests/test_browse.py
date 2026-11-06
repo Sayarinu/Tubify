@@ -211,6 +211,37 @@ def test_library_title_order_is_applied_client_side_for_liked_songs(tmp_path):
     assert [item["title"] for item in view.data["items"]] == ["c", "b", "a"]
 
 
+def test_collections_sort_by_number_both_ways_and_remember_it(tmp_path):
+    from PySide6.QtCore import QSettings
+
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    account.settings = view._settings = QSettings(str(tmp_path / "account.ini"), QSettings.Format.IniFormat)
+    browse.open({"kind": "playlist", "id": "PLnumbers"})
+    worker.succeeded.emit(len(worker.requests), {"title": "Numbers", "items": [{"title": "a"}, {"title": "b"}, {"title": "c"}], "cursor": 3})
+    positions = lambda: [item["position"] for item in view.data["items"]]
+    assert view.sortKey == "number" and not view.sortDescending and not view.reordered
+    requests = len(worker.requests)
+    # Ascending is the collection's own order, so it keeps paging as you scroll.
+    view.setSort("number", False)
+    assert positions() == [0, 1, 2] and len(worker.requests) == requests and not view.reordered
+    # Descending needs the last song first, so it fetches the rest before sorting.
+    view.sortBy("number")
+    assert view.sortDescending and view.reordered and worker.requests[-1][1]["page_size"] == 100000
+    worker.succeeded.emit(len(worker.requests), {"items": [{"title": "d"}], "cursor": None})
+    assert positions() == [3, 2, 1, 0]
+    restored = type(view)(worker, tmp_path / "other.sqlite", account)
+    restored.showLocal("playlist", {"items": [{"title": "a"}, {"title": "b"}]}, {"id": "PLnumbers"})
+    assert restored.sortKey == "number" and restored.sortDescending
+    assert [item["title"] for item in restored.data["items"]] == ["b", "a"]
+    # Moves stay disabled, and the view plays as shown, until it is back in its own order.
+    view.sortBy("number")
+    assert positions() == [0, 1, 2, 3] and view.sortKey == "number" and not view.sortDescending and not view.reordered
+    view.setSort("title", True)
+    assert view.reordered
+    view.setSort("number", False)
+    assert positions() == [0, 1, 2, 3] and view._scope() not in view._sorts
+
+
 def test_selecting_the_tab_already_shown_is_a_no_op_only_at_its_root(tmp_path):
     app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
     browse.shell.navigate("Explore")

@@ -69,20 +69,20 @@ Item {
                     objectName: "collectionSort"
                     anchors.verticalCenter: parent.verticalCenter
                     width: 172; height: 40
-                    readonly property var keys: ["", "title", "artist", "album", "duration"]
+                    readonly property var keys: ["number", "title", "artist", "album", "duration"]
                     model: ["Number", "Title", "Artist", "Album", "Duration"]
                     currentIndex: Math.max(0, keys.indexOf(catalogState.sortKey))
                     Accessible.name: "Sort songs"
-                    onActivated: index => catalogState.setSort(keys[index], index > 0 && keys[index] === catalogState.sortKey ? catalogState.sortDescending : false)
+                    onActivated: index => catalogState.setSort(keys[index], keys[index] === catalogState.sortKey ? catalogState.sortDescending : false)
                 }
-                IconButton { anchors.verticalCenter: parent.verticalCenter; visible: !!catalogState.sortKey; iconName: catalogState.sortDescending ? "down" : "up"; tip: catalogState.sortDescending ? "Descending" : "Ascending"; onClicked: catalogState.setSort(catalogState.sortKey, !catalogState.sortDescending) }
+                IconButton { objectName: "collectionSortDirection"; anchors.verticalCenter: parent.verticalCenter; iconName: catalogState.sortDescending ? "down" : "up"; tip: catalogState.sortDescending ? "Descending" : "Ascending"; onClicked: catalogState.setSort(catalogState.sortKey, !catalogState.sortDescending) }
                 IconButton { anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: root.playlist ? "Playlist Options" : "Album Options"; onClicked: appState.showMenu({kind: root.playlist ? "playlist" : "album", id: catalogState.parameters.id, title: root.album.title, owned: root.playlist && !!root.album.editable}, {}) }
             }
             Text { x: root.margin; width: parent.width - root.margin - root.rightMargin; text: actionsState.message || downloadsState.message || ""; visible: !!text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 14; bottomPadding: 12 }
             Item {
                 width: parent.width; height: 40
                 Rectangle { anchors.bottom: parent.bottom; x: root.margin; width: parent.width - root.margin - root.rightMargin; height: 1; color: themeState.border }
-                SortHeader { objectName: "sortDefault"; x: root.margin + 8; anchors.verticalCenter: parent.verticalCenter; label: "#"; sortKey: "" }
+                SortHeader { objectName: "sortDefault"; x: root.margin + 8; anchors.verticalCenter: parent.verticalCenter; label: "#"; sortKey: "number" }
                 SortHeader { objectName: "sortTitle"; x: root.margin + (root.playlist ? 96 : 44); anchors.verticalCenter: parent.verticalCenter; label: "TITLE"; sortKey: "title" }
                 SortHeader { objectName: "sortAlbum"; x: root.margin + (parent.width - root.margin - root.rightMargin) * 0.56; anchors.verticalCenter: parent.verticalCenter; visible: root.playlist && !root.compact; label: "ALBUM"; sortKey: "album" }
                 SortHeader { objectName: "sortDuration"; anchors.right: parent.right; anchors.rightMargin: root.rightMargin + 52; anchors.verticalCenter: parent.verticalCenter; label: "TIME"; sortKey: "duration" }

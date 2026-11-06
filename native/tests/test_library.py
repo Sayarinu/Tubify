@@ -103,3 +103,61 @@ def test_successful_mutation_marks_remembered_sections_dirty(tmp_path):
     operation, payload = worker.requests[-1]
     assert operation == "catalog" and payload["route"] == "library_songs" and payload["refresh"]
     assert view.data["items"][0]["videoId"] == "abcdefghijk"
+
+
+def test_song_sections_offer_number_orders_and_other_sections_do_not(tmp_path):
+    app, shell, worker, view, actions, library, updated = setup(tmp_path)
+    assert "Number descending" not in library.orders  # Playlists is selected first.
+    library.select("Liked songs")
+    assert library.orders[-2:] == ["Number ascending", "Number descending"]
+    library.sort("Number descending")
+    assert worker.requests[-1][1]["params"]["order"] == "number_descending"
+    assert worker.requests[-1][1]["offset"] == 0
+    worker.succeeded.emit(len(worker.requests), {"items": [{"title": "a"}, {"title": "b"}], "cursor": 2})
+    # The last song comes first, so every page loads before sorting.
+    assert worker.requests[-1][1]["offset"] == 2 and worker.requests[-1][1]["page_size"] == 100000
+    worker.succeeded.emit(len(worker.requests), {"items": [{"title": "c"}], "cursor": None})
+    assert [item["title"] for item in view.data["items"]] == ["c", "b", "a"]
+    assert [item["position"] for item in view.data["items"]] == [2, 1, 0]
+    assert library.selectedOrder == "Number descending"
+    library.select("Songs")
+    assert library.selectedOrder == "Number descending" and view.sortDescending and view.sortKey == "number"
+    worker.succeeded.emit(len(worker.requests), {"items": [{"title": "a"}, {"title": "b"}], "cursor": None})
+    assert [item["position"] for item in view.data["items"]] == [1, 0]
+    library.sort("Number ascending")
+    requests = len(worker.requests)
+    worker.succeeded.emit(requests, {"items": [{"title": "a"}, {"title": "b"}], "cursor": 2})
+    assert len(worker.requests) == requests and [item["position"] for item in view.data["items"]] == [0, 1]
+    # Sections without numbers fall back rather than keep an order they cannot show.
+    library.select("Albums")
+    assert library.selectedOrder == "Recently added" and "Number ascending" not in library.orders
+    assert worker.requests[-1][1]["params"]["order"] == "recently_added"
+
+
+def test_playlist_edits_keep_row_numbers_in_order():
+    from youtube_music_native.catalog.playlist_ops import apply_change
+
+    def tracks(*numbers):
+        return [{"setVideoId": str(number), "position": number} for number in numbers]
+
+    def positions(data):
+        return [(track["setVideoId"], track["position"]) for track in data["items"]]
+
+    data = {"items": tracks(0, 1, 2, 3)}
+    apply_change(data, {"action": "playlist_move", "id": "PL", "setVideoId": "3", "successor": "1"}, "PL")
+    assert positions(data) == [("0", 0), ("3", 1), ("1", 2), ("2", 3)]
+    data = {"items": tracks(0, 1, 2, 3)}
+    apply_change(data, {"action": "playlist_remove", "id": "PL", "setVideoId": "1"}, "PL")
+    assert positions(data) == [("0", 0), ("2", 1), ("3", 2)]
+    # Removing while sorted descending keeps the rows shown and numbers from the playlist's own order.
+    data = {"items": tracks(3, 2, 1, 0)}
+    apply_change(data, {"action": "playlist_remove", "id": "PL", "setVideoId": "1"}, "PL")
+    assert positions(data) == [("3", 2), ("2", 1), ("0", 0)]
+    data = {"items": tracks(0, 1), "cursor": None}
+    apply_change(data, {"action": "playlist_add", "id": "PL", "addedEntries": [{"setVideoId": "new", "videoId": "abcdefghijk"}]}, "PL", {"title": "New"})
+    assert positions(data) == [("0", 0), ("1", 1), ("new", 2)]
+    # Cached pages have no numbers yet; the view adds them when it shows the page.
+    data = {"items": [{"setVideoId": "0"}, {"setVideoId": "1"}]}
+    apply_change(data, {"action": "playlist_remove", "id": "PL", "setVideoId": "0"}, "PL")
+    assert data["items"] == [{"setVideoId": "1"}]
+

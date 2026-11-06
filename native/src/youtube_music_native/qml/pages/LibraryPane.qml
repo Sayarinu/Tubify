@@ -22,7 +22,7 @@ Item {
                 // Route views may be replaced immediately; avoid unfinished offscreen delegates.
                 cacheBuffer: 0
                 id: filters
-                y: 84; width: parent.width - (sortOrder.visible ? 180 : 0); height: 36
+                y: 84; width: parent.width - (sortOrder.visible ? 216 : 0); height: 36
                 visible: !root.history; orientation: ListView.Horizontal; spacing: 12; clip: true
                 model: libraryState.sections
                 delegate: FilterChip {
@@ -35,7 +35,7 @@ Item {
             EdgeArrows { target: filters; visible: filters.visible }
             ThemedComboBox {
                 id: sortOrder
-                x: parent.width - width; y: 84; width: 164; height: 36
+                x: parent.width - width; y: 84; width: 200; height: 36
                 visible: !root.history
                 model: libraryState.orders; currentIndex: libraryState.orders.indexOf(libraryState.selectedOrder)
                 Accessible.name: "Library sort order"
@@ -81,6 +81,8 @@ Item {
         delegate: SongRow {
             required property var modelData
             width: songs.width; media: modelData
+            // History is a log rather than a collection, so it has no numbers to sort by.
+            number: root.history || modelData.position === undefined ? 0 : modelData.position + 1
             onActivated: item => browseState.play(item)
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
