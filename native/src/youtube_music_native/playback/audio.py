@@ -25,6 +25,7 @@ class Audio(QObject):
     fileLoaded = Signal()
     fileEnded = Signal()
     videoAttached = Signal(int, bool)
+    videoFirstFrame = Signal()
 
     def __init__(self, parent=None, output=None):
         super().__init__(parent)
@@ -102,6 +103,7 @@ class Audio(QObject):
                 from .video import VideoFrames
 
                 self.frames = VideoFrames(self.player, self)
+                self.frames.firstFrame.connect(self.videoFirstFrame)
                 self.player.vo = "libmpv"
             except Exception:
                 self.frames, self.videoCapable = None, False
@@ -113,9 +115,11 @@ class Audio(QObject):
         Returns False when this libmpv cannot render video.
         """
         enabled = bool(enabled) and self._ensure_renderer()
-        self.player.vid = "auto" if enabled else "no"
-        if not enabled and self.frames is not None:
+        if enabled:
+            self.frames.start()
+        elif self.frames is not None:
             self.frames.clear()
+        self.player.vid = "auto" if enabled else "no"
         return enabled
 
     def attachVideo(self, source):
@@ -126,6 +130,7 @@ class Audio(QObject):
         """
         if not self._ensure_renderer():
             return 0
+        self.frames.start()
         self._video_token += 1
         token = self._video_token
         self.player.http_header_fields = source.get("headers", [])

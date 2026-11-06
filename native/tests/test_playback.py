@@ -39,6 +39,7 @@ class FakeAudio(QObject):
     outputChanged = Signal()
     optionsChanged = Signal(dict)
     videoAttached = Signal(int, bool)
+    videoFirstFrame = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

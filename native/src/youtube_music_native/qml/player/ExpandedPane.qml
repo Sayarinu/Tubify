@@ -18,8 +18,8 @@ Item {
     readonly property string albumName: typeof track.album === "string" ? track.album : album.name || track.albumName || track.albumTitle || ""
     readonly property string albumId: album.id || album.browseId || ""
     readonly property real coverSize: Math.max(80, Math.min(stageWidth - 48, height - metadata.height - 64 - (modeSwitch.visible ? 52 : 0), 720))
-    // Music videos play here; leaving the expanded player returns to audio only.
-    readonly property bool videoShown: playerState.showingVideo && playerState.videoPreferred
+    // Music videos play here once they have a picture; leaving the expanded player returns to audio only.
+    readonly property bool videoShown: playerState.showingVideo
     readonly property real videoWidth: Math.max(160, Math.min(stageWidth - 48, (height - metadata.height - 116) * 16 / 9, 1280))
     Component.onCompleted: playerState.setVideoSurface(visible)
     Component.onDestruction: playerState.setVideoSurface(false)
@@ -82,6 +82,23 @@ Item {
             mediaKey: root.track.videoId || root.track.id || ""
             Accessible.role: Accessible.Graphic
             Accessible.name: "Artwork for " + (root.track.title || "current song")
+            Rectangle {
+                objectName: "videoLoading"
+                anchors.centerIn: parent
+                width: 72; height: 72; radius: width / 2
+                color: Qt.rgba(0, 0, 0, 0.6)
+                visible: playerState.videoLoading
+                Accessible.role: Accessible.Indicator
+                Accessible.name: "Loading video"
+                // Drawn here because it must read clearly over any artwork, whatever the theme.
+                Rectangle { anchors.centerIn: parent; width: 36; height: 36; radius: width / 2; color: "transparent"; border.width: 3; border.color: Qt.rgba(1, 1, 1, 0.3) }
+                Item {
+                    anchors.centerIn: parent
+                    width: 36; height: 36
+                    Rectangle { anchors.horizontalCenter: parent.horizontalCenter; width: 9; height: 9; radius: width / 2; y: -3; color: "white" }
+                    RotationAnimator on rotation { from: 0; to: 360; duration: 1000; loops: Animation.Infinite; running: playerState.videoLoading && !appState.reducedMotion }
+                }
+            }
         }
         Column {
             id: metadata

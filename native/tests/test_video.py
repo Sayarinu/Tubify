@@ -63,12 +63,14 @@ def test_swapping_between_song_and_video_never_touches_the_audio(tmp_path, pause
     worker.succeeded.emit(len(worker.requests), VIDEO_SOURCE)
     assert audio.attached == [VIDEO_SOURCE]
     audio.videoAttached.emit(1, True)
+    audio.videoFirstFrame.emit()
     assert player.showingVideo
     player.setVideoPreferred(False)
     assert audio.video[-1] is False and not player.showingVideo
     # The track stays attached, so coming back needs no second resolve.
     requests = len(worker.requests)
     player.setVideoPreferred(True)
+    audio.videoFirstFrame.emit()
     assert audio.video[-1] is True and player.showingVideo and len(worker.requests) == requests
     # So does leaving the expanded player.
     player.setVideoSurface(False)
@@ -128,6 +130,7 @@ def test_the_next_song_does_not_inherit_the_video(tmp_path):
     assert worker.requests[-1][1]["video"] is True
     worker.succeeded.emit(len(worker.requests), VIDEO_SOURCE)
     player.audio.videoAttached.emit(1, True)
+    player.audio.videoFirstFrame.emit()
     assert player.showingVideo
     player.select(1)
     assert not player.showingVideo
@@ -137,6 +140,65 @@ def test_the_next_song_does_not_inherit_the_video(tmp_path):
     next_audio = [index for index, (_, payload) in enumerate(worker.requests, 1) if payload["videoId"] == "bbbbbbbbbbb"][-1]
     worker.succeeded.emit(next_audio, {**AUDIO_SOURCE, "videoId": "bbbbbbbbbbb"})
     assert player.audio.video[-1] is False and worker.requests[-1][1]["video"] is True and worker.requests[-1][1]["videoId"] == "bbbbbbbbbbb"
+    player.close()
+
+
+def test_artwork_loading_lasts_until_the_first_frame(tmp_path):
+    player, worker = playing_video(tmp_path)
+    audio = player.audio
+    assert not player.videoLoading  # Song mode has nothing to wait for.
+    player.setVideoPreferred(True)
+    assert player.videoLoading and not player.showingVideo  # Resolving.
+    worker.succeeded.emit(len(worker.requests), VIDEO_SOURCE)
+    assert player.videoLoading and not player.showingVideo  # Opening.
+    audio.videoAttached.emit(1, True)
+    assert player.videoLoading and not player.showingVideo  # Open, with nothing drawn yet.
+    audio.videoFirstFrame.emit()
+    assert player.showingVideo and not player.videoLoading
+    # Hiding and showing again waits for a new frame instead of showing the old one.
+    player.setVideoPreferred(False)
+    assert not player.videoLoading and not player.showingVideo
+    player.setVideoPreferred(True)
+    assert player.videoLoading and not player.showingVideo
+    audio.videoFirstFrame.emit()
+    assert player.showingVideo and not player.videoLoading
+    player.close()
+
+
+def test_a_first_frame_can_arrive_before_the_open_is_reported(tmp_path):
+    player, worker = playing_video(tmp_path)
+    player.setVideoPreferred(True)
+    worker.succeeded.emit(len(worker.requests), VIDEO_SOURCE)
+    player.audio.videoFirstFrame.emit()
+    assert not player.showingVideo
+    player.audio.videoAttached.emit(1, True)
+    assert player.showingVideo and not player.videoLoading
+    player.close()
+
+
+def test_a_video_that_never_draws_stops_loading_and_leaves_the_audio_playing(tmp_path):
+    player, worker = playing_video(tmp_path)
+    audio = player.audio
+    stops, loads = audio.stops, len(audio.loads)
+    player.setVideoPreferred(True)
+    worker.succeeded.emit(len(worker.requests), VIDEO_SOURCE)
+    assert player._video_timeout.isActive()
+    audio.videoAttached.emit(1, True)
+    player._video_timeout.timeout.emit()
+    assert not player.videoLoading and not player.showingVideo and not player.videoAvailable
+    assert "audio instead" in player.message and audio.video[-1] is False
+    assert (audio.stops, len(audio.loads)) == (stops, loads) and player.wantsPlayback
+    player.close()
+
+
+def test_a_video_opening_after_the_timeout_stays_hidden(tmp_path):
+    player, worker = playing_video(tmp_path)
+    player.setVideoPreferred(True)
+    worker.succeeded.emit(len(worker.requests), VIDEO_SOURCE)
+    player._video_timeout.timeout.emit()
+    player.audio.video.clear()
+    player.audio.videoAttached.emit(1, True)
+    assert player.audio.video == [False] and not player.showingVideo
     player.close()
 
 
@@ -258,10 +320,12 @@ def test_libmpv_adds_and_hides_video_while_the_audio_keeps_playing(tmp_path):
         pump(10, lambda: clock() is not None and clock() > 2.2)
         begin_clock, begin_wall = clock(), time.monotonic()
         restarts.clear()
+        first_frames = []
+        audio.videoFirstFrame.connect(lambda: first_frames.append(True))
         token = audio.attachVideo({"source": str(clip), "headers": []})
         audio.frames.request_size(160, 120)
         pump(10, lambda: results and not audio.frames.image.isNull())
-        assert results == [(token, True)] and not audio.frames.image.isNull()
+        assert results == [(token, True)] and not audio.frames.image.isNull() and first_frames == [True]
         pump(1.5)  # The picture reaches the audio shortly after its first frame.
         assert abs(audio.player.avsync) < 0.1
         assert_audio_kept_time(begin_clock, begin_wall)
@@ -271,7 +335,7 @@ def test_libmpv_adds_and_hides_video_while_the_audio_keeps_playing(tmp_path):
         assert_audio_kept_time(begin_clock, begin_wall)
         audio.setVideo(True)
         pump(5, lambda: not audio.frames.image.isNull())
-        assert not audio.frames.image.isNull()
+        assert not audio.frames.image.isNull() and first_frames == [True, True]
         pump(1.5)
         assert abs(audio.player.avsync) < 0.1
         assert_audio_kept_time(begin_clock, begin_wall)

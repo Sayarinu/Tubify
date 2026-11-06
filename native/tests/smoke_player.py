@@ -210,6 +210,23 @@ def main():
                     QTest.qWait(10)
                 assert not find("playerBarBackdrop").isVisible()
                 settle()
+                # Until a video has its first frame, the artwork stays up with a loading icon.
+                loading = find("videoLoading")
+                assert not loading.isVisible() and not find("videoStage").isVisible()
+                player._wants_video, player._loaded = lambda: True, True
+                player.changed.emit()
+                settle()
+                assert loading.isVisible() and find("immersiveArtwork").isVisible() and not find("videoStage").isVisible()
+                if options.output_dir:
+                    assert window.grabWindow().save(str(options.output_dir / "video-loading.png"))
+                player._source_video, player._video_ready = True, True
+                player.changed.emit()
+                settle()
+                assert not loading.isVisible() and not find("immersiveArtwork").isVisible() and find("videoStage").isVisible()
+                del player._wants_video
+                player._loaded, player._source_video, player._video_ready = False, False, False
+                player.changed.emit()
+                settle()
                 shell.setPanelWidth(280)
                 theme = args[11]
                 # The switch matrix below checks the switch in the panel, away from the stage.
