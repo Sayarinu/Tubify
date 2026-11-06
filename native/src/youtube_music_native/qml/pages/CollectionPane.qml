@@ -10,7 +10,8 @@ Item {
     objectName: "collectionPane"
     property bool playlist: catalogState.route === "playlist"
     // Do not incubate delegates for another route while the page is being replaced.
-    property var album: (catalogState.route === "album" || catalogState.route === "playlist") ? catalogState.data : ({})
+    readonly property bool current: catalogState.route === "album" || catalogState.route === "playlist"
+    property var album: current ? catalogState.data : ({})
     property real margin: Theme.gutter(width)
     // Next to an open panel the gutter narrows, leaving room for the scrollbar that overlays the rows.
     readonly property real rightMargin: appState.panel ? 12 : margin
@@ -21,6 +22,7 @@ Item {
         var hours = Math.floor(minutes / 60)
         return (hours ? hours + " hr " : "") + (minutes % 60) + " min"
     }
+    property AutoPager pager: AutoPager { view: songs; active: root.current; cursor: root.album.cursor }
     ListView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
@@ -28,7 +30,7 @@ Item {
         WheelScroll { view: songs; onScrolled: catalogState.saveScroll(view.contentY) }
         objectName: "collectionSongs"
         anchors.fill: parent; clip: true; bottomMargin: 24
-        model: root.album.items || []
+        model: root.current ? catalogState.itemsModel : null
         ScrollBar.vertical: ScrollBar {}
         header: Column {
             width: songs.width
@@ -100,13 +102,11 @@ Item {
             }
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
-        onAtYEndChanged: if (atYEnd && root.album.cursor !== undefined && root.album.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Column {
             width: songs.width
             // Table rows: number column first, playlist covers at 44px, album rows without artwork.
             LoadingSkeleton { width: parent.width; view: songs; gutter: root.margin; rightGutter: root.rightMargin; mode: "rows"; coverInset: 44; coverSize: root.playlist ? 40 : 0; textInset: root.playlist ? 100 : 48; showDuration: true }
             Text { width: parent.width; padding: 24; text: "Add songs from a song’s menu."; visible: root.playlist && !catalogState.busy && !catalogState.error && !(root.album.items || []).length; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; color: themeState.secondary; font.pixelSize: 16 }
-            ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; text: "Load More"; visible: root.album.cursor !== undefined && root.album.cursor !== null; enabled: !catalogState.busy; onClicked: catalogState.more() }
         }
     }
     BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && (root.album.items || []).length > 0 }

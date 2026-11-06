@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
 from .library import SECTIONS
+from .page_model import PageModel
 from ..util import needs_reconnect
 
 SORT_KEYS = ("number", "title", "artist", "album", "duration")
@@ -77,6 +78,10 @@ class CatalogView(QObject):
         self._loading_all = False
         self._revalidating = False
         self._memory, self._request_key = OrderedDict(), None
+        self._items_model, self._shelves_model = PageModel(self), PageModel(self, snapshots=True)
+        self._model_revision, self._reset_models, self._rows_touched = 0, False, False
+        # Connected first, so the models are current before anything else hears of a change.
+        self.changed.connect(self._sync_models)
         settings = getattr(account, "settings", None)
         self._settings = settings
         try:
@@ -92,6 +97,22 @@ class CatalogView(QObject):
     @Property("QVariantMap", notify=changed)
     def data(self):
         return self._data
+
+    @Property(QObject, constant=True)
+    def itemsModel(self):
+        return self._items_model
+
+    @Property(QObject, constant=True)
+    def shelvesModel(self):
+        return self._shelves_model
+
+    @Slot()
+    def _sync_models(self):
+        # Another page or order starts afresh; anything else keeps the rows and the list's place.
+        reset = self._reset_models or self._revision != self._model_revision
+        touched, self._model_revision, self._reset_models, self._rows_touched = self._rows_touched, self._revision, False, False
+        self._items_model.sync(self._data.get("items") or [], reset, touched)
+        self._shelves_model.sync(self._data.get("shelves") or [], reset)
 
     @Property(bool, notify=changed)
     def busy(self):
@@ -153,6 +174,7 @@ class CatalogView(QObject):
             self._sorts[scope] = (key, False)
         self._save_sorts()
         self._apply_sort()
+        self._reset_models = True
         self.changed.emit()
 
     @Slot(str, bool)
@@ -166,6 +188,7 @@ class CatalogView(QObject):
             self._sorts.pop(scope, None)
         self._save_sorts()
         self._apply_sort()
+        self._reset_models = True
         self.changed.emit()
 
     def _save_sorts(self):
@@ -286,18 +309,21 @@ class CatalogView(QObject):
         return {"route": self._route, "params": self._params, "data": self._data, "scroll": self._scroll}
 
     def patch(self, values):
+        """Publish edits, including those callers already made in place on the rows."""
         self._data.update(values)
+        self._rows_touched = True
         self.changed.emit()
 
     @Slot()
     def refresh(self):
         count = max(len(self._data.get("items", [])), len(self._data.get("shelves", [])))
         self._revision += 1
+        self._model_revision = self._revision
         self._send(refresh=True, page_size=count or None)
 
     @Slot()
     def more(self):
-        if not self._busy and self._data.get("cursor") is not None:
+        if not self._busy and not self._revalidating and self._data.get("cursor") is not None:
             self._send(offset=self._data["cursor"])
 
     def _send(self, offset=0, refresh=False, page_size=None, revalidate=False):
