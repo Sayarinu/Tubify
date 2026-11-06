@@ -9,7 +9,6 @@ from PySide6.QtCore import QCoreApplication, QObject, Signal
 import pytest
 
 from youtube_music_native.playback import sources
-from youtube_music_native.compat import edl
 from youtube_music_native.playback.media import MediaFiles
 from youtube_music_native.playback.playback import Playback
 from youtube_music_native.playback.sources import Sources
@@ -25,47 +24,130 @@ SONG = {"videoId": "lmnopqrstuv", "title": "Album track", "duration": 180, "vide
 class VideoAudio(FakeAudio):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.frames, self.videoCapable, self.video = QObject(), True, []
-
-    def setVideo(self, enabled):
-        self.video.append(enabled)
-        return enabled
+        self.frames, self.videoCapable = QObject(), True
 
 
-def test_edl_keeps_urls_with_commas_intact_and_fit_respects_the_720p_cap():
-    video, audio = "https://v.invalid/a?sparams=expire,ei", "https://a.invalid/b"
-    # Byte-length prefixes let mpv read URLs containing commas and semicolons.
-    assert edl([video, audio]) == f"edl://!new_stream;!no_clip;!no_chapters;%{len(video)}%{video};!new_stream;!no_clip;!no_chapters;%{len(audio)}%{audio}"
+AUDIO_SOURCE = {"kind": "remote", "source": "https://media.invalid/audio", "videoId": VIDEO["videoId"], "expires": time.time() + 3600}
+VIDEO_SOURCE = {"kind": "remote", "video": True, "source": "https://media.invalid/video", "videoId": VIDEO["videoId"], "expires": time.time() + 3600}
+
+
+def playing_video(tmp_path, track=VIDEO):
+    """A player partway through the song's audio, with the expanded player open on Song."""
+    QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=VideoAudio)
+    player.setVideoPreferred(False)
+    player.setVideoSurface(True)
+    player.playTracks([track])
+    worker.succeeded.emit(1, {**AUDIO_SOURCE, "videoId": track["videoId"]})
+    player.audio.updated.emit({"time-pos": 30.})
+    return player, worker
+
+
+def test_fit_respects_the_720p_cap_and_only_video_types_have_video():
     assert fit(3840, 2160, 1920, 1080) == (1280, 720)
     assert fit(400, 400, 1920, 1080) == (400, 224)
     assert has_video(VIDEO) and not has_video(SONG)
 
 
-def test_video_plays_only_in_expanded_player_and_falls_back_to_audio(tmp_path):
-    app = QCoreApplication.instance() or QCoreApplication([])
-    worker = FakeWorker()
-    player = Playback(tmp_path, worker, audio_factory=VideoAudio)
-    player.playTracks([VIDEO, SONG])
-    assert not worker.requests[-1][1]["video"]
-    worker.succeeded.emit(1, {"kind": "remote", "source": "https://media.invalid/audio", "videoId": VIDEO["videoId"], "expires": time.time() + 3600})
-    player.audio.updated.emit({"time-pos": 30.})
-    player.setVideoSurface(True)
-    # Opening the expanded player reloads the same moment as video.
-    assert worker.requests[-1][1]["video"] is True and player.position == 30.
-    worker.succeeded.emit(len(worker.requests), {"kind": "remote", "video": True, "source": "edl://fixture", "videoId": VIDEO["videoId"], "expires": time.time() + 3600})
-    assert player.showingVideo and player.audio.video[-1] is True
+@pytest.mark.parametrize("paused", [False, True])
+def test_swapping_between_song_and_video_never_touches_the_audio(tmp_path, paused):
+    player, worker = playing_video(tmp_path)
+    audio = player.audio
+    if paused:
+        player.pause()
+    stops, loads, wants = audio.stops, len(audio.loads), player.wantsPlayback
+    player.setVideoPreferred(True)
+    assert worker.requests[-1][1]["video"] is True and not player.showingVideo
+    assert player.position == 30. and not player.busy
+    worker.succeeded.emit(len(worker.requests), VIDEO_SOURCE)
+    assert audio.attached == [VIDEO_SOURCE]
+    audio.videoAttached.emit(1, True)
+    assert player.showingVideo
+    player.setVideoPreferred(False)
+    assert audio.video[-1] is False and not player.showingVideo
+    # The track stays attached, so coming back needs no second resolve.
+    requests = len(worker.requests)
+    player.setVideoPreferred(True)
+    assert audio.video[-1] is True and player.showingVideo and len(worker.requests) == requests
+    # So does leaving the expanded player.
+    player.setVideoSurface(False)
+    assert not player.showingVideo
+    assert (audio.stops, len(audio.loads), player.wantsPlayback, player.position) == (stops, loads, wants, 30.)
+    player.close()
+
+
+def test_changing_mode_while_the_video_resolves_keeps_the_audio_and_the_answer(tmp_path):
+    player, worker = playing_video(tmp_path)
+    audio = player.audio
+    stops, loads = audio.stops, len(audio.loads)
+    player.setVideoPreferred(True)
     requests = len(worker.requests)
     player.setVideoPreferred(False)
-    app.processEvents()
-    # Switching back reuses the prefetched audio without another resolve.
-    assert all(payload["videoId"] != VIDEO["videoId"] for _, payload in worker.requests[requests:])
-    assert player.audio.loads[-1][0]["source"] == "https://media.invalid/audio"
-    assert player.audio.video[-1] is False and not player.showingVideo
     player.setVideoPreferred(True)
-    worker.failed.emit(len(worker.requests), {"message": "No video format is available. Playing audio instead."})
-    app.processEvents()
-    assert not player.videoAvailable and "audio instead" in player.message
-    player.setVideoSurface(False)
+    assert len(worker.requests) == requests  # The running resolve is still the answer.
+    player.setVideoPreferred(False)
+    worker.succeeded.emit(requests, VIDEO_SOURCE)
+    assert not audio.attached  # Video is no longer wanted, so nothing opens.
+    player.setVideoPreferred(True)
+    assert audio.attached == [VIDEO_SOURCE] and len(worker.requests) == requests
+    # Turned off while it opens: the track arrives and is hidden again.
+    player.setVideoPreferred(False)
+    audio.videoAttached.emit(1, True)
+    assert audio.video[-1] is False and not player.showingVideo
+    assert (audio.stops, len(audio.loads)) == (stops, loads)
+    player.close()
+
+
+@pytest.mark.parametrize("failure", ["resolve", "open"])
+def test_a_video_that_cannot_load_leaves_the_audio_playing(tmp_path, failure):
+    player, worker = playing_video(tmp_path)
+    audio = player.audio
+    stops, loads = audio.stops, len(audio.loads)
+    player.setVideoPreferred(True)
+    if failure == "resolve":
+        worker.failed.emit(len(worker.requests), {"message": "No video format is available. Playing audio instead."})
+    else:
+        worker.succeeded.emit(len(worker.requests), VIDEO_SOURCE)
+        audio.videoAttached.emit(1, False)
+    assert "audio instead" in player.message
+    assert not player.videoAvailable and not player.showingVideo and player.wantsPlayback
+    assert (audio.stops, len(audio.loads)) == (stops, loads)
+    player.close()
+
+
+def test_the_next_song_does_not_inherit_the_video(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=VideoAudio)
+    player.setVideoSurface(True)
+    player.playTracks([VIDEO, {**VIDEO, "videoId": "bbbbbbbbbbb"}])
+    # Audio always starts first, so a slow video never delays the song.
+    assert not worker.requests[-1][1].get("video")
+    worker.succeeded.emit(1, AUDIO_SOURCE)
+    assert worker.requests[-1][1]["video"] is True
+    worker.succeeded.emit(len(worker.requests), VIDEO_SOURCE)
+    player.audio.videoAttached.emit(1, True)
+    assert player.showingVideo
+    player.select(1)
+    assert not player.showingVideo
+    # A late answer about the previous song's video changes nothing.
+    player.audio.videoAttached.emit(1, True)
+    assert not player.showingVideo
+    next_audio = [index for index, (_, payload) in enumerate(worker.requests, 1) if payload["videoId"] == "bbbbbbbbbbb"][-1]
+    worker.succeeded.emit(next_audio, {**AUDIO_SOURCE, "videoId": "bbbbbbbbbbb"})
+    assert player.audio.video[-1] is False and worker.requests[-1][1]["video"] is True and worker.requests[-1][1]["videoId"] == "bbbbbbbbbbb"
+    player.close()
+
+
+def test_downloaded_songs_offer_no_video(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=VideoAudio)
+    player.setVideoSurface(True)
+    player.playTracks([VIDEO])
+    worker.succeeded.emit(1, {"kind": "local", "source": "/music/song.opus", "headers": [], "videoId": VIDEO["videoId"]})
+    assert not player.videoAvailable and len(worker.requests) == 1 and not player.audio.attached
     player.close()
 
 
@@ -75,11 +157,11 @@ def test_songs_without_video_never_request_it(tmp_path):
     player = Playback(tmp_path, worker, audio_factory=VideoAudio)
     player.setVideoSurface(True)
     player.playTracks([SONG])
-    assert not worker.requests[-1][1]["video"] and not player.videoAvailable
+    assert not worker.requests[-1][1].get("video") and not player.videoAvailable
     player.close()
 
 
-def test_video_resolution_combines_streams_but_downloads_stay_audio(tmp_path, monkeypatch):
+def test_video_resolution_returns_the_picture_stream_but_downloads_stay_audio(tmp_path, monkeypatch):
     monkeypatch.setattr(sources, "extractor_options", lambda root: {})
     seen = []
 
@@ -104,7 +186,8 @@ def test_video_resolution_combines_streams_but_downloads_stay_audio(tmp_path, mo
     media = MediaFiles(tmp_path)
     service = Sources(SimpleNamespace(session=SimpleNamespace(cookie_jar=CookieJar)), media, Extractor)
     source = service.resolve("abcdefghijk", video=True)
-    assert source["video"] and source["source"].startswith("edl://") and source["expires"] == 4102444700
+    assert source["video"] and source["source"] == "https://media.invalid/video?expire=4102444800" and source["expires"] == 4102444800
+    assert source["headers"] == ["User-Agent: fixture"]
     assert "height<=720" in seen[0]
     audio = tmp_path / "complete.opus"
     audio.write_bytes(b"complete")
@@ -136,5 +219,67 @@ def test_libmpv_software_renderer_produces_frames(tmp_path):
         image = audio.frames.image
         assert not image.isNull() and image.width() == 160 and image.height() == 120
         assert len({image.pixelColor(x, 60).name() for x in range(0, 160, 10)}) > 3
+    finally:
+        audio.close()
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg creates the local fixtures")
+def test_libmpv_adds_and_hides_video_while_the_audio_keeps_playing(tmp_path):
+    from PySide6.QtGui import QGuiApplication
+    from youtube_music_native.playback.audio import Audio
+
+    pytest.importorskip("mpv")
+    app = QCoreApplication.instance() or QGuiApplication([])
+    song, clip = tmp_path / "song.m4a", tmp_path / "clip.mp4"
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "20", "-y", str(song)], check=True, timeout=60)
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=25", "-t", "20", "-pix_fmt", "yuv420p", "-y", str(clip)], check=True, timeout=60)
+    audio = Audio(output="null")
+    results, restarts, ends = [], [], []
+    audio.videoAttached.connect(lambda token, succeeded: results.append((token, succeeded)))
+    audio.fileEnded.connect(lambda: ends.append(True))
+    audio.player.event_callback("playback-restart")(lambda event: restarts.append(True))
+
+    def pump(seconds, until=lambda: False):
+        deadline = time.monotonic() + seconds
+        while not until() and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.01)
+
+    def clock():
+        return audio.player.audio_pts
+
+    def assert_audio_kept_time(since_clock, since_wall):
+        # The restart and end-of-file events catch a stop or reload. This catches audio going
+        # missing some other way, allowing for how far a busy CI machine's null output falls behind.
+        assert abs((clock() - since_clock) - (time.monotonic() - since_wall)) < 1
+
+    try:
+        audio.load({"source": str(song), "headers": []}, 2)
+        pump(10, lambda: clock() is not None and clock() > 2.2)
+        begin_clock, begin_wall = clock(), time.monotonic()
+        restarts.clear()
+        token = audio.attachVideo({"source": str(clip), "headers": []})
+        audio.frames.request_size(160, 120)
+        pump(10, lambda: results and not audio.frames.image.isNull())
+        assert results == [(token, True)] and not audio.frames.image.isNull()
+        pump(1.5)  # The picture reaches the audio shortly after its first frame.
+        assert abs(audio.player.avsync) < 0.1
+        assert_audio_kept_time(begin_clock, begin_wall)
+        audio.setVideo(False)
+        assert audio.frames.image.isNull()
+        pump(0.3)
+        assert_audio_kept_time(begin_clock, begin_wall)
+        audio.setVideo(True)
+        pump(5, lambda: not audio.frames.image.isNull())
+        assert not audio.frames.image.isNull()
+        pump(1.5)
+        assert abs(audio.player.avsync) < 0.1
+        assert_audio_kept_time(begin_clock, begin_wall)
+        assert not restarts and not ends
+
+        bad = audio.attachVideo({"source": str(tmp_path / "missing.mp4"), "headers": []})
+        pump(5, lambda: (bad, False) in results)
+        assert (bad, False) in results
+        assert_audio_kept_time(begin_clock, begin_wall)
     finally:
         audio.close()
