@@ -18,8 +18,8 @@ CLIENT_ORDER_ROUTES = {"library_playlists", "library_liked"}
 # Song lists number their rows, so these orders apply to every section offering them.
 NUMBER_ORDERS = {"number_ascending": ("number", False), "number_descending": ("number", True)}
 ORDER_SORTS = {"a_to_z": ("title", False), "z_to_a": ("title", True), **NUMBER_ORDERS}
-# Library sections are kept in memory so revisits render instantly, then revalidate.
-MEMORY_ROUTES = set(SECTIONS.values()) | {"history"}
+# Library sections and the landing pages are kept in memory so revisits render instantly, then revalidate.
+MEMORY_ROUTES = set(SECTIONS.values()) | {"history", "home", "explore"}
 MEMORY_TTL = 300
 MEMORY_LIMIT = 48
 ALWAYS_REVALIDATE = {"history"}
@@ -65,6 +65,7 @@ class CatalogView(QObject):
     changed = Signal()
     navigationStarted = Signal()
     revalidatingChanged = Signal()
+    scrollToTopRequested = Signal()
 
     def __init__(self, worker, cache_path, account, parent=None):
         super().__init__(parent)
@@ -78,6 +79,7 @@ class CatalogView(QObject):
         self._loading_all = False
         self._revalidating = False
         self._memory, self._request_key = OrderedDict(), None
+        self._fresh_route = None
         self._items_model, self._shelves_model = PageModel(self), PageModel(self, snapshots=True)
         self._model_revision, self._reset_models, self._rows_touched = 0, False, False
         # Connected first, so the models are current before anything else hears of a change.
@@ -270,11 +272,12 @@ class CatalogView(QObject):
         self._route, self._params = route, dict(params)
         self._revision, self._scroll = self._revision + 1, None
         self._loading_all = False
+        fresh, self._fresh_route = self._fresh_route == route, None
         key = self._memory_key()
         entry = self._memory.get(key) if route in MEMORY_ROUTES and self.worker else None
         if entry is None:
             self._data = {}
-            self._send()
+            self._send(refresh=fresh)
             return
         self._memory.move_to_end(key)
         if self._request is not None:
@@ -313,6 +316,18 @@ class CatalogView(QObject):
         self._data.update(values)
         self._rows_touched = True
         self.changed.emit()
+
+    def expectFresh(self, route):
+        """Have the next load of this route skip the caches, still showing remembered rows meanwhile."""
+        self._fresh_route = route
+        self.invalidate([route])
+
+    def refreshFromTop(self):
+        """Return to the top and reload the first page behind what is on screen."""
+        self._scroll = None
+        self.scrollToTopRequested.emit()
+        if not self._busy and not self._revalidating:
+            self._send(refresh=True, revalidate=True)
 
     @Slot()
     def refresh(self):

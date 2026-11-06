@@ -37,7 +37,18 @@ Item {
         })
     }
     Component.onCompleted: restoreScroll()
-    Connections { target: catalogState; function onChanged() { root.restoreScroll() } }
+    NumberAnimation { id: toTop; property: "contentY"; duration: Theme.duration(Theme.motionSlow, appState.reducedMotion); easing.type: Easing.OutCubic }
+    Connections {
+        target: catalogState
+        function onChanged() { root.restoreScroll() }
+        function onScrollToTopRequested() {
+            var view = sections.visible ? sections : songList.visible ? songList : collectionGrid
+            toTop.stop()
+            toTop.target = view
+            toTop.to = view.originY - view.topMargin
+            toTop.start()
+        }
+    }
     property list<QtObject> pagers: [
         AutoPager { view: sections; active: root.current; cursor: root.result.cursor },
         AutoPager { view: songList; active: root.current; cursor: root.result.cursor },
@@ -115,11 +126,8 @@ Item {
         }
         footer: Column {
             width: sections.width
-            LoadingSkeleton { id: sectionsSkeleton; width: parent.width; view: sections; mode: "shelves"; shelfSpacing: sections.spacing }
-            Item {
-                width: parent.width; height: sectionsSkeleton.active ? 0 : 64; visible: !sectionsSkeleton.active
-                Row { anchors.centerIn: parent; spacing: 16; ThemeActionButton { text: "Refresh"; enabled: !catalogState.busy; onClicked: catalogState.refresh() } }
-            }
+            LoadingSkeleton { width: parent.width; view: sections; mode: "shelves"; shelfSpacing: sections.spacing }
+            Item { width: parent.width; height: 64 }
         }
     }
 
@@ -197,9 +205,9 @@ Item {
         anchors.centerIn: parent; width: Math.min(parent.width - 80, 480); spacing: 18
         visible: !catalogState.busy && !(root.result.items || []).length && !(root.result.shelves || []).length && !root.moodItems().length
         Text { width: parent.width; text: catalogState.error ? "Couldn’t Load This Page" : accountState.connected ? "No Music Here Yet" : "Your Music, Ready When You Are"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 30; font.bold: true; color: themeState.foreground }
-        Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Refresh to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15; color: themeState.secondary }
+        Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Select Home or Explore again to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15; color: themeState.secondary }
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; primary: !accountState.connected; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
     }
     BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && !root.loading }
-    Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(600, root.width - 48); padding: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music. Refresh when you’re online." : ""); visible: text.length > 0; color: themeState.secondary; background: Rectangle { color: themeState.surface; radius: 4 } }
+    Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; width: Math.min(600, root.width - 48); padding: 12; wrapMode: Text.Wrap; textFormat: Text.PlainText; text: browseState.message || catalogState.error || (root.result.stale ? "Showing saved music." : ""); visible: text.length > 0; color: themeState.secondary; background: Rectangle { color: themeState.surface; radius: 4 } }
 }

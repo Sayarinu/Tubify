@@ -73,7 +73,7 @@ Rectangle {
                 leftInset: 0; rightInset: 0; topInset: 0; bottomInset: 0
                 text: modelData.label
                 Accessible.name: text
-                onClicked: { if (!browseState.atTabRoot(text)) appState.navigate(text); sidebar.navigated() }
+                onClicked: { browseState.selectTab(text); sidebar.navigated() }
                 background: Rectangle {
                     objectName: "navigationBackground-" + nav.text
                     anchors.fill: parent
