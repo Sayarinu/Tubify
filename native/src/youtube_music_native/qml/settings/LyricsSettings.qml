@@ -20,9 +20,9 @@ SettingsPage {
         ColumnLayout {
             width: optionsScroll.availableWidth
             spacing: 12
-            Label { Layout.fillWidth: true; text: "YouTube Music's own timed lyrics are always checked first, and its plain lyrics remain a fallback."; wrapMode: Text.Wrap; color: themeState.secondary }
+            Label { Layout.fillWidth: true; text: "YouTube Music's own timed lyrics are used when available. Otherwise Tubify checks the providers below and uses the best timed result, with YouTube Music's plain lyrics as a fallback."; wrapMode: Text.Wrap; color: themeState.secondary }
             SettingsCheckBox { objectName: "externalLyricsOption"; text: "Use External Lyric Providers"; checked: lyricState.options.external; onClicked: lyricState.setOption("external", checked) }
-            Label { Layout.fillWidth: true; text: "When enabled, song title, artist, album, duration or video ID are sent to the selected providers. Your YouTube session stays private."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }
+            Label { objectName: "lyricProviderNotice"; Layout.fillWidth: true; text: "While on, song title, artist, album, duration and video ID are sent to the selected providers. Your YouTube session stays private. Order settles ties between equally good results."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }
             Repeater {
                 model: lyricState.providers
                 delegate: RowLayout {
@@ -36,7 +36,7 @@ SettingsPage {
                 }
             }
             SettingsCheckBox { text: "Allow Approximate Recording Matches"; enabled: lyricState.options.external; checked: lyricState.options.approximate; onClicked: lyricState.setOption("approximate", checked) }
-            Label { Layout.fillWidth: true; text: "Better Lyrics often cannot confirm a recording on cached responses. With approximate matches off, those results are skipped."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }
+            Label { Layout.fillWidth: true; text: "Approximate matches are used only when no provider can confirm the recording, and their timing may be off. Better Lyrics often cannot confirm a recording, so turning this off skips most of its results."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }
             SettingsCheckBox { text: "Use Human YouTube Captions"; checked: lyricState.options.captions; onClicked: lyricState.setOption("captions", checked) }
             Label { Layout.fillWidth: true; text: "Only published human captions are used. Songs without them stay on the other lyric sources."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }
             Rectangle { Layout.fillWidth: true; height: 1; color: themeState.border }

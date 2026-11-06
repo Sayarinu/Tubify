@@ -1,4 +1,4 @@
-"""Exercise provider consent/settings and supplied-timing styles in the app UI."""
+"""Exercise provider settings and supplied-timing styles in the app UI."""
 
 import argparse
 from pathlib import Path
@@ -38,9 +38,13 @@ def main():
                 QMetaObject.invokeMethod(dialog, "open")
                 QTest.qWait(120)
                 assert dialog.property("opened")
-                consent = dialog.findChild(QObject, "externalLyricsOption")
-                assert not consent.property("checked") and not lyrics.options["external"]
-                point = consent.mapToScene(QPointF(consent.width() / 2, consent.height() / 2)).toPoint()
+                # On by default and can be turned off; the page says what providers receive.
+                option = dialog.findChild(QObject, "externalLyricsOption")
+                assert option.property("checked") and lyrics.options["external"]
+                assert "sent to the selected providers" in dialog.findChild(QObject, "lyricProviderNotice").property("text")
+                point = option.mapToScene(QPointF(option.width() / 2, option.height() / 2)).toPoint()
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point)
+                assert not lyrics.options["external"]
                 QTest.mouseClick(window, Qt.MouseButton.LeftButton, pos=point)
                 assert lyrics.options["external"]
                 lyrics.moveProvider("better", -1)
@@ -100,7 +104,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="youtube-music-lyric-options-") as folder:
         result = app.main(["--fixture", "--data-dir", folder])
     assert result == 0 and passed
-    print("Lyric consent, provider settings, modal shortcuts and genuine timing styles passed.")
+    print("Default-on providers, provider settings, modal shortcuts and genuine timing styles passed.")
 
 
 if __name__ == "__main__":
