@@ -7,6 +7,8 @@ ToolButton {
     property string iconName: "more"
     property string tip: ""
     property color iconColor: themeState.foreground
+    // A disabled button that still reports a state, such as a finished download, can keep its colour.
+    property color disabledIconColor: themeState.muted
     property int iconSize: 24
     property bool outlined: false
     // No hover fill or focus ring, for buttons inside rows that draw their own highlight.
@@ -30,7 +32,7 @@ ToolButton {
             width: root.iconSize
             height: root.iconSize
             name: root.iconName
-            color: root.enabled ? root.iconColor : themeState.muted
+            color: root.enabled ? root.iconColor : root.disabledIconColor
         }
     }
 }

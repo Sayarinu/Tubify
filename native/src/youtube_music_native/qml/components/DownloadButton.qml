@@ -15,6 +15,8 @@ IconButton {
     iconName: status === "complete" || status === "ready" ? "circleCheck" : "download"
     tip: status === "complete" || status === "ready" ? entry.state === "complete" ? "Remove Download" : "Downloaded" : status === "downloading" || status === "queued" ? "Cancel Download" : status === "damaged" ? "Repair Download" : "Download"
     iconColor: status === "complete" || status === "ready" ? themeState.accent : status === "damaged" ? themeState.error : themeState.foreground
+    // A downloaded song cannot be downloaded again, but its check keeps the accent like every other downloaded item.
+    disabledIconColor: status === "complete" || status === "ready" ? themeState.accent : themeState.muted
     enabled: !!mediaId && !(song && (status === "complete" || status === "ready") && entry.state !== "complete")
     onClicked: {
         if ((entry.state === "complete" || entry.state === "ready") && entry.key) downloadsState.remove(entry.key)
