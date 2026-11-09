@@ -8,6 +8,7 @@ from PySide6.QtCore import QCoreApplication
 import pytest
 
 from youtube_music_native.account.browsers import NoBrowserSession, read_session
+from youtube_music_native.system import windows
 from youtube_music_native.system.windows import prepare_runtime
 from youtube_music_native.system.windows_media import WindowsBus, metadata
 
@@ -138,6 +139,38 @@ def test_windows_metadata_handles_empty_track_and_runtime_paths_are_platform_sco
     paths = environment["PATH"].split(";")
     assert paths[0] == str(bundle / "helpers") and str(bundle / "mpv") not in paths
     assert opened == [str(bundle / "helpers")]
+
+
+def test_windows_loads_bundled_openssl_by_path_crypto_first(tmp_path, monkeypatch):
+    monkeypatch.setattr(windows, "_PRELOADED", [])
+    helpers = tmp_path / "Tubify" / "helpers"
+    helpers.mkdir(parents=True)
+    loaded = []
+    prepare_runtime({}, platform="win32", bundle=helpers.parent, add_dll_directory=lambda path: None, load_library=loaded.append)
+    # Bundles without OpenSSL load nothing.
+    assert loaded == []
+
+    for name in windows.OPENSSL:
+        (helpers / name).write_bytes(b"")
+    prepare_runtime({}, platform="win32", bundle=helpers.parent, add_dll_directory=lambda path: None, load_library=loaded.append)
+    prepare_runtime({}, platform="win32", bundle=helpers.parent, add_dll_directory=lambda path: None, load_library=loaded.append)
+    assert loaded == [str(helpers / "libcrypto-3-x64.dll"), str(helpers / "libssl-3-x64.dll")]
+
+
+def test_windows_openssl_load_failure_does_not_stop_startup(tmp_path, monkeypatch):
+    monkeypatch.setattr(windows, "_PRELOADED", [])
+    helpers = tmp_path / "Tubify" / "helpers"
+    helpers.mkdir(parents=True)
+    for name in windows.OPENSSL:
+        (helpers / name).write_bytes(b"")
+    tried = []
+
+    def refuse(path):
+        tried.append(path)
+        raise OSError("bad image")
+
+    prepare_runtime({}, platform="win32", bundle=helpers.parent, add_dll_directory=lambda path: None, load_library=refuse)
+    assert tried == [str(helpers / "libcrypto-3-x64.dll")]
 
 
 def test_windows_sign_in_failure_explains_locked_chromium_cookies():
