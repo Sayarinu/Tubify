@@ -1,4 +1,5 @@
 from datetime import timedelta
+import enum
 import os
 import subprocess
 import sys
@@ -64,12 +65,15 @@ class Controls:
         self.timeline_updates.append(value)
 
 
+# Copied from winrt-Windows.Media's projection: Windows has no play/pause button.
+Button = enum.IntEnum("SystemMediaTransportControlsButton", [
+    ("PLAY", 0), ("PAUSE", 1), ("STOP", 2), ("RECORD", 3), ("FAST_FORWARD", 4),
+    ("REWIND", 5), ("NEXT", 6), ("PREVIOUS", 7), ("CHANNEL_UP", 8), ("CHANNEL_DOWN", 9),
+])
 MEDIA = SimpleNamespace(
     MediaPlaybackStatus=SimpleNamespace(PLAYING="playing", PAUSED="paused", STOPPED="stopped"),
     MediaPlaybackType=SimpleNamespace(MUSIC="music"),
-    SystemMediaTransportControlsButton=SimpleNamespace(
-        PLAY="PLAY", PAUSE="PAUSE", PLAY_PAUSE="PLAY_PAUSE", STOP="STOP", NEXT="NEXT", PREVIOUS="PREVIOUS",
-    ),
+    SystemMediaTransportControlsButton=Button,
     SystemMediaTransportControlsTimelineProperties=Timeline,
 )
 
@@ -111,9 +115,11 @@ def test_windows_media_controls_publish_track_state_and_forward_commands():
     assert controls.timeline_updates[-1].position == timedelta(seconds=5)
     assert availability[-1] == (True, True)
 
-    controls.button_pressed.fire(SimpleNamespace(button=MEDIA.SystemMediaTransportControlsButton.PLAY_PAUSE))
+    for button in (Button.PLAY, Button.PAUSE, Button.NEXT, Button.PREVIOUS, Button.STOP, Button.RECORD):
+        controls.button_pressed.fire(SimpleNamespace(button=button))
     controls.playback_position_change_requested.fire(SimpleNamespace(request_time=timedelta(seconds=42.5)))
-    assert commands == [("PlayPause", []), ("SetPosition", ["/track/1", 42_500_000])]
+    assert commands == [("Play", []), ("Pause", []), ("Next", []), ("Previous", []), ("Stop", []),
+                        ("SetPosition", ["/track/1", 42_500_000])]
 
     bus.publish(snapshot("Paused", 10_000_000))
     assert controls.playback_status == "paused"
@@ -123,6 +129,12 @@ def test_windows_media_controls_publish_track_state_and_forward_commands():
     assert not controls.button_pressed.handlers
     assert not controls.playback_position_change_requested.handlers
     assert not controls.is_enabled and controls.display_updater.clears == 1
+
+
+def test_windows_media_buttons_exist_in_windows():
+    from youtube_music_native.system.windows_media import BUTTONS
+
+    assert set(BUTTONS) <= set(Button.__members__)
 
 
 def test_windows_metadata_handles_empty_track_and_runtime_paths_are_platform_scoped(tmp_path):
