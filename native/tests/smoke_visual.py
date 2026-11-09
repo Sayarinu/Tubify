@@ -605,6 +605,20 @@ def main():
                         QTest.qWait(20)
                         assert library_button.property("hovered") and not library_button.property("selected"), (size, hover_point, library_button.property("hovered"), library_button.property("selected"), shell.page)
                         assert home.property("selected") and view.route == "home"
+                        if size[0] == 1600:
+                            # Listen again mixes songs and playlists: songs as rows, playlists as cards below them.
+                            sections = window.findChild(QObject, "browseSections")
+                            again = next(item for item in visual_items(window.contentItem()) if item.objectName() == "shelf" and item.property("section").get("title") == "Listen again")
+                            assert again.property("mixed") and again.property("rowMode")
+                            sections.setProperty("contentY", again.y() - 24)
+                            QTest.qWait(80)
+                            assert any(item.metaObject().className().startswith("SongRow") for item in visual_items(again))
+                            assert any(item.metaObject().className().startswith("MediaCard") and fully_visible(item) for item in visual_items(again))
+                            if args.output_dir:
+                                args.output_dir.mkdir(parents=True, exist_ok=True)
+                                assert window.grabWindow().save(str(args.output_dir / "home-mixed-shelf.png"))
+                            sections.setProperty("contentY", sections.property("originY") - sections.property("topMargin"))
+                            QTest.qWait(30)
                         assert library_background.property("color").name().upper() == theme_state.hover
                         # Immersive return may already have restored mouse focus to Library.
                         home.forceActiveFocus()
@@ -668,7 +682,7 @@ def main():
                                 controls = {child.objectName(): child for child in visual_items(shelf) if child.objectName() in {"shelfPrevious", "shelfNext", "shelfPrimaryAction"}}
                                 overflowing = shelf.property("overflowing")
                                 assert controls["shelfNext"].isVisible() == overflowing and controls["shelfPrevious"].isVisible() == overflowing
-                                assert controls["shelfPrimaryAction"].isVisible() == (overflowing or shelf.property("compact"))
+                                assert controls["shelfPrimaryAction"].isVisible() == (overflowing or shelf.property("rowMode"))
                             if name == "queueSidebar":
                                 check_queue(window, shell, player, browse, downloads, args.output_dir, not state["queue_drag_checked"])
                                 state["queue_drag_checked"] = True

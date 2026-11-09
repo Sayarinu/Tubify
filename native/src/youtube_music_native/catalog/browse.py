@@ -281,7 +281,12 @@ class Browse(QObject):
         if self.fixture:
             from .catalog import arrange_home
 
-            sections = arrange_home([{"title": "", "items": [], **section} for section in self.fixture.get("shelves", [])])
+            shelves = [{"title": "", "items": [], **section} for section in self.fixture.get("shelves", [])]
+            if page == "Home":
+                # Listen again mixes songs with collections, as it does for a real account.
+                collections = [{**value, "kind": "playlist", "artist": value.get("owner", "")} for value in self.fixture.get("playlists", [])]
+                shelves = [{**section, "items": section["items"] + collections} if section["title"].casefold() == "listen again" else section for section in shelves]
+            sections = arrange_home(shelves)
             if page == "Explore":
                 sections = [{**section, "title": "New albums & singles" if index == 0 else "Top songs", "layout": "cards" if index == 0 else "rows", "items": [{**media, "kind": "album" if index == 0 else "song"} for media in section.get("items", [])]} for index, section in enumerate(sections)]
             self.view.showLocal(page.lower(), {"title": page, "shelves": sections, "items": [], "moods": [{"title": title, "params": title} for title in ("Chill", "Focus", "Workout", "Party")]})
