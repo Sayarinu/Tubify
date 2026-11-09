@@ -384,7 +384,7 @@ def main():
                 assert abs(elapsed.x() - seek.x() - seek.property("leftPadding")) < 0.1
                 assert abs(duration.x() + duration.width() - seek.x() - seek.width() + seek.property("rightPadding")) < 0.1
                 assert transport.y() + transport.height() <= seek.y()
-                assert content.y() + content.height() + 12 == player_bar.y()
+                assert content.y() + content.height() == player_bar.y()
                 for label in ("Home", "Explore", "Library", "Downloads"):
                     button = next(item for item in visual_items(window.contentItem()) if item.objectName() == "navigationButton-" + label)
                     background = button.findChild(QObject, "navigationBackground-" + label)
