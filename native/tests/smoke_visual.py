@@ -617,7 +617,26 @@ def main():
                             if args.output_dir:
                                 args.output_dir.mkdir(parents=True, exist_ok=True)
                                 assert window.grabWindow().save(str(args.output_dir / "home-mixed-shelf.png"))
+                            # Keyboard focus rings a card; a click on its artwork opens the playlist without a ring.
+                            card = next(item for item in visual_items(again) if item.metaObject().className().startswith("MediaCard") and fully_visible(item))
+                            card.forceActiveFocus(Qt.FocusReason.TabFocusReason)
+                            QTest.qWait(20)
+                            assert card.property("keyboardFocus")
+                            home.forceActiveFocus()
+                            QTest.qWait(20)
+                            artwork = card.mapToScene(QPointF(card.width() * 0.25, card.width() * 0.5)).toPoint()
+                            QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=artwork)
+                            QTest.qWait(20)
+                            # Pressing a card does not focus it, so a click never draws the ring.
+                            assert not card.property("activeFocus")
+                            QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=artwork)
+                            QTest.qWait(80)
+                            assert view.route == "playlist", view.route
+                            shell.navigate("Home")
+                            QTest.qWait(80)
+                            sections = window.findChild(QObject, "browseSections")
                             sections.setProperty("contentY", sections.property("originY") - sections.property("topMargin"))
+                            QTest.mouseMove(window, hover_point, delay=20)
                             QTest.qWait(30)
                         assert library_background.property("color").name().upper() == theme_state.hover
                         # Immersive return may already have restored mouse focus to Library.
