@@ -119,7 +119,7 @@ def shelves(rows):
 # Known shelves render first in a fixed order with a fixed layout, so Home looks the
 # same between visits even though YouTube Music reorders its personalized response.
 PINNED_SHELVES = ("quick picks", "listen again", "mixed for you", "forgotten favorites", "from your library", "new releases")
-SHELF_LAYOUTS = {"quick picks": "rows", "listen again": "cards", "mixed for you": "cards"}
+SHELF_LAYOUTS = {"quick picks": "rows"}
 HOME_SHELVES = 30
 HOME_TTL = 6 * 60 * 60
 # Routes whose content does not depend on likes, playlist edits or listening history.
@@ -130,8 +130,9 @@ def shelf_layout(section):
     known = SHELF_LAYOUTS.get(section["title"].strip().casefold())
     if known:
         return known
-    kinds = {media.get("kind") for media in section["items"]}
-    return "rows" if kinds == {"song"} else "cards"
+    # Songs show as rows and collections as cards; a shelf with both shows each its own way.
+    songs = [(media.get("kind") or "song") == "song" for media in section["items"]]
+    return "rows" if all(songs) else "mixed" if any(songs) else "cards"
 
 
 def arrange_home(sections):

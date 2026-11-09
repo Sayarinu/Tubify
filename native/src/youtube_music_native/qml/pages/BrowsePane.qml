@@ -122,7 +122,7 @@ Item {
             onActivated: item => browseState.open(item)
             onPlayRequested: item => browseState.play(item)
             onMoreRequested: browseState.showShelf(modelData)
-            onPlayAllRequested: browseState.playItems(modelData.items)
+            onPlayAllRequested: browseState.playItems(mixed ? songItems : modelData.items)
         }
         footer: Column {
             width: sections.width

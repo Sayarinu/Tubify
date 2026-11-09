@@ -177,12 +177,12 @@ def test_home_pins_known_shelves_and_chooses_layout_by_content(tmp_path):
     album = {"kind": "album", "title": "Album"}
     sections = arrange_home([
         {"title": "Fall vibes", "items": [album]},
-        {"title": "Listen again", "items": [song, song]},
-        {"title": "Long listening", "items": [song]},
-        {"title": "Quick picks", "items": [song]},
+        {"title": "Listen again", "items": [song, album]},
+        {"title": "Long listening", "items": [song, {"title": "Untyped"}]},
+        {"title": "Quick picks", "items": [album]},
     ])
     assert [section["title"] for section in sections] == ["Quick picks", "Listen again", "Fall vibes", "Long listening"]
-    assert [section["layout"] for section in sections] == ["rows", "cards", "cards", "rows"]
+    assert [section["layout"] for section in sections] == ["rows", "mixed", "cards", "rows"]
 
 
 def test_listening_history_keeps_cached_home_and_actions_keep_stable_routes(tmp_path):
