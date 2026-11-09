@@ -214,6 +214,9 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     settle()
     download = item("queueRowDownload-" + player.queue.current["key"])
     assert download.isVisible() and download.property("status") == "ready"
+    # A downloaded song's check is disabled but keeps the theme accent, like downloaded albums and playlists.
+    symbol = next(child for child in visual_items(download) if child.metaObject().className().startswith("Symbol"))
+    assert not download.property("enabled") and symbol.property("color").name() == download.property("iconColor").name()
     metadata = item("queueRowMetadata-" + player.queue.current["key"])
     assert metadata.width() >= 100
     # Rows hold two lines, so a song with an album cannot overlap the row below it.
