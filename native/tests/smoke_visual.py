@@ -500,8 +500,8 @@ def main():
                     assert dark_grid and light_grid and color_grid and add_theme
                     assert not window.findChild(QObject, "homeBackdrop")  # Home shares the plain page background.
                     assert rename_button and delete_button and export_button
-                    assert dark_grid.property("count") == 9
-                    assert light_grid.property("count") == 3
+                    assert dark_grid.property("count") == 10
+                    assert light_grid.property("count") == 4
                     assert color_grid.property("count") == len(DEFAULT_COLORS)
                     assert not rename_button.property("enabled")
                     assert not delete_button.property("enabled")
