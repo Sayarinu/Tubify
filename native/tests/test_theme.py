@@ -14,8 +14,8 @@ def _app():
 def test_builtin_themes_and_role_palette(tmp_path):
     _app()
     theme = ThemeState(tmp_path / "theme.ini")
-    assert len([entry for entry in theme.themes if entry["builtin"]]) == 12
-    assert sum(entry["light"] for entry in theme.themes) == 3
+    assert len([entry for entry in theme.themes if entry["builtin"]]) == 14
+    assert sum(entry["light"] for entry in theme.themes) == 4
     assert theme.activeThemeId == DEFAULT_THEME_ID
     assert theme.activeThemeName == "Classic"
     assert {entry["name"] for entry in theme.themes if entry["id"] in ("classic-dark", "classic-light")} == {"Classic", "Classic Light"}
@@ -44,6 +44,14 @@ def test_error_color_is_readable_on_every_builtin_theme(preset):
     colors = preset["colors"]
     assert ThemeState._contrast(colors["error"], colors["background"]) >= 4.5
     assert ThemeState._contrast(colors["error"], colors["surface"]) >= 4.5
+
+
+@pytest.mark.parametrize("theme_id", ["mint", "mint-light"])
+def test_mint_themes_keep_their_green_accent_readable(theme_id):
+    colors = next(preset for preset in PRESETS if preset["id"] == theme_id)["colors"]
+    for role in ("background", "surface"):
+        assert ThemeState._contrast(colors["accent"], colors[role]) >= 4.5
+    assert ThemeState._contrast(colors["onAccent"], colors["accent"]) >= 4.5
 
 
 def test_saved_theme_missing_a_newer_role_is_kept_and_filled(tmp_path):
