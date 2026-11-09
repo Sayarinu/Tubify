@@ -204,3 +204,37 @@ def test_macos_workers_leave_the_keychain_alone_until_a_song_needs_it():
     assert resolver.auth.restored == 0
     resolver.warm(platform="linux")
     assert resolver.auth.restored == 1
+
+
+def _signed_in_extractor(clears_login):
+    class Extractor:
+        def __init__(self, options):
+            self.cookiejar = CookieJar()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def extract_info(self, url, download):
+            if clears_login:
+                # YouTube's Set-Cookie for a rotated-out session removes LOGIN_INFO.
+                self.cookiejar.clear(".youtube.com", "/", "LOGIN_INFO")
+            return {"url": "https://media.invalid/audio?expire=4102444800", "vcodec": "none"}
+
+    return Extractor
+
+
+def test_a_session_youtube_signed_out_reports_session_expired(tmp_path, monkeypatch):
+    from youtube_music_native.account.session import Session, make_cookie
+    from youtube_music_native.util import needs_reconnect
+    from youtube_music_native.worker import safe_error
+
+    monkeypatch.setattr(sources, "extractor_options", lambda root: {})
+    session = Session({}, [make_cookie("LOGIN_INFO", "x"), make_cookie("__Secure-3PAPISID", "y")])
+    auth = SimpleNamespace(session=session)
+    assert Sources(auth, MediaFiles(tmp_path / "a"), _signed_in_extractor(False)).resolve("abcdefghijk")["kind"] == "remote"
+    with pytest.raises(sources.SessionExpired) as raised:
+        Sources(auth, MediaFiles(tmp_path / "b"), _signed_in_extractor(True)).resolve("abcdefghijk")
+    assert needs_reconnect(safe_error(raised.value))

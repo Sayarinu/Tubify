@@ -62,7 +62,7 @@ def parse_duration(value):
 
 def needs_reconnect(error):
     """Whether a worker failure means the YouTube Music account must be connected again."""
-    return error.get("code") in {"reconnect", "AuthError"}
+    return error.get("code") in {"reconnect", "AuthError", "SessionExpired"}
 
 
 def session_rejected(error):
