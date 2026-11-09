@@ -11,7 +11,7 @@ from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .audio import Audio
 from .queue import Queue
-from ..util import atomic_write, parse_duration
+from ..util import atomic_write, needs_reconnect, parse_duration
 from .video import has_video
 
 
@@ -51,6 +51,8 @@ class Playback(QObject):
     recentChanged = Signal()
     stateSaveFailed = Signal()
     seeked = Signal(float)
+    # The session expired while resolving a song; the account renews it and resetSession resumes.
+    reconnectNeeded = Signal(str)
 
     def __init__(self, data_dir, worker, radio_worker=None, cache_path=None, fixture=None, audio_factory=Audio, parent=None, prefetch_worker=None):
         super().__init__(parent)
@@ -88,6 +90,7 @@ class Playback(QObject):
         self._transport_revision, self._stopped, self._device_wait = 0, False, False
         self._source_expires, self._last_progress = 0., time.monotonic()
         self._stall_recoveries, self._consecutive_failures = 0, 0
+        self._resume_after_session = False
         # Requests answered from a prefetched URL get negative identifiers, never a worker's.
         self._local_request_id = 0
         # What the queue was started from, so autoplay can continue with a matching radio.
@@ -490,6 +493,8 @@ class Playback(QObject):
             self._queue_changed()
 
     def _start(self, position=0, paused=False, force=False, damaged=False):
+        # Choosing or restarting a song replaces any wait for a renewed session.
+        self._resume_after_session = False
         self._stopped, self._device_wait = False, False
         video_id = self.currentTrack.get("videoId", "") if self.hasTrack else ""
         adopt = None
@@ -729,7 +734,11 @@ class Playback(QObject):
         self._request, self._request_worker, self._busy = None, None, False
         self._message = error.get("message", "This song could not be played.")
         self.changed.emit()
-        if not self._want_paused:
+        if needs_reconnect(error):
+            # Every other song would fail the same way, so wait for the renewed session.
+            self._resume_after_session = not self._want_paused
+            self.reconnectNeeded.emit(self._message)
+        elif not self._want_paused:
             QTimer.singleShot(0, self._skip_failed)
 
     def _prefetch_failed(self, failed):
@@ -1265,6 +1274,15 @@ class Playback(QObject):
             if self.audio:
                 self.audio.stop()
         self.changed.emit()
+        if self._resume_after_session:
+            self._resume_after_session = False
+            # Deferred so a sign-out's forgetQueue empties the queue first.
+            QTimer.singleShot(0, self._resume)
+
+    def _resume(self):
+        # Pausing or stopping while the session renewed means the person no longer wants it.
+        if self.hasTrack and not self._closed and not self._want_paused and not self._stopped:
+            self._start(self._position)
 
     def forgetQueue(self):
         """Signing out leaves nothing of this account's listening on disk; playback.json is rewritten empty."""
@@ -1277,6 +1295,7 @@ class Playback(QObject):
 
     def close(self):
         self.save_timer.stop()
+        self.watchdog.stop()
         self.save()
         self._closed = True
         if self.audio:

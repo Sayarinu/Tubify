@@ -13,6 +13,13 @@ class SourceError(RuntimeError):
     pass
 
 
+class SessionExpired(SourceError):
+    """YouTube signed this session out; renewing it from the browser lets songs play again."""
+
+
+EXPIRED = "Your session needs reconnecting. Downloaded music remains available."
+
+
 # Song resolves skip the HLS manifest request: audio-only formats never come from it.
 # The extractor without the skip stays separate, for the rare song that needs it.
 AUDIO = "audio", {"extractor_args": {"youtube": {"skip": ["hls"]}}}
@@ -57,15 +64,27 @@ class Sources:
 
     def _extract(self, kind, extra, video_id):
         extractor = self._extractor(kind, extra)
+        cookies = list(self.auth.session.cookie_jar())
+        signed_in = any(cookie.name == "LOGIN_INFO" for cookie in cookies)
         try:
             # Only the current session's cookies; nothing from earlier responses persists.
             extractor.cookiejar.clear()
-            for cookie in self.auth.session.cookie_jar():
+            for cookie in cookies:
                 extractor.cookiejar.set_cookie(cookie)
-            return extractor.extract_info("https://www.youtube.com/watch?v=" + video_id, download=False)
-        except Exception:
+            info = extractor.extract_info("https://www.youtube.com/watch?v=" + video_id, download=False)
+        except Exception as error:
             self._discard(kind)
+            if signed_in and not self._signed_in(extractor):
+                raise SessionExpired(EXPIRED) from error
             raise
+        if signed_in and not self._signed_in(extractor):
+            raise SessionExpired(EXPIRED)
+        return info
+
+    @staticmethod
+    def _signed_in(extractor):
+        # YouTube clears LOGIN_INFO when it stops accepting rotated-out cookies.
+        return any(cookie.name == "LOGIN_INFO" for cookie in extractor.cookiejar)
 
     def _discard(self, kind):
         extractor = self._extractors.pop(kind, None)

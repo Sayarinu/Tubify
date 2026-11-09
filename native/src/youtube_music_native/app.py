@@ -219,6 +219,7 @@ def main(argv=None):
     source_worker = None if args.fixture else Worker(controller, idle_ms=10 * 60 * 1000, warmup=warmup)
     prefetch_worker = None if args.fixture else Worker(controller, idle_ms=5 * 60 * 1000, warmup=warmup)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller, prefetch_worker=prefetch_worker)
+    player.reconnectNeeded.connect(account.requireReconnect)
     if source_worker and not (args.smoke_test or args.screenshot):
         start_resolvers(app, player, source_worker, prefetch_worker)
     controller.discordState = DiscordPresence(player, data / "settings.ini", parent=controller, fixture=args.fixture)
