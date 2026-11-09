@@ -18,7 +18,9 @@ FocusScope {
     readonly property var primaryArtist: media.artists && media.artists.length ? media.artists[0] : ({})
     // Only albums and artists name their kind; songs and playlists read clearly from the artist or owner alone.
     readonly property string kindLabel: artist ? "Artist" : album ? (media.label || "Album") : ""
-    readonly property bool engaged: cardHover.hovered || root.activeFocus
+    // Clicks never move focus onto a card, so focus here always comes from the keyboard: only it shows the ring and holds the controls up.
+    readonly property bool keyboardFocus: activeFocus
+    readonly property bool engaged: cardHover.hovered || keyboardFocus
     signal playRequested(var item)
     signal activated(var item)
     activeFocusOnTab: true
@@ -44,18 +46,19 @@ FocusScope {
     implicitWidth: Theme.cardWidth
     implicitHeight: Theme.cardHeight
     HoverHandler { id: cardHover }
+    // The whole card, artwork included, opens an album, playlist or artist like its title does; only the play button plays it.
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
-        onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activateCard() }
+        onClicked: mouse => { if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activateCard() }
     }
     // Keyboard focus rings the artwork rather than a frame around the whole card.
     Rectangle {
         anchors.fill: cover; anchors.margins: -4
         radius: cover.radius + 4
         color: "transparent"; border.width: 2; border.color: themeState.accent
-        visible: root.activeFocus
+        visible: root.keyboardFocus
     }
     Cover {
         id: cover
@@ -66,12 +69,6 @@ FocusScope {
         source: root.media.thumbnail || ""
         mediaKey: root.album || root.media.kind === "playlist" ? root.media.kind + ":" + root.media.id : root.media.videoId || root.media.id || ""
         accent: root.media.accent || themeState.selected
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton | Qt.RightButton
-            cursorShape: Qt.PointingHandCursor
-            onClicked: mouse => { root.forceActiveFocus(); if (mouse.button === Qt.RightButton) appState.showMenu(root.media, root.menuContext); else root.activateArtwork() }
-        }
         // Play sits in the corner on hover, and stays there as a pause button while this item plays.
         Rectangle {
             objectName: "cardPlay"
@@ -84,7 +81,7 @@ FocusScope {
             Behavior on opacity { enabled: !appState.reducedMotion; NumberAnimation { duration: Theme.motionFast } }
             Behavior on scale { enabled: !appState.reducedMotion; NumberAnimation { duration: Theme.motionMedium; easing.type: Easing.OutBack } }
             Symbol { anchors.centerIn: parent; name: root.nowPlaying ? "pause" : "play"; width: 20; height: 20; color: themeState.onAccent }
-            MouseArea { id: playArea; anchors.fill: parent; enabled: parent.opacity > 0; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.forceActiveFocus(); root.activateArtwork() } }
+            MouseArea { id: playArea; anchors.fill: parent; enabled: parent.opacity > 0; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.activateArtwork() } }
         }
         IconButton {
             anchors.right: parent.right; anchors.top: parent.top; anchors.margins: root.artist ? parent.width * 0.1 : 6
