@@ -24,11 +24,25 @@ def main():
                 shell.navigate("Downloads")
                 QTest.qWait(80)
                 pane = window.findChild(QObject, "downloadsPane")
-                listing = window.findChild(QObject, "downloadsList")
-                assert pane and listing.property("count") == 4
-                pane.setProperty("selectedKind", "Songs")
-                assert listing.property("count") == 1
-                pane.setProperty("selectedKind", "All")
+                grid = window.findChild(QObject, "downloadsGrid")
+                songs = window.findChild(QObject, "downloadsSongs")
+                # Playlists first, as in Library; there is no All chip.
+                assert pane and downloads.filter == "Playlists" and grid.property("count") == 2
+                assert downloads.filters == ["Playlists", "Albums", "Songs"]
+                titles = lambda: [downloads.collectionsModel.data(downloads.collectionsModel.index(row), downloads.collectionsModel.ROW)["title"] for row in range(downloads.collectionsModel.rowCount())]
+                downloads.sort("A to Z")
+                assert titles() == sorted(titles(), key=str.casefold)
+                downloads.sort("Z to A")
+                assert titles() == sorted(titles(), key=str.casefold, reverse=True)
+                downloads.setFilter("Albums")
+                assert grid.property("count") == 1
+                downloads.setFilter("Songs")
+                QTest.qWait(50)
+                assert songs.isVisible() and not grid.isVisible() and songs.property("count") == len(downloads.songs) > 0
+                assert "Artist" in downloads.orders
+                downloads.playSongs(0)
+                assert len(player.entries) == len(downloads.songs) and len({entry.get("videoId") or entry["id"] for entry in player.entries}) == len(player.entries)
+                downloads.setFilter("Playlists")
                 pending = next(entry for entry in downloads.collections if entry["state"] == "downloading")
                 downloads.cancel(pending["key"])
                 assert next(entry for entry in downloads.collections if entry["key"] == pending["key"])["state"] == "cancelled"
@@ -46,10 +60,10 @@ def main():
                 QTest.qWait(80)
                 pane = window.findChild(QObject, "downloadsPane")
                 assert pane and view.route == "downloads"
-                pane.setProperty("selectedEntry", first)
                 dialog = window.findChild(QObject, "downloadRemovalDialog")
-                assert QMetaObject.invokeMethod(dialog, "open")
+                downloads.requestRemoval(first["key"])
                 QTest.qWait(50)
+                assert dialog.property("opened") and pane.property("selectedEntry")["key"] == first["key"]
                 playing = player.playing
                 assert window.property("modalOpen")
                 QTest.keyClick(window, Qt.Key.Key_Space)

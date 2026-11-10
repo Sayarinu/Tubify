@@ -233,7 +233,8 @@ def main(argv=None):
         # Settings shows login startup as off, and turning it back on still works.
         pass
     controller.lifecycleState = Lifecycle(data / "settings.ini", player, controller.trayState, parent=controller, startup=startup)
-    downloads = DownloadView(media_data, fixture=args.fixture, parent=controller)
+    downloads = DownloadView(media_data, fixture=args.fixture, parent=controller, settings_path=data / "settings.ini")
+    downloads.tracksRequested.connect(lambda tracks, index: player.playTracks(tracks, index, "Downloads"))
     player.trackStarted.connect(lambda track: downloads.refresh())
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
     account.sessionChanged.connect(downloads.resetSession)

@@ -4,9 +4,16 @@ from pathlib import Path
 import json
 import time
 
-from PySide6.QtCore import QObject, Property, QProcess, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, Property, QProcess, QSettings, QTimer, Signal, Slot
 
+from ..catalog.catalog_view import sorted_items
+from ..catalog.page_model import PageModel
 from ..jobs import Worker
+
+# Chips on the Downloads page, as in Library; Songs lists every downloaded song, wherever it came from.
+FILTERS = {"Playlists": "playlist", "Albums": "album", "Songs": "song"}
+ORDERS = ["Recently added", "A to Z", "Z to A"]
+SONG_ORDERS = ORDERS + ["Artist"]
 
 
 class DownloadView(QObject):
@@ -23,12 +30,23 @@ class DownloadView(QObject):
     artworkChanged = Signal()
     messageChanged = Signal()
     storageChanged = Signal()
+    pageChanged = Signal()
+    removalRequested = Signal("QVariantMap")
+    tracksRequested = Signal(list, int)
     collectionReady = Signal(dict)
     collectionFound = Signal(int, dict)
     playRequested = Signal(dict, bool)
 
-    def __init__(self, data_dir, fixture=False, parent=None):
+    def __init__(self, data_dir, fixture=False, parent=None, settings_path=None):
         super().__init__(parent)
+        self._settings = QSettings(str(settings_path), QSettings.Format.IniFormat) if settings_path else None
+        self._filter = "Playlists"
+        saved = self._settings.value("downloadOrders", "{}") if self._settings else "{}"
+        try:
+            self._orders = {key: value for key, value in json.loads(saved).items() if key in FILTERS and value in SONG_ORDERS}
+        except (TypeError, ValueError, AttributeError):
+            self._orders = {}
+        self.collectionsModel_, self.songsModel_ = PageModel(self), PageModel(self)
         self.data_dir, self.fixture = str(Path(data_dir)), fixture
         self.control = None if fixture else Worker(self, idle_ms=30000)
         # Planning and transfers stay up between collections: a whole library queued at
@@ -61,6 +79,11 @@ class DownloadView(QObject):
                 self._fixture_bodies[key] = {"kind": kind, "id": key.split(":", 1)[1], "title": title, "items": values, "downloadKey": key, "cursor": None, "trackCount": len(values), "duration": sum(track["duration"] for track in values)}
                 self._collections.append({"key": key, "id": key.split(":", 1)[1], "kind": kind, "title": title, "state": state, "ready": len(values) if state == "complete" else 1, "total": len(values), "progress": 0.42 if state == "downloading" else 1., "error": ""})
             self._bytes, self._free = 127000000, 32000000000
+            songs = {}
+            for key, value in self._fixture_bodies.items():
+                for track in value["items"]:
+                    songs.setdefault(track.get("videoId") or track.get("id"), {**track, "added": 0.})
+            self._songs = list(songs.values())
             self._index()
         if self.control:
             self.control.succeeded.connect(self._result)
@@ -134,8 +157,94 @@ class DownloadView(QObject):
     def largeArtworkFor(self, key):
         return self._large_artwork.get(key, {})
 
+    @Property("QVariantList", constant=True)
+    def filters(self):
+        return list(FILTERS)
+
+    @Property(str, notify=pageChanged)
+    def filter(self):
+        return self._filter
+
+    @Property("QVariantList", notify=pageChanged)
+    def orders(self):
+        return SONG_ORDERS if self._filter == "Songs" else ORDERS
+
+    @Property(str, notify=pageChanged)
+    def order(self):
+        return self._orders.get(self._filter, ORDERS[0])
+
+    @Property(QObject, constant=True)
+    def collectionsModel(self):
+        return self.collectionsModel_
+
+    @Property(QObject, constant=True)
+    def songsModel(self):
+        return self.songsModel_
+
+    @Property(int, notify=pageChanged)
+    def count(self):
+        return (self.songsModel_ if self._filter == "Songs" else self.collectionsModel_).rowCount()
+
+    @Slot(str)
+    def setFilter(self, name):
+        if name in FILTERS and name != self._filter:
+            self._filter = name
+            self._show()
+
+    @Slot(str)
+    def sort(self, order):
+        if order in (SONG_ORDERS if self._filter == "Songs" else ORDERS) and order != self.order:
+            self._orders[self._filter] = order
+            if self._settings is not None:
+                self._settings.setValue("downloadOrders", json.dumps(self._orders))
+            self._show()
+
+    def _rows(self):
+        if self._filter == "Songs":
+            rows = [song for song in self._songs if song.get("downloadState") != "unavailable"]
+        else:
+            rows = [entry for entry in self._collections if entry.get("kind") == FILTERS[self._filter]]
+        order = self.order
+        if order == "A to Z" or order == "Z to A":
+            return sorted_items(rows, "title", order == "Z to A")
+        if order == "Artist":
+            return sorted_items(rows, "artist")
+        # Newest first; ties keep the order the store listed them in.
+        return sorted(rows, key=lambda row: -row.get("added", 0))
+
+    def _show(self):
+        """Feed the visible chip's rows to its model, changing only rows that differ."""
+        rows = self._rows()
+        if self._filter == "Songs":
+            self.songsModel_.sync(rows)
+        else:
+            self.collectionsModel_.sync(rows)
+        self.pageChanged.emit()
+
+    @Slot(int)
+    def playSongs(self, index):
+        """Play the Songs list as shown, from this row; each song is queued once."""
+        rows, places, tracks, start = self._rows(), {}, [], 0
+        for position, song in enumerate(rows):
+            video_id = song.get("videoId") or song.get("id")
+            if not video_id:
+                continue
+            if video_id not in places:
+                places[video_id] = len(tracks)
+                tracks.append({key: value for key, value in song.items() if key not in {"added", "downloadState"}})
+            if position == index:
+                start = places[video_id]
+        if tracks:
+            self.tracksRequested.emit(tracks, start)
+
+    @Slot(str)
+    def requestRemoval(self, key):
+        if key in self._entries:
+            self.removalRequested.emit(self._entries[key])
+
     def _index(self):
         self._entries = {entry["key"]: entry for entry in self._collections}
+        self._show()
 
     def _states_changed(self):
         self._revision += 1
@@ -359,9 +468,8 @@ class DownloadView(QObject):
         self._stop_and_send("remove", identifier)
 
     def _fixture_update(self, identifier, state):
-        for entry in self._collections:
-            if entry["key"] == identifier:
-                entry.update(state=state, ready=entry["total"] if state == "complete" else entry["ready"])
+        self._collections = [{**entry, "state": state, "ready": entry["total"] if state == "complete" else entry["ready"]} if entry["key"] == identifier else entry for entry in self._collections]
+        self._index()
         self.changed.emit()
         self._states_changed()
 

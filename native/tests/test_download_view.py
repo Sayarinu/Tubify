@@ -184,9 +184,45 @@ def test_song_progress_only_announces_progress_and_lookups_need_no_map_copies(tm
     assert view.collectionEntry(key)["state"] == "complete" and view.collectionEntry("playlist:missing") == {}
     assert view.known(*key.split(":", 1)) and not view.known("playlist", "missing")
     emitted.clear()
-    status = {"collections": view.collections, "songs": [], "trackStates": view.trackStates, "trackProgress": view.trackProgress, "artwork": {}, "bytes": 1, "freeBytes": 2}
+    status = {"collections": view.collections, "songs": view.songs, "trackStates": view.trackStates, "trackProgress": view.trackProgress, "artwork": {}, "bytes": 1, "freeBytes": 2}
     view._pending[9] = "status"
     view._result(9, status)
     # Only storage moved, so lists, rows and covers are left alone.
     assert emitted == ["storageChanged"]
     view.close()
+
+
+def test_downloads_page_filters_sorts_remembers_order_and_plays_songs_once(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    settings = tmp_path / "settings.ini"
+    view = DownloadView(tmp_path, fixture=True, settings_path=settings)
+    rows = lambda model: [model.data(model.index(row), model.ROW) for row in range(model.rowCount())]
+    assert view.filter == "Playlists" and view.orders == ["Recently added", "A to Z", "Z to A"]
+    assert {entry["kind"] for entry in rows(view.collectionsModel)} == {"playlist"}
+    view.sort("Z to A")
+    titles = [entry["title"] for entry in rows(view.collectionsModel)]
+    assert titles == sorted(titles, key=str.casefold, reverse=True)
+    view.setFilter("Songs")
+    assert view.order == "Recently added" and "Artist" in view.orders
+    view._songs = [
+        {"videoId": IDS[0], "title": "Beta", "artist": "Zed", "added": 1.},
+        {"videoId": IDS[1], "title": "alpha", "artist": "Amy", "added": 3.},
+        {"videoId": IDS[2], "title": "Gamma", "artist": "", "added": 2., "downloadState": "unavailable"},
+    ]
+    view._show()
+    assert [song["videoId"] for song in rows(view.songsModel)] == [IDS[1], IDS[0]]
+    view.sort("Artist")
+    assert [song["artist"] for song in rows(view.songsModel)] == ["Amy", "Zed"]
+    played = []
+    view.tracksRequested.connect(lambda tracks, index: played.append((tracks, index)))
+    view._songs.append(dict(view._songs[0]))
+    view.playSongs(2)
+    tracks, index = played[0]
+    assert [track["videoId"] for track in tracks] == [IDS[1], IDS[0]] and index == 1
+    assert "added" not in tracks[0]
+    view.close()
+    reopened = DownloadView(tmp_path, fixture=True, settings_path=settings)
+    assert reopened.order == "Z to A"
+    reopened.setFilter("Songs")
+    assert reopened.order == "Artist"
+    reopened.close()
