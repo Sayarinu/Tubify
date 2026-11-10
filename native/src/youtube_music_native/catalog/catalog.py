@@ -126,6 +126,30 @@ HOME_TTL = 6 * 60 * 60
 STABLE_ROUTES = ("home", "explore", "charts", "moods", "mood")
 
 
+def fill_album_artists(client, sections):
+    """Give songs with no artist their album's artists.
+
+    ytmusicapi drops an artist without a channel link when only a play count follows
+    it, mistaking it for a "Song" label. Each album is looked up once.
+    """
+    songs = [media for section in sections for media in section["items"]
+             if media["kind"] == "song" and not media["artists"] and media["album"]["id"]]
+    found = {}
+    for media in songs:
+        album = media["album"]["id"]
+        if album not in found:
+            try:
+                raw = client.get_album(album) or {}
+            except Exception:
+                raw = {}
+            found[album] = [{"name": text(a.get("name")), "id": text(a.get("id") or a.get("browseId"))}
+                            for a in raw.get("artists") or [] if isinstance(a, dict) and text(a.get("name"))]
+        if found[album]:
+            media["artists"] = found[album]
+            media["artist"] = " • ".join(a["name"] for a in found[album])
+    return sections
+
+
 def shelf_layout(section):
     known = SHELF_LAYOUTS.get(section["title"].strip().casefold())
     if known:
@@ -263,7 +287,7 @@ class Catalog:
         # Fetch every shelf once; scrolling pages through this same response
         # instead of splicing a newer, differently ordered one onto it.
         limit = max(limit, HOME_SHELVES)
-        data["shelves"] = arrange_home(shelves(client.get_home(limit=limit)))
+        data["shelves"] = arrange_home(fill_album_artists(client, shelves(client.get_home(limit=limit))))
         data["complete"] = True
         for section in data["shelves"]:
             if section["title"].lower() == "listen again":

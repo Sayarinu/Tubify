@@ -115,7 +115,7 @@ Rectangle {
                     }
                     Text {
                         visible: !playerState.currentTrack.artists || !playerState.currentTrack.artists.length
-                        text: playerState.currentTrack.artist || "Choose a Song"
+                        text: playerState.currentTrack.artist || (playerState.currentTrack.title ? "" : "Choose a Song")
                         textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 11
                     }
                 }
