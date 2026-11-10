@@ -103,7 +103,7 @@ def test_interrupted_job_recovers_and_keeps_completed_files_and_partial_media(se
     staging.mkdir()
     partial = staging / (IDS[1] + ".wav.part")
     partial.write_bytes(b"partial")
-    service.store.progress(identifier, 1, 2)
+    assert service.store.start_song(IDS[1])
     restarted = DownloadStore(tmp_path)
     restarted.recover()
     assert restarted.state(identifier) == "queued" and first_audio.is_file() and partial.is_file()
@@ -248,8 +248,8 @@ def test_run_queue_downloads_every_queued_collection_in_one_call(service):
     # One failing collection is marked and the queue carries on to the next one.
     assert states == {first: "complete", broken: "failed", last: "complete"}
     assert factory.calls == IDS
-    # Progress names each collection as it starts, so the view can follow the queue.
-    assert list(dict.fromkeys(value["collection"] for value in notified)) == [first, broken, last]
+    # Each finished song is announced so the view can refresh the collections that hold it.
+    assert [value["videoId"] for value in notified if value.get("done") and "videoId" in value] == [IDS[0], IDS[2]]
 
 
 def test_run_queue_stops_when_the_disk_is_full(service):
@@ -276,17 +276,18 @@ def test_run_queue_continues_after_an_ordinary_download_error_whatever_its_wordi
     service, factory = service
     first = service.store.schedule(body("PLfirst", IDS[:1]))
     second = service.store.schedule(body("PLsecond", IDS[1:2]))
-    real_run = service.run
+    real_download = service._download
 
-    def run(identifier):
-        if identifier == first:
-            service.store.progress(identifier, 0, 1, state="failed")
+    def download(video_id, track):
+        if video_id == IDS[0]:
+            service.store.start_song(video_id)
+            service.store.song_failed(video_id, "Reconnect wording from an ordinary failure.")
             raise DownloadError("Reconnect wording from an ordinary failure.")
-        return real_run(identifier)
+        return real_download(video_id, track)
 
-    monkeypatch.setattr(service, "run", run)
-    service.run_queue(first)
-    assert service.store.state(second) == "complete"
+    monkeypatch.setattr(service, "_download", download)
+    service.run_queue()
+    assert service.store.state(first) == "failed" and service.store.state(second) == "complete"
 
 
 def test_failed_artwork_write_leaves_no_temporary_file(tmp_path, monkeypatch):
@@ -343,3 +344,81 @@ def test_schedule_all_queues_new_playlists_once_and_skips_failures(service):
     # Running it again does not plan the queued playlist a second time.
     requested.clear()
     assert service.schedule_all(playlists) == {"scheduled": 0, "failed": 1} and requested == ["PLbroken"]
+
+
+def test_a_song_shared_by_playlists_is_queued_and_downloaded_once(service):
+    service, factory = service
+    first = service.store.schedule(body("PLfirst", IDS[:2]))
+    second = service.store.schedule(body("PLsecond", IDS[1:]))
+    assert service.store.db.execute("SELECT count(*) FROM song_jobs").fetchone()[0] == 3
+    service.run_queue()
+    assert sorted(factory.calls) == sorted(IDS) and len(factory.calls) == 3
+    status = service.store.status()
+    assert status["collectionStates"] == {first: "complete", second: "complete"}
+    assert sorted(song["videoId"] for song in status["songs"]) == sorted(IDS)
+    assert all(song["downloadState"] == "ready" for song in status["songs"])
+
+
+def test_a_collection_counts_as_downloaded_without_its_unavailable_songs(service):
+    service, factory = service
+    value = body("PLgaps", IDS[:2])
+    value["items"][1]["available"] = False
+    identifier = service.store.schedule(value)
+    service.run_queue()
+    entry = service.store.status()["collections"][0]
+    assert entry["state"] == "complete" and entry["ready"] == 1 and "1 unavailable" in entry["error"]
+    assert factory.calls == IDS[:1]
+    assert [song["videoId"] for song in service.store.status()["songs"]] == IDS[:1]
+
+
+def test_a_collection_with_every_song_already_downloaded_is_downloaded(service):
+    service, factory = service
+    service.store.schedule(body("PLfirst", IDS[:2]))
+    service.run_queue()
+    second = service.store.schedule(body("PLsecond", IDS[:2]))
+    assert service.store.state(second) == "complete"
+    service.run_queue()
+    assert len(factory.calls) == 2
+
+
+def test_cancelling_one_playlist_keeps_songs_another_still_wants(service):
+    service, factory = service
+    first = service.store.schedule(body("PLfirst", IDS[:2]))
+    second = service.store.schedule(body("PLsecond", IDS[1:2]))
+    service.store.cancel(first)
+    assert service.store.state(first) == "cancelled" and service.store.state(second) == "queued"
+    service.run_queue()
+    assert factory.calls == [IDS[1]]
+    assert service.store.state(second) == "complete" and service.store.state(first) == "cancelled"
+    service.store.retry(first)
+    service.run_queue()
+    assert factory.calls == [IDS[1], IDS[0]] and service.store.state(first) == "complete"
+
+
+def test_old_collection_jobs_become_song_jobs(tmp_path, service):
+    import json
+    import sqlite3
+    import time
+
+    service, factory = service
+    service.close()
+    db = sqlite3.connect(tmp_path / "media" / "media.sqlite3")
+    db.executescript("""DROP TABLE collection_jobs; DROP TABLE song_jobs;
+        CREATE TABLE download_jobs (collection_id TEXT PRIMARY KEY REFERENCES collections(id) ON DELETE CASCADE,
+            state TEXT NOT NULL, completed INTEGER NOT NULL, total INTEGER NOT NULL,
+            fraction REAL NOT NULL, error TEXT NOT NULL, created REAL NOT NULL);""")
+    for name, state in (("PLqueued", "queued"), ("PLfailed", "failed"), ("PLcancelled", "cancelled")):
+        value = body(name, IDS[:1] if name == "PLqueued" else IDS[1:2] if name == "PLfailed" else IDS[2:])
+        db.execute("INSERT INTO collections VALUES (?, ?)", ("playlist:" + name, json.dumps(value)))
+        db.execute("INSERT INTO download_jobs VALUES (?, ?, 0, 1, 0, ?, ?)", ("playlist:" + name, state, "Old failure" if state == "failed" else "", time.time()))
+        db.execute("INSERT INTO media_refs VALUES (?, ?)", ("playlist:" + name, value["items"][0]["videoId"]))
+    db.commit()
+    db.close()
+    migrated = Downloads(service.auth, tmp_path, extractor_factory=factory, artwork_fetch=lambda url, folder: "")
+    try:
+        states = migrated.store.status()["collectionStates"]
+        assert states == {"playlist:PLqueued": "queued", "playlist:PLfailed": "failed", "playlist:PLcancelled": "cancelled"}
+        migrated.run_queue()
+        assert factory.calls == IDS[:1] and migrated.store.state("playlist:PLqueued") == "complete"
+    finally:
+        migrated.close()

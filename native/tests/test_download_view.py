@@ -23,7 +23,8 @@ def test_download_control_and_progress_workers_finish_local_jobs_without_auth(tm
     view.transfer.progress.connect(lambda request, value: progress.append(value))
 
     def changed():
-        if view.collections and view.collections[0]["state"] == "complete":
+        # Its songs are already here, so it is complete before the transfer saves its cover.
+        if view.collections and view.collections[0]["state"] == "complete" and progress and not view._active:
             loop.quit()
 
     view.changed.connect(changed)
