@@ -170,6 +170,28 @@ def test_home_pages_shelves_and_personalizes_listen_again(tmp_path):
     assert second["cursor"] is None and calls == [30]
 
 
+def test_home_songs_without_an_artist_take_their_album_artists(tmp_path):
+    lookups = []
+
+    def album(identifier):
+        lookups.append(identifier)
+        if identifier == "MPREbroken":
+            raise RuntimeError("album unavailable")
+        return {"artists": [{"name": "Lotus Juice", "id": None}, {"name": "ATLUS Sound Team", "id": "UCatlus"}]}
+
+    # ytmusicapi drops an unlinked artist that is followed only by a play count.
+    unlinked = {"videoId": "remix000001", "title": "Remix", "views": "2.5M", "album": {"name": "Soundtrack", "id": "MPREsoundtrack"}}
+    home = lambda limit: [{"title": "Covers and remixes", "contents": [
+        unlinked, {**unlinked, "videoId": "remix000002"}, track(1),
+        {"videoId": "broken00001", "title": "Broken", "album": {"name": "Gone", "id": "MPREbroken"}},
+    ]}]
+    auth = SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: SimpleNamespace(get_home=home, get_album=album))
+    songs = Catalog(auth, MetadataStore(tmp_path / "metadata.sqlite3")).fetch("home")["shelves"][0]["items"]
+    assert [song["artist"] for song in songs] == ["Lotus Juice • ATLUS Sound Team"] * 2 + ["Artist", ""]
+    assert songs[0]["artists"][1] == {"name": "ATLUS Sound Team", "id": "UCatlus"}
+    assert lookups == ["MPREsoundtrack", "MPREbroken"]
+
+
 def test_home_pins_known_shelves_and_chooses_layout_by_content(tmp_path):
     from youtube_music_native.catalog.catalog import arrange_home
 
