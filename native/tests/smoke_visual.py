@@ -210,7 +210,7 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     saved_width = shell.panelWidth
     shell.setPanelWidth(280)
     downloads._track_states = {fixture["videoId"]: "ready"}
-    downloads.changed.emit()
+    downloads._states_changed()
     settle()
     download = item("queueRowDownload-" + player.queue.current["key"])
     assert download.isVisible() and download.property("status") == "ready"
@@ -224,11 +224,11 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     assert metadata.x() + metadata.width() <= download.x()
     save("queue-narrow-downloaded")
     downloads._track_states = {fixture["videoId"]: "downloading"}
-    downloads.changed.emit()
+    downloads._states_changed()
     settle()
     assert download.isVisible() and download.property("status") == "downloading"
     downloads._track_states = saved_download_states
-    downloads.changed.emit()
+    downloads._states_changed()
     shell.setPanelWidth(saved_width)
     settle()
     save("queue-source-only")
@@ -740,14 +740,14 @@ def main():
                     assert toggle.isVisible() and toggle.property("text") == "Less"
                     assert not window.findChild(QObject, "collectionDescription").property("truncated")
                     downloads._initialized = False
-                    downloads.changed.emit()
+                    downloads.changed.emit(); downloads._artwork_changed()
                     view.patch({"thumbnail": "file:///unavailable-synthetic-art.png"})
                     QTest.qWait(30)
                     backdrop = window.findChild(QObject, "backdropImage")
                     assert backdrop.property("source").isEmpty()
                     downloads._artwork["playlist:PLfixture"] = uri
                     downloads._initialized = True
-                    downloads.changed.emit()
+                    downloads.changed.emit(); downloads._artwork_changed()
                     QTest.qWait(80)
                     assert backdrop.property("source").toString() == uri
                     view._error = "The provider is unavailable. Downloaded music remains available. " * 3

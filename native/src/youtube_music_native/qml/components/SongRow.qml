@@ -20,7 +20,7 @@ FocusScope {
     readonly property bool actionsShown: hover.hovered || actionsHeld
     // Queue text only gives up the actions' space while they show, or while a download indicator stays in it.
     readonly property real trailingWidth: queueRow ? (actionsShown || root.activeFocus || downloadButton.visible ? 68 : 0) : showDuration ? durationRight + durationWidth + 8 + 44 + 4 : 104
-    property string downloadStatus: downloadsState.trackStates[media.videoId || media.id] || media.downloadState || ""
+    property string downloadStatus: { downloadsState.revision; return downloadsState.songState(media.videoId || media.id || "") || media.downloadState || "" }
     readonly property bool currentSong: playerState.hasTrack && (queueRow && media.key ? !!media.current : (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id))
     readonly property var artistItems: {
         if (media.artists && media.artists.length) return media.artists

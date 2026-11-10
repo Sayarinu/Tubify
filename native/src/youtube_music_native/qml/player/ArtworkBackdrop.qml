@@ -19,7 +19,8 @@ Item {
         source: {
             if (!appState.artworkBackground) return ""
             if (root.mediaKey && !downloadsState.initialized) return ""
-            return root.mediaKey && downloadsState.artwork[root.mediaKey] !== undefined ? downloadsState.artwork[root.mediaKey] : root.source
+            downloadsState.artworkRevision
+            return root.mediaKey && downloadsState.hasArtwork(root.mediaKey) ? downloadsState.artworkFor(root.mediaKey) : root.source
         }
         fillMode: Image.PreserveAspectCrop
     }

@@ -10,7 +10,19 @@ from ..jobs import Worker
 
 
 class DownloadView(QObject):
+    """Download state for QML, split so a progress tick only repaints what it changes.
+
+    `changed` covers the lists and storage; per-song and per-collection state,
+    live progress, artwork and the message each have their own signal. QML reads
+    single entries through slots (songState, collectionEntry, artworkFor, ...)
+    that depend on a revision counter, instead of copying a whole map per read.
+    """
     changed = Signal()
+    statesChanged = Signal()
+    progressChanged = Signal()
+    artworkChanged = Signal()
+    messageChanged = Signal()
+    storageChanged = Signal()
     collectionReady = Signal(dict)
     collectionFound = Signal(int, dict)
     playRequested = Signal(dict, bool)
@@ -25,6 +37,8 @@ class DownloadView(QObject):
         self.transfer = None if fixture else Worker(self, idle_ms=30000)
         self._planning = set()
         self._collections, self._pending, self._stopped = [], {}, []
+        self._songs, self._entries = [], {}
+        self._revision, self._progress_revision, self._artwork_revision = 0, 0, 0
         self._track_states, self._track_progress, self._open_request = {}, {}, None
         self._artwork, self._initialized = {}, fixture
         self._large_artwork, self._artwork_requests, self._artwork_attempts = {}, {}, {}
@@ -47,9 +61,7 @@ class DownloadView(QObject):
                 self._fixture_bodies[key] = {"kind": kind, "id": key.split(":", 1)[1], "title": title, "items": values, "downloadKey": key, "cursor": None, "trackCount": len(values), "duration": sum(track["duration"] for track in values)}
                 self._collections.append({"key": key, "id": key.split(":", 1)[1], "kind": kind, "title": title, "state": state, "ready": len(values) if state == "complete" else 1, "total": len(values), "progress": 0.42 if state == "downloading" else 1., "error": ""})
             self._bytes, self._free = 127000000, 32000000000
-        self.poll = QTimer(self)
-        self.poll.setInterval(2000)
-        self.poll.timeout.connect(self.refresh)
+            self._index()
         if self.control:
             self.control.succeeded.connect(self._result)
             self.control.failed.connect(self._failed)
@@ -66,21 +78,77 @@ class DownloadView(QObject):
     def collections(self):
         return self._collections
 
-    @Property("QVariantMap", notify=changed)
+    @Property("QVariantList", notify=changed)
+    def songs(self):
+        return self._songs
+
+    @Property("QVariantMap", notify=statesChanged)
     def trackStates(self):
         return self._track_states
 
-    @Property("QVariantMap", notify=changed)
+    @Property("QVariantMap", notify=progressChanged)
     def trackProgress(self):
         return self._track_progress
 
-    @Property("QVariantMap", notify=changed)
+    @Property("QVariantMap", notify=artworkChanged)
     def artwork(self):
         return self._artwork
 
-    @Property("QVariantMap", notify=changed)
+    @Property("QVariantMap", notify=artworkChanged)
     def largeArtwork(self):
         return self._large_artwork
+
+    @Property(int, notify=statesChanged)
+    def revision(self):
+        return self._revision
+
+    @Property(int, notify=progressChanged)
+    def progressRevision(self):
+        return self._progress_revision
+
+    @Property(int, notify=artworkChanged)
+    def artworkRevision(self):
+        return self._artwork_revision
+
+    @Slot(str, result=str)
+    def songState(self, video_id):
+        return self._track_states.get(video_id, "")
+
+    @Slot(str, result=float)
+    def songProgress(self, video_id):
+        return float(self._track_progress.get(video_id, 0))
+
+    @Slot(str, result="QVariantMap")
+    def collectionEntry(self, key):
+        return self._entries.get(key, {})
+
+    @Slot(str, result=str)
+    def artworkFor(self, key):
+        return self._artwork.get(key, "") if key else ""
+
+    @Slot(str, result=bool)
+    def hasArtwork(self, key):
+        return key in self._artwork
+
+    @Slot(str, result="QVariantMap")
+    def largeArtworkFor(self, key):
+        return self._large_artwork.get(key, {})
+
+    def _index(self):
+        self._entries = {entry["key"]: entry for entry in self._collections}
+
+    def _states_changed(self):
+        self._revision += 1
+        self.statesChanged.emit()
+
+    def _artwork_changed(self):
+        self._artwork_revision += 1
+        self.artworkChanged.emit()
+
+    def _set_message(self, message):
+        if message != self._message:
+            self._message = message
+            self.messageChanged.emit()
 
     @Slot("QVariantMap", int, result=str)
     def artworkSource(self, media, pixels):
@@ -131,7 +199,7 @@ class DownloadView(QObject):
             self._large_artwork[pending[0]] = result
             while len(self._large_artwork) > 128:
                 self._large_artwork.pop(next(iter(self._large_artwork)))
-            self.changed.emit()
+            self._artwork_changed()
         if result.get("upgraded"):
             self._stale = True
             self.refresh()
@@ -144,15 +212,15 @@ class DownloadView(QObject):
     def initialized(self):
         return self._initialized
 
-    @Property(str, notify=changed)
+    @Property(str, notify=messageChanged)
     def message(self):
         return self._message
 
-    @Property(float, notify=changed)
+    @Property(float, notify=storageChanged)
     def usedBytes(self):
         return float(self._bytes)
 
-    @Property(float, notify=changed)
+    @Property(float, notify=storageChanged)
     def freeBytes(self):
         return float(self._free)
 
@@ -160,7 +228,6 @@ class DownloadView(QObject):
     def setAccountAvailable(self, available):
         self._allow_network = available
         self._stale = True
-        self.changed.emit()
         self._pump()
 
     def _send(self, operation, payload=None, authoritative=False):
@@ -177,26 +244,24 @@ class DownloadView(QObject):
     @Slot("QVariantMap")
     def download(self, media):
         if self.fixture:
-            self._message = "Download preview"
-            self.changed.emit()
+            self._set_message("Download preview")
             return
-        self._message, self._notice = "Preparing download…", ""
+        self._notice = ""
         self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media)}))
-        self.changed.emit()
+        self._set_message("Preparing download…")
 
     @Slot("QVariantList")
     def downloadAll(self, playlists):
         if self.fixture:
-            self._message = "Download preview"
-            self.changed.emit()
+            self._set_message("Download preview")
             return
         values = [{"kind": "playlist", "id": media.get("id", ""), "title": media.get("title", ""), "thumbnail": media.get("thumbnail", "")}
                   for media in playlists if isinstance(media, dict) and media.get("id")]
         if not values:
             return
-        self._message, self._notice = "Preparing downloads for every playlist…", ""
+        self._notice = ""
         self._planning.add(self.planner.request("downloads_schedule_all", {"data_dir": self.data_dir, "playlists": values}))
-        self.changed.emit()
+        self._set_message("Preparing downloads for every playlist…")
 
     def _planned_one(self, identifier, progress):
         # Start downloading the first playlists while the rest are still being listed.
@@ -207,8 +272,7 @@ class DownloadView(QObject):
         if self._notice:
             self._notice = ""
             if not self._planning:
-                self._message = ""
-            self.changed.emit()
+                self._set_message("")
 
     def _scheduled(self, identifier, result):
         if identifier not in self._planning:
@@ -225,8 +289,7 @@ class DownloadView(QObject):
             return
         self._planning.remove(identifier)
         if not self._resetting:
-            self._message = error.get("message", "This download could not be prepared. Retry.")
-            self.changed.emit()
+            self._set_message(error.get("message", "This download could not be prepared. Retry."))
 
     @Slot()
     def refresh(self):
@@ -260,8 +323,7 @@ class DownloadView(QObject):
         """Whether the downloads list holds this collection; None until it has loaded."""
         if not self._initialized:
             return None
-        key = kind + ":" + identifier
-        return any(entry.get("key") == key for entry in self._collections)
+        return kind + ":" + identifier in self._entries
 
     def cancelLookup(self, request):
         if self.control and request is not None:
@@ -290,7 +352,9 @@ class DownloadView(QObject):
         if self.fixture:
             self._collections = [entry for entry in self._collections if entry["key"] != identifier]
             self._fixture_bodies.pop(identifier, None)
+            self._index()
             self.changed.emit()
+            self._states_changed()
             return
         self._stop_and_send("remove", identifier)
 
@@ -299,6 +363,7 @@ class DownloadView(QObject):
             if entry["key"] == identifier:
                 entry.update(state=state, ready=entry["total"] if state == "complete" else entry["ready"])
         self.changed.emit()
+        self._states_changed()
 
     def _stop_and_send(self, operation, identifier):
         # The transfer notices a cancelled or removed song by itself and moves on to the
@@ -326,14 +391,31 @@ class DownloadView(QObject):
             return
         if identifier < self._minimum_request or operation is None:
             return
-        self._message = "Preparing download…" if self._planning else self._notice
+        self._set_message("Preparing download…" if self._planning else self._notice)
         self._stale = False
-        self._collections = result.get("collections", [])
+        # Only what differs is announced, so an unchanged status repaints nothing.
+        collections, songs = result.get("collections", []), result.get("songs", [])
+        listed_changed = (collections, songs, True) != (self._collections, self._songs, self._initialized)
+        states_changed = listed_changed or result.get("trackStates", {}) != self._track_states
         self._track_states = result.get("trackStates", {})
-        self._track_progress = result.get("trackProgress", {})
-        self._artwork, self._initialized = result.get("artwork", {}), True
-        self._bytes, self._free, self._next = result.get("bytes", 0), result.get("freeBytes", 0), result.get("next")
-        self.changed.emit()
+        storage = (result.get("bytes", 0), result.get("freeBytes", 0))
+        if storage != (self._bytes, self._free):
+            self._bytes, self._free = storage
+            self.storageChanged.emit()
+        if listed_changed:
+            self._collections, self._songs, self._initialized = collections, songs, True
+            self._index()
+            self.changed.emit()
+        if states_changed:
+            self._states_changed()
+        if result.get("trackProgress", {}) != self._track_progress:
+            self._track_progress = result.get("trackProgress", {})
+            self._progress_revision += 1
+            self.progressChanged.emit()
+        if result.get("artwork", {}) != self._artwork:
+            self._artwork = result.get("artwork", {})
+            self._artwork_changed()
+        self._next = result.get("next")
         self._pump()
 
     def _pump(self):
@@ -342,8 +424,6 @@ class DownloadView(QObject):
             return
         self._active, self._next = self._next, None
         self._transfer_request = self.transfer.request("downloads_run", {"data_dir": self.data_dir, "id": self._active})
-        self.poll.start()
-        self.changed.emit()
 
     @Slot(int, dict)
     def _progress(self, identifier, progress):
@@ -351,9 +431,13 @@ class DownloadView(QObject):
             return
         video_id = progress.get("videoId", "")
         if video_id and not progress.get("done"):
+            # Only this song's state and ring change; lists and other rows stay put.
             self._track_progress[video_id] = progress.get("fraction", 0)
-            self._track_states[video_id] = "downloading"
-            self.changed.emit()
+            self._progress_revision += 1
+            self.progressChanged.emit()
+            if self._track_states.get(video_id) != "downloading":
+                self._track_states[video_id] = "downloading"
+                self._states_changed()
         if progress.get("done"):
             # A finished song changes the collections that hold it and the song list; a
             # status already on its way may predate it, so ask again.
@@ -364,7 +448,6 @@ class DownloadView(QObject):
         if identifier != self._transfer_request:
             return
         self._active, self._transfer_request = None, None
-        self.poll.stop()
         self._send("status", authoritative=True)
 
     @Slot(int, dict)
@@ -373,24 +456,22 @@ class DownloadView(QObject):
             return
         active = self._active
         self._active, self._transfer_request = None, None
-        self.poll.stop()
-        self._message = error.get("message", "Download stopped. Retry to continue.")
+        self._set_message(error.get("message", "Download stopped. Retry to continue."))
         self._send("fail", {"id": active}, authoritative=True)
-        self.changed.emit()
 
     @Slot(int, dict)
     def _failed(self, identifier, error):
         operation = self._pending.pop(identifier, None)
         if operation == "initialize":
             self._initialized = True
+            self.changed.emit()
         if operation == "lookup":
             self.collectionFound.emit(identifier, {})
         if operation == "status":
             self._status_pending = False
             self._stale = True
         if not self._resetting:
-            self._message = error.get("message", "This download operation failed. Retry.")
-            self.changed.emit()
+            self._set_message(error.get("message", "This download operation failed. Retry."))
 
     def resetSession(self):
         if not self.control:
@@ -405,7 +486,6 @@ class DownloadView(QObject):
         self._planning.clear()
         self.planner.reset()
         self._active, self._transfer_request, self._next = None, None, None
-        self.poll.stop()
         self.control.reset()
         self._stopped.append(("initialize", {}))
         self.transfer.reset()
@@ -414,7 +494,6 @@ class DownloadView(QObject):
 
     def close(self):
         self._closed = True
-        self.poll.stop()
         if self.artwork_worker:
             self.artwork_worker.close()
         if self.control:
