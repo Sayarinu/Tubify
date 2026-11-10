@@ -10,6 +10,10 @@ ThemedMenu {
     property bool song: media.kind === "song" || !!media.videoId
     property bool queueable: song || media.kind === "album" || media.kind === "playlist"
     property bool canEdit: (accountState.connected || appState.fixtureMode) && !accountState.busy && !actionsState.busy
+    // Set on a Downloads card; a song's own download is found by its key.
+    readonly property string downloadKey: context.downloadKey || ""
+    readonly property var download: { downloadsState.revision; return downloadKey ? downloadsState.collectionEntry(downloadKey) : song ? downloadsState.collectionEntry("song:" + (media.videoId || media.id || "")) : ({}) }
+    readonly property bool downloadActive: download.state === "queued" || download.state === "downloading"
     property bool playlistEntry: song && !!media.setVideoId && catalogState.route === "playlist" && catalogState.data.editable && context.playlistId === catalogState.parameters.id
     ContextMenuItem { text: "Play"; onTriggered: { if (root.context.queueKey) playerState.selectKey(root.context.queueKey); else browseState.play(root.media) } }
     ContextMenuItem { text: "Play Next"; visible: root.queueable; height: visible ? implicitHeight : 0; onTriggered: browseState.enqueue(root.media, true) }
@@ -21,7 +25,12 @@ ThemedMenu {
     ContextMenuItem { text: root.media.rating === "DISLIKE" ? "Remove Dislike" : "Dislike"; visible: root.song; height: visible ? implicitHeight : 0; enabled: root.canEdit; onTriggered: libraryState.rate(root.media, "DISLIKE") }
     ContextMenuItem { text: root.media.inLibrary ? "Remove from Library" : "Save to Library"; visible: root.song; height: visible ? implicitHeight : 0; enabled: root.canEdit; onTriggered: libraryState.saveSong(root.media) }
     ContextMenuItem { text: "Add to Playlist"; visible: root.song; height: visible ? implicitHeight : 0; enabled: root.canEdit; onTriggered: libraryState.choosePlaylist(root.media) }
-    ContextMenuItem { text: "Download"; visible: root.media.kind !== "artist"; height: visible ? implicitHeight : 0; onTriggered: downloadsState.download(root.media) }
+    ContextMenuItem { text: "Download"; visible: root.media.kind !== "artist" && !root.download.key; height: visible ? implicitHeight : 0; onTriggered: downloadsState.download(root.media) }
+    ContextMenuItem { text: "Shuffle Play"; visible: !!root.downloadKey; height: visible ? implicitHeight : 0; enabled: root.download.ready > 0; onTriggered: downloadsState.play(root.downloadKey, true) }
+    ContextMenuItem { text: "Cancel Download"; visible: !!root.download.key && root.downloadActive; height: visible ? implicitHeight : 0; onTriggered: downloadsState.cancel(root.download.key) }
+    ContextMenuItem { text: root.download.state === "damaged" ? "Repair Download" : "Retry Download"; visible: ["failed", "cancelled", "damaged"].indexOf(root.download.state) >= 0; height: visible ? implicitHeight : 0; onTriggered: downloadsState.retry(root.download.key) }
+    ContextMenuItem { text: "Refresh Download"; visible: !!root.downloadKey; height: visible ? implicitHeight : 0; enabled: (accountState.connected || appState.fixtureMode) && !root.downloadActive; onTriggered: downloadsState.download(root.download) }
+    ContextMenuItem { text: "Remove Download"; visible: !!root.download.key; height: visible ? implicitHeight : 0; onTriggered: root.downloadKey ? downloadsState.requestRemoval(root.download.key) : downloadsState.remove(root.download.key) }
     ContextMenuItem { text: "Go to Album"; visible: root.song && !!(root.media.album && root.media.album.id); height: visible ? implicitHeight : 0; onTriggered: browseState.open({kind: "album", id: root.media.album.id}) }
     ContextMenuItem { text: "Go to Artist"; visible: root.song && !!(root.media.artists && root.media.artists.length && root.media.artists[0].id); height: visible ? implicitHeight : 0; onTriggered: browseState.open({kind: "artist", id: root.media.artists[0].id}) }
     ThemedMenuSeparator { visible: root.playlistEntry || (root.media.kind === "playlist" && root.media.owned); height: visible ? implicitHeight : 0 }
