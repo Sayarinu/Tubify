@@ -113,13 +113,12 @@ Item {
         }
     }
 
-    // Same frame as MediaCard: rounded card, inset square cover, two lines of text.
+    // Same frame as MediaCard: a full-width square cover with two lines of text beneath.
     component SkeletonCard: Item {
         id: card
         property color block
-        Rectangle { anchors.fill: parent; radius: 10; color: card.block; opacity: 0.45 }
-        Rectangle { id: art; x: 16; y: 16; width: parent.width - 32; height: width; radius: 8; color: card.block }
-        Rectangle { x: 16; y: art.y + art.height + 14; width: art.width * 0.7; height: 12; radius: 6; color: card.block }
-        Rectangle { x: 16; y: art.y + art.height + 36; width: art.width * 0.45; height: 10; radius: 5; color: card.block; opacity: 0.7 }
+        Rectangle { id: art; width: parent.width; height: width; radius: Theme.radiusMedium; color: card.block }
+        Rectangle { y: art.height + 13; width: art.width * 0.7; height: 12; radius: 6; color: card.block }
+        Rectangle { y: art.height + 34; width: art.width * 0.45; height: 10; radius: 5; color: card.block; opacity: 0.7 }
     }
 }

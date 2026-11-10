@@ -14,7 +14,8 @@ Rectangle {
     // The small, usually already cached cover shows at once under a large one still loading.
     readonly property string previewSource: {
         if (!largeArtwork) return ""
-        var local = mediaKey && downloadsState.initialized ? downloadsState.artwork[mediaKey] : ""
+        downloadsState.artworkRevision
+        var local = mediaKey && downloadsState.initialized ? downloadsState.artworkFor(mediaKey) : ""
         return local || (media && media.thumbnail) || ""
     }
     readonly property int physicalSize: Math.ceil(Math.max(width, height) * Screen.devicePixelRatio * appState.uiScaleFactor)
@@ -44,7 +45,8 @@ Rectangle {
     }
     Connections {
         target: downloadsState
-        function onChanged() { root.requestUpgrade(false) }
+        // Only artwork news can change what this cover shows; download progress does not.
+        function onArtworkChanged() { root.requestUpgrade(false) }
     }
     property string placeholder: "music"
     property color accent: themeState.selected
@@ -77,8 +79,9 @@ Rectangle {
         source: {
             if (!root.mediaKey) return root.source
             if (!downloadsState.initialized) return ""
-            var cached = downloadsState.artwork[root.mediaKey]
-            var large = root.largeArtwork ? downloadsState.largeArtwork[root.mediaKey] : null
+            downloadsState.artworkRevision
+            var cached = downloadsState.artworkFor(root.mediaKey)
+            var large = root.largeArtwork ? downloadsState.largeArtworkFor(root.mediaKey) : null
             if (large && large.url && large.url !== root.failedSource) return large.url
             if (cached) return cached
             var preferred = root.largeArtwork ? downloadsState.artworkSource(root.media, root.physicalSize) : ""
@@ -191,7 +194,8 @@ Rectangle {
             asynchronous: true
             source: {
                 var key = modelData.videoId || modelData.id || ""
-                return key && !downloadsState.artwork[key] ? downloadsState.artworkSource(modelData, root.physicalSize) : ""
+                downloadsState.artworkRevision
+                return key && !downloadsState.artworkFor(key) ? downloadsState.artworkSource(modelData, root.physicalSize) : ""
             }
             sourceSize: artwork.sourceSize
         }

@@ -4,109 +4,126 @@ import QtQuick.Layouts
 import "../Theme.js" as Theme
 import "../components"
 
+// Laid out like Library: filter chips and a sort menu, playlists and albums as cards,
+// and every downloaded song as a row.
 Item {
     id: root
     objectName: "downloadsPane"
     property real gutter: Theme.gutter(width)
     // Next to an open panel, the panel's own gap replaces the right gutter.
     readonly property real rightGutter: appState.panel ? 0 : gutter
-    property string selectedKind: "All"
+    readonly property bool songs: downloadsState.filter === "Songs"
     property var selectedEntry: ({})
-    property bool blockingShortcuts: options.opened || removal.opened
-    property var entries: downloadsState.collections.filter(function(entry) { return root.selectedKind === "All" || entry.kind === root.selectedKind.toLowerCase().slice(0, -1) })
+    property bool blockingShortcuts: removal.opened
     function bytesLabel(value) {
         if (value >= 1073741824) return (value / 1073741824).toFixed(1) + " GB"
         return (value / 1048576).toFixed(1) + " MB"
     }
+    function songCount(entry) { return entry.total + (entry.total === 1 ? " song" : " songs") }
     function stateLabel(entry) {
-        if (entry.state === "complete") return "Downloaded"
+        if (entry.state === "complete") return entry.error ? "Downloaded · " + entry.ready + " of " + songCount(entry) : "Downloaded · " + songCount(entry)
         if (entry.state === "damaged") return "Repair needed · " + entry.ready + " of " + entry.total + " available"
         if (entry.state === "downloading") return "Downloading · " + Math.round(entry.progress * 100) + "%"
-        if (entry.state === "queued") return "Waiting to download"
+        if (entry.state === "queued") return "Waiting to download · " + songCount(entry)
         if (entry.state === "cancelled") return "Cancelled · " + entry.ready + " of " + entry.total + " available"
         return entry.error || "Download stopped · Retry to continue"
     }
-    ListView {
-        id: list
-        WheelScroll { view: list }
-        objectName: "downloadsList"
-        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
-        clip: true; bottomMargin: 32
-        model: root.entries
-        ScrollBar.vertical: ScrollBar {}
-        header: Item {
-            width: list.width; height: 204
+    Connections {
+        target: downloadsState
+        function onRemovalRequested(entry) { root.selectedEntry = entry; removal.open() }
+    }
+    Component {
+        id: controls
+        Item {
             LibraryTabs { width: parent.width; current: "Downloads" }
-            Row {
-                y: 84; height: 36; spacing: 12
-                Repeater {
-                    model: ["All", "Songs", "Albums", "Playlists"]
-                    FilterChip {
-                        required property string modelData
-                        text: modelData
-                        selected: root.selectedKind === modelData
-                        onClicked: root.selectedKind = modelData
-                    }
+            ListView {
+                id: filters
+                objectName: "downloadFilters"
+                y: 84; width: parent.width - 216; height: 36
+                orientation: ListView.Horizontal; spacing: 12; clip: true
+                model: downloadsState.filters
+                delegate: FilterChip {
+                    required property string modelData
+                    text: modelData
+                    selected: downloadsState.filter === modelData
+                    onClicked: downloadsState.setFilter(modelData)
                 }
             }
-            Column {
-                y: 148; width: parent.width - 48; spacing: 5
-                Text { width: parent.width; text: root.bytesLabel(downloadsState.usedBytes) + " downloaded · " + root.bytesLabel(downloadsState.freeBytes) + " free"; color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: 14 }
+            EdgeArrows { target: filters }
+            ThemedComboBox {
+                id: sortOrder
+                objectName: "downloadSortOrder"
+                x: parent.width - width; y: 84; width: 200; height: 36
+                model: downloadsState.orders; currentIndex: downloadsState.orders.indexOf(downloadsState.order)
+                Accessible.name: "Downloads sort order"
+                onActivated: downloadsState.sort(currentText)
             }
-            IconButton { anchors.right: parent.right; y: 138; iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
-            Button {
-                id: downloadAll
-                objectName: "downloadAllPlaylists"
-                anchors.right: parent.right; y: 84; height: 36; leftPadding: 14; rightPadding: 14
-                // Shorter beside the filters when docks leave the pane narrow.
-                text: parent.width < 640 ? "Download All" : "Download All Playlists"
-                Accessible.name: "Download All Playlists"
-                enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
-                palette.buttonText: themeState.foreground
-                background: Rectangle { radius: height / 2; color: downloadAll.hovered ? themeState.hover : themeState.surface; border.width: downloadAll.visualFocus ? 2 : 0; border.color: themeState.accent }
-                onClicked: downloadsState.downloadAll(appState.playlists)
+            Text {
+                width: parent.width - storageActions.width - 16
+                anchors.verticalCenter: storageActions.verticalCenter
+                text: root.bytesLabel(downloadsState.usedBytes) + " downloaded · " + root.bytesLabel(downloadsState.freeBytes) + " free"
+                color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: 14
+            }
+            Row {
+                id: storageActions
+                anchors.right: parent.right; y: 136; spacing: 8
+                IconButton { iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
+                Button {
+                    id: downloadAll
+                    objectName: "downloadAllPlaylists"
+                    height: 36; leftPadding: 14; rightPadding: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Download All Playlists"
+                    Accessible.name: "Download All Playlists"
+                    enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
+                    palette.buttonText: themeState.foreground
+                    background: Rectangle { radius: height / 2; color: downloadAll.hovered ? themeState.hover : themeState.surface; border.width: downloadAll.visualFocus ? 2 : 0; border.color: themeState.accent }
+                    onClicked: downloadsState.downloadAll(appState.playlists)
+                }
             }
         }
-        delegate: ItemDelegate {
-            id: entry
+    }
+    GridView {
+        id: grid
+        objectName: "downloadsGrid"
+        WheelScroll { view: grid }
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
+        visible: !root.songs; clip: true; bottomMargin: 32
+        property int columns: Math.max(1, Math.floor((width + 24) / (Theme.cardWidth + 24)))
+        cellWidth: width / columns; cellHeight: cellWidth + 84
+        model: downloadsState.collectionsModel; ScrollBar.vertical: ScrollBar {}
+        header: Loader { width: grid.width; height: 196; sourceComponent: controls; active: grid.visible }
+        delegate: MediaCard {
             required property var modelData
-            width: list.width; height: 104; padding: 0
-            Accessible.name: modelData.title + ", " + root.stateLabel(modelData)
-            onClicked: downloadsState.open(modelData.key)
-            background: Rectangle { radius: 4; color: entry.hovered ? themeState.surface : "transparent"; border.color: entry.visualFocus ? themeState.accent : "transparent"; border.width: 1 }
-            contentItem: Item {
-                Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 64; height: 64; source: entry.modelData.thumbnail || ""; mediaKey: entry.modelData.key; radius: 3 }
-                Column {
-                    x: 88; anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - x - controls.width - 16; spacing: 5
-                    Text { width: parent.width; text: entry.modelData.title; textFormat: Text.PlainText; color: themeState.foreground; elide: Text.ElideRight; font.pixelSize: 16 }
-                    Text { width: parent.width; text: entry.modelData.kind.charAt(0).toUpperCase() + entry.modelData.kind.slice(1) + " · " + entry.modelData.total + (entry.modelData.total === 1 ? " song" : " songs"); color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: 12 }
-                    Text { width: parent.width; text: root.stateLabel(entry.modelData); textFormat: Text.PlainText; color: entry.modelData.state === "damaged" || entry.modelData.state === "failed" ? themeState.error : themeState.secondary; elide: Text.ElideRight; font.pixelSize: 12 }
-                    ProgressBar { width: parent.width; height: 3; value: entry.modelData.progress || 0; visible: entry.modelData.state === "downloading" || entry.modelData.state === "queued" }
-                }
-                Row {
-                    id: controls
-                    anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: 4
-                    IconButton { iconName: "play"; tip: "Play " + entry.modelData.title; enabled: entry.modelData.ready > 0; onClicked: downloadsState.play(entry.modelData.key, false) }
-                    IconButton { iconName: "close"; tip: "Cancel Download"; visible: entry.modelData.state === "queued" || entry.modelData.state === "downloading"; onClicked: downloadsState.cancel(entry.modelData.key) }
-                    IconButton { iconName: "download"; tip: entry.modelData.state === "damaged" ? "Repair Download" : "Retry Download"; visible: entry.modelData.state === "failed" || entry.modelData.state === "cancelled" || entry.modelData.state === "damaged"; onClicked: downloadsState.retry(entry.modelData.key) }
-                    IconButton { iconName: "more"; tip: "Download Options for " + entry.modelData.title; onClicked: { root.selectedEntry = entry.modelData; options.popup() } }
-                }
-            }
+            width: grid.cellWidth - 24; height: grid.cellHeight - 24
+            // The subtitle carries the download's progress or outcome.
+            media: Object.assign({}, modelData, {artist: root.stateLabel(modelData)})
+            menuContext: ({downloadKey: modelData.key})
+            onActivated: downloadsState.open(modelData.key)
+            onPlayRequested: downloadsState.play(modelData.key, false)
+        }
+    }
+    ListView {
+        id: songList
+        objectName: "downloadsSongs"
+        WheelScroll { view: songList }
+        anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
+        visible: root.songs; clip: true; bottomMargin: 32
+        model: downloadsState.songsModel
+        ScrollBar.vertical: ScrollBar {}
+        header: Loader { width: songList.width; height: 196; sourceComponent: controls; active: songList.visible }
+        delegate: SongRow {
+            required property var modelData
+            required property int index
+            width: songList.width; media: modelData
+            onActivated: downloadsState.playSongs(index)
         }
     }
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 16
-        visible: !root.entries.length
+        visible: downloadsState.count === 0
         Text { width: parent.width; text: "Music Wherever You Go"; color: themeState.foreground; font.bold: true; font.pixelSize: 28; horizontalAlignment: Text.AlignHCenter }
-        Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + root.selectedKind.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
-    }
-    ThemedMenu {
-        id: options
-        objectName: "downloadOptionsMenu"
-        ContextMenuItem { text: "Shuffle Play"; enabled: root.selectedEntry.ready > 0; onTriggered: downloadsState.play(root.selectedEntry.key, true) }
-        ContextMenuItem { text: "Refresh Download"; enabled: (accountState.connected || appState.fixtureMode) && root.selectedEntry.state !== "queued" && root.selectedEntry.state !== "downloading"; onTriggered: downloadsState.download(root.selectedEntry) }
-        ContextMenuItem { text: "Remove Download"; onTriggered: removal.open() }
+        Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + downloadsState.filter.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
     }
     ThemedDialog {
         id: removal

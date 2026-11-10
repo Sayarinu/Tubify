@@ -219,6 +219,7 @@ def main(argv=None):
     source_worker = None if args.fixture else Worker(controller, idle_ms=10 * 60 * 1000, warmup=warmup)
     prefetch_worker = None if args.fixture else Worker(controller, idle_ms=5 * 60 * 1000, warmup=warmup)
     player = Playback(media_data, source_worker, account.worker, cache / "metadata.sqlite3", fixture=fixture, parent=controller, prefetch_worker=prefetch_worker)
+    player.reconnectNeeded.connect(account.requireReconnect)
     if source_worker and not (args.smoke_test or args.screenshot):
         start_resolvers(app, player, source_worker, prefetch_worker)
     controller.discordState = DiscordPresence(player, data / "settings.ini", parent=controller, fixture=args.fixture)
@@ -232,7 +233,8 @@ def main(argv=None):
         # Settings shows login startup as off, and turning it back on still works.
         pass
     controller.lifecycleState = Lifecycle(data / "settings.ini", player, controller.trayState, parent=controller, startup=startup)
-    downloads = DownloadView(media_data, fixture=args.fixture, parent=controller)
+    downloads = DownloadView(media_data, fixture=args.fixture, parent=controller, settings_path=data / "settings.ini")
+    downloads.tracksRequested.connect(lambda tracks, index: player.playTracks(tracks, index, "Downloads"))
     player.trackStarted.connect(lambda track: downloads.refresh())
     account.connectedChanged.connect(lambda: downloads.setAccountAvailable(account.connected))
     account.sessionChanged.connect(downloads.resetSession)

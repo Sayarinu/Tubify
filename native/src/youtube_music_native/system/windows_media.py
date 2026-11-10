@@ -51,6 +51,9 @@ def metadata(snapshot):
     }
 
 
+BUTTONS = {"PLAY": "Play", "PAUSE": "Pause", "STOP": "Stop", "NEXT": "Next", "PREVIOUS": "Previous"}
+
+
 WM_POWERBROADCAST = 0x0218
 PBT_APMSUSPEND, PBT_APMRESUMESUSPEND, PBT_APMRESUMEAUTOMATIC = 0x4, 0x7, 0x12
 
@@ -150,14 +153,8 @@ class WindowsBus(QObject):
             return
         try:
             buttons = self.media.SystemMediaTransportControlsButton
-            actions = {
-                buttons.PLAY: "Play",
-                buttons.PAUSE: "Pause",
-                buttons.PLAY_PAUSE: "PlayPause",
-                buttons.STOP: "Stop",
-                buttons.NEXT: "Next",
-                buttons.PREVIOUS: "Previous",
-            }
+            # Windows has no play/pause button: the key arrives as Play or Pause by the published status.
+            actions = {getattr(buttons, name): action for name, action in BUTTONS.items() if hasattr(buttons, name)}
             action = actions.get(args.button)
             if action:
                 self.command.emit(action, [])

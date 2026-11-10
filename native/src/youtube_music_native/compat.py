@@ -101,11 +101,6 @@ def play_child(payload):
 VIDEO_FORMAT = "bestvideo[height<=720][vcodec^=avc1]+bestaudio/bestvideo[height<=720]+bestaudio/best[height<=720]"
 
 
-def edl(urls):
-    """Combine separate video and audio streams the way mpv's own ytdl hook does."""
-    return "edl://" + ";".join(f"!new_stream;!no_clip;!no_chapters;%{len(url.encode())}%{url}" for url in urls)
-
-
 _node_preferred = False
 
 

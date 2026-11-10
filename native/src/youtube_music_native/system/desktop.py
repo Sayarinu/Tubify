@@ -45,7 +45,7 @@ class Desktop(QObject):
             player.seeked.connect(self.bus.seeked)
             shell.volumeChanged.connect(self.publish)
             if downloads:
-                downloads.changed.connect(self.publish)
+                downloads.artworkChanged.connect(self.publish)
             self.bus.start()
 
     def track_id(self):

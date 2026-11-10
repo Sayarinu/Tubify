@@ -255,6 +255,18 @@ class Browse(QObject):
         return route == {"Home": "home", "Explore": "explore", "Downloads": "downloads"}.get(page)
 
     @Slot(str)
+    def selectTab(self, page):
+        """Selecting Home or Explore shows fresh data; the other tabs keep themselves up to date."""
+        at_root = self.atTabRoot(page)
+        if page in {"Home", "Explore"} and not self.fixture:
+            if at_root:
+                self.view.refreshFromTop()
+                return
+            self.view.expectFresh(page.lower())
+        if not at_root:
+            self.shell.navigate(page)
+
+    @Slot(str)
     def navigate(self, page):
         self._cancel_local_navigation()
         self._history = []
@@ -269,7 +281,12 @@ class Browse(QObject):
         if self.fixture:
             from .catalog import arrange_home
 
-            sections = arrange_home([{"title": "", "items": [], **section} for section in self.fixture.get("shelves", [])])
+            shelves = [{"title": "", "items": [], **section} for section in self.fixture.get("shelves", [])]
+            if page == "Home":
+                # Listen again mixes songs with collections, as it does for a real account.
+                collections = [{**value, "kind": "playlist", "artist": value.get("owner", "")} for value in self.fixture.get("playlists", [])]
+                shelves = [{**section, "items": section["items"] + collections} if section["title"].casefold() == "listen again" else section for section in shelves]
+            sections = arrange_home(shelves)
             if page == "Explore":
                 sections = [{**section, "title": "New albums & singles" if index == 0 else "Top songs", "layout": "cards" if index == 0 else "rows", "items": [{**media, "kind": "album" if index == 0 else "song"} for media in section.get("items", [])]} for index, section in enumerate(sections)]
             self.view.showLocal(page.lower(), {"title": page, "shelves": sections, "items": [], "moods": [{"title": title, "params": title} for title in ("Chill", "Focus", "Workout", "Party")]})
@@ -530,7 +547,7 @@ class Browse(QObject):
 
     @Slot()
     def playView(self):
-        if self.view.data.get("downloadKey") or self.view.sortKey:
+        if self.view.data.get("downloadKey") or self.view.reordered:
             # A sorted view plays exactly in the order shown.
             self.playItems(self.view.data.get("items", []), self.view.data.get("title", ""))
         elif self.view.route in {"album", "playlist"} and not self.fixture:

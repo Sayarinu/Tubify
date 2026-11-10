@@ -72,6 +72,15 @@ def normalize(value, video_id):
     return result
 
 
+def timing_rank(document, duration):
+    """Compare timed lyrics by recording match, timing detail, then song coverage; None if unusable."""
+    starts = [line["start"] for line in document["lines"] if line["text"].strip()]
+    if len(set(starts)) < 3 or duration and max(starts) > duration + 5:
+        return None
+    coverage = round(min(max(starts) / duration, 1), 1) if duration else 0
+    return (document.get("match") != "approximate", {"syllable": 2, "word": 1}.get(document.get("syncLevel"), 0), coverage)
+
+
 class Lyrics:
     def __init__(self, auth, data_dir, providers=None):
         self.auth = auth
@@ -97,36 +106,47 @@ class Lyrics:
                     return {**native_cached, "cached": True, "provider": "native", "syncLevel": "line", "source": native_cached["source"] or "YouTube Music"}
             except (ValueError, TypeError):
                 pass
-        lookup = {key: options[key] for key in ("external", "captions", "approximate", "providers")}
+        # The version keeps results chosen by older selection rules from being reused.
+        lookup = {key: options[key] for key in ("version", "external", "captions", "approximate", "providers")}
         signature = hashlib.sha256(json.dumps([track_identity(track), lookup], sort_keys=True).encode()).hexdigest()
         row = self.db.execute("SELECT saved,body FROM lyric_variants WHERE video_id=? AND signature=?", (video_id, signature)).fetchone()
+        saved = None
         if row and not refresh:
             try:
                 cached = json.loads(row[1])
-                if valid_cached(cached, video_id) and (cached["available"] or time.time() - row[0] < 86400):
-                    return {**cached, "cached": True}
+                if valid_cached(cached, video_id):
+                    # Only timed lyrics are final; anything else is looked up again each day.
+                    if cached["timed"] or time.time() - row[0] < 86400:
+                        return {**cached, "cached": True}
+                    saved = cached
             except (ValueError, TypeError):
                 pass
-        notes, fallback = [], None
+        notes, fallback, native_failed = [], None, False
         try:
             native = self._native(video_id, refresh)
             if native["timed"]:
                 return native
             fallback = native
         except Exception:
+            native_failed, fallback = True, saved
             notes.append("Native lyrics are unavailable.")
-        result = None
+        result, best = None, None
         deadline = time.monotonic() + 20
         if options["external"]:
+            duration = track_identity(track)["duration"]
             for choice in options["providers"]:
                 if not choice["enabled"] or time.monotonic() >= deadline:
                     continue
                 try:
                     value = self.providers.fetch(choice["id"], video_id, track, options["approximate"])
                     if value["timed"]:
-                        result = value
-                        break
-                    if fallback is None or not fallback["available"]:
+                        rank = timing_rank(value, duration)
+                        if rank is None:
+                            notes.append(choice["id"] + ": Timed lyrics look incomplete or wrong; skipped.")
+                        # Strictly better only, so provider order settles ties.
+                        elif best is None or rank > best:
+                            result, best = value, rank
+                    elif fallback is None or not fallback["available"]:
                         fallback = value
                 except ProviderUnavailable as error:
                     notes.append(choice["id"] + ": " + str(error))
@@ -141,6 +161,9 @@ class Lyrics:
                 notes.append(str(error))
             except Exception:
                 notes.append("Human captions are unavailable for this song.")
+        # A failed lookup is not proof the song has no lyrics, so don't save it as such.
+        if native_failed and result is None and not (fallback and fallback["available"]):
+            raise LyricsError("Lyrics couldn’t be loaded. Check your connection and try again.")
         result = result or fallback or normalize(None, video_id)
         result = {**result, "provider": result.get("provider", "native"), "syncLevel": result.get("syncLevel", "line" if result["timed"] else "plain"), "status": " ".join(notes), "cached": bool(result.get("cached"))}
         if not valid_cached(result, video_id):

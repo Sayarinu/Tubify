@@ -266,8 +266,9 @@ ApplicationWindow {
         anchors.right: window.panelOpen ? sidePanel.left : parent.right
         anchors.rightMargin: window.panelOpen ? window.panelGap : 0
         anchors.top: reconnectBanner.bottom
+        // Pages scroll right up to the floating bar, so nothing is cut off by a strip of background above it.
         anchors.bottom: player.top
-        anchors.bottomMargin: 12
+        anchors.bottomMargin: 0
         property real gutter: Theme.gutter(width)
 
         Loader {

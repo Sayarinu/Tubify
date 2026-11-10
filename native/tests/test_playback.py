@@ -38,11 +38,23 @@ class FakeAudio(QObject):
     deviceFailed = Signal()
     outputChanged = Signal()
     optionsChanged = Signal(dict)
+    videoAttached = Signal(int, bool)
+    videoFirstFrame = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.loads = []
+        self.stops = 0
         self.paused = False
+        self.video, self.attached = [], []
+
+    def setVideo(self, enabled):
+        self.video.append(enabled)
+        return enabled
+
+    def attachVideo(self, source):
+        self.attached.append(source)
+        return len(self.attached)
 
     def load(self, source, position, paused):
         self.loads.append((source, position, paused))
@@ -60,7 +72,7 @@ class FakeAudio(QObject):
         self.updated.emit({"time-pos": value})
 
     def stop(self):
-        pass
+        self.stops += 1
 
     def close(self):
         pass
@@ -1010,4 +1022,39 @@ def test_replay_plays_an_earlier_song_and_keeps_the_rest_of_the_queue(tmp_path):
     assert [entry["track"]["videoId"] for entry in player.queue.remaining] == ["two", "three"]
     player.next()
     assert player.currentTrack["videoId"] == "two"
+    player.close()
 
+
+
+def test_expired_session_waits_for_renewal_and_resumes_the_same_song(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    asked = []
+    player.reconnectNeeded.connect(asked.append)
+    player.playTracks(TRACKS)
+    worker.failed.emit(len(worker.requests), {"code": "SessionExpired", "message": "Your session needs reconnecting."})
+    app.processEvents()
+    # No skip through a queue that would fail the same way.
+    assert asked == ["Your session needs reconnecting."] and player.currentTrack == TRACKS[0]
+    count = len(worker.requests)
+    player.resetSession()
+    app.processEvents()
+    assert len(worker.requests) == count + 1 and worker.requests[-1][1]["videoId"] == TRACKS[0]["videoId"]
+    worker.succeeded.emit(len(worker.requests), {"kind": "remote", "source": "https://media.invalid/first", "videoId": TRACKS[0]["videoId"]})
+    assert player.playing
+    player.close()
+
+
+def test_pausing_while_the_session_renews_keeps_playback_paused(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=FakeAudio)
+    player.playTracks(TRACKS)
+    worker.failed.emit(len(worker.requests), {"code": "SessionExpired", "message": "Reconnect."})
+    player.pause()
+    count = len(worker.requests)
+    player.resetSession()
+    app.processEvents()
+    assert len(worker.requests) == count and not player.playing
+    player.close()

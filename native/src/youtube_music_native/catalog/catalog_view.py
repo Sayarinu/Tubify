@@ -8,15 +8,18 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Property, Signal, Slot
 
 from .library import SECTIONS
+from .page_model import PageModel
 from ..util import needs_reconnect
 
-SORT_KEYS = ("title", "artist", "album", "duration")
+SORT_KEYS = ("number", "title", "artist", "album", "duration")
 SORTABLE_ROUTES = {"album", "playlist"}
 # The provider ignores `order` for these library sections, so it is applied here.
 CLIENT_ORDER_ROUTES = {"library_playlists", "library_liked"}
-ORDER_SORTS = {"a_to_z": ("title", False), "z_to_a": ("title", True)}
-# Library sections are kept in memory so revisits render instantly, then revalidate.
-MEMORY_ROUTES = set(SECTIONS.values()) | {"history"}
+# Song lists number their rows, so these orders apply to every section offering them.
+NUMBER_ORDERS = {"number_ascending": ("number", False), "number_descending": ("number", True)}
+ORDER_SORTS = {"a_to_z": ("title", False), "z_to_a": ("title", True), **NUMBER_ORDERS}
+# Library sections and the landing pages are kept in memory so revisits render instantly, then revalidate.
+MEMORY_ROUTES = set(SECTIONS.values()) | {"history", "home", "explore"}
 MEMORY_TTL = 300
 MEMORY_LIMIT = 48
 ALWAYS_REVALIDATE = {"history"}
@@ -31,6 +34,8 @@ def _without_positions(data):
 
 
 def sort_value(item, key):
+    if key == "number":
+        return (False, item.get("position", 0))
     if key == "duration":
         value = item.get("duration")
         return (not isinstance(value, (int, float)) or value <= 0, value if isinstance(value, (int, float)) else 0)
@@ -60,6 +65,7 @@ class CatalogView(QObject):
     changed = Signal()
     navigationStarted = Signal()
     revalidatingChanged = Signal()
+    scrollToTopRequested = Signal()
 
     def __init__(self, worker, cache_path, account, parent=None):
         super().__init__(parent)
@@ -73,6 +79,11 @@ class CatalogView(QObject):
         self._loading_all = False
         self._revalidating = False
         self._memory, self._request_key = OrderedDict(), None
+        self._fresh_route = None
+        self._items_model, self._shelves_model = PageModel(self), PageModel(self, snapshots=True)
+        self._model_revision, self._reset_models, self._rows_touched = 0, False, False
+        # Connected first, so the models are current before anything else hears of a change.
+        self.changed.connect(self._sync_models)
         settings = getattr(account, "settings", None)
         self._settings = settings
         try:
@@ -88,6 +99,22 @@ class CatalogView(QObject):
     @Property("QVariantMap", notify=changed)
     def data(self):
         return self._data
+
+    @Property(QObject, constant=True)
+    def itemsModel(self):
+        return self._items_model
+
+    @Property(QObject, constant=True)
+    def shelvesModel(self):
+        return self._shelves_model
+
+    @Slot()
+    def _sync_models(self):
+        # Another page or order starts afresh; anything else keeps the rows and the list's place.
+        reset = self._reset_models or self._revision != self._model_revision
+        touched, self._model_revision, self._reset_models, self._rows_touched = self._rows_touched, self._revision, False, False
+        self._items_model.sync(self._data.get("items") or [], reset, touched)
+        self._shelves_model.sync(self._data.get("shelves") or [], reset)
 
     @Property(bool, notify=changed)
     def busy(self):
@@ -118,14 +145,21 @@ class CatalogView(QObject):
     def sortDescending(self):
         return self._effective_sort()[1]
 
+    @Property(bool, notify=changed)
+    def reordered(self):
+        """The rows differ from the collection's own order."""
+        key, descending = self._effective_sort()
+        return key not in {"", "number"} or descending
+
     def _scope(self):
         return f"{self._route}:{self._params.get('id', '')}" if self._route in SORTABLE_ROUTES else None
 
     def _effective_sort(self):
-        if self._route in CLIENT_ORDER_ROUTES:
-            return ORDER_SORTS.get(self._params.get("order"), ("", False))
+        order = self._params.get("order")
+        if self._route in CLIENT_ORDER_ROUTES or order in NUMBER_ORDERS:
+            return ORDER_SORTS.get(order, ("", False))
         scope = self._scope()
-        return self._sorts.get(scope, ("", False)) if scope else ("", False)
+        return self._sorts.get(scope, ("number", False)) if scope else ("", False)
 
     @Slot(str)
     def sortBy(self, key):
@@ -133,7 +167,7 @@ class CatalogView(QObject):
         scope = self._scope()
         if not scope or key and key not in SORT_KEYS:
             return
-        current, descending = self._sorts.get(scope, ("", False))
+        current, descending = self._sorts.get(scope, ("number", False))
         if not key or key == current and descending:
             self._sorts.pop(scope, None)
         elif key == current:
@@ -142,6 +176,7 @@ class CatalogView(QObject):
             self._sorts[scope] = (key, False)
         self._save_sorts()
         self._apply_sort()
+        self._reset_models = True
         self.changed.emit()
 
     @Slot(str, bool)
@@ -149,12 +184,13 @@ class CatalogView(QObject):
         scope = self._scope()
         if not scope or key and key not in SORT_KEYS:
             return
-        if key:
+        if key and (key, bool(descending)) != ("number", False):
             self._sorts[scope] = (key, bool(descending))
         else:
             self._sorts.pop(scope, None)
         self._save_sorts()
         self._apply_sort()
+        self._reset_models = True
         self.changed.emit()
 
     def _save_sorts(self):
@@ -172,7 +208,7 @@ class CatalogView(QObject):
         items = self._data.get("items")
         if not isinstance(items, list):
             return
-        if key and self._data.get("cursor") is not None and self.worker:
+        if self.reordered and self._data.get("cursor") is not None and self.worker:
             # A sort must cover the whole collection, so fetch every remaining page first.
             if not self._loading_all:
                 self._loading_all = True
@@ -236,11 +272,12 @@ class CatalogView(QObject):
         self._route, self._params = route, dict(params)
         self._revision, self._scroll = self._revision + 1, None
         self._loading_all = False
+        fresh, self._fresh_route = self._fresh_route == route, None
         key = self._memory_key()
         entry = self._memory.get(key) if route in MEMORY_ROUTES and self.worker else None
         if entry is None:
             self._data = {}
-            self._send()
+            self._send(refresh=fresh)
             return
         self._memory.move_to_end(key)
         if self._request is not None:
@@ -275,18 +312,33 @@ class CatalogView(QObject):
         return {"route": self._route, "params": self._params, "data": self._data, "scroll": self._scroll}
 
     def patch(self, values):
+        """Publish edits, including those callers already made in place on the rows."""
         self._data.update(values)
+        self._rows_touched = True
         self.changed.emit()
+
+    def expectFresh(self, route):
+        """Have the next load of this route skip the caches, still showing remembered rows meanwhile."""
+        self._fresh_route = route
+        self.invalidate([route])
+
+    def refreshFromTop(self):
+        """Return to the top and reload the first page behind what is on screen."""
+        self._scroll = None
+        self.scrollToTopRequested.emit()
+        if not self._busy and not self._revalidating:
+            self._send(refresh=True, revalidate=True)
 
     @Slot()
     def refresh(self):
         count = max(len(self._data.get("items", [])), len(self._data.get("shelves", [])))
         self._revision += 1
+        self._model_revision = self._revision
         self._send(refresh=True, page_size=count or None)
 
     @Slot()
     def more(self):
-        if not self._busy and self._data.get("cursor") is not None:
+        if not self._busy and not self._revalidating and self._data.get("cursor") is not None:
             self._send(offset=self._data["cursor"])
 
     def _send(self, offset=0, refresh=False, page_size=None, revalidate=False):

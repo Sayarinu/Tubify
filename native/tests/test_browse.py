@@ -211,6 +211,37 @@ def test_library_title_order_is_applied_client_side_for_liked_songs(tmp_path):
     assert [item["title"] for item in view.data["items"]] == ["c", "b", "a"]
 
 
+def test_collections_sort_by_number_both_ways_and_remember_it(tmp_path):
+    from PySide6.QtCore import QSettings
+
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    account.settings = view._settings = QSettings(str(tmp_path / "account.ini"), QSettings.Format.IniFormat)
+    browse.open({"kind": "playlist", "id": "PLnumbers"})
+    worker.succeeded.emit(len(worker.requests), {"title": "Numbers", "items": [{"title": "a"}, {"title": "b"}, {"title": "c"}], "cursor": 3})
+    positions = lambda: [item["position"] for item in view.data["items"]]
+    assert view.sortKey == "number" and not view.sortDescending and not view.reordered
+    requests = len(worker.requests)
+    # Ascending is the collection's own order, so it keeps paging as you scroll.
+    view.setSort("number", False)
+    assert positions() == [0, 1, 2] and len(worker.requests) == requests and not view.reordered
+    # Descending needs the last song first, so it fetches the rest before sorting.
+    view.sortBy("number")
+    assert view.sortDescending and view.reordered and worker.requests[-1][1]["page_size"] == 100000
+    worker.succeeded.emit(len(worker.requests), {"items": [{"title": "d"}], "cursor": None})
+    assert positions() == [3, 2, 1, 0]
+    restored = type(view)(worker, tmp_path / "other.sqlite", account)
+    restored.showLocal("playlist", {"items": [{"title": "a"}, {"title": "b"}]}, {"id": "PLnumbers"})
+    assert restored.sortKey == "number" and restored.sortDescending
+    assert [item["title"] for item in restored.data["items"]] == ["b", "a"]
+    # Moves stay disabled, and the view plays as shown, until it is back in its own order.
+    view.sortBy("number")
+    assert positions() == [0, 1, 2, 3] and view.sortKey == "number" and not view.sortDescending and not view.reordered
+    view.setSort("title", True)
+    assert view.reordered
+    view.setSort("number", False)
+    assert positions() == [0, 1, 2, 3] and view._scope() not in view._sorts
+
+
 def test_selecting_the_tab_already_shown_is_a_no_op_only_at_its_root(tmp_path):
     app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
     browse.shell.navigate("Explore")
@@ -226,6 +257,82 @@ def test_selecting_the_tab_already_shown_is_a_no_op_only_at_its_root(tmp_path):
     browse.shell.navigate("Home")
     worker.failed.emit(len(worker.requests), {"message": "offline"})
     assert view.error and not browse.atTabRoot("Home")  # An error can be retried by selecting the tab.
+
+
+def test_selecting_home_or_explore_shows_fresh_data_and_startup_does_not(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    shelves = [{"title": "One", "items": []}]
+    # Reaching a page some other way, such as at startup, may use saved data.
+    browse.shell.navigate("Home")
+    assert worker.requests[-1][1]["route"] == "home" and not worker.requests[-1][1]["refresh"]
+    worker.succeeded.emit(len(worker.requests), {"title": "Home", "items": [], "shelves": shelves, "cursor": 6})
+    # Selecting another tab has nothing saved to show, so it loads fresh while busy.
+    browse.selectTab("Explore")
+    assert browse.shell.page == "Explore" and worker.requests[-1][1]["route"] == "explore" and worker.requests[-1][1]["refresh"]
+    assert view.busy and not view.data
+    worker.succeeded.emit(len(worker.requests), {"title": "Explore", "items": [{"title": "a"}], "shelves": [], "cursor": None})
+    # Back on Home, what was there shows at once and refreshes behind it.
+    browse.selectTab("Home")
+    assert view.route == "home" and view.data["shelves"] == shelves and not view.busy and view.revalidating
+    assert worker.requests[-1][1]["route"] == "home" and worker.requests[-1][1]["refresh"]
+    assert worker.requests[-1][1]["page_size"] == 1
+    fresh = [{"title": "Fresh", "items": []}]
+    worker.succeeded.emit(len(worker.requests), {"title": "Home", "items": [], "shelves": fresh, "cursor": None})
+    assert view.data["shelves"] == fresh and not view.revalidating
+    # Saved rows do not count as fresh for a later ordinary visit.
+    browse.shell.navigate("Explore")
+    assert not view.busy and worker.requests[-1][1]["route"] == "home"
+
+
+def test_selecting_the_current_landing_tab_goes_to_the_top_and_refreshes(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    tops = []
+    view.scrollToTopRequested.connect(lambda: tops.append(True))
+    browse.shell.navigate("Home")
+    worker_requests = len(worker.requests)
+    # Selecting it while it first loads asks for nothing more.
+    browse.selectTab("Home")
+    assert len(worker.requests) == worker_requests
+    tops.clear()
+    worker.succeeded.emit(len(worker.requests), {"title": "Home", "items": [], "shelves": [{"title": "One", "items": []}], "cursor": 6})
+    view.saveScroll(500.)
+    revision = view.revision
+    browse.selectTab("Home")
+    assert tops == [True] and view.scrollPosition == 0. and not view.hasScrollPosition
+    # The page stays on screen, at its first results, keeping the same revision and so its place.
+    request = worker.requests[-1][1]
+    assert request["refresh"] and request["offset"] == 0 and request["page_size"] is None
+    assert view.revalidating and not view.busy and view.data["shelves"] and view.revision == revision
+    # Selecting it again during that refresh returns to the top without a second request.
+    requests = len(worker.requests)
+    browse.selectTab("Home")
+    assert len(tops) == 2 and len(worker.requests) == requests
+    worker.succeeded.emit(requests, {"title": "Home", "items": [], "shelves": [{"title": "Fresh", "items": []}], "cursor": 6})
+    assert view.data["shelves"][0]["title"] == "Fresh" and not view.revalidating
+    # A failed refresh keeps what is on screen.
+    browse.selectTab("Home")
+    worker.failed.emit(len(worker.requests), {"message": "offline"})
+    assert view.data["shelves"][0]["title"] == "Fresh" and not view.error and not view.revalidating
+    # An error page has nothing to refresh behind, so selecting the tab reloads it.
+    browse.shell.navigate("Explore")
+    worker.failed.emit(len(worker.requests), {"message": "offline"})
+    assert view.error
+    requests = len(worker.requests)
+    browse.selectTab("Explore")
+    assert len(worker.requests) == requests + 1 and worker.requests[-1][1]["refresh"] and view.busy
+
+
+def test_selecting_library_or_downloads_keeps_their_own_updates(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    browse.selectTab("Downloads")
+    assert browse.shell.page == "Downloads" and view.route == "downloads"
+    requests = len(worker.requests)
+    tops = []
+    view.scrollToTopRequested.connect(lambda: tops.append(True))
+    browse.selectTab("Downloads")
+    browse.selectTab("Library")
+    assert browse.shell.page == "Library" and not tops
+    assert all(not payload.get("refresh") for _, payload in worker.requests[requests:])
 
 
 def test_artist_top_songs_show_all_opens_the_songs_playlist_and_albums_keep_their_route(tmp_path):

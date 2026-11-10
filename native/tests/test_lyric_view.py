@@ -58,8 +58,8 @@ def test_provider_preferences_persist_and_stale_lookup_cannot_replace_current_op
     player, worker = Player(), FakeWorker()
     view = LyricView(Account(), player, tmp_path, worker)
     view.setActive(True)
-    assert not worker.requests[-1][1]["options"]["external"]
-    view.setOption("external", True)
+    assert worker.requests[-1][1]["options"]["external"]
+    view.setOption("external", False)
     assert worker.cancelled == [1] and len(worker.requests) == 2
     worker.succeeded.emit(1, {"videoId": "abcdefghijk", "available": True, "timed": False, "lines": [{"text": "Stale", "start": -1., "end": -1.}]})
     assert not view.data and view.busy
@@ -77,7 +77,7 @@ def test_provider_preferences_persist_and_stale_lookup_cannot_replace_current_op
     assert opened == [True]
     view.close()
     restored = LyricView(Account(), Player(), tmp_path, FakeWorker())
-    assert restored.options["external"] and restored.options["timestamps"] and restored.options["style"] == "word"
+    assert not restored.options["external"] and restored.options["timestamps"] and restored.options["style"] == "word"
     assert [row["id"] for row in restored.providers] == ["better", "lrclib", "unison"]
     assert not restored.providers[-1]["enabled"]
     restored.close()

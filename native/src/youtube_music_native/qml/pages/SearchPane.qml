@@ -9,7 +9,8 @@ Item {
     // Next to an open panel, the panel's own gap replaces the right gutter.
     readonly property real rightGutter: appState.panel ? 0 : gutter
     // Do not incubate delegates for another route while the page is being replaced.
-    property var result: (catalogState.route === "search") ? catalogState.data : ({})
+    readonly property bool current: catalogState.route === "search"
+    property var result: current ? catalogState.data : ({})
     // "All" shows a grouped overview; a specific filter shows the full paged list.
     readonly property bool overview: !!root.result.groups && searchState.selectedFilter === "All"
     readonly property var groups: root.result.groups || ({})
@@ -24,13 +25,15 @@ Item {
         }
         return rows
     }
+    property AutoPager pager: AutoPager { view: results; active: root.current && !root.overview; cursor: root.result.cursor }
     ListView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
         id: results
+        objectName: "searchResults"
         WheelScroll { view: results; onScrolled: catalogState.saveScroll(view.contentY) }
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
-        topMargin: 32; bottomMargin: 48; clip: true; model: root.overview ? root.sections : (root.result.items || [])
+        topMargin: 32; bottomMargin: 48; clip: true; model: root.overview ? root.sections : root.current ? catalogState.itemsModel : null
         ScrollBar.vertical: ScrollBar {}
         header: Column {
             width: results.width; spacing: 30; bottomPadding: 24
@@ -105,12 +108,10 @@ Item {
             }
         }
         onContentYChanged: if (moving) catalogState.saveScroll(contentY)
-        onAtYEndChanged: if (atYEnd && !root.overview && root.result.cursor !== undefined && root.result.cursor !== null && !catalogState.busy) catalogState.more()
         footer: Column {
             width: results.width
             // Unfiltered results open as a top result and shelves; filtered results are rows.
             LoadingSkeleton { width: parent.width; view: results; mode: searchState.selectedFilter === "All" ? "shelves" : "rows"; shelfSpacing: 40 }
-            Item { width: parent.width; height: visible ? 72 : 0; visible: !root.overview && root.result.cursor !== undefined && root.result.cursor !== null; ThemeActionButton { anchors.centerIn: parent; text: "Load More"; enabled: !catalogState.busy; onClicked: catalogState.more() } }
         }
     }
     Column {

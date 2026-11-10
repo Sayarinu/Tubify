@@ -110,7 +110,7 @@ Want new features early? Set **Update Channel** to **Experimental** in the same 
 No. Tubify works with any Google account that can use YouTube Music.
 
 **Is my account safe?**
-Tubify reuses your browser's existing sign-in and keeps the session in your system's secure storage: Windows Credential Manager, the macOS Keychain or your Linux keyring. Your music data goes only to YouTube, and to Discord, Last.fm or lyrics services if you turn those on. Diagnostics are saved locally and never uploaded.
+Tubify reuses your browser's existing sign-in and keeps the session in your system's secure storage: Windows Credential Manager, the macOS Keychain or your Linux keyring. Your music data goes to YouTube. To find synced lyrics, the title, artist, album, duration and video ID of songs whose lyrics you open also go to LRCLIB, Unison and Better Lyrics by default; you can turn this off in Settings. Discord and Last.fm receive music data only if you turn them on. Diagnostics are saved locally and never uploaded.
 
 **Something doesn't look right. What can I do?**
 Settings → Troubleshooting can save a privacy-safe diagnostics report. Please include it when you [open an issue](https://github.com/Sayarinu/Tubify/issues).

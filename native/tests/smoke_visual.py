@@ -210,10 +210,13 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     saved_width = shell.panelWidth
     shell.setPanelWidth(280)
     downloads._track_states = {fixture["videoId"]: "ready"}
-    downloads.changed.emit()
+    downloads._states_changed()
     settle()
     download = item("queueRowDownload-" + player.queue.current["key"])
     assert download.isVisible() and download.property("status") == "ready"
+    # A downloaded song's check is disabled but keeps the theme accent, like downloaded albums and playlists.
+    symbol = next(child for child in visual_items(download) if child.metaObject().className().startswith("Symbol"))
+    assert not download.property("enabled") and symbol.property("color").name() == download.property("iconColor").name()
     metadata = item("queueRowMetadata-" + player.queue.current["key"])
     assert metadata.width() >= 100
     # Rows hold two lines, so a song with an album cannot overlap the row below it.
@@ -221,11 +224,11 @@ def check_queue(window, shell, player, browse, downloads, output_dir, exercise):
     assert metadata.x() + metadata.width() <= download.x()
     save("queue-narrow-downloaded")
     downloads._track_states = {fixture["videoId"]: "downloading"}
-    downloads.changed.emit()
+    downloads._states_changed()
     settle()
     assert download.isVisible() and download.property("status") == "downloading"
     downloads._track_states = saved_download_states
-    downloads.changed.emit()
+    downloads._states_changed()
     shell.setPanelWidth(saved_width)
     settle()
     save("queue-source-only")
@@ -384,7 +387,7 @@ def main():
                 assert abs(elapsed.x() - seek.x() - seek.property("leftPadding")) < 0.1
                 assert abs(duration.x() + duration.width() - seek.x() - seek.width() + seek.property("rightPadding")) < 0.1
                 assert transport.y() + transport.height() <= seek.y()
-                assert content.y() + content.height() + 12 == player_bar.y()
+                assert content.y() + content.height() == player_bar.y()
                 for label in ("Home", "Explore", "Library", "Downloads"):
                     button = next(item for item in visual_items(window.contentItem()) if item.objectName() == "navigationButton-" + label)
                     background = button.findChild(QObject, "navigationBackground-" + label)
@@ -500,8 +503,8 @@ def main():
                     assert dark_grid and light_grid and color_grid and add_theme
                     assert not window.findChild(QObject, "homeBackdrop")  # Home shares the plain page background.
                     assert rename_button and delete_button and export_button
-                    assert dark_grid.property("count") == 9
-                    assert light_grid.property("count") == 3
+                    assert dark_grid.property("count") == 10
+                    assert light_grid.property("count") == 4
                     assert color_grid.property("count") == len(DEFAULT_COLORS)
                     assert not rename_button.property("enabled")
                     assert not delete_button.property("enabled")
@@ -605,6 +608,39 @@ def main():
                         QTest.qWait(20)
                         assert library_button.property("hovered") and not library_button.property("selected"), (size, hover_point, library_button.property("hovered"), library_button.property("selected"), shell.page)
                         assert home.property("selected") and view.route == "home"
+                        if size[0] == 1600:
+                            # Listen again mixes songs and playlists: songs as rows, playlists as cards below them.
+                            sections = window.findChild(QObject, "browseSections")
+                            again = next(item for item in visual_items(window.contentItem()) if item.objectName() == "shelf" and item.property("section").get("title") == "Listen again")
+                            assert again.property("mixed") and again.property("rowMode")
+                            sections.setProperty("contentY", again.y() - 24)
+                            QTest.qWait(80)
+                            assert any(item.metaObject().className().startswith("SongRow") for item in visual_items(again))
+                            assert any(item.metaObject().className().startswith("MediaCard") and fully_visible(item) for item in visual_items(again))
+                            if args.output_dir:
+                                args.output_dir.mkdir(parents=True, exist_ok=True)
+                                assert window.grabWindow().save(str(args.output_dir / "home-mixed-shelf.png"))
+                            # Keyboard focus rings a card; a click on its artwork opens the playlist without a ring.
+                            card = next(item for item in visual_items(again) if item.metaObject().className().startswith("MediaCard") and fully_visible(item))
+                            card.forceActiveFocus(Qt.FocusReason.TabFocusReason)
+                            QTest.qWait(20)
+                            assert card.property("keyboardFocus")
+                            home.forceActiveFocus()
+                            QTest.qWait(20)
+                            artwork = card.mapToScene(QPointF(card.width() * 0.25, card.width() * 0.5)).toPoint()
+                            QTest.mousePress(window, Qt.MouseButton.LeftButton, pos=artwork)
+                            QTest.qWait(20)
+                            # Pressing a card does not focus it, so a click never draws the ring.
+                            assert not card.property("activeFocus")
+                            QTest.mouseRelease(window, Qt.MouseButton.LeftButton, pos=artwork)
+                            QTest.qWait(80)
+                            assert view.route == "playlist", view.route
+                            shell.navigate("Home")
+                            QTest.qWait(80)
+                            sections = window.findChild(QObject, "browseSections")
+                            sections.setProperty("contentY", sections.property("originY") - sections.property("topMargin"))
+                            QTest.mouseMove(window, hover_point, delay=20)
+                            QTest.qWait(30)
                         assert library_background.property("color").name().upper() == theme_state.hover
                         # Immersive return may already have restored mouse focus to Library.
                         home.forceActiveFocus()
@@ -668,7 +704,7 @@ def main():
                                 controls = {child.objectName(): child for child in visual_items(shelf) if child.objectName() in {"shelfPrevious", "shelfNext", "shelfPrimaryAction"}}
                                 overflowing = shelf.property("overflowing")
                                 assert controls["shelfNext"].isVisible() == overflowing and controls["shelfPrevious"].isVisible() == overflowing
-                                assert controls["shelfPrimaryAction"].isVisible() == (overflowing or shelf.property("compact"))
+                                assert controls["shelfPrimaryAction"].isVisible() == (overflowing or shelf.property("rowMode"))
                             if name == "queueSidebar":
                                 check_queue(window, shell, player, browse, downloads, args.output_dir, not state["queue_drag_checked"])
                                 state["queue_drag_checked"] = True
@@ -704,14 +740,14 @@ def main():
                     assert toggle.isVisible() and toggle.property("text") == "Less"
                     assert not window.findChild(QObject, "collectionDescription").property("truncated")
                     downloads._initialized = False
-                    downloads.changed.emit()
+                    downloads.changed.emit(); downloads._artwork_changed()
                     view.patch({"thumbnail": "file:///unavailable-synthetic-art.png"})
                     QTest.qWait(30)
                     backdrop = window.findChild(QObject, "backdropImage")
                     assert backdrop.property("source").isEmpty()
                     downloads._artwork["playlist:PLfixture"] = uri
                     downloads._initialized = True
-                    downloads.changed.emit()
+                    downloads.changed.emit(); downloads._artwork_changed()
                     QTest.qWait(80)
                     assert backdrop.property("source").toString() == uri
                     view._error = "The provider is unavailable. Downloaded music remains available. " * 3

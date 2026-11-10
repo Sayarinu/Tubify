@@ -46,6 +46,12 @@ PRESETS = [
      "colors": CLASSIC_LIGHT_COLORS},
     {"id": "youtube-music-purple", "name": "Midnight Violet", "light": False,
      "colors": MIDNIGHT_VIOLET_COLORS},
+    # Spotify-inspired: near-black with neutral greys and a bright green accent carrying black text.
+    {"id": "mint", "name": "Mint", "light": False,
+     "colors": _palette("#121212", "#1F1F1F", "#2A2A2A", "#FFFFFF", "#B3B3B3", "#333333", "#1ED760", "#3BE477", "#000000", "#2A2A2A", "#727272", "#F3727F")},
+    # White with a deeper green, dark enough to read as text on white and on its surfaces.
+    {"id": "mint-light", "name": "Mint Light", "light": True,
+     "colors": _palette("#FFFFFF", "#F3F7F4", "#E6EFE8", "#0B1F12", "#52625A", "#D5E2D9", "#127A37", "#0E6A2F", "#FFFFFF", "#E1F2E6", "#8E9A93", "#C5221F")},
     {"id": "catppuccin-mocha", "name": "Catppuccin Mocha", "light": False,
      "colors": _palette("#1e1e2e", "#313244", "#45475a", "#cdd6f4", "#a6adc8", "#585b70", "#cba6f7", "#d7bafa", "#1e1e2e", "#45405a", "#7f849c", "#F38BA8")},
     {"id": "dracula", "name": "Dracula", "light": False,

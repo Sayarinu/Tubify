@@ -1,6 +1,14 @@
 from types import SimpleNamespace
 
 from youtube_music_native.lyrics.lyric_data import Lyrics, normalize
+from youtube_music_native.lyrics.lyric_providers import ProviderUnavailable
+
+
+def no_match(*args):
+    raise ProviderUnavailable("No matching fixture lyrics.")
+
+
+NO_PROVIDERS = SimpleNamespace(fetch=no_match)
 
 
 def test_lyrics_normalize_plain_timed_missing_and_invalid_timing():
@@ -19,12 +27,12 @@ def test_fetched_lyrics_reopen_offline_without_accessing_authentication(tmp_path
         get_watch_playlist=lambda **kwargs: {"lyrics": "MPLYfixture"},
         get_lyrics=lambda identifier, timestamps: (calls.append(timestamps) or {"lyrics": "Original fixture line", "source": "Fixture"}),
     )
-    provider = Lyrics(SimpleNamespace(catalog=lambda: client), tmp_path)
+    provider = Lyrics(SimpleNamespace(catalog=lambda: client), tmp_path, providers=NO_PROVIDERS)
     assert provider.fetch("abcdefghijk")["available"] and calls == [True]
     provider.close()
     def forbidden():
         raise AssertionError("Offline lyrics must not access credentials or HTTP")
-    restarted = Lyrics(SimpleNamespace(catalog=forbidden), tmp_path)
+    restarted = Lyrics(SimpleNamespace(catalog=forbidden), tmp_path, providers=NO_PROVIDERS)
     result = restarted.fetch("abcdefghijk")
     assert result["cached"] and result["lines"][0]["text"] == "Original fixture line"
     restarted.close()
@@ -32,11 +40,12 @@ def test_fetched_lyrics_reopen_offline_without_accessing_authentication(tmp_path
 
 def test_missing_lyrics_are_cached_and_damaged_json_can_be_refetched(tmp_path):
     client = SimpleNamespace(get_watch_playlist=lambda **kwargs: {})
-    provider = Lyrics(SimpleNamespace(catalog=lambda: client), tmp_path)
+    provider = Lyrics(SimpleNamespace(catalog=lambda: client), tmp_path, providers=NO_PROVIDERS)
     assert not provider.fetch("abcdefghijk")["available"]
     client.get_watch_playlist = lambda **kwargs: (_ for _ in ()).throw(AssertionError("Must reuse cached absence"))
     assert provider.fetch("abcdefghijk")["cached"]
     provider.db.execute("UPDATE lyrics SET body='bad json'")
+    provider.db.execute("UPDATE lyric_variants SET body='bad json'")
     provider.db.commit()
     client.get_watch_playlist = lambda **kwargs: {}
     assert not provider.fetch("abcdefghijk")["cached"]
@@ -51,6 +60,6 @@ def test_unavailable_mobile_lyrics_fall_back_to_plain_desktop_lyrics(tmp_path):
             raise RuntimeError("Unsupported mobile client")
         return {"lyrics": "Original fixture line", "source": "Fixture"}
     client = SimpleNamespace(get_watch_playlist=lambda **kwargs: {"lyrics": "MPLYfixture"}, get_lyrics=fetch)
-    provider = Lyrics(SimpleNamespace(catalog=lambda: client), tmp_path)
+    provider = Lyrics(SimpleNamespace(catalog=lambda: client), tmp_path, providers=NO_PROVIDERS)
     assert provider.fetch("abcdefghijk")["available"] and calls == [True, False]
     provider.close()

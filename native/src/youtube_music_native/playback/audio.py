@@ -24,19 +24,23 @@ class Audio(QObject):
     optionsChanged = Signal(dict)
     fileLoaded = Signal()
     fileEnded = Signal()
+    videoAttached = Signal(int, bool)
+    videoFirstFrame = Signal()
 
     def __init__(self, parent=None, output=None):
         super().__init__(parent)
         locale.setlocale(locale.LC_NUMERIC, "C")
         import mpv
 
-        options = dict(vid="no", vo="null", ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True, audio_client_name="Tubify", hwdec="no", **NETWORK_OPTIONS)
+        # mc lets a video added to playing audio reach it within a second; mpv's default takes several.
+        options = dict(vid="no", vo="null", mc=1, ytdl=False, load_scripts=False, config=False, terminal=False, msg_level="all=no", idle=True, audio_client_name="Tubify", hwdec="no", **NETWORK_OPTIONS)
         if output:
             options["ao"] = output
         self.player = mpv.MPV(**options)
         # Video uses mpv's software renderer, created on first use so audio-only
         # playback keeps the plain null video output.
         self.frames, self.videoCapable = None, hasattr(mpv, "MpvRenderContext")
+        self._video_token = 0
         self._speaker_fill = SpeakerFill(self.player)
         self._fill_requested, self._ready = False, False
         self.outputChanged.connect(self._refresh_options)
@@ -93,21 +97,45 @@ class Audio(QObject):
         self.player.pause = paused
         self.player.loadfile(source["source"], start=str(max(0, position)))
 
-    def setVideo(self, enabled):
-        """Turn video on or off; returns False when this libmpv cannot render video."""
-        if enabled and self.frames is None and self.videoCapable:
+    def _ensure_renderer(self):
+        if self.frames is None and self.videoCapable:
             try:
                 from .video import VideoFrames
 
                 self.frames = VideoFrames(self.player, self)
+                self.frames.firstFrame.connect(self.videoFirstFrame)
                 self.player.vo = "libmpv"
             except Exception:
                 self.frames, self.videoCapable = None, False
-        enabled = bool(enabled) and self.frames is not None
-        self.player.vid = "auto" if enabled else "no"
-        if not enabled and self.frames is not None:
+        return self.frames is not None
+
+    def setVideo(self, enabled):
+        """Show or hide the attached video track; the audio plays on either way.
+
+        Returns False when this libmpv cannot render video.
+        """
+        enabled = bool(enabled) and self._ensure_renderer()
+        if enabled:
+            self.frames.start()
+        elif self.frames is not None:
             self.frames.clear()
+        self.player.vid = "auto" if enabled else "no"
         return enabled
+
+    def attachVideo(self, source):
+        """Add a video stream to what is playing and show it; the audio plays on.
+
+        Opening the stream can take seconds, so videoAttached reports the outcome with
+        the token returned here. Returns 0 when this libmpv cannot render video.
+        """
+        if not self._ensure_renderer():
+            return 0
+        self.frames.start()
+        self._video_token += 1
+        token = self._video_token
+        self.player.http_header_fields = source.get("headers", [])
+        self.player.command_async("video-add", source["source"], "select", callback=lambda error, result: self.videoAttached.emit(token, error is None))
+        return token
 
     def pause(self, value):
         self.player.pause = bool(value)

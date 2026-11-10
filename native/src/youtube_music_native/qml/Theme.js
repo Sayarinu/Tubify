@@ -2,7 +2,7 @@
 
 // The app font (Roboto, 14 px) is set once in app.py; components inherit it.
 var cardWidth = 208
-var cardHeight = 284
+var cardHeight = 260
 function gutter(width) { return width > 1200 ? 40 : 24 }
 function timeLabel(value) {
     var seconds = Math.max(0, Math.floor(value || 0))

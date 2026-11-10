@@ -119,19 +119,44 @@ def shelves(rows):
 # Known shelves render first in a fixed order with a fixed layout, so Home looks the
 # same between visits even though YouTube Music reorders its personalized response.
 PINNED_SHELVES = ("quick picks", "listen again", "mixed for you", "forgotten favorites", "from your library", "new releases")
-SHELF_LAYOUTS = {"quick picks": "rows", "listen again": "cards", "mixed for you": "cards"}
+SHELF_LAYOUTS = {"quick picks": "rows"}
 HOME_SHELVES = 30
 HOME_TTL = 6 * 60 * 60
 # Routes whose content does not depend on likes, playlist edits or listening history.
 STABLE_ROUTES = ("home", "explore", "charts", "moods", "mood")
 
 
+def fill_album_artists(client, sections):
+    """Give songs with no artist their album's artists.
+
+    ytmusicapi drops an artist without a channel link when only a play count follows
+    it, mistaking it for a "Song" label. Each album is looked up once.
+    """
+    songs = [media for section in sections for media in section["items"]
+             if media["kind"] == "song" and not media["artists"] and media["album"]["id"]]
+    found = {}
+    for media in songs:
+        album = media["album"]["id"]
+        if album not in found:
+            try:
+                raw = client.get_album(album) or {}
+            except Exception:
+                raw = {}
+            found[album] = [{"name": text(a.get("name")), "id": text(a.get("id") or a.get("browseId"))}
+                            for a in raw.get("artists") or [] if isinstance(a, dict) and text(a.get("name"))]
+        if found[album]:
+            media["artists"] = found[album]
+            media["artist"] = " • ".join(a["name"] for a in found[album])
+    return sections
+
+
 def shelf_layout(section):
     known = SHELF_LAYOUTS.get(section["title"].strip().casefold())
     if known:
         return known
-    kinds = {media.get("kind") for media in section["items"]}
-    return "rows" if kinds == {"song"} else "cards"
+    # Songs show as rows and collections as cards; a shelf with both shows each its own way.
+    songs = [(media.get("kind") or "song") == "song" for media in section["items"]]
+    return "rows" if all(songs) else "mixed" if any(songs) else "cards"
 
 
 def arrange_home(sections):
@@ -259,10 +284,10 @@ class Catalog:
         return data
 
     def _home(self, client, route, params, limit, data):
-        # Fetch every shelf once; "More Music" pages through this same response
+        # Fetch every shelf once; scrolling pages through this same response
         # instead of splicing a newer, differently ordered one onto it.
         limit = max(limit, HOME_SHELVES)
-        data["shelves"] = arrange_home(shelves(client.get_home(limit=limit)))
+        data["shelves"] = arrange_home(fill_album_artists(client, shelves(client.get_home(limit=limit))))
         data["complete"] = True
         for section in data["shelves"]:
             if section["title"].lower() == "listen again":

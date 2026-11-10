@@ -136,3 +136,60 @@ def test_routes_outside_the_library_are_not_remembered(tmp_path):
     worker.succeeded.emit(1, {"items": songs("a"), "cursor": None})
     view.load("search", {"query": "x"})
     assert len(worker.requests) == 2 and view.busy
+
+
+def model_rows(model):
+    from youtube_music_native.catalog.page_model import PageModel
+
+    return [model.index(row).data(PageModel.ROW) for row in range(model.rowCount())]
+
+
+def test_models_grow_in_place_and_start_afresh_only_for_a_new_page_or_order(tmp_path):
+    worker, account, view = memory_view(tmp_path)
+    resets, inserts = [], []
+    view.itemsModel.modelReset.connect(lambda: resets.append(True))
+    view.itemsModel.rowsInserted.connect(lambda parent, first, last: inserts.append((first, last)))
+    view.load("playlist", {"id": "PL"})
+    worker.succeeded.emit(1, {"title": "P", "items": songs("a", "b"), "cursor": 2})
+    assert [row["videoId"] for row in model_rows(view.itemsModel)] == ["a", "b"] and model_rows(view.itemsModel)[1]["position"] == 1
+    resets.clear(), inserts.clear()
+    view.more()
+    worker.succeeded.emit(2, {"title": "P", "items": songs("c"), "cursor": None})
+    assert not resets and inserts == [(2, 2)] and model_rows(view.itemsModel)[2]["position"] == 2
+    view.refresh()
+    worker.succeeded.emit(3, {"title": "P", "items": songs("a", "b", "c"), "cursor": None})
+    assert not resets
+    view.setSort("title", True)
+    assert resets
+    resets.clear()
+    view.load("playlist", {"id": "other"})
+    assert resets and not model_rows(view.itemsModel)
+
+
+def test_patched_rows_refresh_without_a_reset(tmp_path):
+    worker, account, view = memory_view(tmp_path)
+    resets, changes = [], []
+    view.load("home", {})
+    worker.succeeded.emit(1, {"title": "Home", "items": songs("a"), "shelves": [{"title": "One", "items": songs("b")}, {"title": "Two", "items": songs("c")}], "cursor": None})
+    view.itemsModel.modelReset.connect(lambda: resets.append(True))
+    view.shelvesModel.modelReset.connect(lambda: resets.append(True))
+    view.itemsModel.dataChanged.connect(lambda first, last, roles: changes.append("items"))
+    view.shelvesModel.dataChanged.connect(lambda first, last, roles: changes.append(first.row()))
+    view.data["items"][0]["title"] = "A"
+    view.data["shelves"][1]["items"][0]["title"] = "C"
+    view.patch({})
+    assert not resets and changes == ["items", 1]
+    assert model_rows(view.itemsModel)[0]["title"] == "A" and model_rows(view.shelvesModel)[1]["items"][0]["title"] == "C"
+
+
+def test_more_waits_for_a_background_refresh_it_would_cancel(tmp_path):
+    worker, account, view = memory_view(tmp_path)
+    view.load("library_songs", {"order": "recently_added"})
+    worker.succeeded.emit(1, {"title": "Songs", "items": songs("a"), "cursor": 1})
+    view.load("library_albums", {"order": "recently_added"})
+    view.invalidate(["library_songs"])
+    view.load("library_songs", {"order": "recently_added"})
+    assert view.revalidating
+    requests = len(worker.requests)
+    view.more()
+    assert len(worker.requests) == requests

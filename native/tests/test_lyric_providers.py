@@ -6,8 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 from youtube_music_native.lyrics import lyric_formats as formats
-from youtube_music_native.lyrics.lyric_data import Lyrics, valid_cached
-from youtube_music_native.lyrics.lyric_options import clean_options
+from youtube_music_native.lyrics.lyric_data import Lyrics, LyricsError, timing_rank, valid_cached
+from youtube_music_native.lyrics.lyric_options import clean_options, VERSION
 from youtube_music_native.lyrics.lyric_providers import Providers, ProviderUnavailable, provider_key
 
 VIDEO = "abcdefghijk"
@@ -36,7 +36,7 @@ def get_for(body, status=200):
 
 
 def document(provider="lrclib", timed=True):
-    return {**(formats.lrc("[00:01.25]Original fixture\n[00:05.00]Second fixture", 20) if timed else formats.plain("Original plain fixture")), "videoId": VIDEO, "source": provider, "provider": provider}
+    return {**(formats.lrc("[00:01.25]Original fixture\n[00:05.00]Second fixture\n[00:18.00]Third fixture", 20) if timed else formats.plain("Original plain fixture")), "videoId": VIDEO, "source": provider, "provider": provider}
 
 
 def native_client(timed=False):
@@ -104,13 +104,72 @@ def test_document_size_and_cache_word_bounds_are_checked():
     assert not valid_cached(value, VIDEO)
 
 
-def test_provider_defaults_are_private_and_option_order_is_sanitized():
+def test_provider_defaults_and_option_order_is_sanitized():
     options = clean_options({})
-    assert not any(options[key] for key in ("external", "captions", "approximate", "timestamps", "autoOpen"))
+    assert options["external"] and options["approximate"]
+    assert not any(options[key] for key in ("captions", "timestamps", "autoOpen"))
     assert options["style"] == "line"
     assert [row["id"] for row in options["providers"]] == ["lrclib", "unison", "better"]
-    configured = clean_options({"providers": [{"id": "better", "enabled": False}, {"id": "better", "enabled": True}, {"id": "untrusted", "enabled": True}], "external": "yes"})
-    assert configured["providers"][0] == {"id": "better", "enabled": False} and not configured["external"]
+    configured = clean_options({"providers": [{"id": "better", "enabled": False}, {"id": "better", "enabled": True}, {"id": "untrusted", "enabled": True}]})
+    assert configured["providers"][0] == {"id": "better", "enabled": False}
+
+
+def test_older_settings_move_to_new_defaults_once_then_keep_the_choice():
+    migrated = clean_options({"external": False, "approximate": False, "timestamps": True, "providers": [{"id": "unison", "enabled": False}]})
+    assert migrated["external"] and migrated["approximate"] and migrated["timestamps"]
+    assert migrated["providers"][0] == {"id": "unison", "enabled": False}, "Turning off one provider was always a deliberate choice"
+    chosen = clean_options({**migrated, "external": False, "approximate": False})
+    assert not chosen["external"] and not chosen["approximate"]
+
+
+def ranked(provider, sync="line", match="exact", last=18, lines=3):
+    starts = [1 + index * (last - 1) / (lines - 1) for index in range(lines)] if lines > 1 else [last]
+    return {"videoId": VIDEO, "source": provider, "provider": provider, "available": True, "timed": True, "syncLevel": sync, "match": match, "lines": [{"text": "Fixture line", "start": start, "end": start + .5} for start in starts]}
+
+
+def choose(tmp_path, results, options=None):
+    calls = []
+    def fetch(provider, *args):
+        calls.append(provider)
+        if provider not in results:
+            raise ProviderUnavailable("No matching lyrics available.")
+        return results[provider]
+    lyrics = Lyrics(native_client(), tmp_path, providers=SimpleNamespace(fetch=fetch))
+    result = lyrics.fetch(VIDEO, track=TRACK, options=options)
+    lyrics.close()
+    return result, calls
+
+
+@pytest.mark.parametrize("results,expected", [
+    ({"lrclib": ranked("lrclib"), "better": ranked("better", sync="word")}, "better"),
+    ({"lrclib": ranked("lrclib"), "better": ranked("better", sync="word", match="approximate")}, "lrclib"),
+    ({"lrclib": ranked("lrclib", sync="word"), "unison": ranked("unison", sync="syllable")}, "unison"),
+    ({"lrclib": ranked("lrclib", last=6), "unison": ranked("unison", last=18)}, "unison"),
+    ({"lrclib": ranked("lrclib"), "unison": ranked("unison")}, "lrclib"),
+    ({"lrclib": ranked("lrclib", lines=1), "better": ranked("better", match="approximate")}, "better"),
+    ({"lrclib": ranked("lrclib", last=60), "better": ranked("better", match="approximate")}, "better"),
+])
+def test_best_timed_result_wins_regardless_of_provider_order(tmp_path, results, expected):
+    result, calls = choose(tmp_path, results)
+    assert result["provider"] == expected
+    assert calls == ["lrclib", "unison", "better"], "Every enabled provider should be compared"
+
+
+def test_only_enabled_providers_are_compared(tmp_path):
+    options = {"version": VERSION, "external": True, "approximate": True, "providers": [{"id": "better", "enabled": False}, {"id": "unison", "enabled": True}, {"id": "lrclib", "enabled": True}]}
+    result, calls = choose(tmp_path, {"lrclib": ranked("lrclib"), "unison": ranked("unison"), "better": ranked("better", sync="word")}, options)
+    assert calls == ["unison", "lrclib"] and result["provider"] == "unison", "Provider order settles a tie"
+
+
+def test_unusable_timing_never_replaces_native_plain_lyrics(tmp_path):
+    result, _ = choose(tmp_path, {"lrclib": ranked("lrclib", lines=1)})
+    assert not result["timed"] and result["provider"] == "native" and result["lines"][0]["text"] == "Native plain fixture"
+    assert timing_rank(ranked("lrclib"), 0) is not None, "Unknown song length should not reject lyrics"
+
+
+def test_turning_external_lookups_off_uses_only_youtube_music(tmp_path):
+    result, calls = choose(tmp_path, {"lrclib": ranked("lrclib")}, {"version": VERSION, "external": False})
+    assert calls == [] and result["provider"] == "native"
 
 
 def test_lrclib_endpoint_and_exact_recording_check():
@@ -181,21 +240,66 @@ def test_provider_keys_stay_in_vault_and_are_never_returned():
         provider_key("save", "invalid\nkey", backend)
 
 
-def test_default_native_path_performs_no_external_io(tmp_path):
-    provider = SimpleNamespace(fetch=lambda *args: pytest.fail("External lookup before consent"), captions=lambda *args: pytest.fail("Caption lookup before consent"))
+def test_captions_stay_opt_in_and_native_timed_skips_providers(tmp_path):
+    provider = SimpleNamespace(fetch=lambda *args: document(), captions=lambda *args: pytest.fail("Caption lookup before opt-in"))
     lyrics = Lyrics(native_client(), tmp_path, providers=provider)
+    assert lyrics.fetch(VIDEO, track=TRACK)["provider"] == "lrclib"
+    lyrics.close()
+    provider = SimpleNamespace(fetch=lambda *args: pytest.fail("Native timed lyrics should come first"))
+    lyrics = Lyrics(native_client(timed=True), tmp_path / "timed", providers=provider)
+    assert lyrics.fetch(VIDEO, track=TRACK)["lines"][0]["text"] == "Native fixture"
+    lyrics.close()
+
+
+def test_saved_plain_lyrics_are_upgraded_once_a_timed_match_appears(tmp_path):
+    def unavailable(*args):
+        raise ProviderUnavailable("Fixture provider is down.")
+    lyrics = Lyrics(native_client(), tmp_path, providers=SimpleNamespace(fetch=unavailable))
+    assert not lyrics.fetch(VIDEO, track=TRACK)["timed"]
+    lyrics.providers = SimpleNamespace(fetch=lambda *args: pytest.fail("Plain lyrics should be kept for a day"))
+    assert lyrics.fetch(VIDEO, track=TRACK)["cached"]
+    with lyrics.db:
+        lyrics.db.execute("UPDATE lyric_variants SET saved=saved-90000")
+    lyrics.providers = SimpleNamespace(fetch=lambda *args: document())
+    assert lyrics.fetch(VIDEO, track=TRACK)["timed"]
+    lyrics.close()
+
+
+def test_failed_lookup_offers_retry_instead_of_saving_no_lyrics(tmp_path):
+    def offline(*args):
+        raise ConnectionError("Fixture offline")
+    def unavailable(*args):
+        raise ProviderUnavailable("Fixture provider is down.")
+    lyrics = Lyrics(SimpleNamespace(catalog=offline), tmp_path, providers=SimpleNamespace(fetch=unavailable))
+    with pytest.raises(LyricsError):
+        lyrics.fetch(VIDEO, track=TRACK)
+    assert lyrics.db.execute("SELECT COUNT(*) FROM lyric_variants").fetchone()[0] == 0
+    lyrics.auth, lyrics.providers = native_client(), SimpleNamespace(fetch=lambda *args: document())
+    assert lyrics.fetch(VIDEO, track=TRACK)["timed"]
+    lyrics.close()
+
+
+def test_expired_saved_lyrics_survive_a_failed_lookup(tmp_path):
+    def offline(*args):
+        raise ConnectionError("Fixture offline")
+    def unavailable(*args):
+        raise ProviderUnavailable("Fixture provider is down.")
+    lyrics = Lyrics(SimpleNamespace(catalog=offline), tmp_path, providers=SimpleNamespace(fetch=lambda *args: document(timed=False)))
     assert lyrics.fetch(VIDEO, track=TRACK)["available"]
+    with lyrics.db:
+        lyrics.db.execute("UPDATE lyric_variants SET saved=saved-90000")
+    lyrics.providers = SimpleNamespace(fetch=unavailable)
+    assert lyrics.fetch(VIDEO, track=TRACK)["lines"][0]["text"] == "Original plain fixture"
     lyrics.close()
 
 
 def test_native_timed_beats_cached_external_after_native_refresh(tmp_path):
     provider = SimpleNamespace(fetch=lambda *args: document())
     lyrics = Lyrics(native_client(), tmp_path, providers=provider)
-    options = {"external": True}
-    assert lyrics.fetch(VIDEO, track=TRACK, options=options)["provider"] == "lrclib"
+    assert lyrics.fetch(VIDEO, track=TRACK)["provider"] == "lrclib"
     lyrics.auth = native_client(timed=True)
     assert lyrics.fetch(VIDEO, refresh=True)["timed"]
-    result = lyrics.fetch(VIDEO, track=TRACK, options=options)
+    result = lyrics.fetch(VIDEO, track=TRACK)
     assert result["lines"][0]["text"] == "Native fixture" and result["cached"]
     lyrics.close()
 
@@ -209,15 +313,13 @@ def test_fallback_order_native_plain_and_configured_offline_cache(tmp_path):
         raise ProviderUnavailable("No matching lyrics available.")
     provider = SimpleNamespace(fetch=fetch)
     lyrics = Lyrics(native_client(), tmp_path, providers=provider)
-    result = lyrics.fetch(VIDEO, track=TRACK, options={"external": True})
-    assert calls == ["lrclib", "unison"] and result["provider"] == "unison"
+    result = lyrics.fetch(VIDEO, track=TRACK)
+    assert calls == ["lrclib", "unison", "better"] and result["provider"] == "unison"
     lyrics.close()
     def forbidden(*args):
         pytest.fail("Offline cached variant must not access network or authentication")
     restarted = Lyrics(SimpleNamespace(catalog=forbidden), tmp_path, providers=SimpleNamespace(fetch=forbidden))
-    assert restarted.fetch(VIDEO, track=TRACK, options={"external": True})["cached"]
-    # Disabling consent selects the native cache, not the external variant.
-    assert restarted.fetch(VIDEO, track=TRACK)["lines"][0]["text"] == "Native plain fixture"
+    assert restarted.fetch(VIDEO, track=TRACK)["cached"]
     restarted.close()
 
 
@@ -227,10 +329,10 @@ def test_all_provider_failures_keep_native_plain_and_separate_match_modes(tmp_pa
         calls.append(provider)
         raise ProviderUnavailable("Unavailable fixture source.")
     lyrics = Lyrics(native_client(), tmp_path, providers=SimpleNamespace(fetch=unavailable))
-    result = lyrics.fetch(VIDEO, track=TRACK, options={"external": True})
+    result = lyrics.fetch(VIDEO, track=TRACK)
     assert result["available"] and not result["timed"] and "Unavailable fixture source" in result["status"]
     assert calls == ["lrclib", "unison", "better"]
-    lyrics.fetch(VIDEO, track=TRACK, options={"external": True, "approximate": True})
+    lyrics.fetch(VIDEO, track=TRACK, options={"version": VERSION, "external": True, "approximate": False})
     assert len(calls) == 6, "Matching mode must be part of the variant cache identity"
     lyrics.close()
 

@@ -21,7 +21,8 @@ def test_download_lookup_and_repair_states_work_without_authentication(tmp_path)
     audio = folder / (IDS[0] + ".wav")
     write_wave(audio)
     store.media.publish(IDS[0], audio)
-    store.progress(key, 2, 2, state="complete")
+    store.song_done(IDS[0])
+    store.complete(key)
     store.close()
     def forbidden():
         raise AssertionError("Local collection browsing must not touch authentication or HTTP")
@@ -116,7 +117,8 @@ def test_every_playback_entry_point_selects_disk_with_expired_credentials(tmp_pa
     audio.parent.mkdir()
     write_wave(audio)
     store.media.publish(IDS[0], audio)
-    store.progress(key, 1, 1, state="complete")
+    store.song_done(IDS[0])
+    store.complete(key)
     tracks = store.view(key)["items"]
     store.close()
     def forbidden(*args):

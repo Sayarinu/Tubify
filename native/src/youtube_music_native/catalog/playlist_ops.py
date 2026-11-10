@@ -64,6 +64,11 @@ def apply_change(data, result, collection_id=None, added=None):
         data["trackCount"] = data.get("trackCount", len(tracks) - len(entries)) + len(entries)
         data["duration"] = data.get("duration", 0) + len(entries) * (added or {}).get("duration", 0)
         data["thumbnail"] = data.get("thumbnail") or (added or {}).get("thumbnail", "")
+    if action != "playlist_rename" and any("position" in track for track in tracks):
+        # Moves only happen in the playlist's own order; other edits may arrive while it is sorted.
+        source = tracks if action == "playlist_move" else sorted(tracks, key=lambda track: track.get("position", float("inf")))
+        numbers = {id(track): number for number, track in enumerate(source)}
+        tracks = [{**track, "position": numbers[id(track)]} for track in tracks]
     data["items"] = tracks
 
 
