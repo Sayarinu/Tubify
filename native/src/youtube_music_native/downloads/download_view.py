@@ -301,13 +301,9 @@ class DownloadView(QObject):
         self.changed.emit()
 
     def _stop_and_send(self, operation, identifier):
-        if self._active == identifier:
-            self._active, self._transfer_request = None, None
-            self._stopped.append((operation, {"id": identifier}))
-            self.transfer.reset()
-            self._flush_stopped()
-        else:
-            self._send(operation, {"id": identifier}, authoritative=True)
+        # The transfer notices a cancelled or removed song by itself and moves on to the
+        # next one, so songs other collections still want keep downloading.
+        self._send(operation, {"id": identifier}, authoritative=True)
 
     def _flush_stopped(self, *args):
         if self.transfer.process.state() == QProcess.ProcessState.NotRunning:
@@ -353,20 +349,15 @@ class DownloadView(QObject):
     def _progress(self, identifier, progress):
         if identifier != self._transfer_request:
             return
-        collection = progress.get("collection")
-        if collection and collection != self._active:
-            # The transfer worker moved on to the next queued collection by itself.
-            self._active = collection
-            self._track_progress = {}
-            self.refresh()
-        for collection in self._collections:
-            if collection["key"] == self._active:
-                collection["state"] = "downloading"
-                collection["progress"] = (progress.get("completed", 0) + progress.get("fraction", 0)) / max(1, progress.get("total", 1))
         video_id = progress.get("videoId", "")
-        if video_id:
+        if video_id and not progress.get("done"):
             self._track_progress[video_id] = progress.get("fraction", 0)
-        self.changed.emit()
+            self._track_states[video_id] = "downloading"
+            self.changed.emit()
+        if progress.get("done"):
+            # A finished song changes the collections that hold it and the song list; a
+            # status already on its way may predate it, so ask again.
+            self._send("status")
 
     @Slot(int, dict)
     def _transferred(self, identifier, result):

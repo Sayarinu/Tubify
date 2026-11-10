@@ -88,13 +88,11 @@ def _schedule_all(downloads, payload, progress):
 
 def _run_downloads(downloads, payload, progress):
     downloads.notify = progress or (lambda value: None)
-    return downloads.run_queue(payload["id"])
+    return downloads.run_queue()
 
 
 def _stop_download(downloads, payload, progress):
-    if downloads.store.state(payload["id"]) in {"queued", "downloading"}:
-        body = downloads.store.collection(payload["id"])
-        downloads.store.progress(payload["id"], 0, len(body["items"]), state="failed", error="Download stopped. Retry to continue; completed songs were kept.")
+    downloads.store.stop()
     return downloads.store.status()
 
 
