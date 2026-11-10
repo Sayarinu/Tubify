@@ -5,13 +5,10 @@ IconButton {
     required property var media
     readonly property bool song: media.kind === "song"
     readonly property string mediaId: media.videoId || media.id || ""
-    property var entry: {
-        var values = downloadsState.collections
-        for (var i = 0; i < values.length; i++) if (values[i].key === media.kind + ":" + mediaId) return values[i]
-        return ({})
-    }
-    readonly property string status: song ? (downloadsState.trackStates[mediaId] || "") : entry.state || ""
-    readonly property real progress: song ? (downloadsState.trackProgress[mediaId] || 0) : (entry.progress || 0)
+    // Looked up by key on each state change instead of scanning every download.
+    property var entry: { downloadsState.revision; return downloadsState.collectionEntry(media.kind + ":" + mediaId) }
+    readonly property string status: { downloadsState.revision; return song ? downloadsState.songState(mediaId) : entry.state || "" }
+    readonly property real progress: { downloadsState.progressRevision; return song ? downloadsState.songProgress(mediaId) : (entry.progress || 0) }
     iconName: status === "complete" || status === "ready" ? "circleCheck" : "download"
     tip: status === "complete" || status === "ready" ? entry.state === "complete" ? "Remove Download" : "Downloaded" : status === "downloading" || status === "queued" ? "Cancel Download" : status === "damaged" ? "Repair Download" : "Download"
     iconColor: status === "complete" || status === "ready" ? themeState.accent : status === "damaged" ? themeState.error : themeState.foreground
@@ -46,10 +43,12 @@ IconButton {
                 ctx.stroke()
             }
         }
+        // Repaints only when this button's own progress or theme changes.
         Connections {
-            target: downloadsState
-            function onChanged() { progressRing.requestPaint() }
+            target: root
+            function onProgressChanged() { if (progressRing.visible) progressRing.requestPaint() }
         }
+        onVisibleChanged: if (visible) requestPaint()
         Component.onCompleted: requestPaint()
     }
 }

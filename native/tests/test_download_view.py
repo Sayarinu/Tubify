@@ -167,3 +167,26 @@ def test_download_all_sends_every_playlist_in_one_planning_request(tmp_path):
     view._scheduled(41, {"scheduled": 1, "failed": 1})
     assert view._notice == "1 playlist could not be prepared. Download it from its menu to retry."
     view.close()
+
+
+def test_song_progress_only_announces_progress_and_lookups_need_no_map_copies(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    view = DownloadView(tmp_path, fixture=True)
+    emitted = []
+    for name in ("changed", "statesChanged", "progressChanged", "artworkChanged", "storageChanged"):
+        getattr(view, name).connect(lambda name=name: emitted.append(name))
+    view._transfer_request = 5
+    view._progress(5, {"videoId": IDS[0], "fraction": 0.25})
+    view._progress(5, {"videoId": IDS[0], "fraction": 0.5})
+    assert emitted == ["progressChanged", "statesChanged", "progressChanged"]
+    assert view.songProgress(IDS[0]) == 0.5 and view.songState(IDS[0]) == "downloading"
+    key = view.collections[0]["key"]
+    assert view.collectionEntry(key)["state"] == "complete" and view.collectionEntry("playlist:missing") == {}
+    assert view.known(*key.split(":", 1)) and not view.known("playlist", "missing")
+    emitted.clear()
+    status = {"collections": view.collections, "songs": [], "trackStates": view.trackStates, "trackProgress": view.trackProgress, "artwork": {}, "bytes": 1, "freeBytes": 2}
+    view._pending[9] = "status"
+    view._result(9, status)
+    # Only storage moved, so lists, rows and covers are left alone.
+    assert emitted == ["storageChanged"]
+    view.close()
