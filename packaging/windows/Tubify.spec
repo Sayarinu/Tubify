@@ -36,9 +36,9 @@ version_info = VSVersionInfo(
 analysis = Analysis(
     [str(Path(SPECPATH) / "tubify_entry.py")],
     pathex=[str(NATIVE / "src")],
-    datas=copy_metadata("youtube-music-native") + collect_data_files("youtube_music_native") + collect_data_files("ytmusicapi"),
+    datas=copy_metadata("tubify") + collect_data_files("tubify") + collect_data_files("ytmusicapi"),
     hiddenimports=(
-        collect_submodules("youtube_music_native")
+        collect_submodules("tubify")
         + collect_submodules("winrt")
         + ["PySide6.QtNetwork", "keyring.backends.Windows"]
     ),

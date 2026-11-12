@@ -13,8 +13,8 @@ from PySide6.QtGui import QAccessible, QColor, QGuiApplication, QImage
 from PySide6.QtQml import QQmlProperty
 from PySide6.QtTest import QTest
 
-from youtube_music_native import app
-from youtube_music_native.theme import DEFAULT_COLORS
+from tubify import app
+from tubify.theme import DEFAULT_COLORS
 
 
 def immersive_offset(window):
@@ -300,7 +300,7 @@ def main():
                 art.setPixelColor(x, y, QColor("#4060d0"))
         art.save(str(root / "art.png"))
         if args.soak_seconds:
-            from youtube_music_native.playback.media import MediaFiles
+            from tubify.playback.media import MediaFiles
             media = MediaFiles(root / "media")
             audio = media.root / "fixture.wav"
             with wave.open(str(audio), "wb") as handle:
@@ -324,8 +324,8 @@ def main():
             account._profile["avatar"] = uri
             account.changed.emit()
             if args.soak_seconds:
-                from youtube_music_native.playback.audio import Audio
-                from youtube_music_native.jobs import Worker
+                from tubify.playback.audio import Audio
+                from tubify.jobs import Worker
                 player._fixture = False
                 player.worker = Worker(player, idle_ms=15000)
                 player.worker.succeeded.connect(player._resolved)

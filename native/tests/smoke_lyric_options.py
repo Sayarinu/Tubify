@@ -9,8 +9,8 @@ from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
 
-from youtube_music_native import app
-from youtube_music_native.lyrics.lyric_formats import ttml
+from tubify import app
+from tubify.lyrics.lyric_formats import ttml
 
 
 def visual_items(item):

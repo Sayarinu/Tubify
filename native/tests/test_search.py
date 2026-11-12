@@ -2,9 +2,9 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.catalog.catalog_view import CatalogView
-from youtube_music_native.catalog.search import Search
-from youtube_music_native.shell import ShellController
+from tubify.catalog.catalog_view import CatalogView
+from tubify.catalog.search import Search
+from tubify.shell import ShellController
 
 
 class Worker(QObject):

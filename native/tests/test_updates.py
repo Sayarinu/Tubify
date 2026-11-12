@@ -3,6 +3,8 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import subprocess
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -11,9 +13,9 @@ from Cryptodome.Signature import eddsa
 import pytest
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native.updates import updates
+from tubify.updates import updates
 
-from youtube_music_native.updates import maintenance
+from tubify.updates import maintenance
 from test_maintenance import Worker
 
 
@@ -129,32 +131,44 @@ def test_linux_auth_cancel_relaunches_without_elevating_gui(tmp_path, monkeypatc
     monkeypatch.setattr(updates.subprocess, 'run', lambda argv: calls.append(argv) or SimpleNamespace(returncode=126))
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: calls.append(argv))
     assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest()) == 126
-    assert calls[0][:3] == ['/usr/bin/pkexec', '--disable-internal-agent', '/usr/bin/pacman']
-    assert calls[1] == ['/usr/bin/youtube-music-native']
+    assert calls[0] == updates.root_install_command(package, hashlib.sha256(DATA).hexdigest())
+    assert calls[1] == ['/usr/bin/tubify']
     assert json.loads((tmp_path/'result.json').read_text()) == {'success':False}
 
 
-def test_linux_password_fallback_installs_a_private_verified_copy(tmp_path, monkeypatch):
+def test_linux_password_fallback_never_asks_for_a_changed_package(tmp_path, monkeypatch):
     package = tmp_path/'package.pkg.tar.zst'
-    package.write_bytes(DATA)
+    package.write_bytes(b'changed')
     monkeypatch.setattr(updates.os, 'kill', lambda pid, signal: (_ for _ in ()).throw(ProcessLookupError()))
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: None)
-    installed = []
-    def run(argv):
-        # Changing the downloaded file after the check must not change what pacman installs.
-        package.write_bytes(b'changed')
-        copy = Path(argv[-1])
-        installed.append((copy, copy.parent.stat().st_mode & 0o777, copy.read_bytes()))
-        return SimpleNamespace(returncode=0)
-    monkeypatch.setattr(updates.subprocess, 'run', run)
-    assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest()) == 0
-    copy, mode, data = installed[0]
-    assert copy.parent != tmp_path and copy.name == package.name and data == DATA
-    if sys.platform != 'win32':
-        assert mode == 0o700
-    assert not copy.parent.exists()
     monkeypatch.setattr(updates.subprocess, 'run', lambda argv: pytest.fail('A changed package must not install'))
     assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest()) == 1
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='The root install script runs only on Arch Linux')
+def test_root_install_checks_and_installs_its_own_private_copy(tmp_path):
+    package = tmp_path/'package.pkg.tar.zst'
+    package.write_bytes(DATA)
+    record = tmp_path/'installed'
+    pacman = tmp_path/'pacman'
+    # Records what pacman would install, then changes the original to show the copy is used.
+    pacman.write_text(f'''#!/bin/sh
+stat -c %a "$(dirname "$3")" > "{record}"
+cat "$3" >> "{record}"
+printf changed > "{package}"
+''')
+    pacman.chmod(0o755)
+    command = updates.root_install_command(package, hashlib.sha256(DATA).hexdigest())[2:]
+    command[2] = command[2].replace('/usr/bin/pacman', str(pacman))
+    env = {**os.environ, 'TMPDIR': str(tmp_path)}
+    assert subprocess.run(command, env=env).returncode == 0
+    mode, _, installed = record.read_bytes().partition(b'\n')
+    assert mode == b'700' and installed == DATA
+    # Nothing is left behind, and a copy that doesn't match the digest never reaches pacman.
+    assert sorted(item.name for item in tmp_path.iterdir()) == ['installed', 'package.pkg.tar.zst', 'pacman']
+    record.unlink()
+    assert subprocess.run(command, env=env).returncode != 0
+    assert not record.exists()
 
 
 def test_tampered_installer_never_launches(tmp_path, monkeypatch):
@@ -209,7 +223,7 @@ def test_windows_handoff_waits_for_gui_and_preserves_install_directory(tmp_path,
 
 
 def test_update_preferences_use_shell_config_not_replaceable_cache(tmp_path):
-    from youtube_music_native.shell import ShellController
+    from tubify.shell import ShellController
     app = QCoreApplication.instance() or QCoreApplication([])
     shell = ShellController(tmp_path/'config/settings.ini')
     service = maintenance.Maintenance(tmp_path/'separate/cache/release.json', shell, worker_factory=Worker)
@@ -251,7 +265,7 @@ def test_linux_updates_find_only_the_tubify_named_package():
     source = {'name': 'Tubify-0.2.1-linux-source.tar.gz', 'digest': 'sha256:' + '0' * 64, 'size': 10}
     row = {'tag_name': 'Tubify-0.2.1', 'assets': [asset_row(name), asset_row(name + '.sig'), source]}
     assert updates.select_asset(row, 'linux')['name'] == name
-    old = 'youtube-music-native-0.2.1-1-x86_64.pkg.tar.zst'
+    old = 'tubify-0.2.1-1-x86_64.pkg.tar.zst'
     with pytest.raises(ValueError):
         updates.select_asset({'tag_name': 'Tubify-0.2.1', 'assets': [asset_row(old), asset_row(old + '.sig')]}, 'linux')
 
@@ -390,12 +404,12 @@ def test_linux_signed_update_uses_the_passwordless_helper_when_installed(tmp_pat
     monkeypatch.setattr(updates, 'LINUX_HELPER', str(helper))
     # Without the helper, the update still installs with a password prompt.
     assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest(), signature) == 0
-    assert calls[-1][2] == '/usr/bin/pacman'
+    assert calls[-1][2] == '/bin/sh'
     helper.write_text('')
     assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest(), signature) == 0
     assert calls[-1] == ['/usr/bin/pkexec', '--disable-internal-agent', str(helper), str(package), str(signature)]
     assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest()) == 0
-    assert calls[-1][2] == '/usr/bin/pacman'
+    assert calls[-1][2] == '/bin/sh'
 
 
 def test_refused_switch_back_falls_back_to_a_password_but_a_refused_update_does_not(tmp_path, monkeypatch):
@@ -419,7 +433,7 @@ def test_refused_switch_back_falls_back_to_a_password_but_a_refused_update_does_
         return updates.install_linux(123, package, digest, signature, downgrade=downgrade), calls
 
     assert installs(0, True) == (0, [str(helper)])
-    assert installs(updates.HELPER_REFUSED, True) == (0, [str(helper), '/usr/bin/pacman'])
+    assert installs(updates.HELPER_REFUSED, True) == (0, [str(helper), '/bin/sh'])
     assert installs(updates.HELPER_REFUSED, False) == (updates.HELPER_REFUSED, [str(helper)])
     # Anything else, such as a bad signature or a dismissed prompt, never reaches pacman.
     assert installs(3, True) == (3, [str(helper)])
@@ -434,3 +448,9 @@ def test_linux_installer_helper_receives_the_signature(tmp_path, monkeypatch):
     signature = trust_new_key(tmp_path, monkeypatch)
     updates.launch_installer({'path': str(package), 'sha256': hashlib.sha256(DATA).hexdigest(), 'signature_path': str(signature)}, 123)
     assert launched[0][-4:] == ['123', str(package), hashlib.sha256(DATA).hexdigest(), str(signature)]
+
+
+def test_windows_update_key_comes_from_the_bundle(monkeypatch, tmp_path):
+    monkeypatch.setattr(updates.sys, 'platform', 'win32')
+    monkeypatch.setattr(sys, '_MEIPASS', str(tmp_path), raising=False)
+    assert updates.update_public_key() == tmp_path / 'update-public-key'

@@ -6,7 +6,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
-_spec = importlib.util.spec_from_file_location("tubify_updates", Path(__file__).resolve().parents[1] / "native/src/youtube_music_native/updates/updates.py")
+_spec = importlib.util.spec_from_file_location("tubify_updates", Path(__file__).resolve().parents[1] / "native/src/tubify/updates/updates.py")
 updates = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(updates)
 

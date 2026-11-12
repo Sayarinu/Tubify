@@ -12,8 +12,8 @@ from PySide6.QtQuick import QQuickView
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtTest import QTest
 
-from youtube_music_native.lyrics.lyric_view import LyricView
-from youtube_music_native.theme import ThemeState
+from tubify.lyrics.lyric_view import LyricView
+from tubify.theme import ThemeState
 
 
 class Player(QObject):
@@ -72,7 +72,7 @@ def main():
         context.setContextProperty("themeState", theme)
         context.setContextProperty("lyricState", lyrics)
         context.setContextProperty("playerState", player)
-        source = Path(__file__).parents[1] / "src/youtube_music_native/qml/player/LyricsPane.qml"
+        source = Path(__file__).parents[1] / "src/tubify/qml/player/LyricsPane.qml"
         window.setSource(QUrl.fromLocalFile(str(source)))
         assert window.status() == QQuickView.Status.Ready, warnings
         playback_shortcuts = []

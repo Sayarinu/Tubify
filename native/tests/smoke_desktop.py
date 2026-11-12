@@ -14,13 +14,13 @@ from jeepney.bus_messages import message_bus, MatchRule
 from jeepney.io.blocking import open_dbus_connection
 from jeepney.low_level import HeaderFields, MessageType
 
-from youtube_music_native.playback.audio import Audio
-from youtube_music_native.system.desktop import Desktop
-from youtube_music_native.jobs import Worker
-from youtube_music_native.system.linux_media import LinuxBus, PLAYER, PROPERTIES, PATH
-from youtube_music_native.playback.media import MediaFiles
-from youtube_music_native.playback.playback import Playback
-from youtube_music_native.shell import ShellController
+from tubify.playback.audio import Audio
+from tubify.system.desktop import Desktop
+from tubify.jobs import Worker
+from tubify.system.linux_media import LinuxBus, PLAYER, PROPERTIES, PATH
+from tubify.playback.media import MediaFiles
+from tubify.playback.playback import Playback
+from tubify.shell import ShellController
 
 
 def main():

@@ -8,7 +8,7 @@ from PySide6.QtGui import QGuiApplication, QImage, QPainter
 from PySide6.QtSvg import QSvgRenderer
 
 app = QGuiApplication([])
-renderer = QSvgRenderer(str(Path(__file__).resolve().parents[1] / "native/src/youtube_music_native/assets/music.svg"))
+renderer = QSvgRenderer(str(Path(__file__).resolve().parents[1] / "native/src/tubify/assets/music.svg"))
 if not renderer.isValid():
     raise RuntimeError("Tubify artwork could not be loaded")
 sizes = (16, 24, 32, 48, 64, 128, 256)

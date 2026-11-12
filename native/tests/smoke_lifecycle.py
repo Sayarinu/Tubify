@@ -8,8 +8,8 @@ from PySide6.QtCore import QObject, QMetaObject, QSettings, QTimer, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
 
-from youtube_music_native import app
-from youtube_music_native.system.tray import TrayPlayer
+from tubify import app
+from tubify.system.tray import TrayPlayer
 from test_tray import FakeMenu, FakeTray
 from test_lifecycle import Startup
 

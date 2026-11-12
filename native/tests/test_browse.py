@@ -2,9 +2,9 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.catalog.browse import Browse
-from youtube_music_native.catalog.catalog_view import CatalogView
-from youtube_music_native.shell import ShellController
+from tubify.catalog.browse import Browse
+from tubify.catalog.catalog_view import CatalogView
+from tubify.shell import ShellController
 
 
 class Worker(QObject):
@@ -174,7 +174,7 @@ def test_sidebar_snapshot_renders_before_the_account_restores(tmp_path):
 
 
 def test_sorting_loads_every_page_plays_in_order_and_is_remembered(tmp_path):
-    from youtube_music_native.catalog.catalog_view import CatalogView
+    from tubify.catalog.catalog_view import CatalogView
 
     from PySide6.QtCore import QSettings
 

@@ -387,11 +387,11 @@ jobs:
           # This reads the files as bytes; nothing the build jobs made gets run here.
           package="dist/native/Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
           installer="dist/native/Tubify-${VERSION}-windows-x64-setup.exe"
-          cp unsigned/youtube-music-native-*-x86_64.pkg.tar.zst "$package"
+          cp unsigned/tubify-*-x86_64.pkg.tar.zst "$package"
           cp "unsigned/Tubify-${VERSION}-windows-x64-setup.exe" "$installer"
           printf '%s' "$TUBIFY_UPDATE_PUBLIC_KEY" > "$RUNNER_TEMP/update-public-key"
           for file in "$package" "$installer"; do
-            "$RUNNER_TEMP/signing/bin/python" -I native/src/youtube_music_native/updates/package_signature.py \
+            "$RUNNER_TEMP/signing/bin/python" -I native/src/tubify/updates/package_signature.py \
               "$file" "$RUNNER_TEMP/update-public-key"
             test -s "$file.sig"
             rm "$file"
@@ -469,11 +469,11 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s failglob
-          # The pacman package keeps its internal name; it is published as the Tubify Linux download.
+          # The pacman package is named tubify; it is published as the Tubify Linux download.
           package="Tubify-${VERSION}-linux-x86_64.pkg.tar.zst"
-          mv youtube-music-native-*-x86_64.pkg.tar.zst "$package"
+          mv tubify-*-x86_64.pkg.tar.zst "$package"
           # Releases carry only the desktop app builds; the source package is only used to test upgrades in CI.
-          rm -f youtube-music-native-*.src.tar.gz
+          rm -f tubify-*.src.tar.gz
           assets=( *.exe *.dmg *.pkg.tar.zst )
           if [[ "$PUBLISH" == true ]]; then
             test -s appcast.xml

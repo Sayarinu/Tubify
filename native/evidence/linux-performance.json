@@ -6,8 +6,6 @@
   "measurements": {
     "scroll_p95_frame_ms": 16.662,
     "local_input_p95_ms": 0.691,
-    "wrapper_steady_pss_mib": 775.559,
-    "wrapper_skip_p95_ms": 242.779,
     "mixed_use_soak_seconds": 1800.5,
     "cold_shell_max_ms": 409.026,
     "warm_shell_max_ms": 390.876,
@@ -15,7 +13,6 @@
     "native_steady_pss_mib": 266.591,
     "native_minimized_cpu_percent_one_core": 1.533,
     "native_stream_start_p95_ms": 23.497,
-    "wrapper_stream_start_p95_ms": 24.454,
     "native_skip_p95_ms": 141.756
   },
   "mixed_use_soak": {
@@ -38,50 +35,6 @@
     "qml_clean": true,
     "passed": true,
     "scope": "Predates device-pixel-ratio artwork sizing and restored-queue preloading; repeated navigation uses real local playback, not remote extraction"
-  },
-  "wrapper": {
-    "account": "Real account; private track and session data excluded",
-    "content_match": "Exact title, artist and duration matched privately for the native comparison",
-    "platform": "Arch Linux, KDE Wayland; installed Tauri/WebKit wrapper through X11",
-    "client_size": [
-      1280,
-      820
-    ],
-    "output": "Temporary silent PulseAudio sink, removed after the check",
-    "all_workers_counted": true,
-    "processes": 4,
-    "visible_sample_seconds": 20.052,
-    "steady_pss_mib": 775.559,
-    "minimized_sample_seconds": 30.077,
-    "minimized_pss_mib": 778.703,
-    "minimized_cpu_percent_one_core": 1.995,
-    "next_ms": [
-      145.173,
-      126.189,
-      125.916
-    ],
-    "previous_ms": [
-      242.779,
-      227.169,
-      213.022
-    ],
-    "skip_method": "MPRIS command until changed expected metadata, Playing and position above 30 ms and below 3 s; 10 ms polling",
-    "original_track_position_pause_and_volume_restored": true,
-    "startup_limitation": "Initial resume timing could accept the existing position without proving new progress; excluded from the startup release gate",
-    "prepared_resumes": {
-      "resume_ms": [
-        7.42,
-        10.448,
-        10.583,
-        24.277,
-        24.454
-      ],
-      "method": "10 ms polling until 30 ms of new playback progress",
-      "output": "same silent PulseAudio sink as native",
-      "restored": true,
-      "output_route_verified": true,
-      "mute_restored": true
-    }
   },
   "interaction_diagnostic": {
     "content": "10,000 synthetic songs; five-second animated scroll and twenty mute-key responses",
@@ -178,20 +131,10 @@
   },
   "common_audio_attempt": {
     "output": "The same temporary silent PulseAudio sink for both clients",
-    "wrapper_resume_ms": [
-      16.996,
-      26.634,
-      24.043,
-      22.872,
-      22.504
-    ],
-    "wrapper_method": "10 ms polling until at least 30 ms of new playback progress",
-    "wrapper_route_verified_and_playback_restored": true,
     "native_shell_ms": 313.683,
     "native_completed": false,
     "native_failed_phase": "preload",
     "native_failure": "Generic provider error before audio was loaded; exception category is not yet known",
-    "isolated_follow_up": "The same saved session and private track subsequently resolved successfully in a read-only source check; Node was available",
     "scope": "Incomplete comparison; it does not establish equivalent streaming performance"
   },
   "remaining": [],

@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from youtube_music_native.catalog.catalog import Catalog, CatalogError, item
-from youtube_music_native.catalog.store import MetadataStore
+from tubify.catalog.catalog import Catalog, CatalogError, item
+from tubify.catalog.store import MetadataStore
 
 
 def track(index):
@@ -193,7 +193,7 @@ def test_home_songs_without_an_artist_take_their_album_artists(tmp_path):
 
 
 def test_home_pins_known_shelves_and_chooses_layout_by_content(tmp_path):
-    from youtube_music_native.catalog.catalog import arrange_home
+    from tubify.catalog.catalog import arrange_home
 
     song = {"kind": "song", "title": "Song"}
     album = {"kind": "album", "title": "Album"}
@@ -208,7 +208,7 @@ def test_home_pins_known_shelves_and_chooses_layout_by_content(tmp_path):
 
 
 def test_listening_history_keeps_cached_home_and_actions_keep_stable_routes(tmp_path):
-    from youtube_music_native.catalog.store import MetadataStore as Store
+    from tubify.catalog.store import MetadataStore as Store
 
     store = Store(tmp_path / "metadata.sqlite3")
     store.write('["scope", "home", {}]', {"shelves": []})
@@ -220,7 +220,7 @@ def test_listening_history_keeps_cached_home_and_actions_keep_stable_routes(tmp_
 
 def test_artist_subscription_uses_its_channel_id_and_unavailable_release_is_actionable(tmp_path):
     import pytest
-    from youtube_music_native.catalog.catalog import CatalogError
+    from tubify.catalog.catalog import CatalogError
 
     provider = SimpleNamespace(get_artist=lambda identifier: {"name": "Artist", "channelId": "UCsubscription", "subscribed": True, "songs": {"results": [track(1)]}}, get_album=lambda identifier: None)
     catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "metadata.sqlite3"))
@@ -243,7 +243,7 @@ def test_artist_top_songs_are_five_rows_with_show_all_for_the_songs_playlist(tmp
 
 
 def test_artist_top_songs_without_a_playlist_show_all_only_when_more_than_five():
-    from youtube_music_native.catalog.catalog import artist_songs, items
+    from tubify.catalog.catalog import artist_songs, items
 
     few = artist_songs({"results": []}, items([track(i) for i in range(5)]))
     assert few["layout"] == "rows" and not few["browseId"] and not few["showAll"] and len(few["items"]) == 5
@@ -281,7 +281,7 @@ def test_unfiltered_search_puts_exact_artist_first_and_groups_results(tmp_path):
 
 
 def test_exact_artist_match_outranks_a_song_top_result():
-    from youtube_music_native.catalog.catalog import arrange_search
+    from tubify.catalog.catalog import arrange_search
 
     song = {"kind": "song", "id": "abcdefghijk", "title": "Supernova", "category": "Top result"}
     artist = {"kind": "artist", "id": "UCaespa", "title": "aespa", "category": "Artists"}

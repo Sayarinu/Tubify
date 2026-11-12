@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QCoreApplication, QObject, QUrl, Signal
 import pytest
 
-from youtube_music_native.updates.maintenance import Maintenance, lookup_release, perform, public_diagnostics
+from tubify.updates.maintenance import Maintenance, lookup_release, perform, public_diagnostics
 
 
 class Worker(QObject):
@@ -93,7 +93,7 @@ def test_idle_controller_starts_no_worker_and_errors_are_retryable(tmp_path):
 
 def test_worker_account_actions_keep_their_existing_dispatch(tmp_path):
     from types import SimpleNamespace
-    from youtube_music_native.worker import handle
+    from tubify.worker import handle
     calls = []
     client = SimpleNamespace(rate_song=lambda identifier, rating: calls.append((identifier, rating.value)))
     result = handle(SimpleNamespace(catalog=lambda: client), {

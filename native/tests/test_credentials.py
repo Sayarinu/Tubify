@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from youtube_music_native.account.credentials import CHUNK_SIZE, Credentials, CredentialError, OLD_ENTRIES, OLD_SERVICE, SERVICE, USERNAME, remove_old_entries, default_chunk_size, secure_backend, single_record
-from youtube_music_native.account.session import from_headers
+from tubify.account.credentials import CHUNK_SIZE, Credentials, CredentialError, OLD_ENTRIES, OLD_SERVICE, SERVICE, USERNAME, remove_old_entries, default_chunk_size, secure_backend, single_record
+from tubify.account.session import from_headers
 
 
 class Vault:

@@ -20,8 +20,8 @@ Playback needs FFmpeg and Deno on `PATH`, and libmpv where the system library lo
 
 | Path | Holds |
 |---|---|
-| `native/src/youtube_music_native/` | The app. Core modules are at the top; features are in `account/`, `catalog/`, `playback/`, `lyrics/`, `artwork/`, `downloads/`, `integrations/`, `system/` and `updates/`. |
-| `native/src/youtube_music_native/qml/` | The UI: `Main.qml`, then `components/`, `pages/`, `player/`, `settings/`, `dialogs/` and `shell/`. |
+| `native/src/tubify/` | The app. Core modules are at the top; features are in `account/`, `catalog/`, `playback/`, `lyrics/`, `artwork/`, `downloads/`, `integrations/`, `system/` and `updates/`. |
+| `native/src/tubify/qml/` | The UI: `Main.qml`, then `components/`, `pages/`, `player/`, `settings/`, `dialogs/` and `shell/`. |
 | `native/tests/` | Unit tests (`test_*`) and smoke tests (`smoke_*`). |
 | `packaging/` | Package definitions, in `linux/`, `macos/` and `windows/`. |
 | `scripts/` | Build, signing and release tools. |
@@ -43,7 +43,7 @@ See [Releases](releases.md).
 
 ## Licensing
 
-Tubify is MIT licensed (see [`LICENSE`](../LICENSE)). Packages that bundle third-party components must ship [`THIRD_PARTY_NOTICES.md`](../native/src/youtube_music_native/assets/THIRD_PARTY_NOTICES.md), which the build already does on every platform. If you add a dependency or a bundled binary, add it to that file too.
+Tubify is MIT licensed (see [`LICENSE`](../LICENSE)). Packages that bundle third-party components must ship [`THIRD_PARTY_NOTICES.md`](../native/src/tubify/assets/THIRD_PARTY_NOTICES.md), which the build already does on every platform. If you add a dependency or a bundled binary, add it to that file too.
 
 ## What the Windows and macOS packages ship
 

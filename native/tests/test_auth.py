@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from youtube_music_native.account.auth import AuthError, AuthService
-from youtube_music_native.account.credentials import Credentials
-from youtube_music_native.worker import safe_error
+from tubify.account.auth import AuthError, AuthService
+from tubify.account.credentials import Credentials
+from tubify.worker import safe_error
 
 
 class MemoryVault:
@@ -68,9 +68,9 @@ def test_expired_replacement_cannot_overwrite_existing_session(tmp_path):
 def test_browser_sign_in_is_validated_before_replacing_the_saved_session(monkeypatch):
     from functools import partial
 
-    from youtube_music_native.account import auth
+    from tubify.account import auth
 
-    from youtube_music_native.account import browsers
+    from tubify.account import browsers
 
     credentials = Credentials(MemoryVault(), inline=False)
     service = AuthService(credentials, lambda session: Catalog())
@@ -131,15 +131,15 @@ def test_safe_error_asks_to_reconnect_only_for_rejected_sessions():
 
 @pytest.mark.parametrize("operation", ["unknown", None, ["catalog"]])
 def test_unknown_worker_operations_are_refused(operation):
-    from youtube_music_native.worker import handle
+    from tubify.worker import handle
 
     with pytest.raises(AuthError, match="unavailable"):
         handle(None, {"operation": operation, "payload": {}})
 
 
 def test_unknown_download_operation_is_refused(tmp_path):
-    from youtube_music_native.downloads.downloads import DownloadError
-    from youtube_music_native.worker import handle
+    from tubify.downloads.downloads import DownloadError
+    from tubify.worker import handle
 
     resources = {}
     with pytest.raises(DownloadError, match="unavailable"):

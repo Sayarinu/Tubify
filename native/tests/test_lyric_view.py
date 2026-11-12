@@ -1,6 +1,6 @@
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.lyrics.lyric_view import LyricView
+from tubify.lyrics.lyric_view import LyricView
 from test_playback import FakeWorker
 
 
@@ -84,7 +84,7 @@ def test_provider_preferences_persist_and_stale_lookup_cannot_replace_current_op
 
 
 def test_word_style_uses_real_timestamps_and_escapes_provider_text(tmp_path):
-    from youtube_music_native.lyrics.lyric_formats import ttml
+    from tubify.lyrics.lyric_formats import ttml
     app = QCoreApplication.instance() or QCoreApplication([])
     player, worker = Player(), FakeWorker()
     view = LyricView(Account(), player, tmp_path, worker)

@@ -1,7 +1,7 @@
 from PySide6.QtCore import QCoreApplication, QModelIndex, Qt
 from PySide6.QtTest import QAbstractItemModelTester
 
-from youtube_music_native.catalog.page_model import PageModel
+from tubify.catalog.page_model import PageModel
 
 
 def tracked(snapshots=False):

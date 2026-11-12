@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, QMetaObject, QTimer, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
 
-from youtube_music_native import app
+from tubify import app
 
 
 def main():

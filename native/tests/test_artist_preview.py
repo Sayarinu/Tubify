@@ -1,6 +1,6 @@
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.catalog.artist_preview import ArtistPreview
+from tubify.catalog.artist_preview import ArtistPreview
 
 
 class Player(QObject):

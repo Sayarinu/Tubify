@@ -17,7 +17,7 @@ from PySide6.QtGui import QColor, QGuiApplication, QImage
 from PySide6.QtQml import QQmlComponent
 from PySide6.QtTest import QTest
 
-from youtube_music_native import app
+from tubify import app
 
 
 def p95(values):

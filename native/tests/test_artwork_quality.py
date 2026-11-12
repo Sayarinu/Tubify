@@ -5,11 +5,11 @@ import pytest
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QImage
 
-from youtube_music_native.artwork.artwork_sources import choose, media_variants, variants
-from youtube_music_native.catalog.catalog import Catalog
-from youtube_music_native.downloads.downloads import DownloadStore, clean_track
-from youtube_music_native.artwork.large_artwork import resolve
-from youtube_music_native.catalog.store import MetadataStore
+from tubify.artwork.artwork_sources import choose, media_variants, variants
+from tubify.catalog.catalog import Catalog
+from tubify.downloads.downloads import DownloadStore, clean_track
+from tubify.artwork.large_artwork import resolve
+from tubify.catalog.store import MetadataStore
 
 
 VIDEO = "abcdefghijk"
@@ -116,7 +116,7 @@ def test_offline_or_failed_enrichment_preserves_legacy_download(tmp_path):
 
 
 def test_artwork_view_ignores_stale_and_lower_quality_results(tmp_path, monkeypatch):
-    from youtube_music_native.downloads import download_view
+    from tubify.downloads import download_view
     from test_playback import FakeWorker
     app = QCoreApplication.instance() or QCoreApplication([])
     worker = FakeWorker()
@@ -139,7 +139,7 @@ def test_artwork_view_ignores_stale_and_lower_quality_results(tmp_path, monkeypa
 
 
 def test_artwork_failure_retries_only_on_explicit_reopen_after_cooldown(tmp_path, monkeypatch):
-    from youtube_music_native.downloads import download_view
+    from tubify.downloads import download_view
     from test_playback import FakeWorker
     app = QCoreApplication.instance() or QCoreApplication([])
     worker, now = FakeWorker(), [10.0]
@@ -161,7 +161,7 @@ def test_artwork_failure_retries_only_on_explicit_reopen_after_cooldown(tmp_path
 
 
 def test_streamed_song_with_resizable_artwork_needs_no_worker(tmp_path, monkeypatch):
-    from youtube_music_native.downloads import download_view
+    from tubify.downloads import download_view
     from test_playback import FakeWorker
     app = QCoreApplication.instance() or QCoreApplication([])
     worker = FakeWorker()

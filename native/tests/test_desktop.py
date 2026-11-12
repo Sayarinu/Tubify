@@ -3,9 +3,9 @@ from types import SimpleNamespace
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 from PySide6.QtTest import QTest
 
-from youtube_music_native.system.desktop import Desktop
-from youtube_music_native.playback.playback import Playback
-from youtube_music_native.shell import ShellController
+from tubify.system.desktop import Desktop
+from tubify.playback.playback import Playback
+from tubify.shell import ShellController
 from test_playback import FakeAudio, FakeWorker, TRACKS
 
 
