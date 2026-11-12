@@ -40,7 +40,7 @@ Item {
         radius: Theme.radiusMedium
         placeholderText: header.width < 400 ? "Search" : "Search songs, albums, artists"
         font.pixelSize: 16
-        Accessible.name: "Search YouTube Music"
+        Accessible.name: "Search Tubify"
         Symbol { x: header.width < 400 ? 8 : 16; anchors.verticalCenter: parent.verticalCenter; name: "search"; width: 20; height: 20; color: themeState.secondary }
         IconButton { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; visible: search.text.length > 0; iconName: "close"; tip: "Clear Search"; onClicked: { search.clear(); searchState.clearSuggestions(); search.forceActiveFocus() } }
         onAccepted: {

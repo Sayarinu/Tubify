@@ -56,7 +56,7 @@ def activity_for(player, buttons=False, now=None):
     track = player.currentTrack
     artist = " · ".join(str(row.get("name", "")) for row in track.get("artists", []) if isinstance(row, dict) and row.get("name")) or str(track.get("artist") or "")
     title = str(track.get("title") or "Unknown track")[:128]
-    activity = {"type": 2, "name": title, "status_display_type": 2, "details": title, "state": (artist or "YouTube Music")[:128]}
+    activity = {"type": 2, "name": title, "status_display_type": 2, "details": title, "state": (artist or "Tubify")[:128]}
     artwork = public_artwork_url(track)
     if artwork:
         activity["assets"] = {"large_image": artwork}
