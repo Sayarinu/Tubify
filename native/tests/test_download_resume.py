@@ -6,9 +6,9 @@ from types import SimpleNamespace
 import pytest
 from yt_dlp import YoutubeDL
 
-from youtube_music_native.downloads import downloads
-from youtube_music_native.compat import QuietLogger
-from youtube_music_native.downloads.downloads import DownloadCancelled, Downloads
+from tubify.downloads import downloads
+from tubify.compat import QuietLogger
+from tubify.downloads.downloads import DownloadCancelled, Downloads
 
 from test_downloads import IDS, body, write_wave
 

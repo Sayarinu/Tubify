@@ -18,8 +18,8 @@ MAX_SIGNATURE = 4096
 # Linux .sig stays until no 0.8.1 installs, which only look for that name, remain.
 SIGNATURE_SUFFIXES = ('.ed25519', '.sig')
 # Installed by the Linux package: applies signed updates without a password prompt.
-LINUX_HELPER = '/usr/lib/youtube-music-native/apply-update'
-LINUX_PUBLIC_KEY = '/usr/lib/youtube-music-native/update-public-key'
+LINUX_HELPER = '/usr/lib/tubify/apply-update'
+LINUX_PUBLIC_KEY = '/usr/lib/tubify/update-public-key'
 # The helper's answer when a build is older than it may install without a password.
 HELPER_REFUSED = 5
 # Release tags: Tubify-X.Y.Z (stable) and Tubify-Experimental-X.Y.ZbN (experimental).
@@ -125,7 +125,7 @@ def supported():
             return False
         try:
             owner = subprocess.run(['/usr/bin/pacman', '-Qqo', str(root)], capture_output=True, text=True, timeout=3)
-            return owner.returncode == 0 and owner.stdout.strip() == 'youtube-music-native'
+            return owner.returncode == 0 and owner.stdout.strip() == 'tubify'
         except (OSError, subprocess.TimeoutExpired):
             return False
     if not getattr(sys, 'frozen', False):
@@ -186,14 +186,14 @@ def fetch(tag, asset, directory, progress, opener):
 def update_public_key():
     """The key this install trusts, placed by the package build."""
     if sys.platform == 'win32':
-        from youtube_music_native.util import bundle_root
+        from tubify.util import bundle_root
 
         return bundle_root() / 'update-public-key'
     return Path(LINUX_PUBLIC_KEY)
 
 
 def check_signature(data, asset):
-    from youtube_music_native.updates.package_signature import verify
+    from tubify.updates.package_signature import verify
 
     if not asset.get('signature_path'):
         raise UnsignedUpdate('Installer has no signature')
@@ -266,7 +266,7 @@ def install_linux(parent, package, digest, signature=None, downgrade=False):
         pass
     finally:
         (path.parent / 'result.json').write_text(json.dumps({'success': result == 0}))
-        subprocess.Popen(['/usr/bin/youtube-music-native'], start_new_session=True)
+        subprocess.Popen(['/usr/bin/tubify'], start_new_session=True)
     return result
 
 

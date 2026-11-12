@@ -2,11 +2,11 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.catalog.actions import Actions
-from youtube_music_native.catalog.browse import Browse
-from youtube_music_native.catalog.catalog_view import CatalogView
-from youtube_music_native.catalog.library import Library
-from youtube_music_native.shell import ShellController
+from tubify.catalog.actions import Actions
+from tubify.catalog.browse import Browse
+from tubify.catalog.catalog_view import CatalogView
+from tubify.catalog.library import Library
+from tubify.shell import ShellController
 
 
 class Worker(QObject):
@@ -135,7 +135,7 @@ def test_song_sections_offer_number_orders_and_other_sections_do_not(tmp_path):
 
 
 def test_playlist_edits_keep_row_numbers_in_order():
-    from youtube_music_native.catalog.playlist_ops import apply_change
+    from tubify.catalog.playlist_ops import apply_change
 
     def tracks(*numbers):
         return [{"setVideoId": str(number), "position": number} for number in numbers]

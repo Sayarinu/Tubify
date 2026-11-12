@@ -1,6 +1,6 @@
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native.shell import ShellController
+from tubify.shell import ShellController
 
 
 def test_preferences_survive_restart_and_invalid_geometry_is_bounded(tmp_path):
@@ -160,7 +160,7 @@ def test_appearance_preferences_are_independent_bounded_and_persisted(tmp_path):
 
 def test_window_geometry_stays_on_connected_display(tmp_path):
     from PySide6.QtCore import QRect
-    from youtube_music_native.shell import fit_window_geometry
+    from tubify.shell import fit_window_geometry
 
     left = QRect(-1920, 0, 1920, 1040)
     main = QRect(0, 40, 1920, 1040)

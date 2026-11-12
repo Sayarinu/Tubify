@@ -8,15 +8,15 @@ import wave
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
 
-from youtube_music_native.playback.audio import Audio
-from youtube_music_native.compat import play_source
+from tubify.playback.audio import Audio
+from tubify.compat import play_source
 
 
 def main():
     with tempfile.TemporaryDirectory(prefix="youtube-music-runtime-") as folder:
         root = Path(folder)
         subprocess.run(
-            [sys.executable, "-m", "youtube_music_native.app", "--fixture", "--smoke-test", "--data-dir", str(root)],
+            [sys.executable, "-m", "tubify.app", "--fixture", "--smoke-test", "--data-dir", str(root)],
             check=True, timeout=30,
         )
         subprocess.run([sys.executable, str(Path(__file__).with_name("smoke_lifecycle.py")), "--start-minimized"], check=True, timeout=30)

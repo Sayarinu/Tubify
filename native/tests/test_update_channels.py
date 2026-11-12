@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native.updates import maintenance
+from tubify.updates import maintenance
 
-from youtube_music_native.updates import updates
+from tubify.updates import updates
 from test_maintenance import Worker
 from test_updates import trust_new_key
 
@@ -85,7 +85,7 @@ def service(tmp_path, monkeypatch, installed, channel=None):
     QCoreApplication.instance() or QCoreApplication([])
     monkeypatch.setattr(updates, 'supported', lambda: True)
     monkeypatch.setattr(maintenance, 'installed_version', lambda: installed)
-    from youtube_music_native.shell import ShellController
+    from tubify.shell import ShellController
     shell = ShellController(tmp_path / 'config/settings.ini')
     if channel:
         shell.settings.setValue('updates/channel', channel)

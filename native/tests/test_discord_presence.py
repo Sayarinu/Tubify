@@ -9,7 +9,7 @@ from PySide6.QtTest import QTest
 
 import pytest
 
-from youtube_music_native.integrations.discord_presence import DEFAULT_APPLICATION_ID, DiscordPipe, DiscordPresence, activity_for, ipc_paths
+from tubify.integrations.discord_presence import DEFAULT_APPLICATION_ID, DiscordPipe, DiscordPresence, activity_for, ipc_paths
 
 
 class Player(QObject):

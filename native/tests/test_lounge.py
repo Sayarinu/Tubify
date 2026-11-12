@@ -3,7 +3,7 @@ from urllib.parse import parse_qs
 import pytest
 from PySide6.QtCore import QCoreApplication, QSettings
 
-from youtube_music_native.integrations.lounge import FrameParser, Lounge, LoungeSession, encode_messages
+from tubify.integrations.lounge import FrameParser, Lounge, LoungeSession, encode_messages
 
 
 def frame(payload):

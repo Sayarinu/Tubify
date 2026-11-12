@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from youtube_music_native.util import atomic_write, needs_reconnect, parse_duration, prepend_paths
+from tubify.util import atomic_write, needs_reconnect, parse_duration, prepend_paths
 
 
 def test_atomic_write_creates_the_folder_and_replaces_text_or_bytes(tmp_path):

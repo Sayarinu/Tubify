@@ -9,8 +9,8 @@ from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
 from PySide6.QtGui import QColor, QGuiApplication, QImage
 from PySide6.QtTest import QSignalSpy, QTest
 
-from youtube_music_native import app
-from youtube_music_native.shell import ShellController
+from tubify import app
+from tubify.shell import ShellController
 
 
 def main():

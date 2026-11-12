@@ -8,10 +8,10 @@ from types import SimpleNamespace
 from PySide6.QtCore import QCoreApplication
 import pytest
 
-from youtube_music_native.account.browsers import NoBrowserSession, read_session
-from youtube_music_native.system import windows
-from youtube_music_native.system.windows import prepare_runtime
-from youtube_music_native.system.windows_media import WindowsBus, metadata
+from tubify.account.browsers import NoBrowserSession, read_session
+from tubify.system import windows
+from tubify.system.windows import prepare_runtime
+from tubify.system.windows_media import WindowsBus, metadata
 
 
 class Event:
@@ -132,7 +132,7 @@ def test_windows_media_controls_publish_track_state_and_forward_commands():
 
 
 def test_windows_media_buttons_exist_in_windows():
-    from youtube_music_native.system.windows_media import BUTTONS
+    from tubify.system.windows_media import BUTTONS
 
     assert set(BUTTONS) <= set(Button.__members__)
 
@@ -226,7 +226,7 @@ def test_windows_media_registration_failure_disables_controls():
 
 REAL_REGISTRATION = """
 from PySide6.QtGui import QGuiApplication, QWindow
-from youtube_music_native.system.windows_media import WindowsBus, require_projections
+from tubify.system.windows_media import WindowsBus, require_projections
 require_projections()
 app = QGuiApplication([])
 window = QWindow()
@@ -249,7 +249,7 @@ def test_windows_media_controls_register_real_handlers():
 
 
 def test_power_broadcast_maps_to_prepare_for_sleep():
-    from youtube_music_native.system.windows_media import power_transition, WM_POWERBROADCAST
+    from tubify.system.windows_media import power_transition, WM_POWERBROADCAST
 
     assert power_transition(WM_POWERBROADCAST, 0x4) is True
     assert power_transition(WM_POWERBROADCAST, 0x7) is False

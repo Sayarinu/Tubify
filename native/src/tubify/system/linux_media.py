@@ -18,7 +18,7 @@ ROOT = "org.mpris.MediaPlayer2"
 PLAYER = ROOT + ".Player"
 PROPERTIES = "org.freedesktop.DBus.Properties"
 PATH = "/org/mpris/MediaPlayer2"
-ROOT_VALUES = {"CanQuit": ("b", True), "CanRaise": ("b", True), "HasTrackList": ("b", False), "Identity": ("s", "Tubify"), "DesktopEntry": ("s", "youtube-music-native"), "SupportedUriSchemes": ("as", []), "SupportedMimeTypes": ("as", [])}
+ROOT_VALUES = {"CanQuit": ("b", True), "CanRaise": ("b", True), "HasTrackList": ("b", False), "Identity": ("s", "Tubify"), "DesktopEntry": ("s", "tubify"), "SupportedUriSchemes": ("as", []), "SupportedMimeTypes": ("as", [])}
 PLAYER_TYPES = {"PlaybackStatus": "s", "LoopStatus": "s", "Rate": "d", "Shuffle": "b", "Metadata": "a{sv}", "Volume": "d", "Position": "x", "MinimumRate": "d", "MaximumRate": "d", "CanGoNext": "b", "CanGoPrevious": "b", "CanPlay": "b", "CanPause": "b", "CanSeek": "b", "CanControl": "b"}
 WRITABLE = {"LoopStatus", "Rate", "Shuffle", "Volume"}
 METHODS = {"Next": "", "Previous": "", "Pause": "", "PlayPause": "", "Stop": "", "Play": "", "Seek": "x", "SetPosition": "ox", "OpenUri": "s"}
@@ -88,7 +88,7 @@ class LinuxBus(QObject):
 
     def __init__(self, snapshot, parent=None, bus="SESSION", monitor_sleep=True):
         super().__init__(parent)
-        self.service = ROOT + ".youtube_music_native.instance" + uuid4().hex
+        self.service = ROOT + ".tubify.instance" + uuid4().hex
         self._bus, self._monitor_sleep = bus, monitor_sleep
         self._snapshot, self._latest = snapshot, None
         self._lock, self._stop, self._events = Lock(), Event(), SimpleQueue()

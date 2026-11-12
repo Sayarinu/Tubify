@@ -6,7 +6,7 @@ import traceback
 from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
 from PySide6.QtTest import QTest
 
-from youtube_music_native import app
+from tubify import app
 
 SONG = "https://music.youtube.com/watch?v=abcdefghijk"
 

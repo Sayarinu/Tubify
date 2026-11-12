@@ -1,10 +1,14 @@
-pkgname=youtube-music-native
+pkgname=tubify
 pkgver=1.0.0
 pkgrel=1
 pkgdesc='Tubify, a desktop app for YouTube Music'
 arch=('x86_64')
 url='https://github.com/Sayarinu/Tubify'
 license=('MIT')
+# Before 1.0 the package was called youtube-music-native.
+provides=('youtube-music-native')
+conflicts=('youtube-music-native')
+replaces=('youtube-music-native')
 depends=(
   'python>=3.14' 'pyside6>=6.8' 'qt6-svg' 'qt6-imageformats'
   'python-keyring>=25.7' 'python-ytmusicapi>=1.12.3' 'python-mpv>=1.0.8'
@@ -30,15 +34,15 @@ check() {
   python -m pytest native/tests -q
   python native/tests/smoke_runtime.py
   dbus-run-session -- python native/tests/smoke_desktop.py
-  desktop-file-validate packaging/linux/youtube-music-native.desktop
+  desktop-file-validate packaging/linux/tubify.desktop
 }
 
 package() {
   cd "${srcdir}/${pkgname}-${pkgver}"
   python -m installer --destdir="$pkgdir" native/dist/*.whl
-  install -Dm644 packaging/linux/youtube-music-native.desktop \
-    "$pkgdir/usr/share/applications/youtube-music-native.desktop"
-  install -Dm644 native/src/youtube_music_native/assets/music.svg \
+  install -Dm644 packaging/linux/tubify.desktop \
+    "$pkgdir/usr/share/applications/tubify.desktop"
+  install -Dm644 native/src/tubify/assets/music.svg \
     "$pkgdir/usr/share/icons/hicolor/scalable/apps/tubify.svg"
   # Signed in-app updates: a root-owned helper that polkit lets local wheel users run
   # without a password; it installs only newer packages signed with the release key.
@@ -56,12 +60,12 @@ package() {
   install -Dm644 packaging/linux/50-tubify-update.rules \
     "$pkgdir/usr/share/polkit-1/rules.d/50-tubify-update.rules"
   install -Dm644 native/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-  install -Dm644 native/src/youtube_music_native/assets/Roboto-OFL.txt \
+  install -Dm644 native/src/tubify/assets/Roboto-OFL.txt \
     "$pkgdir/usr/share/licenses/$pkgname/Roboto-OFL.txt"
-  install -Dm644 native/src/youtube_music_native/assets/lucide-LICENSE \
+  install -Dm644 native/src/tubify/assets/lucide-LICENSE \
     "$pkgdir/usr/share/licenses/$pkgname/lucide-LICENSE"
-  install -Dm644 native/src/youtube_music_native/assets/lucide-NOTICE.txt \
+  install -Dm644 native/src/tubify/assets/lucide-NOTICE.txt \
     "$pkgdir/usr/share/licenses/$pkgname/lucide-NOTICE.txt"
-  install -Dm644 native/src/youtube_music_native/assets/THIRD_PARTY_NOTICES.md \
+  install -Dm644 native/src/tubify/assets/THIRD_PARTY_NOTICES.md \
     "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_NOTICES.md"
 }

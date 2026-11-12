@@ -8,7 +8,7 @@ from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
 from PySide6.QtGui import QAccessible, QGuiApplication
 from PySide6.QtTest import QTest
 
-from youtube_music_native import app
+from tubify import app
 from smoke_visual import visual_items
 
 

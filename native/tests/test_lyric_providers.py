@@ -5,10 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from youtube_music_native.lyrics import lyric_formats as formats
-from youtube_music_native.lyrics.lyric_data import Lyrics, LyricsError, timing_rank, valid_cached
-from youtube_music_native.lyrics.lyric_options import clean_options, VERSION
-from youtube_music_native.lyrics.lyric_providers import Providers, ProviderUnavailable, provider_key
+from tubify.lyrics import lyric_formats as formats
+from tubify.lyrics.lyric_data import Lyrics, LyricsError, timing_rank, valid_cached
+from tubify.lyrics.lyric_options import clean_options, VERSION
+from tubify.lyrics.lyric_providers import Providers, ProviderUnavailable, provider_key
 
 VIDEO = "abcdefghijk"
 TRACK = {"title": "Fixture Song", "artist": "Fixture Artist", "album": "Fixture Album", "duration": 20}
@@ -339,7 +339,7 @@ def test_all_provider_failures_keep_native_plain_and_separate_match_modes(tmp_pa
 
 def test_captions_use_only_human_subtitles_and_keep_signed_urls_out_of_result(monkeypatch, tmp_path):
     import yt_dlp
-    from youtube_music_native import compat
+    from tubify import compat
     monkeypatch.setattr(compat, "extractor_options", lambda directory: {})
     seen, data = [], {"subtitles": {"en": [{"ext": "ttml", "url": "https://fixture.invalid/signed-caption"}]}, "automatic_captions": {"en": [{"ext": "ttml", "url": "https://fixture.invalid/automatic"}]}}
     class Extractor:

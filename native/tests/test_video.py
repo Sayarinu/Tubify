@@ -8,11 +8,11 @@ from types import SimpleNamespace
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 import pytest
 
-from youtube_music_native.playback import sources
-from youtube_music_native.playback.media import MediaFiles
-from youtube_music_native.playback.playback import Playback
-from youtube_music_native.playback.sources import Sources
-from youtube_music_native.playback.video import fit, has_video
+from tubify.playback import sources
+from tubify.playback.media import MediaFiles
+from tubify.playback.playback import Playback
+from tubify.playback.sources import Sources
+from tubify.playback.video import fit, has_video
 
 from test_playback import FakeAudio, FakeWorker
 
@@ -261,7 +261,7 @@ def test_video_resolution_returns_the_picture_stream_but_downloads_stay_audio(tm
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg creates the local video fixture")
 def test_libmpv_software_renderer_produces_frames(tmp_path):
     from PySide6.QtGui import QGuiApplication
-    from youtube_music_native.playback.audio import Audio
+    from tubify.playback.audio import Audio
 
     pytest.importorskip("mpv")
     app = QCoreApplication.instance() or QGuiApplication([])
@@ -288,7 +288,7 @@ def test_libmpv_software_renderer_produces_frames(tmp_path):
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg creates the local fixtures")
 def test_libmpv_adds_and_hides_video_while_the_audio_keeps_playing(tmp_path):
     from PySide6.QtGui import QGuiApplication
-    from youtube_music_native.playback.audio import Audio
+    from tubify.playback.audio import Audio
 
     pytest.importorskip("mpv")
     app = QCoreApplication.instance() or QGuiApplication([])

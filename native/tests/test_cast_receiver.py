@@ -2,8 +2,8 @@ import json
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
 
-from youtube_music_native.integrations.cast_receiver import CastReceiver, cast_ids, clean_name
-from youtube_music_native.playback.playback import Playback
+from tubify.integrations.cast_receiver import CastReceiver, cast_ids, clean_name
+from tubify.playback.playback import Playback
 
 
 class Player(QObject):

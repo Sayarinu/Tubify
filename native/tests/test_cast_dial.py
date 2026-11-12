@@ -3,7 +3,7 @@ from PySide6.QtNetwork import QHostAddress, QTcpSocket, QNetworkInterface
 
 import pytest
 
-from youtube_music_native.integrations.cast_dial import (
+from tubify.integrations.cast_dial import (
     DIAL_ST, DialServer, app_description, device_description, is_search, launch_fields, local_address_for, parse_request, search_reply, trusted_request
 )
 

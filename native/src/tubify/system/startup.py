@@ -13,6 +13,9 @@ from ..util import atomic_write
 APP_ID = "studio.nouvellelune.tubify"
 # Login items from earlier builds. move_old_item replaces one so the person's choice carries over.
 OLD_APP_ID = "com.carter.youtube-music-native"
+# Before 1.0 the Linux autostart entry had the old package name and marked itself with this key.
+OLD_DESKTOP_FILE = "youtube-music-native.desktop"
+OLD_DESKTOP_KEY = "X-YouTube-Music-Native"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 
@@ -51,7 +54,7 @@ class StartupRegistration:
     @property
     def path(self):
         if self.platform == "linux":
-            return self.config / "autostart" / "youtube-music-native.desktop"
+            return self.config / "autostart" / "tubify.desktop"
         return self.home / "Library" / "LaunchAgents" / (APP_ID + ".plist")
 
     def _registry(self):
@@ -68,7 +71,7 @@ class StartupRegistration:
         if self.platform == "darwin":
             return plistlib.dumps({"Label": APP_ID, "ProgramArguments": self.command, "RunAtLoad": True})
         return ("[Desktop Entry]\nType=Application\nName=Tubify\n"
-                f"X-YouTube-Music-Native={APP_ID}\nExec={desktop_exec(self.command)}\nTerminal=false\n").encode()
+                f"X-Tubify={APP_ID}\nExec={desktop_exec(self.command)}\nTerminal=false\n").encode()
 
     def _owned(self, content):
         if self.platform == "darwin":
@@ -77,7 +80,7 @@ class StartupRegistration:
                 return isinstance(value, dict) and value.get("Label") == APP_ID
             except (ValueError, plistlib.InvalidFileException):
                 return False
-        return f"X-YouTube-Music-Native={APP_ID}\n".encode() in content
+        return f"X-Tubify={APP_ID}\n".encode() in content
 
     def move_old_item(self):
         """Re-register a login item an earlier build made under the old identifier; True if one was moved."""
@@ -86,9 +89,14 @@ class StartupRegistration:
         if self.platform == "win32":
             return self._move_old_registry_value()
         if self.platform == "linux":
-            if not self.path.is_file() or f"X-YouTube-Music-Native={OLD_APP_ID}\n".encode() not in self.path.read_bytes():
+            old = self.path.with_name(OLD_DESKTOP_FILE)
+            if not old.is_file():
                 return False
-            atomic_write(self.path, self._content())
+            content = old.read_bytes()
+            if not any(f"{OLD_DESKTOP_KEY}={value}\n".encode() in content for value in (APP_ID, OLD_APP_ID)):
+                return False
+            self.set_enabled(True)
+            old.unlink()
             return True
         old = self.path.with_name(OLD_APP_ID + ".plist")
         try:

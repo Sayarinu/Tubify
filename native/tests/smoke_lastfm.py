@@ -7,7 +7,7 @@ import traceback
 from PySide6.QtCore import QObject, QMetaObject, QTimer, Qt, Signal
 from PySide6.QtTest import QTest
 
-from youtube_music_native import app
+from tubify import app
 
 
 class Worker(QObject):

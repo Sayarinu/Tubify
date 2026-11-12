@@ -9,7 +9,7 @@ if __name__ == "__main__" and not __package__:
     # Direct script execution must not shadow stdlib modules such as queue.
     sys.path[:] = [entry for entry in sys.path if Path(entry).resolve() != package_dir]
     sys.path.insert(0, str(package_dir.parent))
-    __package__ = "youtube_music_native"
+    __package__ = "tubify"
 
 
 FLAGS = {"provider": "--provider-worker", "player": "--player-worker"}

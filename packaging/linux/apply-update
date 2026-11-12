@@ -15,16 +15,16 @@ import subprocess
 import sys
 import tempfile
 
-from youtube_music_native.updates.package_signature import verify
+from tubify.updates.package_signature import verify
 
-PUBLIC_KEY = Path("/usr/lib/youtube-music-native/update-public-key")
+PUBLIC_KEY = Path("/usr/lib/tubify/update-public-key")
 # The newest stable release when this package was built. An experimental build can
 # switch back as far as this without a password, so older releases with known bugs
 # can't be reinstalled silently. Missing or empty means no switching back.
-OLDEST_SWITCH = Path("/usr/lib/youtube-music-native/oldest-switch-version")
+OLDEST_SWITCH = Path("/usr/lib/tubify/oldest-switch-version")
 STABLE = re.compile(r"\d+\.\d+\.\d+(?:-\d+)?")
 EXPERIMENTAL = re.compile(r"\d+\.\d+\.\d+b\d+(?:-\d+)?")
-PACKAGE = "youtube-music-native"
+PACKAGE = "tubify"
 LIMIT = 1024 * 1024 * 1024
 ENV = {"PATH": "/usr/bin", "LC_ALL": "C"}
 

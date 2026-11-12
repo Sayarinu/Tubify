@@ -16,7 +16,7 @@ from bundle_contents import needed_entries
 
 VERSION = tomllib.loads((NATIVE / "pyproject.toml").read_text())["project"]["version"]
 # Sparkle's feed lives in this build's own release; the tag comes from the app's shared rule.
-_updates_spec = importlib.util.spec_from_file_location("tubify_updates", NATIVE / "src/youtube_music_native/updates/updates.py")
+_updates_spec = importlib.util.spec_from_file_location("tubify_updates", NATIVE / "src/tubify/updates/updates.py")
 _updates = importlib.util.module_from_spec(_updates_spec)
 _updates_spec.loader.exec_module(_updates)
 release_tag = _updates.release_tag
@@ -43,9 +43,9 @@ analysis = Analysis(
     pathex=[str(NATIVE / "src")],
     # PyInstaller rewrites these to load from the bundle; macos.prepare_runtime puts them on the search paths.
     binaries=[(str(libmpv.resolve()), "."), helper("ffmpeg"), helper("ffprobe"), helper("deno")],
-    datas=copy_metadata("youtube-music-native") + collect_data_files("youtube_music_native") + collect_data_files("ytmusicapi"),
+    datas=copy_metadata("tubify") + collect_data_files("tubify") + collect_data_files("ytmusicapi"),
     # Worker roles and platform integrations are imported lazily by the launcher.
-    hiddenimports=collect_submodules("youtube_music_native") + [
+    hiddenimports=collect_submodules("tubify") + [
         "PySide6.QtNetwork",
         "MediaPlayer", "AppKit", "Foundation", "keyring.backends.macOS",
     ],

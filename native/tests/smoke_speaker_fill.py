@@ -7,9 +7,9 @@ import wave
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtTest import QTest
 
-from youtube_music_native.playback.audio import Audio
-from youtube_music_native.playback import speaker_fill
-from youtube_music_native.playback.speaker_fill import LABEL
+from tubify.playback.audio import Audio
+from tubify.playback import speaker_fill
+from tubify.playback.speaker_fill import LABEL
 
 
 def wait_for(predicate):

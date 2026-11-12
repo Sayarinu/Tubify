@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="native/src/youtube_music_native/assets/music.svg" alt="Tubify" width="96" height="96">
+<img src="native/src/tubify/assets/music.svg" alt="Tubify" width="96" height="96">
 
 # Tubify
 
@@ -88,6 +88,8 @@ Download only the `.pkg.tar.zst` file. If a `.pkg.tar.zst.sig` file from the rel
 
 pacman installs everything Tubify needs. In-app updates install without a password for administrators (members of `wheel`) signed in at the machine. Tubify checks that each update is a newer release signed with its release key before installing it. Other accounts are asked for an administrator password. The first update from a version without this feature asks for your password one last time.
 
+**Updating from a version before 1.0:** the package used to be called `youtube-music-native`, and its update helper only accepts that name, so the in-app update to 1.0 can't install. Download the 1.0 package and install it once with `sudo pacman -U`, answering yes when pacman asks to remove `youtube-music-native`. Your settings, downloads and sign-in are kept, and later updates install from the app again.
+
 </details>
 
 ## Getting started
@@ -126,7 +128,7 @@ Bug reports, ideas and pull requests are welcome. Please open an [issue](https:/
 
 Tubify is free and open-source software under the [MIT License](LICENSE).
 
-Tubify releases also include third-party components, such as Qt, mpv, FFmpeg and yt-dlp, each under its own license. Some, like the bundled mpv and FFmpeg builds, are GPL. See [Third-party notices](native/src/youtube_music_native/assets/THIRD_PARTY_NOTICES.md); the app also shows these under **Settings → Updates → Open-Source Licenses**.
+Tubify releases also include third-party components, such as Qt, mpv, FFmpeg and yt-dlp, each under its own license. Some, like the bundled mpv and FFmpeg builds, are GPL. See [Third-party notices](native/src/tubify/assets/THIRD_PARTY_NOTICES.md); the app also shows these under **Settings → Updates → Open-Source Licenses**.
 
 ## Disclaimer
 

@@ -12,8 +12,8 @@ from PySide6.QtGui import QAccessible, QColor, QGuiApplication, QImage
 from PySide6.QtTest import QTest
 from PySide6.QtQml import QQmlProperty
 
-from youtube_music_native import app
-from youtube_music_native.theme import PRESETS, ThemeState
+from tubify import app
+from tubify.theme import PRESETS, ThemeState
 from smoke_visual import check_queue, visual_items
 
 

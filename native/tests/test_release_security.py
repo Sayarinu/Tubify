@@ -111,7 +111,7 @@ def test_a_failing_check_blocks_merging_and_skipped_jobs_do_not():
 
 def test_release_inputs_cannot_skip_the_checks():
     pattern = re.search(r"BUILD_INPUTS: '(.*)'", jobs()["changes"]).group(1)
-    for path in ("native/uv.lock", "native/src/youtube_music_native/app.py", "packaging/windows/Tubify.spec", "packaging/build-constraints.txt",
+    for path in ("native/uv.lock", "native/src/tubify/app.py", "packaging/windows/Tubify.spec", "packaging/build-constraints.txt",
                  "packaging/signing-requirements.txt", ".github/workflows/native.yml", ".github/workflows/native-linux-build.yml",
                  "scripts/sign-native-macos.sh", "scripts/open-prs.py", "scripts/setup-release-protection.sh"):
         assert re.search(pattern, path), path
