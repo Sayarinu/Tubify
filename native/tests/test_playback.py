@@ -1,7 +1,9 @@
 import json
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
+from PySide6.QtTest import QTest
 
+from youtube_music_native.playback import playback as playback_module
 from youtube_music_native.playback.playback import Playback
 
 
@@ -1058,3 +1060,24 @@ def test_pausing_while_the_session_renews_keeps_playback_paused(tmp_path):
     app.processEvents()
     assert len(worker.requests) == count and not player.playing
     player.close()
+
+
+
+def test_a_burst_of_queue_edits_saves_once(tmp_path, monkeypatch):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    writes = []
+    monkeypatch.setattr(playback_module, "atomic_write", lambda path, content: writes.append(content))
+    player = Playback(tmp_path, FakeWorker(), audio_factory=FakeAudio)
+    player.playTracks(TRACKS, 0, "Playlist")
+    player.save()
+    player._saver.submit(lambda: None).result()
+    writes.clear()
+    for track in QUEUE[:5]:
+        player.enqueue([track])
+    player._saver.submit(lambda: None).result()
+    assert not writes and player.queue_save.isActive()
+    QTest.qWait(playback_module.QUEUE_SAVE_DELAY_MS + 200)
+    player._saver.submit(lambda: None).result()
+    assert len(writes) == 1 and QUEUE[4]["videoId"] in writes[0]
+    player.close()
+    app.processEvents()
