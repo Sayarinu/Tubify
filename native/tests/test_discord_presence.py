@@ -50,6 +50,12 @@ def test_public_payload_has_only_allowlisted_metadata():
     result = activity_for(player, True, now=1000)
     assert result == {"type": 2, "name": "Fixture song", "status_display_type": 2, "details": "Fixture song", "state": "Fixture artist", "timestamps": {"start": 970, "end": 1150}, "buttons": [{"label": "Listen on YouTube Music", "url": "https://music.youtube.com/watch?v=abcdefghijk"}]}
     assert "private" not in json.dumps(result)
+
+
+def test_a_song_without_an_artist_shows_tubify():
+    player = Player()
+    player.currentTrack = {"videoId": "abcdefghijk", "title": "Fixture song"}
+    assert activity_for(player, now=1000)["state"] == "Tubify"
     player.currentTrack = {"title": "A" * 300, "artist": "Fallback", "videoId": "invalid&token=private"}
     assert len(activity_for(player)["details"]) == 128
     assert activity_for(player)["name"] == activity_for(player)["details"]
