@@ -44,14 +44,11 @@ Item {
             spacing: 4
             Repeater {
                 model: [{ label: "Song", video: false }, { label: "Video", video: true }]
-                delegate: Button {
-                    id: mode
+                delegate: FilterChip {
                     required property var modelData
-                    readonly property bool selected: playerState.videoPreferred === modelData.video
+                    selected: playerState.videoPreferred === modelData.video
                     text: modelData.label; height: 32; leftPadding: 18; rightPadding: 18
                     Accessible.name: "Play " + modelData.label.toLowerCase()
-                    palette.buttonText: selected ? themeState.onAccent : themeState.foreground
-                    background: Rectangle { radius: height / 2; color: mode.selected ? themeState.accent : mode.hovered ? themeState.hover : themeState.surface; border.width: mode.visualFocus ? 2 : 0; border.color: themeState.foreground }
                     onClicked: playerState.setVideoPreferred(modelData.video)
                 }
             }

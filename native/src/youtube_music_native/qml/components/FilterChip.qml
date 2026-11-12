@@ -2,14 +2,16 @@ import QtQuick
 import QtQuick.Controls
 
 // Pill that selects one filter in a row of filters; the selected chip is filled with the accent.
+// Set choice to false for a pill-shaped action that selects nothing.
 Button {
     id: root
     property bool selected: false
+    property bool choice: true
     height: 36
     leftPadding: 14
     rightPadding: 14
     Accessible.name: text
-    Accessible.checkable: true
+    Accessible.checkable: choice
     Accessible.checked: selected
     contentItem: Text {
         text: root.text

@@ -68,16 +68,12 @@ Item {
                 id: storageActions
                 anchors.right: parent.right; y: 136; spacing: 8
                 IconButton { iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
-                Button {
-                    id: downloadAll
+                FilterChip {
                     objectName: "downloadAllPlaylists"
-                    height: 36; leftPadding: 14; rightPadding: 14
+                    choice: false
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Download All Playlists"
-                    Accessible.name: "Download All Playlists"
                     enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
-                    palette.buttonText: themeState.foreground
-                    background: Rectangle { radius: height / 2; color: downloadAll.hovered ? themeState.hover : themeState.surface; border.width: downloadAll.visualFocus ? 2 : 0; border.color: themeState.accent }
                     onClicked: downloadsState.downloadAll(appState.playlists)
                 }
             }

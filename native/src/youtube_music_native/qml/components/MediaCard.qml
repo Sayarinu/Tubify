@@ -138,19 +138,13 @@ FocusScope {
             visible: text.length > 0
             color: themeState.secondary; font.pixelSize: 13
         }
-        Text {
+        InlineLink {
             id: artistName
             objectName: "cardArtist"
-            text: root.artist ? "" : root.media.artist || root.primaryArtist.name || ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: artistLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 13; visible: text.length > 0
+            text: root.artist ? "" : root.media.artist || root.primaryArtist.name || ""; elide: Text.ElideRight; font.pixelSize: 13; visible: text.length > 0
             width: Math.min(implicitWidth, Math.max(0, root.width - (kind.visible ? kind.implicitWidth : 0)))
-            font.underline: artistLink.containsMouse || activeFocus
-            activeFocusOnTab: !!root.primaryArtist.id
-            function openArtist() { if (root.primaryArtist.id) browseState.open({kind: "artist", id: root.primaryArtist.id, title: root.primaryArtist.name}) }
-            Accessible.role: root.primaryArtist.id ? Accessible.Link : Accessible.StaticText
-            Accessible.onPressAction: openArtist()
-            Keys.onReturnPressed: openArtist()
-            Keys.onSpacePressed: openArtist()
-            MouseArea { id: artistLink; anchors.fill: parent; z: 2; enabled: !!root.primaryArtist.id; hoverEnabled: enabled; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: artistName.openArtist() }
+            linked: !!root.primaryArtist.id
+            onActivated: browseState.open({kind: "artist", id: root.primaryArtist.id, title: root.primaryArtist.name})
         }
     }
 }

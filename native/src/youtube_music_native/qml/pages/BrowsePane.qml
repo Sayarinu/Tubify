@@ -86,12 +86,9 @@ Item {
                 boundsBehavior: Flickable.StopAtBounds
                 visible: catalogState.route === "home"
                 model: ["Energize", "Feel good", "Workout", "Relax", "Party", "Commute", "Romance", "Focus", "Sad"]
-                delegate: Button {
-                    id: mood
+                delegate: FilterChip {
                     required property string modelData
-                    text: modelData; height: 36; leftPadding: 16; rightPadding: 16
-                    palette.buttonText: themeState.foreground
-                    background: Rectangle { radius: height / 2; color: mood.hovered ? themeState.hover : themeState.surface; border.width: mood.visualFocus ? 2 : 0; border.color: themeState.foreground }
+                    text: modelData; choice: false; leftPadding: 16; rightPadding: 16
                     onClicked: browseState.homeMood(text)
                 }
             }
