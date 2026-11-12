@@ -13,9 +13,9 @@ from Cryptodome.Signature import eddsa
 import pytest
 from PySide6.QtCore import QCoreApplication
 
-from youtube_music_native.updates import updates
+from tubify.updates import updates
 
-from youtube_music_native.updates import maintenance
+from tubify.updates import maintenance
 from test_maintenance import Worker
 
 
@@ -132,7 +132,7 @@ def test_linux_auth_cancel_relaunches_without_elevating_gui(tmp_path, monkeypatc
     monkeypatch.setattr(updates.subprocess, 'Popen', lambda argv, **kwargs: calls.append(argv))
     assert updates.install_linux(123, package, hashlib.sha256(DATA).hexdigest()) == 126
     assert calls[0] == updates.root_install_command(package, hashlib.sha256(DATA).hexdigest())
-    assert calls[1] == ['/usr/bin/youtube-music-native']
+    assert calls[1] == ['/usr/bin/tubify']
     assert json.loads((tmp_path/'result.json').read_text()) == {'success':False}
 
 
@@ -223,7 +223,7 @@ def test_windows_handoff_waits_for_gui_and_preserves_install_directory(tmp_path,
 
 
 def test_update_preferences_use_shell_config_not_replaceable_cache(tmp_path):
-    from youtube_music_native.shell import ShellController
+    from tubify.shell import ShellController
     app = QCoreApplication.instance() or QCoreApplication([])
     shell = ShellController(tmp_path/'config/settings.ini')
     service = maintenance.Maintenance(tmp_path/'separate/cache/release.json', shell, worker_factory=Worker)
@@ -265,7 +265,7 @@ def test_linux_updates_find_only_the_tubify_named_package():
     source = {'name': 'Tubify-0.2.1-linux-source.tar.gz', 'digest': 'sha256:' + '0' * 64, 'size': 10}
     row = {'tag_name': 'Tubify-0.2.1', 'assets': [asset_row(name), asset_row(name + '.sig'), source]}
     assert updates.select_asset(row, 'linux')['name'] == name
-    old = 'youtube-music-native-0.2.1-1-x86_64.pkg.tar.zst'
+    old = 'tubify-0.2.1-1-x86_64.pkg.tar.zst'
     with pytest.raises(ValueError):
         updates.select_asset({'tag_name': 'Tubify-0.2.1', 'assets': [asset_row(old), asset_row(old + '.sig')]}, 'linux')
 

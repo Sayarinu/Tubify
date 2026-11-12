@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from youtube_music_native.catalog.mutations import ActionError, perform
+from tubify.catalog.mutations import ActionError, perform
 
 
 def test_album_save_and_artist_subscription_use_provider_mutation_identifiers():
@@ -23,7 +23,7 @@ def test_album_save_and_artist_subscription_use_provider_mutation_identifiers():
 
 def test_account_change_prevents_queuing_a_library_mutation(tmp_path):
     from PySide6.QtCore import QCoreApplication
-    from youtube_music_native.catalog.actions import Actions
+    from tubify.catalog.actions import Actions
 
     app = QCoreApplication.instance() or QCoreApplication([])
     account = SimpleNamespace(worker=None, busy=True, connected=True)
@@ -50,7 +50,7 @@ def test_rating_and_song_library_changes_use_current_provider_values():
 
 
 def test_history_uses_one_provider_instance_and_keeps_tracking_urls_out_of_results(tmp_path):
-    from youtube_music_native.worker import handle
+    from tubify.worker import handle
 
     calls = []
     song = {"playbackTracking": {"videostatsPlaybackUrl": {"baseUrl": "https://tracking.invalid/private-fixture"}}}

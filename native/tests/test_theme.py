@@ -4,7 +4,7 @@ import pytest
 
 from PySide6.QtCore import QCoreApplication, QSettings
 
-from youtube_music_native.theme import CLASSIC_LIGHT_COLORS, DEFAULT_COLORS, DEFAULT_THEME_ID, PRESETS, ThemeState
+from tubify.theme import CLASSIC_LIGHT_COLORS, DEFAULT_COLORS, DEFAULT_THEME_ID, PRESETS, ThemeState
 
 
 def _app():

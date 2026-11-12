@@ -9,14 +9,14 @@ from types import SimpleNamespace
 from Cryptodome.PublicKey import ECC
 import pytest
 
-from youtube_music_native.updates import package_signature
+from tubify.updates import package_signature
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="The helper is only installed by the Linux package")
 
 HELPER = Path(__file__).resolve().parents[2] / "packaging" / "linux" / "apply-update"
 
 
-def load(tmp_path, monkeypatch, name="youtube-music-native", version="0.3.0-1", installed="0.2.0-1"):
+def load(tmp_path, monkeypatch, name="tubify", version="0.3.0-1", installed="0.2.0-1"):
     loader = SourceFileLoader("apply_update", str(HELPER))
     module = module_from_spec(spec_from_loader("apply_update", loader))
     loader.exec_module(module)
@@ -33,7 +33,7 @@ def load(tmp_path, monkeypatch, name="youtube-music-native", version="0.3.0-1", 
         if command[:2] == ["/usr/bin/pacman", "-Qip"]:
             return SimpleNamespace(returncode=0, stdout=f"Name            : {name}\nVersion         : {version}\n")
         if command[:2] == ["/usr/bin/pacman", "-Q"]:
-            return SimpleNamespace(returncode=0 if installed else 1, stdout=f"youtube-music-native {installed}\n")
+            return SimpleNamespace(returncode=0 if installed else 1, stdout=f"tubify {installed}\n")
         if command[0] == "/usr/bin/vercmp":
             order = (command[1] > command[2]) - (command[1] < command[2])
             return SimpleNamespace(returncode=0, stdout=f"{order}\n")

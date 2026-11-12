@@ -30,7 +30,7 @@ def request(credentials, method, values=None, opener=urlopen):
     signature = "".join(key + str(params[key]) for key in sorted(params)) + credentials["secret"]
     params["api_sig"] = hashlib.md5(signature.encode("utf-8"), usedforsecurity=False).hexdigest()
     params["format"] = "json"
-    req = Request(ENDPOINT, data=urlencode(params).encode("utf-8"), headers={"User-Agent": "YouTubeMusicNative/0.1", "Content-Type": "application/x-www-form-urlencoded"})
+    req = Request(ENDPOINT, data=urlencode(params).encode("utf-8"), headers={"User-Agent": "Tubify/1.0", "Content-Type": "application/x-www-form-urlencoded"})
     try:
         with opener(req, timeout=10) as response:
             raw = response.read(1024 * 1024 + 1)

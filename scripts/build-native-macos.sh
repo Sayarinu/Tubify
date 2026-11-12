@@ -41,7 +41,7 @@ native_python="$native_build_root/venv/bin/python"
 # The app icon is rendered from the same SVG the Linux package installs.
 iconset="$native_build_root/Tubify.iconset"
 mkdir -p "$iconset"
-QT_QPA_PLATFORM=offscreen "$native_python" - "native/src/youtube_music_native/assets/music.svg" "$iconset" <<'PY'
+QT_QPA_PLATFORM=offscreen "$native_python" - "native/src/tubify/assets/music.svg" "$iconset" <<'PY'
 import sys
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication, QImage, QPainter

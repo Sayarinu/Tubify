@@ -9,7 +9,7 @@ spec = importlib.util.spec_from_file_location("bundle_contents", ROOT / "packagi
 bundle_contents = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bundle_contents)
 is_needed = bundle_contents.is_needed
-SOURCE = ROOT / "native" / "src" / "youtube_music_native"
+SOURCE = ROOT / "native" / "src" / "tubify"
 
 
 @pytest.mark.parametrize("path", [
@@ -59,8 +59,8 @@ def test_unneeded_files_are_left_out(path):
     r"PySide6\plugins\platforms\qwindows.dll",
     r"PySide6\plugins\imageformats\qsvg.dll",
     r"helpers\ffmpeg.exe",
-    r"youtube_music_native\qml\Main.qml",
-    r"youtube_music_native\assets\Roboto-Bold.ttf",
+    r"tubify\qml\Main.qml",
+    r"tubify\assets\Roboto-Bold.ttf",
 ])
 def test_needed_files_stay(path):
     assert is_needed(path)

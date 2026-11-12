@@ -12,7 +12,11 @@ An x86_64 system with `makepkg` and pacman. The package depends on the system's 
 ./scripts/build-native-linux-package.sh
 ```
 
-Outputs `dist/native/youtube-music-native-*.pkg.tar.zst`, published as `Tubify-<version>-linux-x86_64.pkg.tar.zst`.
+Outputs `dist/native/tubify-*.pkg.tar.zst`, published as `Tubify-<version>-linux-x86_64.pkg.tar.zst`.
+
+## Upgrading from before 1.0
+
+Before 1.0 the package was called `youtube-music-native`. The `tubify` package replaces it: the PKGBUILD lists `youtube-music-native` in `provides`, `conflicts` and `replaces`. The old update helper only installs packages named `youtube-music-native`, so the in-app update can't move an older install to 1.0. Install the 1.0 package once by hand with `sudo pacman -U` and let pacman remove `youtube-music-native`. Settings, downloads and sign-in are kept: on first launch Tubify moves its folders from the old `YouTubeMusicNative/youtube-music-native` names to `Tubify/tubify`, and the login stays in the system keyring. Later updates install from the app again.
 
 ## Signing
 
@@ -28,4 +32,4 @@ Sign-in reuses the YouTube Music sign-in from your browser.
 
 ## CI
 
-Pull request CI builds the package, installs it, and tests upgrading to it. It then publishes it as the `native-linux-package` workflow artifact.
+Pull request CI builds the package, installs it over a stand-in `youtube-music-native` package, and tests upgrading to it. It then publishes it as the `native-linux-package` workflow artifact.

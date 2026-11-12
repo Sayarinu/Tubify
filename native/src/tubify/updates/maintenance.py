@@ -42,7 +42,7 @@ def installed_version():
         return tomllib.loads(source.read_text(encoding="utf-8"))["project"]["version"]
     except (OSError, KeyError, ValueError):
         try:
-            return version("youtube-music-native")
+            return version("tubify")
         except PackageNotFoundError:
             return "unknown"
 
@@ -70,7 +70,7 @@ def lookup_release(opener=urlopen, channel="stable"):
     """Bound listing size and reject partial scans instead of claiming up-to-date."""
     candidates = []
     for page in range(1, 6):
-        request = Request(f"{RELEASE_API}?per_page=100&page={page}", headers={"Accept": "application/vnd.github+json", "User-Agent": "youtube-music-native-release-check", "X-GitHub-Api-Version": "2022-11-28"})
+        request = Request(f"{RELEASE_API}?per_page=100&page={page}", headers={"Accept": "application/vnd.github+json", "User-Agent": "Tubify-release-check", "X-GitHub-Api-Version": "2022-11-28"})
         with opener(request, timeout=8) as response:
             raw = response.read(2 * 1024 * 1024 + 1)
         if len(raw) > 2 * 1024 * 1024:
@@ -92,7 +92,7 @@ def lookup_release(opener=urlopen, channel="stable"):
 
 def public_diagnostics(snapshot):
     """Discard unknown fields and arbitrary text, even when called outside the UI."""
-    result = {"schema": 1, "application": "youtube-music-native", "version": installed_version(), "python": platform.python_version(), "qt": qVersion(), "platform": sys.platform, "createdAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    result = {"schema": 1, "application": "tubify", "version": installed_version(), "python": platform.python_version(), "qt": qVersion(), "platform": sys.platform, "createdAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     result["packages"] = {}
     for name in ("PySide6", "python-mpv", "ytmusicapi", "yt-dlp", "keyring"):
         try:

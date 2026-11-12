@@ -1,8 +1,8 @@
 from PySide6.QtCore import QCoreApplication, QEventLoop, QObject, QTimer, QUrl, Signal
 import sys
 
-from youtube_music_native.account.account import Account
-from youtube_music_native.jobs import Worker
+from tubify.account.account import Account
+from tubify.jobs import Worker
 
 
 class FakeWorker(QObject):

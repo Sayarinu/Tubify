@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from youtube_music_native.account.session import Session, SessionError, from_cookies, from_headers, read_browser_session
+from tubify.account.session import Session, SessionError, from_cookies, from_headers, read_browser_session
 
 
 def test_import_keeps_credentials_out_of_representation_and_restricts_origin(tmp_path):
@@ -41,7 +41,7 @@ def test_malformed_export_is_reported_without_its_contents(tmp_path):
 
 
 def test_saved_payload_preserves_cookie_domain_and_expiry():
-    from youtube_music_native.account.session import Session
+    from tubify.account.session import Session
 
     original = from_headers({"cookie": "__Secure-3PAPISID=private-session"})
     original.cookies[0].expires = 2000000000

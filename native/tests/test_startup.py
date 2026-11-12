@@ -8,8 +8,8 @@ import sys
 
 import pytest
 
-from youtube_music_native import launcher
-from youtube_music_native.system.startup import APP_ID, OLD_APP_ID, RUN_KEY, StartupError, StartupRegistration, desktop_exec
+from tubify import launcher
+from tubify.system.startup import APP_ID, OLD_APP_ID, OLD_DESKTOP_FILE, RUN_KEY, StartupError, StartupRegistration, desktop_exec
 
 
 @pytest.mark.parametrize("platform", ["linux", "darwin"])
@@ -25,7 +25,7 @@ def test_file_registration_is_per_user_atomic_and_idempotent(tmp_path, platform)
         assert registration.path == tmp_path / "Library/LaunchAgents" / (APP_ID + ".plist")
         assert plistlib.loads(content) == {"Label": APP_ID, "ProgramArguments": command, "RunAtLoad": True}
     else:
-        assert registration.path == tmp_path / "config/autostart/youtube-music-native.desktop"
+        assert registration.path == tmp_path / "config/autostart/tubify.desktop"
         assert b'Exec="/Synthetic App/python" "/Synthetic App/launcher.py"' in content
     registration.set_enabled(True)
     assert registration.path.read_bytes() == content
@@ -72,7 +72,7 @@ def test_linux_exec_quoting_preserves_arguments_without_a_shell():
     with pytest.raises(StartupError):
         desktop_exec(["/unsupported=executable"])
     fallback = StartupRegistration(["/synthetic"], "linux", home=Path("/home/synthetic"), config="relative")
-    assert fallback.path == Path("/home/synthetic/.config/autostart/youtube-music-native.desktop")
+    assert fallback.path == Path("/home/synthetic/.config/autostart/tubify.desktop")
 
 
 class Registry:
@@ -170,23 +170,44 @@ def test_legacy_linux_display_name_keeps_login_state_without_rewriting(tmp_path)
     assert registration.path.read_bytes() == previous
 
 
-def test_a_linux_login_item_from_an_old_build_moves_to_the_new_identifier(tmp_path):
+def old_linux_entry(identifier):
+    return ("[Desktop Entry]\nType=Application\nName=Tubify\n"
+            f"X-YouTube-Music-Native={identifier}\nExec=\"/usr/bin/youtube-music-native\"\nTerminal=false\n").encode()
+
+
+@pytest.mark.parametrize("identifier", [APP_ID, OLD_APP_ID])
+def test_a_linux_login_item_from_an_old_build_moves_to_the_new_identifier(tmp_path, identifier):
     registration = StartupRegistration(["/usr/bin/tubify"], "linux", tmp_path, tmp_path / "config")
     assert not registration.move_old_item()
-    registration.path.parent.mkdir(parents=True)
-    registration.path.write_bytes(registration._content().replace(APP_ID.encode(), OLD_APP_ID.encode()))
+    old = registration.path.with_name(OLD_DESKTOP_FILE)
+    old.parent.mkdir(parents=True)
+    old.write_bytes(old_linux_entry(identifier))
     assert not registration.is_enabled()
     assert registration.move_old_item() and registration.is_enabled()
-    assert OLD_APP_ID.encode() not in registration.path.read_bytes()
+    assert not old.exists()
+    assert b"X-Tubify=" + APP_ID.encode() + b"\n" in registration.path.read_bytes()
     assert not registration.move_old_item()
 
 
 def test_a_foreign_linux_login_item_is_left_alone(tmp_path):
     registration = StartupRegistration(["/usr/bin/tubify"], "linux", tmp_path, tmp_path / "config")
     registration.path.parent.mkdir(parents=True)
-    registration.path.write_bytes(b"[Desktop Entry]\nName=Other\n")
+    for path in (registration.path, registration.path.with_name(OLD_DESKTOP_FILE)):
+        path.write_bytes(b"[Desktop Entry]\nName=Other\n")
     assert not registration.move_old_item()
     assert registration.path.read_bytes() == b"[Desktop Entry]\nName=Other\n"
+    assert registration.path.with_name(OLD_DESKTOP_FILE).exists()
+
+
+def test_an_old_linux_login_item_is_kept_when_a_foreign_one_has_the_new_name(tmp_path):
+    registration = StartupRegistration(["/usr/bin/tubify"], "linux", tmp_path, tmp_path / "config")
+    old = registration.path.with_name(OLD_DESKTOP_FILE)
+    old.parent.mkdir(parents=True)
+    old.write_bytes(old_linux_entry(APP_ID))
+    registration.path.write_bytes(b"[Desktop Entry]\nName=Other\n")
+    with pytest.raises(StartupError):
+        registration.move_old_item()
+    assert old.exists() and registration.path.read_bytes() == b"[Desktop Entry]\nName=Other\n"
 
 
 def test_a_macos_login_item_from_an_old_build_moves_to_the_new_identifier(tmp_path):

@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "youtube-music-native"
+name = "tubify"
 version = "1.0.0"
 description = "Tubify, a desktop app for YouTube Music"
 requires-python = ">=3.14"
@@ -34,17 +34,14 @@ macos-build = ["pyinstaller>=6.10"]
 windows-build = ["pyinstaller>=6.10"]
 
 [project.scripts]
-tubify = "youtube_music_native.launcher:main"
-tubify-check = "youtube_music_native.launcher:compat_main"
-# Original command names, kept so existing launchers and the desktop entry keep working.
-youtube-music-native = "youtube_music_native.launcher:main"
-youtube-music-native-check = "youtube_music_native.launcher:compat_main"
+tubify = "tubify.launcher:main"
+tubify-check = "tubify.launcher:compat_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-youtube_music_native = ["qml/*.qml", "qml/*/*.qml", "qml/*.js", "assets/*"]
+tubify = ["qml/*.qml", "qml/*/*.qml", "qml/*.js", "assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

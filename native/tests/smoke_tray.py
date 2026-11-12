@@ -8,8 +8,8 @@ from PySide6.QtCore import QObject, QMetaObject, QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtTest import QTest
 
-from youtube_music_native import app
-from youtube_music_native.system.tray import TrayPlayer
+from tubify import app
+from tubify.system.tray import TrayPlayer
 from test_tray import FakeTray, FakeMenu
 from smoke_player import check_autoplay
 
@@ -29,10 +29,10 @@ def main():
             try:
                 service = shell.trayState
                 assert QGuiApplication.applicationDisplayName() == "Tubify"
-                assert QGuiApplication.applicationName() == "youtube-music-native"
-                assert QGuiApplication.organizationName() == "YouTubeMusicNative"
+                assert QGuiApplication.applicationName() == "tubify"
+                assert QGuiApplication.organizationName() == "Tubify"
                 assert QGuiApplication.organizationDomain() == "nouvellelune.studio"
-                assert QGuiApplication.instance().desktopFileName() == "youtube-music-native"
+                assert QGuiApplication.instance().desktopFileName() == "tubify"
                 assert window.title() == "Tubify · Visual Fixture"
                 assert service.popup is None and not service.enabled
                 service.setEnabled(True)

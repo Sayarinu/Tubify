@@ -20,10 +20,10 @@ from PySide6.QtCore import QObject, QUrl, Slot
 from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
-from youtube_music_native.downloads.download_view import DownloadView
-from youtube_music_native.theme import ThemeState
-from youtube_music_native.shell import ShellController
-from youtube_music_native.app import PACKAGE
+from tubify.downloads.download_view import DownloadView
+from tubify.theme import ThemeState
+from tubify.shell import ShellController
+from tubify.app import PACKAGE
 app = QGuiApplication([])
 root = Path(sys.argv[1])
 for size in (60, 1200):
@@ -114,10 +114,10 @@ from PySide6.QtCore import QObject, QUrl
 from PySide6.QtGui import QGuiApplication, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
-from youtube_music_native.downloads.download_view import DownloadView
-from youtube_music_native.theme import ThemeState
-from youtube_music_native.shell import ShellController
-from youtube_music_native.app import PACKAGE
+from tubify.downloads.download_view import DownloadView
+from tubify.theme import ThemeState
+from tubify.shell import ShellController
+from tubify.app import PACKAGE
 app = QGuiApplication([])
 root = Path(sys.argv[1])
 for name, size, color in (("small", 60, 0xFFCC2222), ("large", 1200, 0xFF22CC22)):

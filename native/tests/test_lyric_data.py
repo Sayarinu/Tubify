@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
-from youtube_music_native.lyrics.lyric_data import Lyrics, normalize
-from youtube_music_native.lyrics.lyric_providers import ProviderUnavailable
+from tubify.lyrics.lyric_data import Lyrics, normalize
+from tubify.lyrics.lyric_providers import ProviderUnavailable
 
 
 def no_match(*args):

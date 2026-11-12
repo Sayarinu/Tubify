@@ -2,10 +2,10 @@
 Type=Application
 Name=Tubify
 Comment=Play and download YouTube Music with Tubify
-Exec=youtube-music-native -- %u
+Exec=tubify -- %u
 MimeType=x-scheme-handler/ytmusic-native;
 Icon=tubify
 Terminal=false
 Categories=AudioVideo;Audio;Player;
 StartupNotify=true
-StartupWMClass=youtube-music-native
+StartupWMClass=tubify

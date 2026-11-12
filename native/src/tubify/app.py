@@ -41,6 +41,7 @@ from .system.tray import TrayPlayer
 from .system.lifecycle import Lifecycle
 from .system.startup import StartupError, StartupRegistration
 from .system.macos import trusts_certificates
+from .system.migration import move_old_data
 from .theme import ThemeState
 from .system.color_picker import ColorSampler
 from .updates.maintenance import Maintenance
@@ -136,10 +137,13 @@ def main(argv=None):
         os.environ["QT_QUICK_BACKEND"] = "software"
     if len(args.links) > 1:
         parser.error("Open one music link at a time.")
-    QGuiApplication.setOrganizationName("YouTubeMusicNative")
+    QGuiApplication.setOrganizationName("Tubify")
     QGuiApplication.setOrganizationDomain("nouvellelune.studio")
-    QGuiApplication.setApplicationName("youtube-music-native")
+    QGuiApplication.setApplicationName("tubify")
     QGuiApplication.setApplicationDisplayName("Tubify")
+    if not (args.data_dir or args.fixture or args.smoke_test or args.screenshot):
+        # Before anything opens the settings, data or cache folders.
+        move_old_data()
     QQuickStyle.setStyle("Basic")
     app = QApplication([sys.argv[0]])
     cleanup = []
@@ -153,7 +157,7 @@ def main(argv=None):
         cleanup.append(once)
         app.aboutToQuit.connect(once)
 
-    app.setDesktopFileName("youtube-music-native")
+    app.setDesktopFileName("tubify")
     app.setWindowIcon(QIcon(str(PACKAGE / "assets" / "music.svg")))
     for font in (PACKAGE / "assets").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(font))
@@ -163,7 +167,7 @@ def main(argv=None):
     if args.data_dir:
         data = args.data_dir
     elif args.smoke_test or args.screenshot:
-        data = Path(tempfile.mkdtemp(prefix="youtube-music-native-ui-"))
+        data = Path(tempfile.mkdtemp(prefix="tubify-ui-"))
     else:
         data = private_directory(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppConfigLocation))
     data.mkdir(parents=True, exist_ok=True, mode=0o700)

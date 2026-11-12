@@ -8,12 +8,12 @@ import wave
 
 from PySide6.QtCore import QSettings
 
-import youtube_music_native
-from youtube_music_native.compat import play_source
-from youtube_music_native.downloads.downloads import DownloadStore
-from youtube_music_native.util import atomic_write
-from youtube_music_native.playback.queue import Queue
-from youtube_music_native.playback.sources import Sources
+import tubify
+from tubify.compat import play_source
+from tubify.downloads.downloads import DownloadStore
+from tubify.util import atomic_write
+from tubify.playback.queue import Queue
+from tubify.playback.sources import Sources
 
 
 TRACK = {"kind": "song", "videoId": "fixture0001", "title": "Package fixture", "duration": 3}
@@ -24,11 +24,11 @@ def main():
     parser.add_argument("phase", choices=("prepare", "verify"))
     parser.add_argument("root", type=Path)
     args = parser.parse_args()
-    assert Path(youtube_music_native.__file__).resolve().is_relative_to("/usr/lib"), "Test the installed package, not the source checkout"
-    desktop = Path("/usr/share/applications/youtube-music-native.desktop").read_text()
+    assert Path(tubify.__file__).resolve().is_relative_to("/usr/lib"), "Test the installed package, not the source checkout"
+    desktop = Path("/usr/share/applications/tubify.desktop").read_text()
     assert "Icon=tubify\n" in desktop
     icon = Path("/usr/share/icons/hicolor/scalable/apps/tubify.svg")
-    assert icon.read_bytes() == (Path(youtube_music_native.__file__).parent / "assets/music.svg").read_bytes()
+    assert icon.read_bytes() == (Path(tubify.__file__).parent / "assets/music.svg").read_bytes()
     args.root.mkdir(parents=True, exist_ok=True)
     store = DownloadStore(args.root)
     settings = QSettings(str(args.root / "settings.ini"), QSettings.Format.IniFormat)

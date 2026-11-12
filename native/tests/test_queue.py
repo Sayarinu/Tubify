@@ -2,7 +2,7 @@ from copy import deepcopy
 
 import pytest
 
-from youtube_music_native.playback.queue import Queue
+from tubify.playback.queue import Queue
 
 
 def tracks(*names):
@@ -136,7 +136,7 @@ def test_queue_transfer_rejects_current_and_non_manual_targets_without_mutating_
 
 
 def test_shuffle_repeat_source_and_manual_one_time(monkeypatch):
-    monkeypatch.setattr("youtube_music_native.playback.queue.random.shuffle", lambda values: values.reverse())
+    monkeypatch.setattr("tubify.playback.queue.random.shuffle", lambda values: values.reverse())
     queue = Queue()
     queue.replace(tracks())
     queue.append(tracks("M", "N"))
@@ -155,7 +155,7 @@ def test_shuffle_repeat_source_and_manual_one_time(monkeypatch):
 
 
 def test_shuffle_all_and_context_pagination_do_not_touch_manual_order(monkeypatch):
-    monkeypatch.setattr("youtube_music_native.playback.queue.random.shuffle", lambda values: values.reverse())
+    monkeypatch.setattr("tubify.playback.queue.random.shuffle", lambda values: values.reverse())
     queue = Queue()
     queue.replace(tracks())
     queue.append(tracks("M", "N"))

@@ -23,7 +23,7 @@ class LinkInstance(QObject):
     def __init__(self, data_dir, parent=None):
         super().__init__(parent)
         self.root = Path(data_dir)
-        self.name = "youtube-music-native-" + hashlib.sha256(str(self.root.resolve()).encode()).hexdigest()[:24]
+        self.name = "tubify-" + hashlib.sha256(str(self.root.resolve()).encode()).hexdigest()[:24]
         self.lock = QLockFile(str(self.root / "instance.lock"))
         self.lock.setStaleLockTime(0)
         self.server = QLocalServer(self)

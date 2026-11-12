@@ -4,8 +4,8 @@ import sys
 
 import pytest
 
-from youtube_music_native.catalog.store import MetadataStore, wipe_metadata
-from youtube_music_native.compat import private_directory
+from tubify.catalog.store import MetadataStore, wipe_metadata
+from tubify.compat import private_directory
 
 
 def test_wiping_removes_views_and_their_bytes_from_disk(tmp_path):

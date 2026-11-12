@@ -716,6 +716,60 @@ wheels = [
 ]
 
 [[package]]
+name = "tubify"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "jeepney", marker = "sys_platform == 'linux'" },
+    { name = "keyring" },
+    { name = "pycryptodomex" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
+    { name = "pyobjc-framework-mediaplayer", marker = "sys_platform == 'darwin'" },
+    { name = "pyside6-essentials" },
+    { name = "python-mpv" },
+    { name = "winrt-runtime", marker = "sys_platform == 'win32'" },
+    { name = "winrt-windows-foundation", marker = "sys_platform == 'win32'" },
+    { name = "winrt-windows-media", marker = "sys_platform == 'win32'" },
+    { name = "winrt-windows-media-interop", marker = "sys_platform == 'win32'" },
+    { name = "winrt-windows-storage-streams", marker = "sys_platform == 'win32'" },
+    { name = "yt-dlp", extra = ["default"] },
+    { name = "ytmusicapi" },
+]
+
+[package.optional-dependencies]
+macos-build = [
+    { name = "pyinstaller" },
+]
+test = [
+    { name = "pytest" },
+]
+windows-build = [
+    { name = "pyinstaller" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jeepney", marker = "sys_platform == 'linux'", specifier = ">=0.9,<1" },
+    { name = "keyring", specifier = ">=25.7,<26" },
+    { name = "pycryptodomex", specifier = ">=3.20,<4" },
+    { name = "pyinstaller", marker = "extra == 'macos-build'", specifier = ">=6.10" },
+    { name = "pyinstaller", marker = "extra == 'windows-build'", specifier = ">=6.10" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=11" },
+    { name = "pyobjc-framework-mediaplayer", marker = "sys_platform == 'darwin'", specifier = ">=11" },
+    { name = "pyside6-essentials", specifier = ">=6.8,<7" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
+    { name = "python-mpv", specifier = ">=1.0.8,<2" },
+    { name = "winrt-runtime", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
+    { name = "winrt-windows-foundation", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
+    { name = "winrt-windows-media", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
+    { name = "winrt-windows-media-interop", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
+    { name = "winrt-windows-storage-streams", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
+    { name = "yt-dlp", extras = ["default"], specifier = ">=2026.8.19" },
+    { name = "ytmusicapi", specifier = ">=1.12.3,<2" },
+]
+provides-extras = ["test", "macos-build", "windows-build"]
+
+[[package]]
 name = "typing-extensions"
 version = "4.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -888,60 +942,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/3d/aae50b1d0e37b5a61055759aedd42c6c99d7c17ab8c3e568ab33c0288938/winrt_windows_storage_streams-3.2.1-cp314-cp314-win_amd64.whl", hash = "sha256:3c5bf41d725369b9986e6d64bad7079372b95c329897d684f955d7028c7f27a0", size = 135566, upload-time = "2025-09-20T07:17:17.69Z" },
     { url = "https://files.pythonhosted.org/packages/bb/c3/6d3ce7a58e6c828e0795c9db8790d0593dd7fdf296e513c999150deb98d4/winrt_windows_storage_streams-3.2.1-cp314-cp314-win_arm64.whl", hash = "sha256:293e09825559d0929bbe5de01e1e115f7a6283d8996ab55652e5af365f032987", size = 134393, upload-time = "2025-09-20T07:17:18.802Z" },
 ]
-
-[[package]]
-name = "youtube-music-native"
-version = "1.0.0"
-source = { editable = "." }
-dependencies = [
-    { name = "jeepney", marker = "sys_platform == 'linux'" },
-    { name = "keyring" },
-    { name = "pycryptodomex" },
-    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
-    { name = "pyobjc-framework-mediaplayer", marker = "sys_platform == 'darwin'" },
-    { name = "pyside6-essentials" },
-    { name = "python-mpv" },
-    { name = "winrt-runtime", marker = "sys_platform == 'win32'" },
-    { name = "winrt-windows-foundation", marker = "sys_platform == 'win32'" },
-    { name = "winrt-windows-media", marker = "sys_platform == 'win32'" },
-    { name = "winrt-windows-media-interop", marker = "sys_platform == 'win32'" },
-    { name = "winrt-windows-storage-streams", marker = "sys_platform == 'win32'" },
-    { name = "yt-dlp", extra = ["default"] },
-    { name = "ytmusicapi" },
-]
-
-[package.optional-dependencies]
-macos-build = [
-    { name = "pyinstaller" },
-]
-test = [
-    { name = "pytest" },
-]
-windows-build = [
-    { name = "pyinstaller" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "jeepney", marker = "sys_platform == 'linux'", specifier = ">=0.9,<1" },
-    { name = "keyring", specifier = ">=25.7,<26" },
-    { name = "pycryptodomex", specifier = ">=3.20,<4" },
-    { name = "pyinstaller", marker = "extra == 'macos-build'", specifier = ">=6.10" },
-    { name = "pyinstaller", marker = "extra == 'windows-build'", specifier = ">=6.10" },
-    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=11" },
-    { name = "pyobjc-framework-mediaplayer", marker = "sys_platform == 'darwin'", specifier = ">=11" },
-    { name = "pyside6-essentials", specifier = ">=6.8,<7" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
-    { name = "python-mpv", specifier = ">=1.0.8,<2" },
-    { name = "winrt-runtime", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
-    { name = "winrt-windows-foundation", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
-    { name = "winrt-windows-media", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
-    { name = "winrt-windows-media-interop", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
-    { name = "winrt-windows-storage-streams", marker = "sys_platform == 'win32'", specifier = ">=3.2.1,<4" },
-    { name = "yt-dlp", extras = ["default"], specifier = ">=2026.8.19" },
-    { name = "ytmusicapi", specifier = ">=1.12.3,<2" },
-]
-provides-extras = ["test", "macos-build", "windows-build"]
 
 [[package]]
 name = "yt-dlp"
