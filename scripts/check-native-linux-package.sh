@@ -33,7 +33,8 @@ pacman -U --noconfirm "${native_legacy[0]}"
 # --noconfirm declines pacman's "Remove youtube-music-native?" conflict question; --ask=4
 # (ALPM_QUESTION_CONFLICT_PKG, 1 << 2 in alpm.h) inverts that answer so the old package is removed.
 pacman -U --noconfirm --ask=4 "$native_package"
-if pacman -Q youtube-music-native >/dev/null 2>&1; then
+# Tubify provides youtube-music-native, so pacman -Q would answer with Tubify; list installed names instead.
+if pacman -Qq | grep -qx youtube-music-native; then
   printf '%s\n' 'Installing Tubify left the old youtube-music-native package installed.' >&2
   exit 1
 fi
