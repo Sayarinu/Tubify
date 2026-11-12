@@ -10,7 +10,7 @@ Rectangle {
     readonly property bool leaving: slide.running && !shown
     visible: shown || leaving
     enabled: shown
-    radius: 12
+    radius: Theme.radiusMedium
     color: themeState.surface
     // Clears the margin between the card and the window edge when sliding.
     readonly property real travel: width + anchors.rightMargin

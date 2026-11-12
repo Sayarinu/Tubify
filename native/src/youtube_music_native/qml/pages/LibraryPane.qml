@@ -18,13 +18,13 @@ Item {
         id: controls
         Item {
             LibraryTabs { width: parent.width; current: "Library"; visible: !root.history }
-            Row { spacing: 16; visible: root.history; height: 72; Text { text: "History"; color: themeState.foreground; font.bold: true; font.pixelSize: 30 } }
+            Row { spacing: Theme.spacingLarge; visible: root.history; height: 72; Text { text: "History"; color: themeState.foreground; font.bold: true; font.pixelSize: 30 } }
             ListView {
                 // Route views may be replaced immediately; avoid unfinished offscreen delegates.
                 cacheBuffer: 0
                 id: filters
                 y: 84; width: parent.width - (sortOrder.visible ? 216 : 0); height: 36
-                visible: !root.history; orientation: ListView.Horizontal; spacing: 12; clip: true
+                visible: !root.history; orientation: ListView.Horizontal; spacing: Theme.spacingMedium; clip: true
                 model: libraryState.sections
                 delegate: FilterChip {
                     required property string modelData

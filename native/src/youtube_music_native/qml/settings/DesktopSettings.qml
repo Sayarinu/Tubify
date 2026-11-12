@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 SettingsPage {
     id: root
@@ -17,7 +18,7 @@ SettingsPage {
         ColumnLayout {
             id: options
             width: optionsScroll.availableWidth
-            spacing: 16
+            spacing: Theme.spacingLarge
             SettingsCheckBox { objectName: "trayEnabledOption"; text: "Enable Tray Player"; checked: trayState.enabled; onToggled: trayState.setEnabled(checked) }
             Text { Layout.fillWidth: true; text: "Control music from the system tray. Pin the player to keep it open, or drag its title bar to move it."; color: themeState.secondary; wrapMode: Text.Wrap }
             ThemeActionButton { text: "Open Tray Player"; enabled: trayState.active; onClicked: { root.close(); trayState.showPlayer() } }

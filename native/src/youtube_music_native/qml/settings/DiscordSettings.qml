@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 SettingsPage {
     id: root
@@ -16,18 +17,18 @@ SettingsPage {
         ColumnLayout {
             id: body
             width: scroll.availableWidth
-            spacing: 12
+            spacing: Theme.spacingMedium
             SettingsCheckBox { objectName: "discordEnabledOption"; text: "Share Listening Activity"; checked: discordState.enabled; onClicked: discordState.setEnabled(checked) }
             Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Tubify automatically finds the running Discord desktop app and shares the current song and its public album-art link. Discord may fetch that image while music plays. Pausing or disabling clears your activity."; color: themeState.secondary }
             SettingsCheckBox { id: advanced; text: "Use a Custom Application ID"; checked: discordState.clientId !== discordState.defaultClientId; onToggled: if (!checked) discordState.setClientId("") }
             ColumnLayout {
                 visible: advanced.checked
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Theme.spacingMedium
                 Label { text: "Discord Application ID"; color: themeState.foreground }
                 ThemedTextField { id: client; objectName: "discordClientId"; Layout.fillWidth: true; text: discordState.clientId; placeholderText: "Numeric Application ID"; maximumLength: 20; Accessible.name: "Discord Application ID"; onAccepted: discordState.setClientId(text) }
                 ThemeActionButton { text: "Save ID"; onClicked: discordState.setClientId(client.text) }
-                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Tubify includes its own Application ID. Only change this if you use a separately registered Discord application. No bot token or client secret is needed."; color: themeState.secondary; font.pixelSize: 12 }
+                Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Tubify includes its own Application ID. Only change this if you use a separately registered Discord application. No bot token or client secret is needed."; color: themeState.secondary; font.pixelSize: Theme.textSmall }
             }
             SettingsCheckBox { text: "Show Listen on YouTube Music Button"; checked: discordState.buttons; onClicked: discordState.setButtons(checked) }
             Label { objectName: "discordStatus"; Layout.fillWidth: true; wrapMode: Text.Wrap; text: discordState.status; color: themeState.foreground }

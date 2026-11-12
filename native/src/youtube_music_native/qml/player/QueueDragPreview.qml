@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import "../components"
+import "../Theme.js" as Theme
 
 Item {
     id: root
@@ -32,7 +33,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 8
+        radius: Theme.radiusSmall
         color: themeState.surface
         border.color: themeState.accent
         border.width: 2
@@ -69,7 +70,7 @@ Item {
             text: root.track.artists && root.track.artists.length ? root.track.artists.map(artist => artist.name).join(" • ") : root.track.artist || ""
             textFormat: Text.PlainText
             color: themeState.secondary
-            font.pixelSize: 12
+            font.pixelSize: Theme.textSmall
             elide: Text.ElideRight
         }
     }

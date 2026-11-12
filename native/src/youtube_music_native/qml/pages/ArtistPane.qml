@@ -28,13 +28,13 @@ Item {
                 id: summary
                 y: 224; width: parent.width
                 Text { width: parent.width; text: root.artist.title || "Artist"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.pixelSize: root.width > 900 ? 48 : 36; font.bold: true }
-                Text { text: root.artist.monthlyListeners ? root.artist.monthlyListeners + " monthly audience" : ""; textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 14; height: 17 }
+                Text { text: root.artist.monthlyListeners ? root.artist.monthlyListeners + " monthly audience" : ""; textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: Theme.textBody; height: 17 }
                 Item { width: 1; height: 16 }
-                Text { width: Math.min(parent.width, 700); text: root.artist.subtitle || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: root.descriptionExpanded ? 1000 : 2; elide: Text.ElideRight; color: themeState.foreground; font.pixelSize: 14; lineHeight: 1.25 }
+                Text { width: Math.min(parent.width, 700); text: root.artist.subtitle || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: root.descriptionExpanded ? 1000 : 2; elide: Text.ElideRight; color: themeState.foreground; font.pixelSize: Theme.textBody; lineHeight: 1.25 }
                 Button { text: root.descriptionExpanded ? "LESS" : "MORE"; flat: true; palette.windowText: themeState.foreground; height: 24; leftPadding: 0; visible: !!root.artist.subtitle; onClicked: root.descriptionExpanded = !root.descriptionExpanded }
                 Item { width: 1; height: 20 }
                 Row {
-                    spacing: 8
+                    spacing: Theme.spacingSmall
                     ThemeActionButton { id: shuffle; objectName: "artistShuffle"; text: "Shuffle"; primary: true; implicitHeight: 36; width: 136; enabled: !!root.artist.shuffleId; onClicked: browseState.startRadio(root.artist.shuffleId, true) }
                     ThemeActionButton { id: mix; objectName: "artistMix"; text: "Mix"; primary: true; implicitHeight: 36; width: 136; enabled: !!root.artist.radioId; onClicked: browseState.startRadio(root.artist.radioId, false) }
                     Button {

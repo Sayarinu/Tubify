@@ -83,7 +83,7 @@ Item {
         objectName: "lyricEmptyState"
         anchors.centerIn: parent
         width: Math.max(0, parent.width - 32)
-        spacing: 12
+        spacing: Theme.spacingMedium
         visible: !root.hasLyrics
         BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; width: 28; height: 28; running: lyricState.busy; visible: running }
         Text {
@@ -93,7 +93,7 @@ Item {
             color: themeState.secondary
             wrapMode: Text.Wrap
             horizontalAlignment: Text.AlignHCenter
-            font.pixelSize: 14
+            font.pixelSize: Theme.textBody
         }
         ThemeActionButton {
             objectName: "lyricRetry"
@@ -110,7 +110,7 @@ Item {
         anchors.fill: parent
         visible: root.hasLyrics
         clip: true
-        spacing: 8
+        spacing: Theme.spacingSmall
         // Space at both ends lets the first and final lines sit in the same reading position.
         topMargin: root.timed ? height / 2 : 16
         bottomMargin: root.timed ? height / 2 : 16

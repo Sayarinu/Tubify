@@ -52,7 +52,7 @@ Rectangle {
     property color accent: themeState.selected
     property string failedSource: ""
     readonly property bool ready: artwork.status === Image.Ready || artwork.status === Image.Loading && artwork.hasImage
-    radius: 8
+    radius: Theme.radiusSmall
     clip: true
     gradient: Gradient {
         GradientStop { position: 0; color: root.accent }

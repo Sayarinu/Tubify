@@ -17,14 +17,14 @@ FocusScope {
     Keys.onReturnPressed: browseState.open(root.media)
     HoverHandler { id: hover }
     Rectangle {
-        anchors.fill: parent; radius: 12
+        anchors.fill: parent; radius: Theme.radiusMedium
         color: hover.hovered ? themeState.hover : themeState.surface
         border.width: root.activeFocus ? 2 : 0; border.color: themeState.accent
         Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionFast } }
     }
     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.forceActiveFocus(); browseState.open(root.media) } }
     Column {
-        x: 24; y: 24; width: parent.width - 48; spacing: 16
+        x: 24; y: 24; width: parent.width - 48; spacing: Theme.spacingLarge
         Cover {
             width: 104; height: 104
             radius: root.artist ? width / 2 : 8
@@ -37,16 +37,16 @@ FocusScope {
             color: themeState.foreground; font.pixelSize: 32; font.bold: true
         }
         Row {
-            spacing: 8
+            spacing: Theme.spacingSmall
             Rectangle {
                 width: kind.implicitWidth + 20; height: 26; radius: 13; color: themeState.background
-                Text { id: kind; anchors.centerIn: parent; text: root.kindLabel; color: themeState.foreground; font.pixelSize: 12; font.bold: true }
+                Text { id: kind; anchors.centerIn: parent; text: root.kindLabel; color: themeState.foreground; font.pixelSize: Theme.textSmall; font.bold: true }
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(implicitWidth, root.width - kind.implicitWidth - 96)
                 text: root.artist ? (root.media.subscribers ? root.media.subscribers + " subscribers" : "") : (root.media.artist || "")
-                textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: 14
+                textFormat: Text.PlainText; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: Theme.textBody
             }
         }
     }

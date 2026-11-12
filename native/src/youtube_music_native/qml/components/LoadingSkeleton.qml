@@ -64,7 +64,7 @@ Item {
             NumberAnimation { from: 0.5; to: 1; duration: 750; easing.type: Easing.InOutSine }
         }
 
-        Rectangle { visible: root.showTitle; y: 12; width: Math.min(parent.width, 320); height: 30; radius: 8; color: root.block }
+        Rectangle { visible: root.showTitle; y: 12; width: Math.min(parent.width, 320); height: 30; radius: Theme.radiusSmall; color: root.block }
 
         Column {
             y: root.titleHeight; width: parent.width; spacing: 0
@@ -75,7 +75,7 @@ Item {
                     width: parent.width; height: root.rowHeight
                     Rectangle { x: root.coverInset; anchors.verticalCenter: parent.verticalCenter; width: root.coverSize; height: width; radius: 6; visible: root.coverSize > 0; color: root.block }
                     Column {
-                        x: root.textInset; anchors.verticalCenter: parent.verticalCenter; spacing: 8
+                        x: root.textInset; anchors.verticalCenter: parent.verticalCenter; spacing: Theme.spacingSmall
                         Rectangle { width: Math.max(0, Math.min(280, root.contentWidth * 0.4)); height: 12; radius: 6; color: root.block }
                         Rectangle { width: Math.max(0, Math.min(180, root.contentWidth * 0.25)); height: 10; radius: 5; color: root.block; opacity: 0.7 }
                     }
@@ -90,8 +90,8 @@ Item {
             Repeater {
                 model: root.mode === "shelves" ? Math.max(1, Math.ceil((root.height - root.titleHeight + root.shelfSpacing) / (root.headingHeight + 16 + Theme.cardHeight + root.shelfSpacing))) : 0
                 Column {
-                    width: parent.width; spacing: 16
-                    Item { width: parent.width; height: root.headingHeight; Rectangle { anchors.verticalCenter: parent.verticalCenter; width: Math.min(parent.width, 220); height: 26; radius: 8; color: root.block } }
+                    width: parent.width; spacing: Theme.spacingLarge
+                    Item { width: parent.width; height: root.headingHeight; Rectangle { anchors.verticalCenter: parent.verticalCenter; width: Math.min(parent.width, 220); height: 26; radius: Theme.radiusSmall; color: root.block } }
                     Row {
                         width: parent.width; height: Theme.cardHeight; spacing: 24; clip: true
                         Repeater {

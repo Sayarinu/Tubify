@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 Item {
     id: root
@@ -14,7 +15,7 @@ Item {
         width: Math.min(root.width - 80, 440)
         title: root.operation === "playlist_create" ? "New Playlist" : "Rename Playlist"
         contentItem: ColumnLayout {
-            spacing: 16
+            spacing: Theme.spacingLarge
             ThemedTextField { id: name; objectName: "playlistNameField"; Layout.fillWidth: true; maximumLength: 150; placeholderText: "Playlist name"; Accessible.name: "Playlist name"; onAccepted: if (save.enabled) save.clicked() }
             Label { text: root.operation === "playlist_create" ? "New playlists are private." : ""; visible: text.length > 0; color: themeState.secondary }
             Label { Layout.fillWidth: true; text: actionsState.message; textFormat: Text.PlainText; visible: !!text; wrapMode: Text.Wrap; color: themeState.secondary }
@@ -32,7 +33,7 @@ Item {
         width: Math.min(root.width - 80, 440)
         title: "Delete Playlist"
         contentItem: ColumnLayout {
-            spacing: 16
+            spacing: Theme.spacingLarge
             Label { Layout.fillWidth: true; text: "Delete “" + (root.target.title || "this playlist") + "” from YouTube Music?"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground }
             Label { Layout.fillWidth: true; text: actionsState.message; textFormat: Text.PlainText; visible: !!text; wrapMode: Text.Wrap; color: themeState.secondary }
             RowLayout {
@@ -49,7 +50,7 @@ Item {
         width: Math.min(root.width - 80, 440)
         title: "Add to Playlist"
         contentItem: ColumnLayout {
-            spacing: 12
+            spacing: Theme.spacingMedium
             ThemedTextField { id: find; objectName: "playlistChooserFind"; Layout.fillWidth: true; placeholderText: "Find a playlist"; Accessible.name: "Find a playlist" }
             ListView {
                 Layout.fillWidth: true; Layout.preferredHeight: Math.min(contentHeight, 280, Math.max(80, root.height - 240)); visible: count > 0; clip: true; model: libraryState.playlists
@@ -65,9 +66,9 @@ Item {
                     contentItem: Item {
                         // Same cached cover as the sidebar playlist list.
                         Cover { objectName: "playlistChoiceCover"; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 6; opacity: entry.enabled ? 1 : 0.5; source: entry.modelData.thumbnail || ""; mediaKey: "playlist:" + entry.modelData.id; accent: themeState.selected }
-                        Text { x: 52; width: parent.width - x; height: parent.height; text: entry.modelData.title; textFormat: Text.PlainText; color: entry.enabled ? themeState.foreground : themeState.muted; font.pixelSize: 14; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                        Text { x: 52; width: parent.width - x; height: parent.height; text: entry.modelData.title; textFormat: Text.PlainText; color: entry.enabled ? themeState.foreground : themeState.muted; font.pixelSize: Theme.textBody; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                     }
-                    background: Rectangle { radius: 8; color: entry.down || entry.hovered || entry.highlighted ? themeState.hover : "transparent"; border.width: entry.visualFocus ? 1 : 0; border.color: themeState.accent }
+                    background: Rectangle { radius: Theme.radiusSmall; color: entry.down || entry.hovered || entry.highlighted ? themeState.hover : "transparent"; border.width: entry.visualFocus ? 1 : 0; border.color: themeState.accent }
                     onClicked: libraryState.add(modelData.id, root.target)
                 }
             }

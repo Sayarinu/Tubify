@@ -166,7 +166,7 @@ Item {
             objectName: "queueAutoplay"
             y: nowContent.y + nowContent.height; width: parent.width; height: 40
             padding: 0
-            spacing: 8
+            spacing: Theme.spacingSmall
             text: "Autoplay"
             checked: playerState.autoplay
             Accessible.name: "Autoplay similar music"
@@ -177,7 +177,7 @@ Item {
                 objectName: "queueAutoplayLabel"
                 text: autoplaySwitch.text
                 color: themeState.foreground
-                font.pixelSize: 14
+                font.pixelSize: Theme.textBody
                 verticalAlignment: Text.AlignVCenter
                 rightPadding: autoplaySwitch.indicator.width + autoplayState.width + autoplaySwitch.spacing * 2
                 elide: Text.ElideRight
@@ -205,7 +205,7 @@ Item {
                     objectName: "queueAutoplayTrack"
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 44; height: 24; radius: 12
+                    width: 44; height: 24; radius: Theme.radiusMedium
                     color: autoplaySwitch.checked ? themeState.accent : themeState.progressTrack
                     Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionMedium } }
                     border.width: autoplaySwitch.visualFocus ? 2 : 0
@@ -406,7 +406,7 @@ Item {
         visible: root.dragging
         x: queueList.x; y: queueList.y
         width: queueList.width; height: 44
-        radius: 8
+        radius: Theme.radiusSmall
         color: root.dropToManual ? themeState.selected : themeState.surface
         border.color: root.dropToManual ? themeState.accent : themeState.border
         border.width: root.dropToManual ? 2 : 1

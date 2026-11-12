@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Tubify.Video
 import "../components"
+import "../Theme.js" as Theme
 
 Item {
     id: root
@@ -58,7 +59,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             visible: root.videoShown
             width: root.videoWidth; height: width * 9 / 16
-            Rectangle { anchors.fill: parent; radius: 12; color: "black" }
+            Rectangle { anchors.fill: parent; radius: Theme.radiusMedium; color: "black" }
             VideoSurface {
                 objectName: "videoSurface"
                 anchors.fill: parent
@@ -71,7 +72,7 @@ Item {
             objectName: "immersiveArtwork"
             anchors.horizontalCenter: parent.horizontalCenter
             visible: !root.videoShown
-            width: root.coverSize; height: width; radius: 12
+            width: root.coverSize; height: width; radius: Theme.radiusMedium
             largeArtwork: true
             prefetchMedia: playerState.upcomingTracks || []
             media: root.track

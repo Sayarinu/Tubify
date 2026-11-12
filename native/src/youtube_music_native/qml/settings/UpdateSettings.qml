@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 SettingsPage {
     id: root
@@ -17,7 +18,7 @@ SettingsPage {
         ColumnLayout {
             id: body
             width: scroll.availableWidth
-            spacing: 16
+            spacing: Theme.spacingLarge
             Label { objectName: "installedVersion"; text: maintenanceState.versionName; textFormat: Text.PlainText; color: themeState.foreground; font.bold: true }
             Label { objectName: "updateStatus"; Layout.fillWidth: true; text: maintenanceState.status; textFormat: Text.PlainText; color: themeState.foreground; wrapMode: Text.Wrap }
             ColumnLayout {
@@ -35,7 +36,7 @@ SettingsPage {
                 }
             }
             Label {
-                Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12
+                Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: Theme.textSmall
                 text: "Experimental builds get new features first and may have rough edges. Change the channel at any time to switch builds and restart."
             }
             SettingsCheckBox {
@@ -45,17 +46,17 @@ SettingsPage {
             }
             ProgressBar { Layout.fillWidth: true; visible: maintenanceState.downloading; value: maintenanceState.progress / 100 }
             Flow {
-                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8
+                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: Theme.spacingSmall
                 ThemeActionButton { objectName: "checkReleaseButton"; text: "Check for Updates"; enabled: !maintenanceState.busy; onClicked: maintenanceState.checkRelease() }
                 ThemeActionButton { objectName: "installUpdateButton"; text: maintenanceState.switchingChannel ? (Qt.platform.os === "osx" ? "Switch…" : "Switch & Restart") : Qt.platform.os === "osx" ? "Update…" : "Update & Restart"; visible: maintenanceState.updateAvailable && maintenanceState.installSupported; enabled: !maintenanceState.busy; onClicked: maintenanceState.installUpdate() }
                 ThemeActionButton { text: "Cancel Download"; visible: maintenanceState.downloading; onClicked: maintenanceState.cancelUpdate() }
                 ThemeActionButton { text: "Release Details"; visible: !!maintenanceState.releaseUrl; onClicked: Qt.openUrlExternally(maintenanceState.releaseUrl) }
             }
-            Label { Layout.fillWidth: true; text: maintenanceState.updateGuidance; color: themeState.secondary; wrapMode: Text.Wrap; font.pixelSize: 12 }
+            Label { Layout.fillWidth: true; text: maintenanceState.updateGuidance; color: themeState.secondary; wrapMode: Text.Wrap; font.pixelSize: Theme.textSmall }
             Label { text: "About"; color: themeState.foreground; font.bold: true }
             Label { Layout.fillWidth: true; text: "Tubify is open source under the MIT License. It is not affiliated with Google or YouTube."; color: themeState.secondary; wrapMode: Text.Wrap }
             Flow {
-                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8
+                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: Theme.spacingSmall
                 ThemeActionButton { objectName: "licensesButton"; text: "Open-Source Licenses"; onClicked: Qt.openUrlExternally(maintenanceState.noticesUrl) }
                 ThemeActionButton { text: "Project Page"; onClicked: Qt.openUrlExternally("https://github.com/Sayarinu/Tubify") }
             }

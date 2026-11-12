@@ -82,7 +82,7 @@ Item {
                 cacheBuffer: 0
                 id: moods
                 objectName: "homeMoods"
-                width: parent.width; height: 36; orientation: ListView.Horizontal; spacing: 12; clip: true
+                width: parent.width; height: 36; orientation: ListView.Horizontal; spacing: Theme.spacingMedium; clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 visible: catalogState.route === "home"
                 model: ["Energize", "Feel good", "Workout", "Relax", "Party", "Commute", "Romance", "Focus", "Sad"]
@@ -107,7 +107,7 @@ Item {
                 }
             }
             Column {
-                width: parent.width; visible: !root.landing; spacing: 12
+                width: parent.width; visible: !root.landing; spacing: Theme.spacingMedium
                 Text { width: parent.width; text: root.result.title || ""; textFormat: Text.PlainText; color: themeState.foreground; font.pixelSize: 32; font.bold: true; elide: Text.ElideRight }
             }
         }
@@ -150,7 +150,7 @@ Item {
                 width: parent.width; spacing: 24
                 Cover { width: 128; height: 128; source: root.result.thumbnail || ""; visible: source.length > 0 }
                 Column {
-                    width: parent.width - (root.result.thumbnail ? 152 : 0); spacing: 16
+                    width: parent.width - (root.result.thumbnail ? 152 : 0); spacing: Theme.spacingLarge
                     Text { width: parent.width; text: root.result.title || "Music"; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.pixelSize: 32; font.bold: true }
                     ThemeActionButton { text: "Play All"; primary: true; onClicked: browseState.playView() }
                 }
@@ -194,15 +194,15 @@ Item {
         anchors.fill: parent; anchors.margins: root.gutter; anchors.rightMargin: root.rightGutter
         visible: catalogState.route === "moods" && root.moodItems().length > 0
         Flow {
-            width: parent.width; spacing: 16
-            Repeater { model: root.moodItems(); delegate: ThemeActionButton { required property var modelData; text: modelData.title || "Mood"; width: 180; implicitHeight: 52; font.pixelSize: 14; onClicked: browseState.mood(modelData) } }
+            width: parent.width; spacing: Theme.spacingLarge
+            Repeater { model: root.moodItems(); delegate: ThemeActionButton { required property var modelData; text: modelData.title || "Mood"; width: 180; implicitHeight: 52; font.pixelSize: Theme.textBody; onClicked: browseState.mood(modelData) } }
         }
     }
     Column {
         anchors.centerIn: parent; width: Math.min(parent.width - 80, 480); spacing: 18
         visible: !catalogState.busy && !(root.result.items || []).length && !(root.result.shelves || []).length && !root.moodItems().length
         Text { width: parent.width; text: catalogState.error ? "Couldn’t Load This Page" : accountState.connected ? "No Music Here Yet" : "Your Music, Ready When You Are"; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 30; font.bold: true; color: themeState.foreground }
-        Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Select Home or Explore again to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15; color: themeState.secondary }
+        Text { width: parent.width; text: catalogState.error || (accountState.connected ? "Select Home or Explore again to check for music." : "Connect YouTube Music to browse your music and recommendations."); textFormat: Text.PlainText; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: Theme.textTitle; color: themeState.secondary }
         ThemeActionButton { anchors.horizontalCenter: parent.horizontalCenter; primary: !accountState.connected; text: accountState.connected ? "Retry" : "Connect YouTube Music"; onClicked: accountState.connected ? catalogState.refresh() : appState.openAccount() }
     }
     BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 16; running: catalogState.busy; visible: running && !root.loading }

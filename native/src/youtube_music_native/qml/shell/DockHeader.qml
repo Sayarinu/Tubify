@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import "../components"
+import "../Theme.js" as Theme
 
 // A panel's header: its title, or tabs when it has more than one view, and a close button.
 Item {
@@ -49,7 +50,7 @@ Item {
                 contentItem: Text {
                     text: tab.text
                     color: tab.selected || tab.hovered ? themeState.foreground : themeState.secondary
-                    font.bold: true; font.pixelSize: 14
+                    font.bold: true; font.pixelSize: Theme.textBody
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
