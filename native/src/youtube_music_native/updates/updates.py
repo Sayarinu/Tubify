@@ -187,7 +187,9 @@ def fetch(tag, asset, directory, progress, opener):
 def update_public_key():
     """The key this install trusts, placed by the package build."""
     if sys.platform == 'win32':
-        return Path(sys._MEIPASS) / 'update-public-key'
+        from youtube_music_native.util import bundle_root
+
+        return bundle_root() / 'update-public-key'
     return Path(LINUX_PUBLIC_KEY)
 
 
