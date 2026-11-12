@@ -85,29 +85,15 @@ Rectangle {
                             required property int index
                             width: artistName.implicitWidth + (separator.visible ? separator.implicitWidth : 0)
                             height: artistViewport.height
-                            Text {
+                            InlineLink {
                                 id: artistName
                                 width: implicitWidth; height: parent.height
                                 text: modelData.name || ""
-                                textFormat: Text.PlainText
-                                color: artistLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary
                                 font.pixelSize: 11
-                                font.underline: artistLink.containsMouse || activeFocus
-                                activeFocusOnTab: !!modelData.name
-                                Accessible.role: modelData.name ? Accessible.Link : Accessible.StaticText
-                                Accessible.onPressAction: openArtist()
-                                Keys.onReturnPressed: openArtist()
-                                Keys.onSpacePressed: openArtist()
-                                function openArtist() {
+                                linked: !!modelData.name
+                                onActivated: {
                                     var artistId = modelData.id || modelData.browseId || modelData.channelId
                                     browseState.openArtist({id: artistId, browseId: modelData.browseId, channelId: modelData.channelId, name: modelData.name})
-                                }
-                                MouseArea {
-                                    id: artistLink
-                                    anchors.fill: parent; z: 1
-                                    enabled: !!modelData.name; hoverEnabled: enabled
-                                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                    onClicked: artistName.openArtist()
                                 }
                             }
                             Text { id: separator; x: artistName.implicitWidth; visible: index < playerState.currentTrack.artists.length - 1; height: parent.height; text: " • "; color: themeState.secondary; font.pixelSize: 11 }
@@ -133,29 +119,14 @@ Rectangle {
                 id: albumViewport
                 objectName: "playerAlbum"
                 width: parent.width; height: 14; clip: true
-                Text {
-                    id: albumName
+                InlineLink {
                     width: Math.min(implicitWidth, parent.width); height: parent.height
                     text: typeof playerState.currentTrack.album === "string" ? playerState.currentTrack.album : playerState.currentTrack.album && playerState.currentTrack.album.name || playerState.currentTrack.albumName || playerState.currentTrack.albumTitle || ""
-                    textFormat: Text.PlainText; elide: Text.ElideRight; color: albumLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 11
-                    font.underline: albumLink.containsMouse || activeFocus
-                    activeFocusOnTab: !!(playerState.currentTrack.album && (playerState.currentTrack.album.id || playerState.currentTrack.album.browseId))
-                    Accessible.role: activeFocusOnTab ? Accessible.Link : Accessible.StaticText
-                    Accessible.onPressAction: openAlbum()
-                    Keys.onReturnPressed: openAlbum()
-                    Keys.onSpacePressed: openAlbum()
-                    function openAlbum() {
-                        var album = playerState.currentTrack.album || ({})
-                        var albumId = album.id || album.browseId
-                        if (albumId) browseState.open({kind: "album", id: albumId, title: album.name})
-                    }
-                    MouseArea {
-                        id: albumLink
-                        anchors.fill: parent
-                        enabled: !!(playerState.currentTrack.album && (playerState.currentTrack.album.id || playerState.currentTrack.album.browseId))
-                        hoverEnabled: enabled
-                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: albumName.openAlbum()
+                    elide: Text.ElideRight; font.pixelSize: 11
+                    linked: !!(playerState.currentTrack.album && (playerState.currentTrack.album.id || playerState.currentTrack.album.browseId))
+                    onActivated: {
+                        var album = playerState.currentTrack.album
+                        browseState.open({kind: "album", id: album.id || album.browseId, title: album.name})
                     }
                 }
             }

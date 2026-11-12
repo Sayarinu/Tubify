@@ -22,6 +22,8 @@ FocusScope {
     readonly property real trailingWidth: queueRow ? (actionsShown || root.activeFocus || downloadButton.visible ? 68 : 0) : showDuration ? durationRight + durationWidth + 8 + 44 + 4 : 104
     property string downloadStatus: { downloadsState.revision; return downloadsState.songState(media.videoId || media.id || "") || media.downloadState || "" }
     readonly property bool currentSong: playerState.hasTrack && (queueRow && media.key ? !!media.current : (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id))
+    readonly property bool albumLinked: !!(media.album && (media.album.id || media.album.browseId))
+    function openAlbum() { browseState.open({kind: "album", id: media.album.id || media.album.browseId, title: media.album.name}) }
     readonly property var artistItems: {
         if (media.artists && media.artists.length) return media.artists
         return (media.artist || "").split(" • ").filter(Boolean).map(name => ({name: name}))
@@ -87,22 +89,10 @@ FocusScope {
                     required property var modelData
                     required property int index
                     height: metadata.height; spacing: 0
-                    Text {
-                        id: artistName
-                        text: modelData.name || ""; textFormat: Text.PlainText; color: artistLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 14
-                        font.underline: artistLink.containsMouse || activeFocus
-                        activeFocusOnTab: !!text
-                        Accessible.role: text ? Accessible.Link : Accessible.StaticText
-                        Accessible.onPressAction: browseState.openArtist(modelData)
-                        Keys.onReturnPressed: browseState.openArtist(modelData)
-                        Keys.onSpacePressed: browseState.openArtist(modelData)
-                        MouseArea {
-                            id: artistLink
-                            anchors.fill: parent; z: 2
-                            enabled: !!artistName.text; hoverEnabled: enabled
-                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                            onClicked: browseState.openArtist(modelData)
-                        }
+                    InlineLink {
+                        text: modelData.name || ""; font.pixelSize: 14
+                        linked: !!text
+                        onActivated: browseState.openArtist(modelData)
                     }
                     Text { text: index < root.artistItems.length - 1 ? " • " : ""; color: themeState.secondary; font.pixelSize: 14 }
                 }
@@ -119,46 +109,20 @@ FocusScope {
             height: 18
             visible: root.showArtwork && !root.tableLayout && !root.queueRow && !!(root.media.album && root.media.album.name)
             clip: true
-            Text {
-                id: albumName
+            InlineLink {
                 width: Math.min(implicitWidth, parent.width)
                 height: parent.height
                 text: root.media.album ? root.media.album.name || "" : ""
-                textFormat: Text.PlainText; elide: Text.ElideRight
-                color: albumMetadataLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary
-                font.pixelSize: 14
-                font.underline: albumMetadataLink.containsMouse || activeFocus
-                activeFocusOnTab: !!(root.media.album && (root.media.album.id || root.media.album.browseId))
-                Accessible.role: activeFocusOnTab ? Accessible.Link : Accessible.StaticText
-                Accessible.onPressAction: openAlbum()
-                Keys.onReturnPressed: openAlbum()
-                Keys.onSpacePressed: openAlbum()
-                function openAlbum() {
-                    var album = root.media.album || ({})
-                    var id = album.id || album.browseId
-                    if (id) browseState.open({kind: "album", id: id, title: album.name})
-                }
-                MouseArea {
-                    id: albumMetadataLink
-                    anchors.fill: parent; z: 2
-                    enabled: !!(root.media.album && (root.media.album.id || root.media.album.browseId)); hoverEnabled: enabled
-                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: albumName.openAlbum()
-                }
+                elide: Text.ElideRight; font.pixelSize: 14
+                linked: root.albumLinked
+                onActivated: root.openAlbum()
             }
         }
     }
-    Text {
-        id: albumColumn
-        x: parent.width * 0.56; width: Math.max(0, Math.min(implicitWidth, parent.width * 0.44 - root.trailingWidth)); anchors.verticalCenter: parent.verticalCenter; visible: root.showAlbum; text: root.media.album ? root.media.album.name || "" : ""; textFormat: Text.PlainText; elide: Text.ElideRight; color: albumColumnLink.containsMouse || activeFocus ? themeState.foreground : themeState.secondary; font.pixelSize: 13
-        font.underline: albumColumnLink.containsMouse || activeFocus
-        activeFocusOnTab: !!(root.media.album && (root.media.album.id || root.media.album.browseId))
-        Accessible.role: activeFocusOnTab ? Accessible.Link : Accessible.StaticText
-        Accessible.onPressAction: openAlbum()
-        Keys.onReturnPressed: openAlbum()
-        Keys.onSpacePressed: openAlbum()
-        function openAlbum() { var album = root.media.album || ({}); var id = album.id || album.browseId; if (id) browseState.open({kind: "album", id: id, title: album.name}) }
-        MouseArea { id: albumColumnLink; anchors.fill: parent; z: 2; enabled: !!(root.media.album && (root.media.album.id || root.media.album.browseId)); hoverEnabled: enabled; cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: albumColumn.openAlbum() }
+    InlineLink {
+        x: parent.width * 0.56; width: Math.max(0, Math.min(implicitWidth, parent.width * 0.44 - root.trailingWidth)); anchors.verticalCenter: parent.verticalCenter; visible: root.showAlbum; text: root.media.album ? root.media.album.name || "" : ""; elide: Text.ElideRight; font.pixelSize: 13
+        linked: root.albumLinked
+        onActivated: root.openAlbum()
     }
     // Fixed and right-aligned so times line up with each other and the TIME column header.
     Text { id: durationLabel; objectName: "songDuration"; anchors.right: parent.right; anchors.rightMargin: root.durationRight; anchors.verticalCenter: parent.verticalCenter; width: root.durationWidth; horizontalAlignment: Text.AlignRight; visible: root.showDuration; text: root.media.duration ? Theme.timeLabel(root.media.duration) : "–"; color: themeState.secondary; font.pixelSize: 13 }

@@ -293,7 +293,7 @@ Item {
                 font.pixelSize: 16
                 font.bold: true
             }
-            Button {
+            TextLink {
                 id: clearQueue
                 objectName: modelData.rowType === "manualHeading" ? "queueClearButton" : ""
                 visible: modelData.rowType === "manualHeading" && (playerState.manualCount > 0 || browseState.queueBusy)
@@ -302,18 +302,9 @@ Item {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 height: 32
-                leftPadding: 4
-                rightPadding: 4
-                font.pixelSize: 13
-                font.bold: true
-                font.underline: hovered
-                palette.buttonText: hovered ? themeState.foreground : themeState.secondary
-                background: Rectangle {
-                    radius: 4
-                    color: "transparent"
-                    border.width: parent.visualFocus ? 2 : 0
-                    border.color: themeState.accent
-                }
+                pixelSize: 13
+                bold: true
+                textColor: hovered ? themeState.foreground : themeState.secondary
                 onClicked: playerState.clearManualQueue()
             }
             Text {
