@@ -8,7 +8,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from urllib.request import Request, urlopen
 
@@ -224,17 +223,19 @@ def launch_installer(asset, parent_pid):
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def verified_copy(path, digest, directory):
-    """Copy path into directory, hashing the bytes as they are written, and return the copy."""
-    copy = directory / path.name
-    hasher = hashlib.sha256()
-    with path.open('rb') as source, copy.open('xb') as target:
-        while chunk := source.read(1 << 20):
-            hasher.update(chunk)
-            target.write(chunk)
-    if hasher.hexdigest() != digest:
-        raise ValueError('Installer changed')
-    return copy
+# Runs as root after the password prompt: copies the package somewhere only root can write,
+# checks that copy against the expected digest, and installs that copy. Checking the file in
+# the user-writable updates folder instead would let a local program swap it before pacman reads it.
+ROOT_INSTALL = (
+    'set -eu; umask 077; dir=$(mktemp -d); trap \'rm -rf "$dir"\' EXIT; '
+    'copy="$dir/update.pkg.tar.zst"; cat -- "$1" > "$copy"; '
+    'printf \'%s  %s\\n\' "$2" "$copy" | sha256sum --check --status; '
+    '/usr/bin/pacman -U --noconfirm "$copy"'
+)
+
+
+def root_install_command(path, digest):
+    return ['/usr/bin/pkexec', '--disable-internal-agent', '/bin/sh', '-c', ROOT_INSTALL, 'tubify-update', str(path), digest]
 
 
 def install_linux(parent, package, digest, signature=None, downgrade=False):
@@ -249,21 +250,18 @@ def install_linux(parent, package, digest, signature=None, downgrade=False):
     path = Path(package)
     result = 1
     try:
-        with tempfile.TemporaryDirectory(prefix='tubify-update-') as private:
-            use_password = True
-            if signature and Path(LINUX_HELPER).is_file():
-                with path.open('rb') as handle:
-                    if hashlib.file_digest(handle, 'sha256').hexdigest() != digest:
-                        raise ValueError('Installer changed')
-                # The helper checks the release signature as root, so polkit allows it without a password.
-                result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', LINUX_HELPER, str(path), str(signature)]).returncode
-                # A switch back the helper won't allow can still go ahead with a password.
-                use_password = downgrade and result == HELPER_REFUSED
-            if use_password:
-                # pacman installs whatever file it is given, so hand it a verified copy in a
-                # private directory rather than the file in the user-writable updates folder.
-                command = ['/usr/bin/pacman', '-U', '--noconfirm', str(verified_copy(path, digest, Path(private)))]
-                result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', *command]).returncode
+        # Checked here too, so a changed file never asks for a password.
+        with path.open('rb') as handle:
+            if hashlib.file_digest(handle, 'sha256').hexdigest() != digest:
+                raise ValueError('Installer changed')
+        use_password = True
+        if signature and Path(LINUX_HELPER).is_file():
+            # The helper checks the release signature as root, so polkit allows it without a password.
+            result = subprocess.run(['/usr/bin/pkexec', '--disable-internal-agent', LINUX_HELPER, str(path), str(signature)]).returncode
+            # A switch back the helper won't allow can still go ahead with a password.
+            use_password = downgrade and result == HELPER_REFUSED
+        if use_password:
+            result = subprocess.run(root_install_command(path, digest)).returncode
     except (OSError, ValueError):
         pass
     finally:
