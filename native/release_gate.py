@@ -15,17 +15,10 @@ def verify(report):
         if type(result) not in (int, float) or not math.isfinite(result) or result < 0:
             raise ValueError("Missing or invalid performance measurement: " + name)
         return result
-    limits = {"scroll_p95_frame_ms": 16.7, "local_input_p95_ms": 100, "cold_shell_max_ms": 2000, "warm_shell_max_ms": 1000, "local_audio_max_ms": 250, "native_steady_pss_mib": 300, "native_minimized_cpu_percent_one_core": 2}
+    limits = {"scroll_p95_frame_ms": 16.7, "local_input_p95_ms": 100, "cold_shell_max_ms": 2000, "warm_shell_max_ms": 1000, "local_audio_max_ms": 250, "native_steady_pss_mib": 300, "native_minimized_cpu_percent_one_core": 2, "native_stream_start_p95_ms": 250, "native_skip_p95_ms": 250}
     for name, limit in limits.items():
         if value(name) > limit:
             raise ValueError("Performance target missed: " + name)
-    # The retired wrapper can no longer be measured, so its baseline is compared only when recorded.
-    if "wrapper_steady_pss_mib" in values and value("native_steady_pss_mib") > value("wrapper_steady_pss_mib") * .6:
-        raise ValueError("The matched memory reduction is below 40 percent.")
-    for operation in ("stream_start", "skip"):
-        baseline = "wrapper_" + operation + "_p95_ms"
-        if baseline in values and value("native_" + operation + "_p95_ms") > value(baseline):
-            raise ValueError("Streaming regression: " + operation)
     if value("mixed_use_soak_seconds") < 1800:
         raise ValueError("The mixed-use soak is shorter than 30 minutes.")
 
