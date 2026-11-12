@@ -9,7 +9,7 @@ spec.loader.exec_module(module)
 
 
 def passing_report():
-    return {"ticket": "LUNE-349", "matched_comparison": True, "soak_stable": True, "measurements": {"scroll_p95_frame_ms": 16, "local_input_p95_ms": 20, "cold_shell_max_ms": 500, "warm_shell_max_ms": 300, "local_audio_max_ms": 200, "native_steady_pss_mib": 250, "wrapper_steady_pss_mib": 600, "native_minimized_cpu_percent_one_core": 1, "native_stream_start_p95_ms": 500, "wrapper_stream_start_p95_ms": 600, "native_skip_p95_ms": 400, "wrapper_skip_p95_ms": 500, "mixed_use_soak_seconds": 1800}}
+    return {"ticket": "LUNE-349", "matched_comparison": True, "soak_stable": True, "measurements": {"scroll_p95_frame_ms": 16, "local_input_p95_ms": 20, "cold_shell_max_ms": 500, "warm_shell_max_ms": 300, "local_audio_max_ms": 200, "native_steady_pss_mib": 250, "native_minimized_cpu_percent_one_core": 1, "native_stream_start_p95_ms": 200, "native_skip_p95_ms": 200, "mixed_use_soak_seconds": 1800}}
 
 
 def test_complete_measurements_pass_and_missing_comparison_cannot_release():
@@ -20,7 +20,7 @@ def test_complete_measurements_pass_and_missing_comparison_cannot_release():
         module.verify(report)
 
 
-@pytest.mark.parametrize("name,value", [("native_steady_pss_mib", 301), ("wrapper_steady_pss_mib", 400), ("local_audio_max_ms", float("nan")), ("local_input_p95_ms", True), ("mixed_use_soak_seconds", 1799), ("native_skip_p95_ms", 501)])
+@pytest.mark.parametrize("name,value", [("native_steady_pss_mib", 301), ("native_stream_start_p95_ms", None), ("local_audio_max_ms", float("nan")), ("local_input_p95_ms", True), ("mixed_use_soak_seconds", 1799), ("native_skip_p95_ms", 251)])
 def test_incomplete_invalid_and_missed_targets_block_release(name, value):
     report = passing_report()
     report["measurements"][name] = value
@@ -28,15 +28,8 @@ def test_incomplete_invalid_and_missed_targets_block_release(name, value):
         module.verify(report)
 
 
-def test_reports_without_a_wrapper_baseline_use_the_native_targets_alone():
+def test_wrapper_baselines_no_longer_affect_the_gate():
     report = passing_report()
-    for name in ("wrapper_steady_pss_mib", "wrapper_stream_start_p95_ms", "wrapper_skip_p95_ms"):
-        del report["measurements"][name]
-    module.verify(report)
-    report["measurements"]["native_steady_pss_mib"] = 301
-    with pytest.raises(ValueError):
-        module.verify(report)
-    report["measurements"]["native_steady_pss_mib"] = 250
+    report["measurements"]["wrapper_steady_pss_mib"] = 1
     report["measurements"]["wrapper_skip_p95_ms"] = None
-    with pytest.raises(ValueError):
-        module.verify(report)
+    module.verify(report)
