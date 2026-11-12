@@ -434,3 +434,9 @@ def test_linux_installer_helper_receives_the_signature(tmp_path, monkeypatch):
     signature = trust_new_key(tmp_path, monkeypatch)
     updates.launch_installer({'path': str(package), 'sha256': hashlib.sha256(DATA).hexdigest(), 'signature_path': str(signature)}, 123)
     assert launched[0][-4:] == ['123', str(package), hashlib.sha256(DATA).hexdigest(), str(signature)]
+
+
+def test_windows_update_key_comes_from_the_bundle(monkeypatch, tmp_path):
+    monkeypatch.setattr(updates.sys, 'platform', 'win32')
+    monkeypatch.setattr(sys, '_MEIPASS', str(tmp_path), raising=False)
+    assert updates.update_public_key() == tmp_path / 'update-public-key'
