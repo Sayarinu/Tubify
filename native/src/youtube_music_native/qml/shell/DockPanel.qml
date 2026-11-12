@@ -29,12 +29,14 @@ Rectangle {
         if (shown && !reversing) { shift.x = travel; opacity = 0 }
         slideX.to = shown ? 0 : travel
         slideX.easing.type = shown ? Easing.OutCubic : Easing.InCubic
-        fade.to = 1
+        // Closing fades out as it slides, so the page beneath shows through as the panel leaves.
+        fade.to = shown ? 1 : 0
+        fade.easing.type = shown ? Easing.OutCubic : Easing.InCubic
         slide.start()
     }
     ParallelAnimation {
         id: slide
         NumberAnimation { id: slideX; target: shift; property: "x"; duration: Theme.motionSlow }
-        NumberAnimation { id: fade; target: root; property: "opacity"; duration: Theme.motionSlow; easing.type: Easing.OutCubic }
+        NumberAnimation { id: fade; target: root; property: "opacity"; duration: Theme.motionSlow }
     }
 }
