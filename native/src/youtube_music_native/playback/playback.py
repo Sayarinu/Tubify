@@ -28,6 +28,7 @@ EXPIRY_MARGIN = 30
 PREPARED_LIMIT = 50
 SOURCE_MARGIN = 60
 PREFETCH_AHEAD = 3
+QUEUE_SAVE_DELAY_MS = 500
 # An unanswered click older than this is presumed stuck and its worker is restarted.
 STALE_REQUEST_SECONDS = 4
 VIDEO_FIRST_FRAME_MS = 20000
@@ -138,6 +139,11 @@ class Playback(QObject):
         self.save_timer = QTimer(self)
         self.save_timer.setInterval(10000)
         self.save_timer.timeout.connect(self.save)
+        # Queue edits often come in bursts (adding a playlist, reordering), so one save follows the last of them.
+        self.queue_save = QTimer(self)
+        self.queue_save.setSingleShot(True)
+        self.queue_save.setInterval(QUEUE_SAVE_DELAY_MS)
+        self.queue_save.timeout.connect(self.save)
         self.watchdog = QTimer(self)
         self.watchdog.setInterval(5000)
         self.watchdog.timeout.connect(self._check_stall)
@@ -1163,7 +1169,8 @@ class Playback(QObject):
             self._prepare_next()
         self.changed.emit()
         self.positionChanged.emit()
-        self.save()
+        if not self._fixture:
+            self.queue_save.start()
 
     def _prepare_next(self):
         upcoming = self.queue.peek(automatic=True)
@@ -1254,6 +1261,7 @@ class Playback(QObject):
             self.changed.emit()
 
     def save(self):
+        self.queue_save.stop()
         if not self._fixture and not self._closed:
             future = self._saver.submit(atomic_write, self.path, json.dumps({**self.queue.snapshot(self._position), "context": self._context}, separators=(",", ":")))
             future.add_done_callback(lambda completed: self.stateSaveFailed.emit() if completed.exception() else None)
