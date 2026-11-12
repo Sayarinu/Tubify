@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 SettingsPage {
     id: root
@@ -17,7 +18,7 @@ SettingsPage {
         ColumnLayout {
         id: options
         width: optionsScroll.availableWidth
-        spacing: 16
+        spacing: Theme.spacingLarge
         SettingsCheckBox {
             objectName: "nonlinearVolumeOption"
             text: "Finer Volume at Low Levels"
@@ -34,7 +35,7 @@ SettingsPage {
         Text {
             Layout.fillWidth: true
             text: playerState.audioOptions.message || "Play a stereo song on a 5.1 or 7.1 output to use speaker fill."
-            color: themeState.secondary; font.pixelSize: 12; wrapMode: Text.Wrap
+            color: themeState.secondary; font.pixelSize: Theme.textSmall; wrapMode: Text.Wrap
             Accessible.role: Accessible.StaticText
         }
         ThemeActionButton {
@@ -52,7 +53,7 @@ SettingsPage {
         Text {
             Layout.fillWidth: true
             text: "Changing skip behavior leaves the current song playing. Previous remains available."
-            color: themeState.secondary; font.pixelSize: 12; wrapMode: Text.Wrap
+            color: themeState.secondary; font.pixelSize: Theme.textSmall; wrapMode: Text.Wrap
         }
     }
     }

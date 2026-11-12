@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Window
 import "../components"
 import "../dialogs"
+import "../Theme.js" as Theme
 
 ApplicationWindow {
     id: root
@@ -59,11 +60,11 @@ ApplicationWindow {
         id: content
         width: viewport.contentWidth
         height: viewport.contentHeight
-    Rectangle { anchors.fill: parent; color: "transparent"; border.color: themeState.border; border.width: 1; radius: 12 }
+    Rectangle { anchors.fill: parent; color: "transparent"; border.color: themeState.border; border.width: 1; radius: Theme.radiusMedium }
     Item {
         id: titleBar
         width: parent.width; height: 44
-        Text { x: 16; anchors.verticalCenter: parent.verticalCenter; text: "Tubify"; color: themeState.foreground; font.bold: true; font.pixelSize: 14 }
+        Text { x: 16; anchors.verticalCenter: parent.verticalCenter; text: "Tubify"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textBody }
         DragHandler { id: moving; target: null; onActiveChanged: if (active) root.startSystemMove() }
         IconButton { x: parent.width - 88; width: 40; height: 40; iconName: "pin"; tip: trayState.pinned ? "Unpin Player" : "Keep Player on Top"; iconColor: trayState.pinned ? themeState.accent : themeState.secondary; onClicked: trayState.setPinned(!trayState.pinned) }
         IconButton { x: parent.width - 44; width: 40; height: 40; iconName: "close"; tip: "Close Tray Player"; onClicked: root.hide() }
@@ -80,7 +81,7 @@ ApplicationWindow {
         }
     }
     Row {
-        anchors.horizontalCenter: parent.horizontalCenter; y: 136; spacing: 8
+        anchors.horizontalCenter: parent.horizontalCenter; y: 136; spacing: Theme.spacingSmall
         IconButton { iconName: "shuffle"; tip: "Shuffle"; iconColor: playerState.shuffled ? themeState.accent : themeState.secondary; onClicked: playerState.setShuffle(!playerState.shuffled) }
         IconButton { objectName: "trayPrevious"; iconName: "previous"; tip: "Previous"; enabled: playerState.hasTrack; onClicked: playerState.previous() }
         IconButton { objectName: "trayPlayPause"; iconName: playerState.playing ? "pause" : "play"; tip: playerState.playing ? "Pause" : "Play"; enabled: playerState.hasTrack; onClicked: playerState.togglePlayback() }
@@ -90,7 +91,7 @@ ApplicationWindow {
     AccentSlider { id: seek; objectName: "traySeek"; x: 16; y: 184; width: parent.width - 32; height: 24; from: 0; to: 1; value: playerState.progress; enabled: playerState.hasTrack; Accessible.name: "Playback position"; onMoved: playerState.seekFraction(value) }
     Text { x: 20; y: 212; text: playerState.progressText; color: themeState.secondary; font.pixelSize: 11 }
     Row {
-        x: 16; y: 236; spacing: 8
+        x: 16; y: 236; spacing: Theme.spacingSmall
         IconButton { width: 36; height: 36; iconName: appState.volume ? "volume" : "muted"; tip: appState.volume ? "Mute" : "Unmute"; onClicked: appState.toggleMute() }
         AccentSlider { objectName: "trayVolume"; width: 204; height: 36; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }
         IconButton { objectName: "trayQueueToggle"; width: 44; height: 36; iconName: "queue"; tip: trayState.queueOpen ? "Close Queue" : "Open Queue"; iconColor: trayState.queueOpen ? themeState.accent : themeState.secondary; onClicked: trayState.setQueueOpen(!trayState.queueOpen) }

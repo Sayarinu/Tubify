@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 // Asks before a device on the network can see and control what Tubify plays.
 ThemedDialog {
@@ -18,18 +19,18 @@ ThemedDialog {
         function onChanged() { if (!root.service.pairingPending) root.close() }
     }
     contentItem: ColumnLayout {
-        spacing: 16
+        spacing: Theme.spacingLarge
         Label {
             Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.foreground
             text: "A device on your network wants to connect to Tubify. It will be able to see and control what's playing."
         }
         Label {
-            Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12
+            Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: Theme.textSmall
             text: "Only allow this if you just chose Tubify from Cast in the YouTube Music app."
         }
         RowLayout {
             Layout.alignment: Qt.AlignRight
-            spacing: 8
+            spacing: Theme.spacingSmall
             ThemeActionButton { objectName: "castPairingDecline"; text: "Don't Allow"; onClicked: root.close() }
             ThemeActionButton { objectName: "castPairingAllow"; text: "Allow"; onClicked: root.service.approvePairing() }
         }

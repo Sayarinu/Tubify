@@ -66,14 +66,14 @@ FocusScope {
         cursorShape: Qt.PointingHandCursor
         onClicked: root.activateSong()
     }
-    Text { id: rank; x: root.tableLayout ? 12 : root.showArtwork ? 68 : 16; width: root.number > 0 ? 28 : 0; visible: root.number > 0; anchors.verticalCenter: parent.verticalCenter; text: root.number; color: themeState.secondary; font.pixelSize: 14 }
+    Text { id: rank; x: root.tableLayout ? 12 : root.showArtwork ? 68 : 16; width: root.number > 0 ? 28 : 0; visible: root.number > 0; anchors.verticalCenter: parent.verticalCenter; text: root.number; color: themeState.secondary; font.pixelSize: Theme.textBody }
     Column {
         objectName: root.queueRow ? "queueRowMetadata-" + (root.media.key || "") : ""
         x: root.queueRow ? 60 : root.tableLayout ? root.showArtwork ? 100 : 48 : root.showArtwork ? root.number > 0 ? 104 : 72 : 56
         anchors.verticalCenter: parent.verticalCenter
         width: Math.max(0, (root.showAlbum ? parent.width * 0.54 : parent.width - root.trailingWidth) - x); spacing: 3
         opacity: root.media.available === false ? 0.5 : 1
-        Text { width: parent.width; text: root.media.title || "Unavailable song"; textFormat: Text.PlainText; elide: Text.ElideRight; color: root.queueRow && root.currentSong ? themeState.accent : themeState.foreground; font.pixelSize: 14 }
+        Text { width: parent.width; text: root.media.title || "Unavailable song"; textFormat: Text.PlainText; elide: Text.ElideRight; color: root.queueRow && root.currentSong ? themeState.accent : themeState.foreground; font.pixelSize: Theme.textBody }
         Row {
             id: metadata
             width: parent.width; height: 18; spacing: 4; clip: true
@@ -81,7 +81,7 @@ FocusScope {
                 id: metadataLabel
                 visible: root.showArtwork && !!(root.media.label || root.media.kind && root.media.kind !== "song")
                 text: root.media.label || (root.media.kind && root.media.kind !== "song" ? root.media.kind.charAt(0).toUpperCase() + root.media.kind.slice(1) : "")
-                textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 14
+                textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: Theme.textBody
             }
             Repeater {
                 model: root.tableLayout || root.showArtwork ? root.artistItems : []
@@ -90,16 +90,16 @@ FocusScope {
                     required property int index
                     height: metadata.height; spacing: 0
                     InlineLink {
-                        text: modelData.name || ""; font.pixelSize: 14
+                        text: modelData.name || ""; font.pixelSize: Theme.textBody
                         linked: !!text
                         onActivated: browseState.openArtist(modelData)
                     }
-                    Text { text: index < root.artistItems.length - 1 ? " • " : ""; color: themeState.secondary; font.pixelSize: 14 }
+                    Text { text: index < root.artistItems.length - 1 ? " • " : ""; color: themeState.secondary; font.pixelSize: Theme.textBody }
                 }
             }
             Text {
                 visible: !root.showArtwork && !root.tableLayout && !!root.media.views
-                text: root.media.views + " plays"; textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 14
+                text: root.media.views + " plays"; textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: Theme.textBody
             }
         }
         Item {
@@ -113,7 +113,7 @@ FocusScope {
                 width: Math.min(implicitWidth, parent.width)
                 height: parent.height
                 text: root.media.album ? root.media.album.name || "" : ""
-                elide: Text.ElideRight; font.pixelSize: 14
+                elide: Text.ElideRight; font.pixelSize: Theme.textBody
                 linked: root.albumLinked
                 onActivated: root.openAlbum()
             }

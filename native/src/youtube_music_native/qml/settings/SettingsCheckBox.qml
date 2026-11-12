@@ -10,7 +10,7 @@ CheckBox {
     implicitWidth: 240
     implicitHeight: Math.max(48, contentItem.implicitHeight + topPadding + bottomPadding)
     padding: 12
-    spacing: 12
+    spacing: Theme.spacingMedium
     Accessible.name: text
     Accessible.checkable: true
     contentItem: Text {

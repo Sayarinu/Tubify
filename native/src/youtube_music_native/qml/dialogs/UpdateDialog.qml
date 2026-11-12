@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 // Asks whether to install a newer release or switch to the build on the chosen channel; the button runs the verified installer.
 ThemedDialog {
@@ -54,7 +55,7 @@ ThemedDialog {
         }
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Theme.spacingSmall
             ThemeActionButton { text: "Release Notes"; visible: !!maintenanceState.releaseUrl; onClicked: Qt.openUrlExternally(maintenanceState.releaseUrl) }
             Item { Layout.fillWidth: true }
             ThemeActionButton { objectName: "updateLater"; text: maintenanceState.downloading ? "Cancel" : "Later"; onClicked: { if (maintenanceState.downloading) maintenanceState.cancelUpdate(); else root.close() } }

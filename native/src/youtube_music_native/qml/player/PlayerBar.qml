@@ -9,7 +9,7 @@ Rectangle {
     function focusPanelToggle(name) { (name === "Lyrics" ? lyricsToggle : name === "NowPlaying" ? nowPlayingToggle : queueToggle).forceActiveFocus() }
     function focusImmersiveToggle() { immersiveToggle.forceActiveFocus() }
     height: 92
-    radius: 12
+    radius: Theme.radiusMedium
     color: themeState.surface
     border.color: themeState.border
     readonly property bool sleepMenuOpen: sleepMenu.opened
@@ -32,7 +32,7 @@ Rectangle {
     Item {
         id: track
         x: 16; width: root.dense ? root.width * 0.28 : Math.min(380, root.width * 0.34); height: parent.height
-        Cover { id: cover; anchors.verticalCenter: parent.verticalCenter; width: root.dense ? 48 : 68; height: width; radius: 8; source: playerState.currentTrack.thumbnail || ""; mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""; accent: themeState.selected }
+        Cover { id: cover; anchors.verticalCenter: parent.verticalCenter; width: root.dense ? 48 : 68; height: width; radius: Theme.radiusSmall; source: playerState.currentTrack.thumbnail || ""; mediaKey: playerState.currentTrack.videoId || playerState.currentTrack.id || ""; accent: themeState.selected }
         Column {
             x: root.dense ? 56 : 80; width: parent.width - x; anchors.verticalCenter: parent.verticalCenter; spacing: 5
             Item {
@@ -53,7 +53,7 @@ Rectangle {
                     Accessible.name: text
                     width: appState.reducedMotion ? parent.width : implicitWidth; elide: Text.ElideRight; height: parent.height
                     text: playerState.currentTrack.title || "Nothing Playing"
-                    textFormat: Text.PlainText; color: themeState.foreground; font.bold: true; font.pixelSize: 14
+                    textFormat: Text.PlainText; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textBody
                     onImplicitWidthChanged: titleViewport.updateScroll()
                 }
                 SequentialAnimation {
@@ -221,7 +221,7 @@ Rectangle {
     Popup {
         id: volumePopup
         x: root.width - width - 12; y: -height - 8; width: 220; height: 64; padding: 8
-        background: Rectangle { color: themeState.surface; radius: 12; border.color: themeState.border }
+        background: Rectangle { color: themeState.surface; radius: Theme.radiusMedium; border.color: themeState.border }
         contentItem: Row {
             IconButton { iconName: appState.volume ? "volume" : "muted"; tip: appState.volume ? "Mute" : "Unmute"; onClicked: appState.toggleMute() }
             AccentSlider { width: 156; height: 44; from: 0; to: 100; value: appState.volume; Accessible.name: "Volume"; onMoved: appState.setVolume(Math.round(value)) }

@@ -58,7 +58,7 @@ Item {
             height: Math.min(360, searchState.suggestions.length * 44 + 16)
             padding: 8; focus: false
             visible: search.activeFocus && searchState.suggestions.length > 0
-            background: Rectangle { color: themeState.hover; radius: 8 }
+            background: Rectangle { color: themeState.hover; radius: Theme.radiusSmall }
             contentItem: ListView {
                 id: suggestions
                 clip: true; currentIndex: -1; model: searchState.suggestions
@@ -68,7 +68,7 @@ Item {
                     width: suggestions.width; height: 44
                     highlighted: index === suggestions.currentIndex
                     background: Rectangle { color: parent.highlighted ? themeState.selected : parent.hovered ? themeState.hover : "transparent"; radius: 4 }
-                    contentItem: Text { text: modelData; textFormat: Text.PlainText; color: themeState.foreground; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; font.pixelSize: 15 }
+                    contentItem: Text { text: modelData; textFormat: Text.PlainText; color: themeState.foreground; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; font.pixelSize: Theme.textTitle }
                     onClicked: { search.text = modelData; appState.search(modelData) }
                 }
             }
@@ -136,7 +136,7 @@ Item {
                     verticalAlignment: Text.AlignVCenter
                     text: accountState.profile.name || "YouTube Music Account"
                     color: themeState.foreground
-                    font.pixelSize: 14
+                    font.pixelSize: Theme.textBody
                     font.bold: true
                     elide: Text.ElideRight
                 }

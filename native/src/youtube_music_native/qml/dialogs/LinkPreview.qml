@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 ThemedDialog {
     id: root
@@ -19,11 +20,11 @@ ThemedDialog {
         ColumnLayout {
         id: body
         width: scroll.availableWidth
-        spacing: 16
+        spacing: Theme.spacingLarge
         Label { objectName: "linkPreviewTitle"; Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service ? root.service.media.title || "Music Link" : "Music Link"; color: themeState.foreground; font.pixelSize: 20; font.bold: true; wrapMode: Text.Wrap }
         Label { Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service ? root.service.media.artist || (root.service.media.artists || []).map(a => a.name).join(" · ") : ""; color: themeState.secondary; wrapMode: Text.Wrap }
-        Label { Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service ? root.service.url : ""; color: themeState.secondary; wrapMode: Text.WrapAnywhere; font.pixelSize: 12 }
-        Label { Layout.fillWidth: true; visible: !!root.service && root.service.previewOnly; text: "Choose Play or Add to queue to change playback."; color: themeState.secondary; wrapMode: Text.Wrap; font.pixelSize: 12 }
+        Label { Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service ? root.service.url : ""; color: themeState.secondary; wrapMode: Text.WrapAnywhere; font.pixelSize: Theme.textSmall }
+        Label { Layout.fillWidth: true; visible: !!root.service && root.service.previewOnly; text: "Choose Play or Add to queue to change playback."; color: themeState.secondary; wrapMode: Text.Wrap; font.pixelSize: Theme.textSmall }
         Label { objectName: "linkPreviewMessage"; Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service ? root.service.message : ""; color: themeState.foreground; wrapMode: Text.Wrap }
         RowLayout {
             Layout.fillWidth: true

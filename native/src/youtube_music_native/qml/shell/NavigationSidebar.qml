@@ -77,7 +77,7 @@ Rectangle {
                 background: Rectangle {
                     objectName: "navigationBackground-" + nav.text
                     anchors.fill: parent
-                    radius: 8
+                    radius: Theme.radiusSmall
                     color: nav.selected ? themeState.selected : nav.hovered ? themeState.hover : "transparent"
                     border.width: nav.visualFocus ? 2 : 0
                     border.color: themeState.accent
@@ -134,15 +134,15 @@ Rectangle {
             ToolTip.text: modelData.title
             ToolTip.visible: hovered && !sidebar.wide
             contentItem: Item {
-                Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: 8; source: modelData.thumbnail || ""; mediaKey: "playlist:" + modelData.id; accent: themeState.selected }
+                Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: Theme.radiusSmall; source: modelData.thumbnail || ""; mediaKey: "playlist:" + modelData.id; accent: themeState.selected }
                 Column {
                     x: 60; anchors.verticalCenter: parent.verticalCenter; width: parent.width - 72; spacing: 4
                     visible: sidebar.wide
-                    Text { width: parent.width; text: modelData.title; textFormat: Text.PlainText; color: themeState.foreground; font.pixelSize: 14; elide: Text.ElideRight }
-                    Text { width: parent.width; text: modelData.owner || ""; textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: 12; elide: Text.ElideRight }
+                    Text { width: parent.width; text: modelData.title; textFormat: Text.PlainText; color: themeState.foreground; font.pixelSize: Theme.textBody; elide: Text.ElideRight }
+                    Text { width: parent.width; text: modelData.owner || ""; textFormat: Text.PlainText; color: themeState.secondary; font.pixelSize: Theme.textSmall; elide: Text.ElideRight }
                 }
             }
-            background: Rectangle { radius: 8; color: parent.hovered ? themeState.hover : "transparent"; border.color: parent.visualFocus ? themeState.accent : "transparent" }
+            background: Rectangle { radius: Theme.radiusSmall; color: parent.hovered ? themeState.hover : "transparent"; border.color: parent.visualFocus ? themeState.accent : "transparent" }
             onClicked: { appState.requestAction("playlist:" + modelData.id); sidebar.navigated() }
         }
     }

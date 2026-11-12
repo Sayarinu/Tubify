@@ -21,7 +21,7 @@ ApplicationWindow {
     minimumHeight: 620
     title: appState.fixtureMode ? "Tubify · Visual Fixture" : "Tubify"
     color: themeState.background
-    font.pixelSize: 14
+    font.pixelSize: Theme.textBody
     palette.window: themeState.surface
     palette.base: themeState.background
     palette.alternateBase: themeState.surface
@@ -484,7 +484,7 @@ ApplicationWindow {
         anchors.bottom: player.top; anchors.bottomMargin: 16
         width: Math.min(600, uiRoot.width - 80); height: playbackMessage.implicitHeight + 24
         radius: 6; color: themeState.hover; visible: playbackMessage.text.length > 0
-        Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: browseState.queueMessage || actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.pixelSize: 14 }
+        Text { id: playbackMessage; anchors.fill: parent; anchors.margins: 12; text: browseState.queueMessage || actionsState.message || libraryState.message || playerState.message || downloadsState.message; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.foreground; font.pixelSize: Theme.textBody }
     }
 
     AccountDialog { id: accountDialog }

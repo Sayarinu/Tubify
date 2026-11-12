@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 SettingsPage {
     id: root
@@ -16,7 +17,7 @@ SettingsPage {
         ColumnLayout {
             id: body
             width: scroll.availableWidth
-            spacing: 12
+            spacing: Theme.spacingMedium
             SettingsCheckBox { objectName: "castEnabledOption"; text: "Enable Mobile Sync"; checked: castState.enabled; onClicked: castState.setEnabled(checked) }
             Label {
                 Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary
@@ -33,7 +34,7 @@ SettingsPage {
                 onEditingFinished: castState.setName(text)
             }
             Label {
-                Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12
+                Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: Theme.textSmall
                 text: "Tubify listens on your local network only while this is on. Your computer may ask you to allow Tubify on private networks. No Google sign-in is shared with phones."
             }
             ThemeActionButton {
@@ -43,7 +44,7 @@ SettingsPage {
                 onClicked: castState.forgetPairings()
             }
             Label {
-                Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12
+                Layout.fillWidth: true; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: Theme.textSmall
                 text: "Turning this off stops Tubify listening on your network. Paired phones stay paired until you choose Forget Paired Phones."
             }
             Label { objectName: "castStatus"; Layout.fillWidth: true; wrapMode: Text.Wrap; text: castState.status; color: themeState.foreground }

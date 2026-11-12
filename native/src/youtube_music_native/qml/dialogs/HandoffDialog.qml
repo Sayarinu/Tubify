@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
 import "../settings"
+import "../Theme.js" as Theme
 
 // Continue the current song in the YouTube Music phone app by scanning a QR code.
 ThemedDialog {
@@ -23,7 +24,7 @@ ThemedDialog {
         ColumnLayout {
             id: body
             width: scroll.availableWidth
-            spacing: 12
+            spacing: Theme.spacingMedium
             Label {
                 Layout.fillWidth: true
                 text: "Scan with your phone's camera to open this song in YouTube Music."
@@ -33,7 +34,7 @@ ThemedDialog {
             Rectangle {
                 Layout.alignment: Qt.AlignHCenter
                 implicitWidth: Math.min(232, body.width); implicitHeight: implicitWidth
-                radius: 12; color: "white"
+                radius: Theme.radiusMedium; color: "white"
                 Image {
                     objectName: "handoffQr"
                     // Whole pixels per module keep every square the same size for scanners.
@@ -49,7 +50,7 @@ ThemedDialog {
                 objectName: "handoffUrl"
                 Layout.fillWidth: true
                 text: root.service ? root.service.url : ""; textFormat: Text.PlainText
-                color: themeState.secondary; wrapMode: Text.WrapAnywhere; font.pixelSize: 12
+                color: themeState.secondary; wrapMode: Text.WrapAnywhere; font.pixelSize: Theme.textSmall
             }
             SettingsCheckBox { id: pause; objectName: "handoffPause"; text: "Pause Tubify"; checked: true }
             RowLayout {

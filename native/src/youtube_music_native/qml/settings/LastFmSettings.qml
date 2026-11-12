@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../components"
+import "../Theme.js" as Theme
 
 SettingsPage {
     id: root
@@ -20,11 +21,11 @@ SettingsPage {
         clip: true
         ColumnLayout {
             width: scroll.availableWidth
-            spacing: 12
+            spacing: Theme.spacingMedium
             SettingsCheckBox { objectName: "lastFmEnabled"; text: "Scrobble to Last.fm"; enabled: !!root.service && (root.service.enabled || root.service.connected && !root.service.busy); checked: !!root.service && root.service.enabled; onClicked: root.service.setEnabled(checked) }
             Label { objectName: "lastFmAccount"; Layout.fillWidth: true; textFormat: Text.PlainText; text: root.service && root.service.connected ? "Signed in as " + root.service.username : "Not signed in"; wrapMode: Text.Wrap; color: themeState.foreground }
             Flow {
-                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8
+                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: Theme.spacingSmall
                 ThemeActionButton { objectName: "lastFmSignIn"; text: root.service && root.service.connected ? "Sign In Again" : "Sign In"; enabled: !!root.service && root.service.configured && !root.service.busy; onClicked: root.service.authorize() }
                 ThemeActionButton { objectName: "lastFmComplete"; text: "Complete Sign-In"; visible: !!root.service && root.service.awaitingApproval; enabled: !!root.service && !root.service.busy; onClicked: root.service.complete() }
                 ThemeActionButton { objectName: "lastFmSignOut"; text: root.service && root.service.pendingCount > 0 ? "Sign Out and Clear " + root.service.pendingCount + " Saved Listens" : "Sign Out"; visible: !!root.service && root.service.configured; enabled: !!root.service && !root.service.busy; onClicked: root.service.logout() }
@@ -46,7 +47,7 @@ SettingsPage {
             }
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Theme.spacingMedium
                 visible: !root.service || !root.service.configured || root.editingCredentials
                 RowLayout {
                     Layout.fillWidth: true
@@ -56,9 +57,9 @@ SettingsPage {
                 ThemedTextField { id: apiKey; objectName: "lastFmApiKey"; Layout.fillWidth: true; echoMode: TextInput.Password; placeholderText: "API key"; maximumLength: 32; Accessible.name: "Last.fm API key" }
                 ThemedTextField { id: secret; objectName: "lastFmSecret"; Layout.fillWidth: true; echoMode: TextInput.Password; placeholderText: "Shared secret"; maximumLength: 32; Accessible.name: "Last.fm shared secret" }
                 ThemeActionButton { text: "Save Credentials"; enabled: !!root.service && !root.service.busy && apiKey.text.length === 32 && secret.text.length === 32; onClicked: { root.service.configure(apiKey.text, secret.text); apiKey.clear(); secret.clear(); root.editingCredentials = false } }
-                Label { Layout.fillWidth: true; text: "Kept in your system keyring."; color: themeState.secondary; font.pixelSize: 12 }
+                Label { Layout.fillWidth: true; text: "Kept in your system keyring."; color: themeState.secondary; font.pixelSize: Theme.textSmall }
             }
-            Label { objectName: "lastFmStatus"; Layout.fillWidth: true; visible: !!text; text: root.service ? (root.service.busy ? "Contacting Last.fm…" : root.service.message) : "Last.fm is unavailable."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 12 }
+            Label { objectName: "lastFmStatus"; Layout.fillWidth: true; visible: !!text; text: root.service ? (root.service.busy ? "Contacting Last.fm…" : root.service.message) : "Last.fm is unavailable."; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: Theme.textSmall }
         }
     }
 }

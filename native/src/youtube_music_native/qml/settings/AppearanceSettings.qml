@@ -44,7 +44,7 @@ SettingsPage {
             currentIndex: appearanceSettings.editingColors ? 1 : 0
             Item {
                 ColumnLayout {
-                    anchors.fill: parent; spacing: 8
+                    anchors.fill: parent; spacing: Theme.spacingSmall
                     ScrollView {
                         id: themeScroll
                         objectName: "themeScroll"
@@ -77,7 +77,7 @@ SettingsPage {
                                 delegate: themeCardDelegate
                             }
                             Flow {
-                                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: 8
+                                Layout.fillWidth: true; Layout.preferredHeight: childrenRect.height; spacing: Theme.spacingSmall
                                 ThemeActionButton { objectName: "themeEditColorsButton"; text: "Edit Colors"; enabled: themeState.activeThemeIsCustom; disabledReason: "Create a custom theme before editing colors."; onClicked: appearanceSettings.editingColors = true }
                                 ThemeActionButton { objectName: "themeRenameButton"; text: "Rename"; enabled: themeState.activeThemeIsCustom; disabledReason: "Built-in themes cannot be renamed. Create a custom theme first."; onClicked: { themeNameDialog.renameMode = true; themeNameField.text = themeState.activeThemeName; themeNameDialog.open() } }
                                 ThemeActionButton { objectName: "themeDeleteButton"; text: "Delete"; enabled: themeState.activeThemeIsCustom; disabledReason: "Built-in themes cannot be deleted. Create a custom theme first."; onClicked: deleteThemeDialog.open() }
@@ -117,7 +117,7 @@ SettingsPage {
             }
             Item {
                 ColumnLayout {
-                    anchors.fill: parent; spacing: 8
+                    anchors.fill: parent; spacing: Theme.spacingSmall
                     Label { Layout.fillWidth: true; text: "Adjust every color in this custom theme."; color: themeState.secondary; font.pixelSize: Theme.textSmall; wrapMode: Text.Wrap }
                     GridView {
                         id: colorRoles
@@ -132,7 +132,7 @@ SettingsPage {
                             Button {
                                 Layout.preferredWidth: 28; Layout.preferredHeight: 28; padding: 0
                                 ToolTip.text: "Choose Color"; ToolTip.visible: hovered
-                                background: Rectangle { radius: 8; color: modelData.value; border.color: themeState.border; border.width: 1 }
+                                background: Rectangle { radius: Theme.radiusSmall; color: modelData.value; border.color: themeState.border; border.width: 1 }
                                 onClicked: {
                                     palettePicker.role = modelData.key
                                     palettePicker.setDraft(modelData.value)
@@ -333,7 +333,7 @@ SettingsPage {
                 anchors.top: parent.top; anchors.topMargin: 28
                 width: samplingHint.implicitWidth + 36; height: 44; radius: 22
                 color: themeState.surface; border.color: themeState.border; border.width: 1
-                Text { id: samplingHint; anchors.centerIn: parent; text: "Click anywhere to sample a color · Esc to cancel"; color: themeState.foreground; font.pixelSize: 14 }
+                Text { id: samplingHint; anchors.centerIn: parent; text: "Click anywhere to sample a color · Esc to cancel"; color: themeState.foreground; font.pixelSize: Theme.textBody }
             }
         }
     }

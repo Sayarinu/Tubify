@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "../Theme.js" as Theme
 
 // Column label that sorts the current collection: ascending, descending, then by number.
 AbstractButton {
@@ -21,7 +22,7 @@ AbstractButton {
             anchors.verticalCenter: parent.verticalCenter
             text: root.label
             color: root.active || root.hovered ? themeState.foreground : themeState.secondary
-            font.pixelSize: 12; font.letterSpacing: 1; font.bold: root.active
+            font.pixelSize: Theme.textSmall; font.letterSpacing: 1; font.bold: root.active
         }
         Symbol {
             anchors.verticalCenter: parent.verticalCenter

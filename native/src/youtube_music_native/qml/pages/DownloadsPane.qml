@@ -40,7 +40,7 @@ Item {
                 id: filters
                 objectName: "downloadFilters"
                 y: 84; width: parent.width - 216; height: 36
-                orientation: ListView.Horizontal; spacing: 12; clip: true
+                orientation: ListView.Horizontal; spacing: Theme.spacingMedium; clip: true
                 model: downloadsState.filters
                 delegate: FilterChip {
                     required property string modelData
@@ -62,11 +62,11 @@ Item {
                 width: parent.width - storageActions.width - 16
                 anchors.verticalCenter: storageActions.verticalCenter
                 text: root.bytesLabel(downloadsState.usedBytes) + " downloaded · " + root.bytesLabel(downloadsState.freeBytes) + " free"
-                color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: 14
+                color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: Theme.textBody
             }
             Row {
                 id: storageActions
-                anchors.right: parent.right; y: 136; spacing: 8
+                anchors.right: parent.right; y: 136; spacing: Theme.spacingSmall
                 IconButton { iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
                 FilterChip {
                     objectName: "downloadAllPlaylists"
@@ -116,10 +116,10 @@ Item {
         }
     }
     Column {
-        anchors.centerIn: parent; width: parent.width - 80; spacing: 16
+        anchors.centerIn: parent; width: parent.width - 80; spacing: Theme.spacingLarge
         visible: downloadsState.count === 0
-        Text { width: parent.width; text: "Music Wherever You Go"; color: themeState.foreground; font.bold: true; font.pixelSize: 28; horizontalAlignment: Text.AlignHCenter }
-        Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + downloadsState.filter.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: 15 }
+        Text { width: parent.width; text: "Music Wherever You Go"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textHeading; horizontalAlignment: Text.AlignHCenter }
+        Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + downloadsState.filter.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: Theme.textTitle }
     }
     ThemedDialog {
         id: removal
@@ -128,7 +128,7 @@ Item {
         width: Math.min(460, root.width - 48)
         title: "Remove Download?"
         contentItem: ColumnLayout {
-            spacing: 16
+            spacing: Theme.spacingLarge
             Label { Layout.fillWidth: true; text: "Remove “" + (root.selectedEntry.title || "this music") + "” from this device? Songs used by another download will stay."; textFormat: Text.PlainText; color: themeState.foreground; wrapMode: Text.Wrap }
             RowLayout {
                 Layout.fillWidth: true

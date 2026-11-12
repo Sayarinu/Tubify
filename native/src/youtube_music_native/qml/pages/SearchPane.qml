@@ -38,7 +38,7 @@ Item {
         header: Column {
             width: results.width; spacing: 30; bottomPadding: 24
             Row {
-                spacing: 12
+                spacing: Theme.spacingMedium
                 Repeater {
                     model: searchState.filters
                     delegate: FilterChip {
@@ -49,7 +49,7 @@ Item {
                     }
                 }
             }
-            Text { width: parent.width; visible: !root.overview; text: "Results for “" + (root.result.title || appState.query) + "”"; textFormat: Text.PlainText; color: themeState.foreground; font.pixelSize: 28; font.bold: true }
+            Text { width: parent.width; visible: !root.overview; text: "Results for “" + (root.result.title || appState.query) + "”"; textFormat: Text.PlainText; color: themeState.foreground; font.pixelSize: Theme.textHeading; font.bold: true }
         }
         delegate: Loader {
             required property var modelData
@@ -70,7 +70,7 @@ Item {
                 Column {
                     id: topColumn
                     width: parent.stacked ? parent.width : Math.min(460, parent.width * 0.42)
-                    spacing: 16
+                    spacing: Theme.spacingLarge
                     Text { text: "Top result"; color: themeState.foreground; font.pixelSize: 24; font.bold: true }
                     TopResultCard { id: top; width: parent.width; media: root.result.topResult || ({}) }
                 }

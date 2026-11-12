@@ -64,7 +64,7 @@ ThemedDialog {
             width: colorPickerScroll.availableWidth
             spacing: 14
             RowLayout {
-                Layout.fillWidth: true; spacing: 12
+                Layout.fillWidth: true; spacing: Theme.spacingMedium
                 Rectangle { Layout.preferredWidth: 38; Layout.preferredHeight: 38; radius: Theme.radiusMedium; color: palettePicker.previewColor; border.color: themeState.border; border.width: 1 }
                 ThemedTextField {
                     Layout.fillWidth: true

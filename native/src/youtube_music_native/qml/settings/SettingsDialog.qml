@@ -23,7 +23,7 @@ Popup {
         open()
     }
     contentItem: ColumnLayout {
-        spacing: 16
+        spacing: Theme.spacingLarge
         RowLayout {
             Layout.fillWidth: true
             Label { text: "Settings"; font.pixelSize: 20; font.bold: true; color: themeState.foreground; Layout.fillWidth: true }
@@ -32,7 +32,7 @@ Popup {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 16
+            spacing: Theme.spacingLarge
             ScrollView {
                 id: navigation
                 objectName: "settingsNavigation"
@@ -43,7 +43,7 @@ Popup {
                 ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                 Column {
                     width: navigation.availableWidth
-                    spacing: 16
+                    spacing: Theme.spacingLarge
                     Repeater {
                         model: root.sections
                         Column {
@@ -83,7 +83,7 @@ Popup {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 Layout.fillHeight: true
-                spacing: 16
+                spacing: Theme.spacingLarge
                 Label {
                     Layout.fillWidth: true
                     visible: root.currentPage && !root.currentPage.ownHeading

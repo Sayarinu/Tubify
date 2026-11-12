@@ -43,24 +43,24 @@ Item {
                 Cover {
                     id: cover
                     x: root.margin; anchors.verticalCenter: parent.verticalCenter
-                    width: root.compact ? 144 : 216; height: width; radius: 12
+                    width: root.compact ? 144 : 216; height: width; radius: Theme.radiusMedium
                     source: root.album.thumbnail || ""; mediaKey: catalogState.route + ":" + (catalogState.parameters.id || ""); accent: themeState.selected
                 }
                 Column {
                     id: summary
                     x: cover.x + cover.width + 28; width: parent.width - x - root.rightMargin
                     anchors.verticalCenter: parent.verticalCenter; spacing: 10
-                    Text { text: root.playlist ? root.album.privacy === "PRIVATE" ? "PRIVATE PLAYLIST" : "PLAYLIST" : "ALBUM"; color: themeState.accent; font.pixelSize: 12; font.bold: true; font.letterSpacing: 1 }
+                    Text { text: root.playlist ? root.album.privacy === "PRIVATE" ? "PRIVATE PLAYLIST" : "PLAYLIST" : "ALBUM"; color: themeState.accent; font.pixelSize: Theme.textSmall; font.bold: true; font.letterSpacing: 1 }
                     Text { width: parent.width; text: root.album.title || (root.playlist ? "Playlist" : "Album"); textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight; color: themeState.foreground; font.pixelSize: root.compact ? 32 : 48; font.bold: true }
-                    Text { id: description; objectName: "collectionDescription"; width: parent.width; visible: !!root.album.subtitle; text: root.album.subtitle || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: root.descriptionExpanded ? 1000 : 2; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: 14 }
+                    Text { id: description; objectName: "collectionDescription"; width: parent.width; visible: !!root.album.subtitle; text: root.album.subtitle || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: root.descriptionExpanded ? 1000 : 2; elide: Text.ElideRight; color: themeState.secondary; font.pixelSize: Theme.textBody }
                     TextLink { objectName: "descriptionToggle"; visible: description.truncated || root.descriptionExpanded; text: root.descriptionExpanded ? "Less" : "More"; height: 28; leftPadding: 0; horizontalAlignment: Text.AlignLeft; Accessible.role: Accessible.Button; onClicked: root.descriptionExpanded = !root.descriptionExpanded }
-                    Text { width: parent.width; visible: root.playlist; text: root.album.author || "YouTube Music"; textFormat: Text.PlainText; color: themeState.foreground; elide: Text.ElideRight; font.pixelSize: 14; font.bold: true }
+                    Text { width: parent.width; visible: root.playlist; text: root.album.author || "YouTube Music"; textFormat: Text.PlainText; color: themeState.foreground; elide: Text.ElideRight; font.pixelSize: Theme.textBody; font.bold: true }
                     TextLink { id: artist; width: Math.min(implicitWidth, parent.width); visible: !root.playlist; text: root.album.artists && root.album.artists.length ? root.album.artists[0].name : "Artist"; height: 28; leftPadding: 0; horizontalAlignment: Text.AlignLeft; bold: true; enabled: !!(root.album.artists && root.album.artists.length && root.album.artists[0].id); onClicked: browseState.open({kind: "artist", id: root.album.artists[0].id, title: text}) }
                     Text { width: parent.width; text: (root.album.year ? root.album.year + " · " : "") + (root.album.trackCount || (root.album.items || []).length) + " songs" + (root.album.duration ? " · " + root.durationLabel : ""); color: themeState.secondary; font.pixelSize: 13; wrapMode: Text.Wrap }
                 }
             }
             Row {
-                x: root.margin; spacing: 12; height: 80
+                x: root.margin; spacing: Theme.spacingMedium; height: 80
                 Button { id: play; anchors.verticalCenter: parent.verticalCenter; width: 56; height: 56; padding: 14; enabled: (root.album.items || []).length > 0; Accessible.name: root.playlist ? "Play playlist" : "Play album"; background: Rectangle { radius: width / 2; color: play.hovered ? themeState.accentHover : themeState.accent; border.width: play.visualFocus ? 2 : 0; border.color: themeState.foreground } contentItem: Symbol { name: "play"; color: themeState.onAccent } onClicked: browseState.playView() }
                 DownloadButton { anchors.verticalCenter: parent.verticalCenter; media: ({kind: root.playlist ? "playlist" : "album", id: catalogState.parameters.id || "", title: root.album.title || "", thumbnail: root.album.thumbnail || ""}) }
                 IconButton { anchors.verticalCenter: parent.verticalCenter; visible: !root.playlist || !root.album.editable; iconName: "library"; tip: root.album.saved ? "Remove from Library" : "Add to Library"; iconColor: root.album.saved ? themeState.accent : themeState.secondary; enabled: !actionsState.busy && (accountState.connected || appState.fixtureMode) && (root.playlist || !!root.album.audioPlaylistId); onClicked: actionsState.set(root.playlist ? "playlist_library" : "album_library", root.playlist ? catalogState.parameters.id : root.album.audioPlaylistId, !root.album.saved, catalogState.parameters.id) }
@@ -80,7 +80,7 @@ Item {
                 IconButton { objectName: "collectionSortDirection"; anchors.verticalCenter: parent.verticalCenter; iconName: catalogState.sortDescending ? "down" : "up"; tip: catalogState.sortDescending ? "Descending" : "Ascending"; onClicked: catalogState.setSort(catalogState.sortKey, !catalogState.sortDescending) }
                 IconButton { anchors.verticalCenter: parent.verticalCenter; iconName: "more"; tip: root.playlist ? "Playlist Options" : "Album Options"; onClicked: appState.showMenu({kind: root.playlist ? "playlist" : "album", id: catalogState.parameters.id, title: root.album.title, owned: root.playlist && !!root.album.editable}, {}) }
             }
-            Text { x: root.margin; width: parent.width - root.margin - root.rightMargin; text: actionsState.message || downloadsState.message || ""; visible: !!text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: 14; bottomPadding: 12 }
+            Text { x: root.margin; width: parent.width - root.margin - root.rightMargin; text: actionsState.message || downloadsState.message || ""; visible: !!text; textFormat: Text.PlainText; wrapMode: Text.Wrap; color: themeState.secondary; font.pixelSize: Theme.textBody; bottomPadding: 12 }
             Item {
                 width: parent.width; height: 40
                 Rectangle { anchors.bottom: parent.bottom; x: root.margin; width: parent.width - root.margin - root.rightMargin; height: 1; color: themeState.border }
