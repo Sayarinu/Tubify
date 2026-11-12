@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "youtube-music-native"
-version = "0.8.0"
+version = "1.0.0"
 description = "Tubify, a desktop app for YouTube Music"
 requires-python = ">=3.14"
 license = "MIT"
