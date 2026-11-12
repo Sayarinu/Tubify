@@ -175,6 +175,8 @@ def main():
                 while panel.isVisible():
                     assert clear_of_panel()
                     QTest.qWait(10)
+                # Closing fades the panel out as it slides.
+                assert panel.property("opacity") < 0.1
                 assert profile_edge() > beside_open_panel
                 shell.setQueueOpen(True)
                 while abs(offset()) >= 0.5 or panel.property("opacity") < 1:
@@ -186,7 +188,6 @@ def main():
                 assert content.x() + content.width() == window.findChild(QObject, "scaledContent").width()
                 # A slow runner can finish the slide before this looks again, so only a slide still running is reversed.
                 wait(lambda: offset() > 1 or not panel.property("leaving"))
-                assert panel.property("opacity") == 1
                 # Reopening mid-close reverses from where the panel is.
                 if panel.property("leaving"):
                     closing_offset = offset()
@@ -194,7 +195,7 @@ def main():
                     assert panel.isEnabled() and not panel.property("leaving") and 0 < offset() <= closing_offset + 0.5
                 else:
                     shell.setQueueOpen(True)
-                wait(lambda: abs(offset()) < 0.5)
+                wait(lambda: abs(offset()) < 0.5 and panel.property("opacity") == 1)
                 shell.setPanel("")
                 wait(lambda: not panel.isVisible())
                 # The full player slides up and down behind an open panel, spanning the window throughout.
