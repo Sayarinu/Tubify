@@ -203,8 +203,10 @@ def test_home_pins_known_shelves_and_chooses_layout_by_content(tmp_path):
         {"title": "Long listening", "items": [song, {"title": "Untyped"}]},
         {"title": "Quick picks", "items": [album]},
     ])
-    assert [section["title"] for section in sections] == ["Quick picks", "Listen again", "Fall vibes", "Long listening"]
-    assert [section["layout"] for section in sections] == ["grid", "mixed", "cards", "rows"]
+    assert [section["title"] for section in sections] == ["Listen again", "Quick picks", "Fall vibes", "Long listening"]
+    assert [section["layout"] for section in sections] == ["mixed", "grid", "cards", "rows"]
+    # Without Listen again, Quick picks leads.
+    assert [section["title"] for section in arrange_home([{"title": "Fall vibes", "items": [album]}, {"title": "Quick picks", "items": [song]}])] == ["Quick picks", "Fall vibes"]
 
 
 def test_listening_history_keeps_cached_home_and_actions_keep_stable_routes(tmp_path):
