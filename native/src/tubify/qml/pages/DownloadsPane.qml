@@ -47,11 +47,15 @@ Item {
     Component {
         id: controls
         Item {
+            id: toolbar
+            // Wide enough for the search beside the sort order; otherwise it takes a row of its own.
+            readonly property bool roomy: width >= 640
+            readonly property real secondRow: roomy ? 132 : 184
             LibraryTabs { width: parent.width; current: "Downloads" }
             ListView {
                 id: filters
                 objectName: "downloadFilters"
-                y: 84; width: parent.width - 216; height: 36
+                y: 84; width: (toolbar.roomy ? filterField.x : sortOrder.x) - Theme.spacingLarge; height: 36
                 orientation: ListView.Horizontal; spacing: Theme.spacingMedium; clip: true
                 model: downloadsState.filters
                 delegate: FilterChip {
@@ -70,11 +74,14 @@ Item {
                 Accessible.name: "Downloads sort order"
                 onActivated: downloadsState.sort(currentText)
             }
-            // Filters this page's downloads; the search at the top still searches YouTube Music.
+            // Filters this page's downloads, beside the sort order; the search at the top still searches YouTube Music.
             ThemedTextField {
                 id: filterField
                 objectName: "downloadFilterField"
-                y: 132; width: Math.min(280, Math.max(160, parent.width - 56)); height: 40
+                x: toolbar.roomy ? sortOrder.x - Theme.spacingMedium - width : 0
+                y: toolbar.roomy ? sortOrder.y + (sortOrder.height - height) / 2 : 132
+                width: toolbar.roomy ? Math.min(260, Math.max(160, parent.width * 0.28)) : parent.width
+                height: 40
                 placeholderText: "Search downloaded " + downloadsState.filter.toLowerCase()
                 text: downloadsState.query
                 Accessible.name: "Search Downloads"
@@ -86,7 +93,7 @@ Item {
                 id: moreActions
                 objectName: "downloadsMore"
                 x: parent.width - width
-                y: filterField.y + (filterField.height - height) / 2
+                y: toolbar.secondRow + (storageChoice.height - height) / 2
                 iconName: "more"
                 tip: downloadsState.retryableCount > 0 ? "More Download Options · " + downloadsState.retryableCount + " failed" : "More Download Options"
                 onClicked: moreMenu.popup(moreActions, moreActions.width - moreMenu.implicitWidth, moreActions.height, null)
@@ -120,22 +127,22 @@ Item {
                 }
             }
             // Where downloads are kept, then how much space each place uses: beside the choice,
-            // or under it when narrow.
+            // or under it when narrow. The More menu ends the row.
             Row {
                 id: storageChoice
                 objectName: "downloadStyles"
-                y: filterField.y + filterField.height + Theme.spacingSmall
-                spacing: Theme.spacingSmall
-                Text { anchors.verticalCenter: parent.verticalCenter; text: "Save as"; color: themeState.secondary; font.pixelSize: Theme.textBody }
+                y: toolbar.secondRow
+                spacing: Theme.spacingMedium
+                Text { anchors.verticalCenter: parent.verticalCenter; text: "Download"; color: themeState.secondary; font.pixelSize: Theme.textBody }
                 DownloadStyleChoice { objectName: "downloadStyleChoice"; anchors.verticalCenter: parent.verticalCenter }
             }
             Text {
                 id: storageStatus
                 objectName: "audioFilesStatus"
-                readonly property bool below: parent.width - storageChoice.width - Theme.spacingLarge < Math.min(implicitWidth, 240)
+                readonly property bool below: moreActions.x - storageChoice.width - 2 * Theme.spacingLarge < Math.min(implicitWidth, 240)
                 x: below ? 0 : storageChoice.width + Theme.spacingLarge
                 y: below ? storageChoice.y + storageChoice.height + Theme.spacingSmall : storageChoice.y + (storageChoice.height - height) / 2
-                width: parent.width - x
+                width: (below ? parent.width : moreActions.x - Theme.spacingLarge) - x
                 text: root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + (downloadsState.fileBytes > 0 || downloadsState.downloadStyle === "files" ? root.bytesLabel(downloadsState.fileBytes) + " as audio files · " : "") + root.bytesLabel(downloadsState.freeBytes) + " free"
                 textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
             }
