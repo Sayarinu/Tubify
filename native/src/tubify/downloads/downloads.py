@@ -248,12 +248,24 @@ class DownloadStore:
         row = self.db.execute("SELECT path FROM saved_files WHERE video_id=? AND folder=?", (video_id, str(folder))).fetchone()
         return row[0] if row and Path(row[0]).is_file() else None
 
-    def adopt(self, video_id, path):
-        """Play this song from the person's audio file, and delete Tubify's private copy."""
-        old = self.media.adopt(video_id, path)
-        if old is not None and old.is_relative_to(self.root / "audio"):
-            with self.db:
+    def adopt(self, identifier, video_id, path):
+        """While this download is still kept as audio files, play the song from the person's file
+        and delete Tubify's private copy. Checked and switched in one step, so switching back to
+        Tubify at the same moment can't leave a song outside Tubify without copying it back."""
+        path = Path(path).absolute()
+        if path.resolve().is_relative_to(self.root) or not path.is_file():
+            return False
+        with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            if not self.db.execute("SELECT 1 FROM exports WHERE collection_id=? AND move=1", (identifier,)).fetchone():
+                return False
+            row = self.db.execute("SELECT path, external FROM audio WHERE video_id=?", (video_id,)).fetchone()
+            self.db.execute("INSERT OR REPLACE INTO audio (video_id, path, bytes, state, external) VALUES (?, ?, ?, 'ready', 1)",
+                            (video_id, str(path), path.stat().st_size))
+            old = (self.root / row[0]).resolve() if row and not row[1] else None
+            if old is not None and old.is_relative_to(self.root / "audio"):
                 self._unlink(old)
+        return True
 
     def record_saved(self, video_id, folder, path):
         with self.db:
@@ -770,8 +782,7 @@ class Downloads:
                         raise DownloadBlocked(message) from None
                     return
                 self.store.record_saved(video_id, folder, path)
-            if (self.store.export(identifier) or {}).get("move"):
-                self.store.adopt(video_id, path)
+            self.store.adopt(identifier, video_id, path)
             saved += 1
             self.store.set_export(identifier, "saving", saved)
             self.notify({"collection": identifier, "saved": saved})
@@ -780,24 +791,26 @@ class Downloads:
 
     def _internalize(self, video_id):
         """Copy the person's audio file back into Tubify, leaving their file where it is."""
+        # A file that can't be copied stays where it is and keeps playing from there; only a full
+        # disk keeps the song queued, so freeing space and retrying finishes the copy.
         source = self.store.media.external(video_id)
+        temporary = None
         try:
             if source is not None and self.store.media.ready(video_id):
                 staging, audio = self.store.root / "staging", self.store.root / "audio"
                 temporary = staging / (video_id + source.suffix.lower())
                 shutil.copyfile(source, temporary)
-                try:
-                    self.store.media.publish(video_id, temporary, audio / temporary.name)
-                except (ProbeError, subprocess.CalledProcessError, ValueError):
-                    temporary.unlink(missing_ok=True)
-                    self.store.media.mark_damaged(video_id)
+                self.store.media.publish(video_id, temporary, audio / temporary.name)
         except OSError as error:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
             if getattr(error, "errno", None) == errno.ENOSPC:
                 raise DownloadBlocked("The disk is full. Free space and retry. Your audio files were kept.") from None
-            self.store.media.mark_damaged(video_id)
-        finally:
-            with self.store.db:
-                self.store.db.execute("DELETE FROM internalize WHERE video_id=?", (video_id,))
+        except (ProbeError, subprocess.CalledProcessError, ValueError):
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        with self.store.db:
+            self.store.db.execute("DELETE FROM internalize WHERE video_id=?", (video_id,))
         self.notify({"videoId": video_id, "fraction": 1., "done": True})
 
     def _finish(self, identifier):

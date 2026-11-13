@@ -39,7 +39,9 @@ class MediaFiles:
         except OSError:
             valid = False
         if not valid:
-            self.mark_damaged(video_id)
+            # The person's file may be on a drive that is only disconnected for now; it plays again once back.
+            if not row[2]:
+                self.mark_damaged(video_id)
             return None
         return path
 
@@ -64,17 +66,6 @@ class MediaFiles:
         """The person's audio file this song plays from, or None for a private copy."""
         row = self.db.execute("SELECT path FROM audio WHERE video_id=? AND external=1", (video_id,)).fetchone()
         return Path(row[0]) if row else None
-
-    def adopt(self, video_id, path):
-        """Play this song from the person's audio file instead, returning the private copy to delete."""
-        path = Path(path).absolute()
-        if path.resolve().is_relative_to(self.root) or not path.is_file():
-            raise ValueError("An audio file must be outside the media directory")
-        row = self.db.execute("SELECT path, external FROM audio WHERE video_id=?", (video_id,)).fetchone()
-        with self.db:
-            self.db.execute("INSERT OR REPLACE INTO audio (video_id, path, bytes, state, external) VALUES (?, ?, ?, 'ready', 1)",
-                            (video_id, str(path), path.stat().st_size))
-        return (self.root / row[0]).resolve() if row and not row[1] else None
 
     def mark_damaged(self, video_id):
         with self.db:

@@ -182,6 +182,10 @@ def test_audio_files_style_keeps_one_copy_and_plays_it(tmp_path):
     other = folder / "Artist One" / "Album Name" / "02 Song 2.m4a"
     moved = other.rename(tmp_path / "moved.m4a")
     assert downloads.store.status()["collectionStates"][key] == "damaged"
+    # A drive that comes back plays again without downloading anything.
+    moved.rename(other)
+    assert downloads.store.status()["collectionStates"][key] == "complete"
+    moved = other.rename(tmp_path / "moved.m4a")
     downloads.store.remove(key)
     downloads.store._collect_garbage()
     assert saved.is_file() and moved.is_file()
@@ -223,4 +227,36 @@ def test_saving_one_item_as_files_in_tubify_style_keeps_its_offline_copy(tmp_pat
     downloads._drain()
     assert len(files(downloads)) == 1 and len([path for path in folder.rglob("*") if path.is_file()]) == 1
     assert downloads.store.media.ready(IDS[0]).is_relative_to(downloads.store.root)
+    downloads.close()
+
+
+def test_switching_back_while_a_file_is_being_kept_keeps_tubifys_copy(tmp_path):
+    folder = tmp_path / "Music" / "Tubify"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS})
+    key = downloads.store.schedule(body, str(folder), move=True)
+    saved = folder / "song.opus"
+    saved.parent.mkdir(parents=True)
+    saved.write_bytes((downloads.store.root / "audio" / f"{IDS[0]}.webm").read_bytes())
+    # Switched back to Tubify between saving the file and switching to it: nothing changes hands.
+    downloads.store.convert("tubify")
+    assert not downloads.store.adopt(key, IDS[0], saved)
+    assert files(downloads) == [f"{IDS[0]}.webm"] and downloads.store.media.ready(IDS[0]).is_relative_to(downloads.store.root)
+    downloads.close()
+
+
+def test_a_file_that_cannot_be_copied_back_keeps_playing_from_its_folder(tmp_path, monkeypatch):
+    folder = tmp_path / "Music" / "Tubify"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS})
+    key = downloads.store.schedule(body, str(folder), move=True)
+    downloads._drain()
+    downloads.store.convert("tubify")
+
+    def unreadable(*args):
+        raise PermissionError("unreadable")
+
+    monkeypatch.setattr(shutil, "copyfile", unreadable)
+    downloads._drain()
+    status = downloads.store.status()
+    assert status["collectionStates"][key] == "complete" and status["next"] is None
+    assert not downloads.store.media.ready(IDS[0]).is_relative_to(downloads.store.root)
     downloads.close()

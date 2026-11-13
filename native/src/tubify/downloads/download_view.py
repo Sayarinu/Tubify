@@ -379,6 +379,10 @@ class DownloadView(QObject):
         path = value.toLocalFile() if isinstance(value, QUrl) else QUrl(value).toLocalFile() if str(value).startswith("file:") else str(value or "")
         # QUrl gives forward slashes on Windows; keep the system's own spelling.
         path = str(Path(path)) if path else ""
+        # A folder inside Tubify's own data would be cleaned up with it, so it can't hold the person's files.
+        if path and Path(path).is_absolute() and Path(path).resolve().is_relative_to(Path(self.data_dir).resolve()):
+            self._set_message("Choose a folder outside Tubify's own data.")
+            return
         if path and Path(path).is_absolute() and path != self._files_folder:
             self._files_folder = path
             if self._settings is not None:
@@ -612,7 +616,9 @@ class DownloadView(QObject):
 
     def _pump(self):
         mutations = {"remove", "cancel", "retry", "initialize", "fail", "save_files", "convert"}
-        if self._closed or self._resetting or self._stopped or not self._allow_network or self._active or not self._next or any(op in mutations for op in self._pending.values()):
+        # Saving and copying files back need no connection, so they run offline too.
+        offline_ok = self._next in {"save", "internalize"}
+        if self._closed or self._resetting or self._stopped or not (self._allow_network or offline_ok) or self._active or not self._next or any(op in mutations for op in self._pending.values()):
             return
         self._active, self._next = self._next, None
         self._transfer_request = self.transfer.request("downloads_run", {"data_dir": self.data_dir, "id": self._active})
