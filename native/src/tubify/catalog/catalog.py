@@ -42,6 +42,15 @@ def _session_problem(error):
     return isinstance(error, AuthError) or user_error or session_rejected(error)
 
 
+def _signed_in(client):
+    try:
+        account = client.get_account_info()
+    except (KeyError, IndexError, TypeError):
+        # A signed-out reply has no account section; network errors pass through.
+        return False
+    return isinstance(account, dict) and bool(account.get("accountName"))
+
+
 def duration(value):
     return int(parse_duration(value))
 
@@ -405,6 +414,11 @@ class Catalog:
         data["items"] = items(raw.get("tracks", []) if isinstance(raw, dict) else raw, kind)
         data["title"] = "Liked songs" if route == "library_liked" else route.removeprefix("library_").title()
         data["complete"] = len(data["items"]) < limit
+        if not data["items"] and not _signed_in(client):
+            # A lapsed session gets a "Sign in" page, which ytmusicapi reads as an empty library.
+            from ..account.auth import AuthError
+
+            raise AuthError("Your session needs reconnecting. Your library will reload once it is renewed.")
 
     def _history(self, client, route, params, limit, data):
         data["items"] = items(client.get_history(), "song")

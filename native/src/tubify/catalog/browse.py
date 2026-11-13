@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .playlist_ops import apply_change
 from ..playback.queue_additions import QueueAdditions
-from ..util import atomic_write
+from ..util import atomic_write, needs_reconnect
 
 
 PLAYLIST_RETRY_MS = (2000, 5000, 15000, 30000, 60000)
@@ -500,6 +500,10 @@ class Browse(QObject):
 
     def _playlists_loaded(self, result):
         self._playlist_request = None
+        if result.get("warning") == "reconnect":
+            # Cached playlists from a lapsed session: keep the sidebar as it is and reload once renewed.
+            self.account.requireReconnect("Your session needs reconnecting. Your playlists will reload once it is renewed.")
+            return
         self._playlist_attempts = 0
         identity = (self.account.profile.get("name"), self.account.profile.get("handle"))
         self._playlists_identity = identity
@@ -509,7 +513,10 @@ class Browse(QObject):
 
     def _playlists_failed(self, error):
         self._playlist_request = None
-        if self.account.connected and error.get("code") != "cancelled":
+        if needs_reconnect(error):
+            # Renewing the session reloads the playlists; retrying the lapsed one would not.
+            self.account.requireReconnect(error.get("message", "Your session needs reconnecting."))
+        elif self.account.connected and error.get("code") != "cancelled":
             delay = PLAYLIST_RETRY_MS[min(self._playlist_attempts, len(PLAYLIST_RETRY_MS) - 1)]
             self._playlist_attempts += 1
             self.playlist_retry.start(delay)
