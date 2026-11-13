@@ -123,6 +123,19 @@ class Library(QObject):
             self.view.load(SECTIONS[section], params)
         self.changed.emit()
 
+    def showing(self, section):
+        """True when this section is already on screen, so choosing it again has nothing to do."""
+        view = self.view
+        return (self.shell.page == "Library" and not self.shell.expanded and section == self._selected
+                and view.route == SECTIONS.get(section) and not view.error)
+
+    @Slot(str)
+    def choose(self, section):
+        """Show a section the user picked, leaving it alone if it is already showing."""
+        if self.showing(section):
+            return
+        self.select(section)
+
     @Slot(str)
     def sort(self, order):
         if order in self._orders() and order != self._order:
@@ -131,6 +144,8 @@ class Library(QObject):
 
     @Slot()
     def history(self):
+        if self.showing("History"):
+            return
         self._set_section("History")
         self.shell.navigate("Library")
 

@@ -30,7 +30,7 @@ Item {
                     required property string modelData
                     text: modelData
                     selected: libraryState.selectedSection === modelData
-                    onClicked: libraryState.select(modelData)
+                    onClicked: libraryState.choose(modelData)
                 }
             }
             EdgeArrows { target: filters; visible: filters.visible }
