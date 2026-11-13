@@ -310,3 +310,13 @@ def test_each_simple_route_reaches_its_provider_method(tmp_path):
         with pytest.raises(CatalogError, match="unavailable"):
             catalog.fetch(route)
     catalog.store.close()
+
+
+def test_an_artist_page_ytmusicapi_cannot_read_names_the_artist_page_not_the_session(tmp_path):
+    def unreadable(identifier):
+        raise KeyError("header")
+
+    provider = SimpleNamespace(get_artist=unreadable)
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "metadata.sqlite3"))
+    with pytest.raises(CatalogError, match="artist page in a layout"):
+        catalog.fetch("artist", {"id": "UCartist"})
