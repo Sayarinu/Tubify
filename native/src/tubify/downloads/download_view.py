@@ -364,6 +364,8 @@ class DownloadView(QObject):
         from PySide6.QtCore import QUrl
 
         path = value.toLocalFile() if isinstance(value, QUrl) else QUrl(value).toLocalFile() if str(value).startswith("file:") else str(value or "")
+        # QUrl gives forward slashes on Windows; keep the system's own spelling.
+        path = str(Path(path)) if path else ""
         if path and Path(path).is_absolute() and path != self._files_folder:
             self._files_folder = path
             if self._settings is not None:
