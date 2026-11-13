@@ -6,7 +6,7 @@ import time
 
 from PySide6.QtCore import QObject, Property, QProcess, QSettings, QTimer, Signal, Slot
 
-from ..catalog.catalog_view import sorted_items
+from ..catalog.catalog_view import searchable, sorted_items
 from ..catalog.page_model import PageModel
 from ..jobs import Worker
 
@@ -14,6 +14,8 @@ from ..jobs import Worker
 FILTERS = {"Playlists": "playlist", "Albums": "album", "Songs": "song"}
 ORDERS = ["Recently added", "A to Z", "Z to A"]
 STYLES = ("tubify", "files")
+# How long transfers wait after a failure before trying the queue again.
+RESUME_MS = 5 * 60 * 1000
 SONG_ORDERS = ORDERS + ["Artist"]
 
 
@@ -40,13 +42,17 @@ class DownloadView(QObject):
     collectionFound = Signal(int, dict)
     playRequested = Signal(dict, bool)
     filesChanged = Signal()
+    retryableChanged = Signal()
     # A collection's audio files finished saving to this folder.
     filesSaved = Signal(str)
 
     def __init__(self, data_dir, fixture=False, parent=None, settings_path=None):
         super().__init__(parent)
         self._settings = QSettings(str(settings_path), QSettings.Format.IniFormat) if settings_path else None
-        self._filter = "Playlists"
+        self._filter, self._query = "Playlists", ""
+        # Typing filters after a short pause, so each key press doesn't re-sort every download.
+        self.query_timer = QTimer(self, singleShot=True, interval=150)
+        self.query_timer.timeout.connect(self._show)
         from .saved_files import default_folder
         # Downloads are kept either as private copies inside Tubify, or as audio files in a folder.
         style = str(self._settings.value("downloadStyle", "tubify")) if self._settings else "tubify"
@@ -81,6 +87,10 @@ class DownloadView(QObject):
         self._active, self._transfer_request, self._next = None, None, None
         self._bytes, self._file_bytes, self._free, self._message = 0, 0, 0, ""
         self._saved_count = 0
+        # Downloads Retry Failed would pick up, and whether transfers wait after a failure.
+        self._retryable, self._paused = 0, False
+        self.resume_timer = QTimer(self, singleShot=True, interval=RESUME_MS)
+        self.resume_timer.timeout.connect(self._resume)
         # A planning outcome kept until the next download request replaces it.
         self._notice = ""
         self._minimum_request, self._status_pending = 0, False
@@ -207,6 +217,17 @@ class DownloadView(QObject):
             self._filter = name
             self._show()
 
+    @Property(str, notify=pageChanged)
+    def query(self):
+        return self._query
+
+    @Slot(str)
+    def setQuery(self, text):
+        text = str(text)[:200]
+        if text != self._query:
+            self._query = text
+            self.query_timer.start()
+
     @Slot(str)
     def sort(self, order):
         if order in (SONG_ORDERS if self._filter == "Songs" else ORDERS) and order != self.order:
@@ -220,6 +241,9 @@ class DownloadView(QObject):
             rows = [song for song in self._songs if song.get("downloadState") != "unavailable"]
         else:
             rows = [entry for entry in self._collections if entry.get("kind") == FILTERS[self._filter]]
+        words = self._query.casefold().split()
+        if words:
+            rows = [row for row in rows if all(word in searchable(row) for word in words)]
         order = self.order
         if order == "A to Z" or order == "Z to A":
             return sorted_items(rows, "title", order == "Z to A")
@@ -386,6 +410,29 @@ class DownloadView(QObject):
         self._send("delete_all_files", {}, authoritative=True)
         self._set_message("Deleting every saved audio file…")
 
+    @Property(int, notify=retryableChanged)
+    def retryableCount(self):
+        return self._retryable
+
+    @Slot()
+    def retryFailed(self):
+        """Queue every failed download and audio-file save again, and start transferring."""
+        if self.fixture:
+            for entry in list(self._collections):
+                if entry["state"] in {"failed", "damaged"}:
+                    self._fixture_update(entry["key"], "complete")
+            return
+        self._resume(send=False)
+        self._send("retry_failed", authoritative=True)
+
+    def _resume(self, send=True):
+        """Let transfers start again after a failure paused them."""
+        self.resume_timer.stop()
+        if self._paused:
+            self._paused = False
+            if send:
+                self._send("status", authoritative=True)
+
     @Property(bool, notify=filesChanged)
     def downloadVideos(self):
         return self._videos
@@ -468,6 +515,8 @@ class DownloadView(QObject):
     def setAccountAvailable(self, available):
         self._allow_network = available
         self._stale = True
+        if available:
+            self._resume(send=False)
         self._pump()
 
     def _send(self, operation, payload=None, authoritative=False):
@@ -487,6 +536,7 @@ class DownloadView(QObject):
             self._set_message("Download preview")
             return
         self._notice = ""
+        self._resume(send=False)
         files = self._files_folder if self._style == "files" else ""
         self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": files, "move": bool(files), "videos": self._videos}))
         self._set_message("Preparing download…")
@@ -501,6 +551,7 @@ class DownloadView(QObject):
         if not values:
             return
         self._notice = ""
+        self._resume(send=False)
         self._planning.add(self.planner.request("downloads_schedule_all", {"data_dir": self.data_dir, "playlists": values, "files": self._files_folder if self._style == "files" else "", "move": self._style == "files", "videos": self._videos}))
         self._set_message("Preparing downloads for every playlist…")
 
@@ -534,6 +585,7 @@ class DownloadView(QObject):
 
     @Slot()
     def refresh(self):
+        self._resume(send=False)
         if not self._status_pending:
             self._send("status")
 
@@ -579,6 +631,7 @@ class DownloadView(QObject):
         if self.fixture:
             self._fixture_update(identifier, "complete")
             return
+        self._resume(send=False)
         self._send("retry", {"id": identifier}, authoritative=True)
 
     @Slot(str)
@@ -640,6 +693,9 @@ class DownloadView(QObject):
         states_changed = listed_changed or result.get("trackStates", {}) != self._track_states
         self._track_states = result.get("trackStates", {})
         storage = (result.get("bytes", 0), result.get("fileBytes", 0), result.get("freeBytes", 0), result.get("savedFiles", 0))
+        if result.get("retryable", 0) != self._retryable:
+            self._retryable = result.get("retryable", 0)
+            self.retryableChanged.emit()
         if storage != (self._bytes, self._file_bytes, self._free, self._saved_count):
             self._bytes, self._file_bytes, self._free, self._saved_count = storage
             self.storageChanged.emit()
@@ -665,10 +721,10 @@ class DownloadView(QObject):
         self._pump()
 
     def _pump(self):
-        mutations = {"remove", "cancel", "retry", "initialize", "fail", "save_files", "convert", "delete_files", "delete_all_files"}
+        mutations = {"remove", "cancel", "retry", "initialize", "fail", "save_files", "convert", "delete_files", "delete_all_files", "retry_failed"}
         # Saving and copying files back need no connection, so they run offline too.
         offline_ok = self._next in {"save", "internalize"}
-        if self._closed or self._resetting or self._stopped or not (self._allow_network or offline_ok) or self._active or not self._next or any(op in mutations for op in self._pending.values()):
+        if self._closed or self._resetting or self._stopped or self._paused or not (self._allow_network or offline_ok) or self._active or not self._next or any(op in mutations for op in self._pending.values()):
             return
         self._active, self._next = self._next, None
         self._transfer_request = self.transfer.request("downloads_run", {"data_dir": self.data_dir, "id": self._active})
@@ -704,6 +760,9 @@ class DownloadView(QObject):
             return
         active = self._active
         self._active, self._transfer_request = None, None
+        # Starting again straight away would fail the same way, so wait a while or for the person.
+        self._paused = True
+        self.resume_timer.start()
         self._set_message(error.get("message", "Download stopped. Retry to continue."))
         self._send("fail", {"id": active}, authoritative=True)
 
@@ -734,6 +793,7 @@ class DownloadView(QObject):
         self._planning.clear()
         self.planner.reset()
         self._active, self._transfer_request, self._next = None, None, None
+        self._resume(send=False)
         self.control.reset()
         self._stopped.append(("initialize", {}))
         self.transfer.reset()
@@ -742,6 +802,8 @@ class DownloadView(QObject):
 
     def close(self):
         self._closed = True
+        self.resume_timer.stop()
+        self.query_timer.stop()
         if self.artwork_worker:
             self.artwork_worker.close()
         if self.control:

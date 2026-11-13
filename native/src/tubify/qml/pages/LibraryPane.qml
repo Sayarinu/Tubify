@@ -42,8 +42,20 @@ Item {
                 Accessible.name: "Library sort order"
                 onActivated: libraryState.sort(currentText)
             }
+            // Filters the section on this page; the search at the top still searches YouTube Music.
+            ThemedTextField {
+                objectName: "libraryFilterField"
+                y: 132; width: Math.min(280, Math.max(160, parent.width * 0.38)); height: 40
+                visible: !root.history
+                placeholderText: "Search your " + libraryState.selectedSection.toLowerCase()
+                text: catalogState.query
+                Accessible.name: "Search Library"
+                onTextEdited: catalogState.setQuery(text)
+                Keys.onEscapePressed: { text = ""; catalogState.setQuery("") }
+            }
         }
     }
+    readonly property real headerHeight: history ? 96 : 196
     property list<QtObject> pagers: [
         AutoPager { view: grid; active: root.current; cursor: root.result.cursor },
         AutoPager { view: songs; active: root.current; cursor: root.result.cursor }
@@ -58,7 +70,7 @@ Item {
         property int columns: Math.max(1, Math.floor((width + 24) / (Theme.cardWidth + 24)))
         cellWidth: width / columns; cellHeight: cellWidth + 84
         model: root.current ? catalogState.itemsModel : null; ScrollBar.vertical: ScrollBar {}
-        header: Loader { width: grid.width; height: 158; sourceComponent: controls }
+        header: Loader { width: grid.width; height: root.headerHeight; sourceComponent: controls }
         delegate: MediaCard {
             required property var modelData
             width: grid.cellWidth - 24; height: grid.cellHeight - 24; media: modelData
@@ -80,7 +92,7 @@ Item {
         anchors.fill: parent; anchors.leftMargin: root.gutter; anchors.rightMargin: root.rightGutter
         visible: root.rows; clip: true; bottomMargin: 32; model: root.current ? catalogState.itemsModel : null
         ScrollBar.vertical: ScrollBar {}
-        header: Loader { width: songs.width; height: root.history ? 96 : 158; sourceComponent: controls }
+        header: Loader { width: songs.width; height: root.headerHeight; sourceComponent: controls }
         delegate: SongRow {
             required property var modelData
             width: songs.width; media: modelData
@@ -93,6 +105,15 @@ Item {
             width: songs.width
             LoadingSkeleton { width: parent.width; view: songs; mode: "rows" }
         }
+    }
+    // Nothing in the loaded section matches the Library search.
+    Text {
+        objectName: "libraryNoMatches"
+        anchors.horizontalCenter: parent.horizontalCenter; y: root.headerHeight + 64
+        width: parent.width - 80
+        visible: root.current && !!catalogState.query && !root.history && !catalogState.busy && (root.result.items || []).length > 0 && (root.rows ? songs.count : grid.count) === 0
+        text: "No " + libraryState.selectedSection.toLowerCase() + " match “" + catalogState.query + "”."
+        textFormat: Text.PlainText; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: Theme.textTitle
     }
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: 20

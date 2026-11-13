@@ -496,3 +496,67 @@ def test_a_downloaded_video_resolves_for_the_video_switch(service):
     assert audio["kind"] == "local" and audio["hasVideo"] and not audio.get("video")
     picture = sources.resolve(IDS[0], video=True)
     assert picture == {"kind": "local", "video": True, "source": str(service.store.media.video_ready(IDS[0])), "headers": [], "videoId": IDS[0]}
+
+
+def test_an_unreachable_youtube_pauses_the_queue_and_keeps_every_song_queued(service):
+    service, factory = service
+    first = service.store.schedule(body("PLfirst", IDS[:1]))
+    second = service.store.schedule(body("PLsecond", IDS[1:2]))
+    factory.error = RuntimeError("ERROR: Unable to download webpage: HTTP Error 429: Too Many Requests")
+    with pytest.raises(downloads.DownloadPaused, match="limiting downloads"):
+        service.run_queue()
+    # The song that hit the limit isn't its own fault, so it waits with the rest.
+    assert factory.calls == [IDS[0]]
+    assert service.store.state(first) == "queued" and service.store.state(second) == "queued"
+    factory.error = None
+    service.run_queue()
+    assert service.store.state(first) == "complete" and service.store.state(second) == "complete"
+
+
+def test_a_lost_connection_in_the_cause_chain_pauses_the_queue(service):
+    service, factory = service
+    first = service.store.schedule(body("PLfirst", IDS[:1]))
+    try:
+        raise ConnectionResetError("reset")
+    except ConnectionResetError as cause:
+        error = RuntimeError("provider detail")
+        error.exc_info = (type(cause), cause, None)
+    factory.error = error
+    with pytest.raises(downloads.DownloadPaused, match="couldn't be reached"):
+        service.run_queue()
+    assert service.store.state(first) == "queued"
+
+
+def test_songs_failing_in_a_row_pause_the_queue_before_failing_the_rest(service):
+    service, factory = service
+    videos = IDS + ["aaaaaaaaaaa", "bbbbbbbbbbb"]
+    keys = [service.store.schedule(body("PL" + str(index), [video_id])) for index, video_id in enumerate(videos)]
+    factory.error = RuntimeError("provider detail")
+    with pytest.raises(downloads.DownloadPaused, match="Several songs in a row"):
+        service.run_queue()
+    states = [service.store.state(key) for key in keys]
+    assert states[:downloads.FAILURE_LIMIT] == ["failed"] * downloads.FAILURE_LIMIT
+    assert set(states[downloads.FAILURE_LIMIT:]) == {"queued"}
+    assert service.store.status()["retryable"] == downloads.FAILURE_LIMIT
+
+
+def test_retry_failed_requeues_every_failed_song_and_save_but_not_cancelled_downloads(service, tmp_path):
+    service, factory = service
+    failed = [service.store.schedule(body("PL" + str(index), [video_id])) for index, video_id in enumerate(IDS[:2])]
+    cancelled = service.store.schedule(body("PLcancelled", IDS[2:]))
+    service.store.cancel(cancelled)
+    factory.error = RuntimeError("provider detail")
+    service.run_queue()
+    assert [service.store.state(key) for key in failed] == ["failed", "failed"]
+    with service.store.db:
+        service.store.db.execute("INSERT INTO exports VALUES (?, ?, 'failed', 0, 'Audio files couldn''t be saved. Retry.', 0)", (failed[0], str(tmp_path / "Music")))
+    assert service.store.status()["retryable"] == 2
+    service.store.retry_failed()
+    assert [service.store.state(key) for key in failed] == ["queued", "queued"]
+    assert service.store.export(failed[0])["state"] == "pending"
+    assert service.store.state(cancelled) == "cancelled"
+    factory.error = None
+    service.run_queue()
+    assert [service.store.state(key) for key in failed] == ["complete", "complete"]
+    assert service.store.state(cancelled) == "cancelled" and IDS[2] not in factory.calls
+    assert service.store.status()["retryable"] == 0
