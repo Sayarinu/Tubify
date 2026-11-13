@@ -260,6 +260,8 @@ def main(argv=None):
     local_music.queueRequested.connect(lambda tracks, next: player.enqueue(tracks, next))
     local_music.collectionReady.connect(browse.showCollection)
     browse.local_music = local_music
+    # Audio files saved from downloads appear in Local Music.
+    downloads.filesSaved.connect(local_music.ensureFolder)
     on_quit(local_music.close)
     controller.linkState = DeepLinks(browse, account, downloads, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     on_quit(controller.linkState.close)

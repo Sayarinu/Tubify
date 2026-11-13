@@ -20,7 +20,18 @@ Item {
         return (value / 1048576).toFixed(1) + " MB"
     }
     function songCount(entry) { return entry.total + (entry.total === 1 ? " song" : " songs") }
-    function stateLabel(entry) {
+    // Saved audio files are reported after the download itself.
+    function filesLabel(entry) {
+        var files = entry.files
+        if (!files) return ""
+        if (files.state === "saved") return " · Files saved"
+        if (files.state === "saving") return " · Saving files · " + files.saved + " of " + files.total
+        if (files.state === "pending") return entry.state === "complete" ? " · Saving files" : ""
+        if (files.state === "failed") return " · Files not saved"
+        return ""
+    }
+    function stateLabel(entry) { return downloadLabel(entry) + filesLabel(entry) }
+    function downloadLabel(entry) {
         if (entry.state === "complete") return entry.error ? "Downloaded · " + entry.ready + " of " + songCount(entry) : "Downloaded · " + songCount(entry)
         if (entry.state === "damaged") return "Repair needed · " + entry.ready + " of " + entry.total + " available"
         if (entry.state === "downloading") return "Downloading · " + Math.round(entry.progress * 100) + "%"
@@ -58,16 +69,47 @@ Item {
                 Accessible.name: "Downloads sort order"
                 onActivated: downloadsState.sort(currentText)
             }
-            Text {
+            // Both download styles, side by side: offline copies inside Tubify, and audio files in a folder.
+            Column {
+                objectName: "downloadStyles"
                 width: parent.width - storageActions.width - 16
                 anchors.verticalCenter: storageActions.verticalCenter
-                text: root.bytesLabel(downloadsState.usedBytes) + " downloaded · " + root.bytesLabel(downloadsState.freeBytes) + " free"
-                color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: Theme.textBody
+                spacing: 2
+                Text {
+                    width: parent.width
+                    text: "Offline copies · " + root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + root.bytesLabel(downloadsState.freeBytes) + " free"
+                    color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: Theme.textBody
+                }
+                Row {
+                    width: parent.width; spacing: 4
+                    Text {
+                        id: filesStatus
+                        objectName: "audioFilesStatus"
+                        width: Math.min(implicitWidth, parent.width - openFiles.width - 8)
+                        text: downloadsState.filesEnabled ? "Audio files · also saved to " + downloadsState.filesFolder : "Audio files · off for new downloads"
+                        textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
+                    }
+                    InlineLink {
+                        id: openFiles
+                        text: downloadsState.filesEnabled ? "Open" : ""
+                        visible: downloadsState.filesEnabled
+                        font.pixelSize: Theme.textBody
+                        onActivated: downloadsState.openFilesFolder()
+                    }
+                }
             }
             Row {
                 id: storageActions
                 anchors.right: parent.right; y: 136; spacing: Theme.spacingSmall
                 IconButton { iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
+                FilterChip {
+                    objectName: "saveAudioFilesToggle"
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Save Audio Files"
+                    selected: downloadsState.filesEnabled
+                    Accessible.description: "Also save new downloads as audio files in " + downloadsState.filesFolder
+                    onClicked: downloadsState.setFilesEnabled(!downloadsState.filesEnabled)
+                }
                 FilterChip {
                     objectName: "downloadAllPlaylists"
                     choice: false

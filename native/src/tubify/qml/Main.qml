@@ -200,6 +200,7 @@ ApplicationWindow {
     }
 
     PlaybackSettings { id: playbackSettings; host: settingsDialog }
+    DownloadsSettings { id: downloadsSettings; host: settingsDialog }
     UpdateSettings { id: updateSettings; host: settingsDialog }
     TroubleshootingSettings { id: troubleshootingSettings; host: settingsDialog }
     UpdateDialog { id: updateDialog }
@@ -212,7 +213,7 @@ ApplicationWindow {
         id: settingsDialog
         currentPage: appearanceSettings
         sections: [
-            { title: "General", pages: [appearanceSettings, playbackSettings, lyricsSettings] },
+            { title: "General", pages: [appearanceSettings, playbackSettings, downloadsSettings, lyricsSettings] },
             { title: "Application", pages: [desktopSettings] },
             { title: "Connections", pages: [discordSettings, lastFmSettings] },
             { title: "Experimental Features", pages: [castSettings] },

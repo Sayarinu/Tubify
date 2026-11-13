@@ -494,6 +494,19 @@ class LocalView(QObject):
         self._set_message("")
         self._send("local_add_folder", {"path": path})
 
+    @Slot(str)
+    def ensureFolder(self, path):
+        """Show newly saved audio files: add their folder, or rescan the chosen folder that holds it."""
+        if not path:
+            return
+        key = os.path.normcase(os.path.abspath(path))
+        owner = next((folder for folder in self._folders if key == os.path.normcase(folder["path"])
+                      or key.startswith(os.path.normcase(folder["path"]).rstrip(os.sep) + os.sep)), None)
+        if owner:
+            self.rescan(owner["id"])
+        elif self._initialized:
+            self.addFolder(path)
+
     @Slot()
     def addSuggestedFolder(self):
         if self.suggestedFolder:
