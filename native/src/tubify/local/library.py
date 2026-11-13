@@ -13,14 +13,15 @@ import uuid
 from ..catalog.database import connect
 from . import tags as tag_reader
 
+# Device and file ids are stored as text: on Windows they can exceed SQLite's 64-bit integers.
 TABLES = """
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS folders (
-        id INTEGER PRIMARY KEY, path TEXT NOT NULL, key TEXT NOT NULL UNIQUE, device INTEGER NOT NULL,
+        id INTEGER PRIMARY KEY, path TEXT NOT NULL, key TEXT NOT NULL UNIQUE, device TEXT NOT NULL,
         added REAL NOT NULL, scanned REAL NOT NULL, state TEXT NOT NULL, rev INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS songs (
         id TEXT PRIMARY KEY, folder INTEGER NOT NULL REFERENCES folders(id), path TEXT NOT NULL, key TEXT NOT NULL UNIQUE,
-        size INTEGER NOT NULL, mtime INTEGER NOT NULL, device INTEGER NOT NULL, inode INTEGER NOT NULL,
+        size INTEGER NOT NULL, mtime INTEGER NOT NULL, device TEXT NOT NULL, inode TEXT NOT NULL,
         title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT NOT NULL, album_artist TEXT NOT NULL,
         track INTEGER NOT NULL, disc INTEGER NOT NULL, year INTEGER NOT NULL, duration REAL NOT NULL,
         codec TEXT NOT NULL, sample_rate INTEGER NOT NULL, artwork TEXT NOT NULL, tags_readable INTEGER NOT NULL,
@@ -122,7 +123,7 @@ class LocalLibrary:
         with self.db:
             rev = self._bump()
             cursor = self.db.execute("INSERT INTO folders (path, key, device, added, scanned, state, rev) VALUES (?, ?, ?, ?, 0, 'new', ?)",
-                                     (str(folder), key, folder.stat().st_dev, now, rev))
+                                     (str(folder), key, str(folder.stat().st_dev), now, rev))
         return cursor.lastrowid
 
     def remove_folder(self, folder_id):
@@ -237,7 +238,7 @@ class LocalLibrary:
         root = Path(path)
         try:
             present = root.is_dir()
-            current_device = root.stat().st_dev if present else device
+            current_device = str(root.stat().st_dev) if present else device
         except OSError:
             present, current_device = False, device
         if not present:
@@ -328,7 +329,7 @@ class LocalLibrary:
                     self.db.execute("UPDATE songs SET state='ready', rev=? WHERE id=?", (rev, key))
                     continue
                 file_path, stat, previous, values = details
-                fields = (folder_id, file_path, key, stat.st_size, stat.st_mtime_ns, stat.st_dev, stat.st_ino,
+                fields = (folder_id, file_path, key, stat.st_size, stat.st_mtime_ns, str(stat.st_dev), str(stat.st_ino),
                           values["title"], values["artist"], values["album"], values["albumArtist"], values["track"], values["disc"],
                           values["year"], values["duration"], values["codec"], values["sampleRate"], values["artwork"],
                           int(values["tagsReadable"]))
