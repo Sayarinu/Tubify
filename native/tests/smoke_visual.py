@@ -692,6 +692,10 @@ def main():
                                 assert pane and rows and window.findChild(QObject, "localAddFolder")
                                 # The fixture's missing and disconnected songs say so in place of their album.
                                 assert {item.property("text") for item in states} >= {"File missing", "Drive not connected"}
+                                # Each local song's folder icon is a button that shows its file, off for files that aren't there.
+                                marks = [item for item in visual_items(window.contentItem()) if item.objectName() == "localFileMark" and item.isVisible()]
+                                assert marks and all(mark.property("tip") == "Show in Folder" for mark in marks)
+                                assert any(mark.property("enabled") for mark in marks) and any(not mark.property("enabled") for mark in marks)
                             if name == "localEmpty":
                                 empty = window.findChild(QObject, "localEmptyState")
                                 assert empty and empty.isVisible() and window.findChild(QObject, "localAddFirstFolder").isVisible()
