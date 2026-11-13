@@ -695,6 +695,8 @@ def main():
                             if name == "localEmpty":
                                 empty = window.findChild(QObject, "localEmptyState")
                                 assert empty and empty.isVisible() and window.findChild(QObject, "localAddFirstFolder").isVisible()
+                                # Only the user's own folders are offered; no other app's library is suggested.
+                                assert window.findChild(QObject, "localAddSuggested") is None
                             if name == "localArtist":
                                 collection = window.findChild(QObject, "collectionPane")
                                 assert collection and collection.property("local") and collection.property("mixed")
