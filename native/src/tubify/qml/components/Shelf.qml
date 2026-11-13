@@ -7,7 +7,9 @@ Item {
     objectName: "shelf"
     required property var section
     property var profile: ({})
-    property bool compact: section.layout === "rows"
+    // A grid shelf (Quick picks) lays every song out at once: no paging, arrows or Play All.
+    readonly property bool grid: section.layout === "grid"
+    property bool compact: section.layout === "rows" || grid
     // A mixed shelf shows its songs as rows, then its albums, playlists and artists as cards.
     readonly property var songItems: (section.items || []).filter(item => (item.kind || "song") === "song")
     readonly property var collectionItems: (section.items || []).filter(item => (item.kind || "song") !== "song")
@@ -23,13 +25,16 @@ Item {
     // A positive rowLimit shows the first songs as one full-width list (an artist's Top songs).
     property int rowLimit: 0
     readonly property int rowCount: rowLimit > 0 ? Math.min(rowLimit, rowItems.length) : rowItems.length
-    readonly property int rowsPerColumn: rowLimit > 0 ? rowLimit : mixed ? Math.max(1, Math.min(4, rowCount)) : 4
+    // As many columns as fit, then filled evenly: 20 songs in 3 columns are 7 rows over 3 columns, not 4.
+    readonly property int gridRows: Math.max(1, Math.ceil(rowCount / Math.max(1, Math.min(rowCount, Math.floor((width + 28) / (280 + 28))))))
+    readonly property int gridColumns: Math.max(1, Math.ceil(rowCount / gridRows))
+    readonly property int rowsPerColumn: rowLimit > 0 ? rowLimit : grid ? gridRows : mixed ? Math.max(1, Math.min(4, rowCount)) : 4
     readonly property real rowsHeight: rowLimit > 0 ? rowCount * 64 : rowsPerColumn * 64
     // Show all opens the full list (the artist's songs playlist) instead of playing the shelf.
     readonly property bool showAll: compact && !!section.showAll
     // Paging controls only make sense when part of the shelf is cut off.
     readonly property bool overflowing: cards.contentWidth > cards.width + 1
-    readonly property real itemWidth: compact && rowLimit > 0 ? cards.width : rowMode ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
+    readonly property real itemWidth: compact && rowLimit > 0 ? cards.width : grid ? (cards.width - cards.spacing * (gridColumns - 1)) / gridColumns : rowMode ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
     // Page by whole items and glide there, so arrows never land mid-card.
     function page(direction) {
         var stride = itemWidth + cards.spacing
@@ -73,12 +78,12 @@ Item {
             id: more
             objectName: "shelfPrimaryAction"
             text: root.showAll ? "Show all" : root.rowMode ? "Play All" : root.moreLabel
-            visible: root.rowMode || root.opensMore
+            visible: root.rowMode && !root.grid || root.opensMore
             implicitHeight: 36
             onClicked: root.rowMode && !root.showAll ? root.playAllRequested() : root.moreRequested()
         }
-        IconButton { objectName: "shelfPrevious"; visible: root.overflowing; iconName: "left"; tip: "Previous Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXBeginning; onClicked: root.page(-1) }
-        IconButton { objectName: "shelfNext"; visible: root.overflowing; iconName: "right"; tip: "More Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXEnd; onClicked: root.page(1) }
+        IconButton { objectName: "shelfPrevious"; visible: root.overflowing && !root.grid; iconName: "left"; tip: "Previous Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXBeginning; onClicked: root.page(-1) }
+        IconButton { objectName: "shelfNext"; visible: root.overflowing && !root.grid; iconName: "right"; tip: "More Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXEnd; onClicked: root.page(1) }
     }
     ListView {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
@@ -89,6 +94,7 @@ Item {
         clip: true; orientation: ListView.Horizontal; spacing: root.rowMode ? 28 : 24
         model: root.rowMode ? Math.ceil(root.rowCount / root.rowsPerColumn) : (root.section.items || [])
         boundsBehavior: Flickable.StopAtBounds
+        interactive: !root.grid
         delegate: Loader {
             required property int index
             property var media: root.rowMode ? ({}) : root.section.items[index]

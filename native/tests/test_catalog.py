@@ -204,7 +204,7 @@ def test_home_pins_known_shelves_and_chooses_layout_by_content(tmp_path):
         {"title": "Quick picks", "items": [album]},
     ])
     assert [section["title"] for section in sections] == ["Quick picks", "Listen again", "Fall vibes", "Long listening"]
-    assert [section["layout"] for section in sections] == ["rows", "mixed", "cards", "rows"]
+    assert [section["layout"] for section in sections] == ["grid", "mixed", "cards", "rows"]
 
 
 def test_listening_history_keeps_cached_home_and_actions_keep_stable_routes(tmp_path):
@@ -320,3 +320,16 @@ def test_an_artist_page_ytmusicapi_cannot_read_names_the_artist_page_not_the_ses
     catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "metadata.sqlite3"))
     with pytest.raises(CatalogError, match="artist page in a layout"):
         catalog.fetch("artist", {"id": "UCartist"})
+
+
+def test_cached_home_takes_the_current_shelf_layouts(tmp_path):
+    song = {**track(1), "kind": "song"}
+    store = MetadataStore(tmp_path / "metadata.sqlite3")
+    provider = SimpleNamespace(get_home=lambda limit: [{"title": "Quick picks", "contents": [track(1)]}])
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), store)
+    catalog.fetch("home")
+    # A Home saved by an earlier version, when Quick picks paged as rows.
+    key = next(row[0] for row in store.db.execute("SELECT key FROM views"))
+    store.write(key, {"shelves": [{"title": "Quick picks", "items": [song], "layout": "rows"}], "items": [], "complete": True})
+    provider.get_home = None
+    assert catalog.fetch("home")["shelves"][0]["layout"] == "grid"
