@@ -267,6 +267,66 @@ class DownloadStore:
                 self._unlink(old)
         return True
 
+    def _delete_saved(self, video_id, folder, path):
+        """Delete one audio file Tubify saved, then any folders that left empty inside folder."""
+        recorded, folder, target = str(folder), Path(folder).absolute(), Path(path).absolute()
+        if not target.resolve().is_relative_to(folder.resolve()) or target.resolve().is_relative_to(self.root):
+            return False
+        try:
+            target.unlink(missing_ok=True)
+        except OSError:
+            return False
+        self.db.execute("DELETE FROM saved_files WHERE video_id=? AND folder=?", (video_id, recorded))
+        self.db.execute("DELETE FROM audio WHERE video_id=? AND external=1 AND path=?", (video_id, str(target)))
+        parent = target.parent
+        while parent != folder and parent.is_relative_to(folder):
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+            parent = parent.parent
+        return True
+
+    def delete_files(self, identifier):
+        """Delete the audio files Tubify saved for this download.
+
+        A download kept as audio files has nothing left afterwards, so it is removed too.
+        A file another such download still plays from is kept.
+        """
+        export = self.export(identifier)
+        if not export:
+            return 0
+        body, deleted = self.collection(identifier), 0
+        with self.db:
+            for video_id in {track["videoId"] for track in body["items"]}:
+                row = self.db.execute("SELECT path FROM saved_files WHERE video_id=? AND folder=?", (video_id, export["folder"])).fetchone()
+                if not row:
+                    continue
+                needed = self.db.execute("""SELECT 1 FROM audio a JOIN media_refs r ON r.video_id=a.video_id
+                    JOIN exports e ON e.collection_id=r.collection_id
+                    WHERE a.video_id=? AND a.external=1 AND a.path=? AND r.collection_id<>? AND e.move=1""",
+                                         (video_id, str(Path(row[0]).absolute()), identifier)).fetchone()
+                if not needed and self._delete_saved(video_id, export["folder"], row[0]):
+                    deleted += 1
+            self.db.execute("DELETE FROM exports WHERE collection_id=?", (identifier,))
+        if export["move"]:
+            self.remove(identifier)
+        return deleted
+
+    def delete_all_files(self):
+        """Delete every audio file Tubify saved, removing downloads that were kept only as files."""
+        deleted = 0
+        with self.db:
+            for video_id, folder, path in self.db.execute("SELECT video_id, folder, path FROM saved_files").fetchall():
+                deleted += self._delete_saved(video_id, folder, path)
+            moved = [row[0] for row in self.db.execute("SELECT collection_id FROM exports WHERE move=1")]
+            self.db.execute("DELETE FROM exports")
+            for identifier in moved:
+                self.db.execute("DELETE FROM collections WHERE id=?", (identifier,))
+            self._prune()
+        self._collect_garbage()
+        return deleted
+
     def record_saved(self, video_id, folder, path):
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO saved_files VALUES (?, ?, ?)", (video_id, str(folder), str(path)))
@@ -363,7 +423,12 @@ class DownloadStore:
             self._prune()
         self._collect_garbage()
 
-    def remove(self, identifier):
+    def remove(self, identifier, files=False):
+        if files and self.export(identifier):
+            # Its files go first, while the download still says which ones Tubify saved.
+            if (self.export(identifier) or {}).get("move"):
+                return self.delete_files(identifier)
+            self.delete_files(identifier)
         with self.db:
             self.db.execute("DELETE FROM collections WHERE id=?", (identifier,))
             self._prune()
@@ -511,7 +576,8 @@ class DownloadStore:
         files = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready' AND external=1").fetchone()[0]
         return {"collections": collections, "songs": list(songs.values()), "collectionStates": collection_states,
                 "trackStates": track_states, "trackProgress": track_progress, "artwork": artwork, "next": next_row,
-                "bytes": used, "fileBytes": files, "freeBytes": shutil.disk_usage(self.root).free}
+                "bytes": used, "fileBytes": files, "freeBytes": shutil.disk_usage(self.root).free,
+                "savedFiles": self.db.execute("SELECT count(*) FROM saved_files").fetchone()[0]}
 
     def _artwork_uri(self, value):
         from PySide6.QtCore import QUrl

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../Theme.js" as Theme
 import "../components"
+import "../settings"
 
 // Laid out like Library: filter chips and a sort menu, playlists and albums as cards,
 // and every downloaded song as a row.
@@ -82,6 +83,15 @@ Item {
                 Row {
                     spacing: Theme.spacingSmall
                     IconButton { iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
+                    FilterChip {
+                        objectName: "deleteAllAudioFiles"
+                        choice: false
+                        visible: downloadsState.savedFileCount > 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Delete Audio Files…"
+                        Accessible.description: "Delete every audio file Tubify saved"
+                        onClicked: downloadsState.requestAllFilesDeletion()
+                    }
                     FilterChip {
                         objectName: "downloadAllPlaylists"
                         choice: false
@@ -164,6 +174,14 @@ Item {
         contentItem: ColumnLayout {
             spacing: Theme.spacingLarge
             Label { Layout.fillWidth: true; text: "Remove “" + (root.selectedEntry.title || "this music") + "” from this device? Songs used by another download will stay."; textFormat: Text.PlainText; color: themeState.foreground; wrapMode: Text.Wrap }
+            // Saved audio files stay unless the person chooses to delete them too.
+            SettingsCheckBox {
+                id: alsoFiles
+                objectName: "removeAlsoDeletesFiles"
+                Layout.fillWidth: true
+                visible: !!(root.selectedEntry.files && root.selectedEntry.files.state === "saved")
+                text: "Also delete its audio files"
+            }
             RowLayout {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
@@ -171,6 +189,7 @@ Item {
                 ThemeActionButton { text: "Remove"; primary: true; onClicked: removal.accept() }
             }
         }
-        onAccepted: downloadsState.remove(root.selectedEntry.key)
+        onAboutToShow: alsoFiles.checked = false
+        onAccepted: downloadsState.remove(root.selectedEntry.key, alsoFiles.visible && alsoFiles.checked)
     }
 }

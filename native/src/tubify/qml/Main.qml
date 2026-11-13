@@ -496,6 +496,7 @@ ApplicationWindow {
     Connections { target: appState; function onPageChanged() { if (appState.page === "Search") header.showQuery(appState.query) } }
     MediaMenu { id: mediaMenu }
     PlaylistDialogs { id: playlistDialogs; anchors.fill: parent }
+    AudioFilesDeletionDialog { }
     Connections { target: appState; function onMenuRequested(media, context) { if (trayState.popupActive) return; mediaMenu.media = media; mediaMenu.context = context; mediaMenu.popup() } }
     ThemedDialog {
         id: shortcutHelp

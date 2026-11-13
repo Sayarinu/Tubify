@@ -692,6 +692,16 @@ def main():
                                 assert rows
                                 assert all(row.x() == collection.property("margin") for row in rows)
                                 assert all(row.property("showAlbum") == (name == "playlist" and not collection.property("compact")) for row in rows)
+                            if name == "downloads":
+                                # The download style choice shows, and deleting every saved file asks first.
+                                assert window.findChild(QObject, "downloadStyleChoice").isVisible()
+                                downloads.requestAllFilesDeletion()
+                                QTest.qWait(80)
+                                deletion = window.findChild(QObject, "audioFilesDeletionDialog")
+                                assert deletion and deletion.property("opened") and deletion.property("title") == "Delete All Audio Files?"
+                                deletion.setProperty("visible", False)
+                                QTest.qWait(80)
+                                assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                             if name == "localMusic":
                                 pane = window.findChild(QObject, "localMusicPane")
                                 rows = [item for item in visual_items(window.contentItem()) if item.metaObject().className().startswith("SongRow")]
