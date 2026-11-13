@@ -146,3 +146,38 @@ def test_unknown_download_operation_is_refused(tmp_path):
         handle(None, {"operation": "downloads_unknown", "payload": {"data_dir": str(tmp_path)}}, resources)
     for value in resources.values():
         value.close()
+
+
+def test_artist_pages_with_an_untitled_promo_carousel_still_read_their_sections():
+    from ytmusicapi.parsers.i18n import Parser
+    from ytmusicapi.ytmusic import YTMusic
+
+    from tubify.account.auth import skip_untitled_shelves
+
+    def run(text):
+        return {"runs": [{"text": text}]}
+
+    promo = {"musicCarouselShelfRenderer": {"contents": [{"musicTwoRowItemRenderer": {"title": run("Watch the new music video")}}]}}
+    albums = {"musicCarouselShelfRenderer": {
+        "header": {"musicCarouselShelfBasicHeaderRenderer": {"title": run("Albums")}},
+        "contents": [{"musicTwoRowItemRenderer": {
+            "title": {"runs": [{"text": "Record", "navigationEndpoint": {"browseEndpoint": {"browseId": "MPRErecord"}}}]},
+            "subtitle": run("2024"),
+            "thumbnailRenderer": {"musicThumbnailRenderer": {"thumbnail": {"thumbnails": []}}},
+        }}],
+    }}
+    song = {"musicResponsiveListItemRenderer": {
+        "flexColumns": [{"musicResponsiveListItemFlexColumnRenderer": {"text": run("Top song")}}],
+    }}
+    top_songs = {"musicShelfRenderer": {
+        "title": {"runs": [{"text": "Top songs", "navigationEndpoint": {"browseEndpoint": {"browseId": "VLOLAKsongs"}}}]},
+        "contents": [song],
+    }}
+    parser = Parser(YTMusic().lang)
+    skip_untitled_shelves(parser)
+    sections = parser.parse_channel_contents([promo, top_songs, albums])
+    assert [album["browseId"] for album in sections["albums"]["results"]] == ["MPRErecord"]
+    assert sections["songs"]["browseId"] == "VLOLAKsongs"
+    assert len(sections["songs"]["results"]) == 1
+    # When Top songs leads the page, ytmusicapi reads it itself.
+    assert "songs" not in parser.parse_channel_contents([top_songs, albums])

@@ -364,7 +364,11 @@ class Catalog:
 
     def _artist(self, client, route, params, limit, data):
         identifier = params.get("id", "")
-        raw = client.get_artist(identifier)
+        try:
+            raw = client.get_artist(identifier)
+        except (KeyError, IndexError, TypeError):
+            # ytmusicapi could not read this page's layout; the session is fine.
+            raise CatalogError("YouTube Music sent this artist page in a layout Tubify cannot read yet. Search for the artist's songs and albums instead.") from None
         if not isinstance(raw, dict) or not raw.get("name"):
             raise CatalogError("This artist is unavailable. Go back and choose another artist.")
         data.update(title=text(raw.get("name")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")))
