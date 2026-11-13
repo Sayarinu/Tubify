@@ -14,11 +14,7 @@ from PySide6.QtQuick import QQuickPaintedItem
 # libmpv/render.h parameter identifiers missing from python-mpv's table.
 SW_SIZE, SW_FORMAT, SW_STRIDE, SW_POINTER = 17, 18, 19, 20
 MAX_WIDTH, MAX_HEIGHT = 1280, 720
-VIDEO_TYPES = {"MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC", "MUSIC_VIDEO_TYPE_OFFICIAL_SOURCE_MUSIC"}
-
-
-def has_video(track):
-    return (track or {}).get("videoType") in VIDEO_TYPES
+from .video_types import VIDEO_TYPES, has_video  # noqa: F401
 
 
 def fit(width, height, video_width, video_height):

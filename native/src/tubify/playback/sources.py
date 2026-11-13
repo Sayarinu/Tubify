@@ -97,9 +97,12 @@ class Sources:
     def resolve(self, video_id, force=False, prepared=None, available=True, video=False):
         if not isinstance(video_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
             raise SourceError("This song has no playable music identifier.")
+        picture = self.media.video_ready(video_id)
+        if video and picture:
+            return {"kind": "local", "video": True, "source": str(picture), "headers": [], "videoId": video_id}
         local = self.media.ready(video_id)
         if local:
-            return {"kind": "local", "source": str(local), "headers": [], "videoId": video_id}
+            return {"kind": "local", "source": str(local), "headers": [], "videoId": video_id, "hasVideo": picture is not None}
         if not available:
             raise SourceError("This song is unavailable. Choose another song or repair its download.")
         if video:

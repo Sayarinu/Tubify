@@ -13,6 +13,7 @@ from ..jobs import Worker
 # Chips on the Downloads page, as in Library; Songs lists every downloaded song, wherever it came from.
 FILTERS = {"Playlists": "playlist", "Albums": "album", "Songs": "song"}
 ORDERS = ["Recently added", "A to Z", "Z to A"]
+STYLES = ("tubify", "files")
 SONG_ORDERS = ORDERS + ["Artist"]
 
 
@@ -32,6 +33,8 @@ class DownloadView(QObject):
     storageChanged = Signal()
     pageChanged = Signal()
     removalRequested = Signal("QVariantMap")
+    # Asks to confirm deleting one download's audio files, or every saved file when the entry is empty.
+    filesDeletionRequested = Signal("QVariantMap")
     tracksRequested = Signal(list, int)
     collectionReady = Signal(dict)
     collectionFound = Signal(int, dict)
@@ -45,8 +48,11 @@ class DownloadView(QObject):
         self._settings = QSettings(str(settings_path), QSettings.Format.IniFormat) if settings_path else None
         self._filter = "Playlists"
         from .saved_files import default_folder
-        # Downloads are always offline copies; saving audio files as well is the person's choice.
-        self._files_enabled = str(self._settings.value("saveAudioFiles", "false")).lower() == "true" if self._settings else False
+        # Downloads are kept either as private copies inside Tubify, or as audio files in a folder.
+        style = str(self._settings.value("downloadStyle", "tubify")) if self._settings else "tubify"
+        self._style = style if style in STYLES else "tubify"
+        # Music videos take roughly ten times a song's space, so they're downloaded only when asked for.
+        self._videos = str(self._settings.value("downloadVideos", "false")).lower() == "true" if self._settings else False
         self._files_folder = str(self._settings.value("audioFilesFolder", "") or "") if self._settings else ""
         self._files_folder = self._files_folder or default_folder()
         self._saved_folders = {}
@@ -73,7 +79,8 @@ class DownloadView(QObject):
         self.artwork_worker = None
         self._fixture_bodies = {}
         self._active, self._transfer_request, self._next = None, None, None
-        self._bytes, self._free, self._message = 0, 0, ""
+        self._bytes, self._file_bytes, self._free, self._message = 0, 0, 0, ""
+        self._saved_count = 0
         # A planning outcome kept until the next download request replaces it.
         self._notice = ""
         self._minimum_request, self._status_pending = 0, False
@@ -343,21 +350,76 @@ class DownloadView(QObject):
     def freeBytes(self):
         return float(self._free)
 
+    @Property(float, notify=storageChanged)
+    def fileBytes(self):
+        return float(self._file_bytes)
+
+    @Property(int, notify=storageChanged)
+    def savedFileCount(self):
+        """How many audio files Tubify has saved, so the page can offer to delete them."""
+        return self._saved_count
+
+    @Slot(str)
+    def requestFilesDeletion(self, key):
+        if key in self._entries:
+            self.filesDeletionRequested.emit(self._entries[key])
+
+    @Slot()
+    def requestAllFilesDeletion(self):
+        if self._saved_count or self.fixture:
+            self.filesDeletionRequested.emit({})
+
+    @Slot(str)
+    def deleteFiles(self, key):
+        """Delete the audio files Tubify saved for this download."""
+        if self.fixture:
+            self._set_message("Deleting audio files preview")
+            return
+        self._send("delete_files", {"id": key}, authoritative=True)
+        self._set_message("Deleting audio files…")
+
+    @Slot()
+    def deleteAllFiles(self):
+        if self.fixture:
+            self._set_message("Deleting audio files preview")
+            return
+        self._send("delete_all_files", {}, authoritative=True)
+        self._set_message("Deleting every saved audio file…")
+
     @Property(bool, notify=filesChanged)
-    def filesEnabled(self):
-        return self._files_enabled
+    def downloadVideos(self):
+        return self._videos
+
+    @Slot(bool)
+    def setDownloadVideos(self, value):
+        if bool(value) != self._videos:
+            self._videos = bool(value)
+            if self._settings is not None:
+                self._settings.setValue("downloadVideos", "true" if self._videos else "false")
+            self.filesChanged.emit()
+
+    @Property(str, notify=filesChanged)
+    def downloadStyle(self):
+        """"tubify" for private offline copies, "files" for audio files in the chosen folder."""
+        return self._style
 
     @Property(str, notify=filesChanged)
     def filesFolder(self):
         return self._files_folder
 
-    @Slot(bool)
-    def setFilesEnabled(self, enabled):
-        if bool(enabled) != self._files_enabled:
-            self._files_enabled = bool(enabled)
-            if self._settings is not None:
-                self._settings.setValue("saveAudioFiles", "true" if self._files_enabled else "false")
-            self.filesChanged.emit()
+    @Slot(str)
+    def setDownloadStyle(self, style):
+        """Keep downloads in the chosen style, converting the ones already downloaded."""
+        if style not in STYLES or style == self._style:
+            return
+        self._style = style
+        if self._settings is not None:
+            self._settings.setValue("downloadStyle", style)
+        self.filesChanged.emit()
+        if self.fixture:
+            return
+        self._send("convert", {"style": style, "folder": self._files_folder}, authoritative=True)
+        self._set_message("Saving your downloads as audio files in " + self._files_folder + "…" if style == "files" else "Copying your downloads back into Tubify…")
 
     @Slot("QVariant")
     def setFilesFolder(self, value):
@@ -366,6 +428,10 @@ class DownloadView(QObject):
         path = value.toLocalFile() if isinstance(value, QUrl) else QUrl(value).toLocalFile() if str(value).startswith("file:") else str(value or "")
         # QUrl gives forward slashes on Windows; keep the system's own spelling.
         path = str(Path(path)) if path else ""
+        # A folder inside Tubify's own data would be cleaned up with it, so it can't hold the person's files.
+        if path and Path(path).is_absolute() and Path(path).resolve().is_relative_to(Path(self.data_dir).resolve()):
+            self._set_message("Choose a folder outside Tubify's own data.")
+            return
         if path and Path(path).is_absolute() and path != self._files_folder:
             self._files_folder = path
             if self._settings is not None:
@@ -393,9 +459,9 @@ class DownloadView(QObject):
             kind, identifier = media.get("kind", "song"), media.get("id") or media.get("videoId") or ""
             key = kind + ":" + identifier if kind + ":" + identifier in self._entries else ""
         if key:
-            self._send("save_files", {"id": key, "folder": self._files_folder}, authoritative=True)
+            self._send("save_files", {"id": key, "folder": self._files_folder, "move": self._style == "files"}, authoritative=True)
         else:
-            self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": self._files_folder}))
+            self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": self._files_folder, "move": self._style == "files", "videos": self._videos}))
         self._set_message("Saving audio files to " + self._files_folder + "…")
 
     @Slot(bool)
@@ -421,8 +487,8 @@ class DownloadView(QObject):
             self._set_message("Download preview")
             return
         self._notice = ""
-        files = self._files_folder if self._files_enabled else ""
-        self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": files}))
+        files = self._files_folder if self._style == "files" else ""
+        self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": files, "move": bool(files), "videos": self._videos}))
         self._set_message("Preparing download…")
 
     @Slot("QVariantList")
@@ -435,7 +501,7 @@ class DownloadView(QObject):
         if not values:
             return
         self._notice = ""
-        self._planning.add(self.planner.request("downloads_schedule_all", {"data_dir": self.data_dir, "playlists": values, "files": self._files_folder if self._files_enabled else ""}))
+        self._planning.add(self.planner.request("downloads_schedule_all", {"data_dir": self.data_dir, "playlists": values, "files": self._files_folder if self._style == "files" else "", "move": self._style == "files", "videos": self._videos}))
         self._set_message("Preparing downloads for every playlist…")
 
     def _planned_one(self, identifier, progress):
@@ -523,7 +589,8 @@ class DownloadView(QObject):
         self._stop_and_send("cancel", identifier)
 
     @Slot(str)
-    def remove(self, identifier):
+    @Slot(str, bool)
+    def remove(self, identifier, files=False):
         if self.fixture:
             self._collections = [entry for entry in self._collections if entry["key"] != identifier]
             self._fixture_bodies.pop(identifier, None)
@@ -531,7 +598,7 @@ class DownloadView(QObject):
             self.changed.emit()
             self._states_changed()
             return
-        self._stop_and_send("remove", identifier)
+        self._send("remove", {"id": identifier, "files": bool(files)}, authoritative=True)
 
     def _fixture_update(self, identifier, state):
         self._collections = [{**entry, "state": state, "ready": entry["total"] if state == "complete" else entry["ready"]} if entry["key"] == identifier else entry for entry in self._collections]
@@ -572,9 +639,9 @@ class DownloadView(QObject):
         listed_changed = (collections, songs, True) != (self._collections, self._songs, self._initialized)
         states_changed = listed_changed or result.get("trackStates", {}) != self._track_states
         self._track_states = result.get("trackStates", {})
-        storage = (result.get("bytes", 0), result.get("freeBytes", 0))
-        if storage != (self._bytes, self._free):
-            self._bytes, self._free = storage
+        storage = (result.get("bytes", 0), result.get("fileBytes", 0), result.get("freeBytes", 0), result.get("savedFiles", 0))
+        if storage != (self._bytes, self._file_bytes, self._free, self._saved_count):
+            self._bytes, self._file_bytes, self._free, self._saved_count = storage
             self.storageChanged.emit()
         for entry in collections:
             files = entry.get("files") or {}
@@ -598,8 +665,10 @@ class DownloadView(QObject):
         self._pump()
 
     def _pump(self):
-        mutations = {"remove", "cancel", "retry", "initialize", "fail", "save_files"}
-        if self._closed or self._resetting or self._stopped or not self._allow_network or self._active or not self._next or any(op in mutations for op in self._pending.values()):
+        mutations = {"remove", "cancel", "retry", "initialize", "fail", "save_files", "convert", "delete_files", "delete_all_files"}
+        # Saving and copying files back need no connection, so they run offline too.
+        offline_ok = self._next in {"save", "internalize"}
+        if self._closed or self._resetting or self._stopped or not (self._allow_network or offline_ok) or self._active or not self._next or any(op in mutations for op in self._pending.values()):
             return
         self._active, self._next = self._next, None
         self._transfer_request = self.transfer.request("downloads_run", {"data_dir": self.data_dir, "id": self._active})

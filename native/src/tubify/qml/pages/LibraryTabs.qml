@@ -19,7 +19,7 @@ Item {
                 flat: true
                 height: parent.height
                 palette.windowText: root.current === modelData ? themeState.foreground : themeState.secondary
-                onClicked: modelData === "Library" ? libraryState.select("Playlists") : root.current !== modelData && appState.navigate(modelData)
+                onClicked: if (root.current !== modelData) modelData === "Library" ? libraryState.select("Playlists") : appState.navigate(modelData)
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: themeState.accent; visible: root.current === tab.modelData }
             }
         }

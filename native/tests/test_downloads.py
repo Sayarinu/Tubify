@@ -422,3 +422,77 @@ def test_old_collection_jobs_become_song_jobs(tmp_path, service):
         assert factory.calls == IDS[:1] and migrated.store.state("playlist:PLqueued") == "complete"
     finally:
         migrated.close()
+
+
+class VideoExtractor(Extractor):
+    """Answers the music video request with a picture-only file, and songs as usual."""
+
+    def extract_info(self, url, download):
+        if self.options.get("format") != downloads.VIDEO_DOWNLOAD_FORMAT:
+            return super().extract_info(url, download)
+        video_id = url.rsplit("=", 1)[1]
+        self.owner.videos.append(video_id)
+        if self.owner.video_error:
+            raise self.owner.video_error
+        Path(self.options["outtmpl"].replace("%(id)s", video_id).replace("%(ext)s", "mp4")).write_bytes(b"video picture")
+        return {"id": video_id, "ext": "mp4", "vcodec": "avc1"}
+
+
+def video_service(service):
+    service, factory = service
+    factory.videos, factory.video_error = [], None
+    service.extractor_factory = lambda options: VideoExtractor(options, factory)
+    return service, factory
+
+
+def test_music_videos_download_only_when_asked_and_only_for_tracks_with_one(service):
+    service, factory = video_service(service)
+    with_video = song(IDS[0], videoType="MUSIC_VIDEO_TYPE_OMV")
+    plain = song(IDS[1], videoType="MUSIC_VIDEO_TYPE_ATV")
+    playlist = {**body("PLvideos", []), "items": [with_video, plain]}
+    key = service.store.schedule(dict(playlist, items=[dict(track) for track in playlist["items"]]))
+    service.run(key)
+    assert factory.videos == [] and service.store.media.video_ready(IDS[0]) is None
+    # Refreshing the download with videos on adds the one video, without downloading the songs again.
+    calls = list(factory.calls)
+    service.store.schedule(dict(playlist, items=[dict(track) for track in playlist["items"]]), videos=True)
+    service.run(key)
+    assert factory.videos == [IDS[0]] and factory.calls == calls
+    picture = service.store.media.video_ready(IDS[0])
+    assert picture and picture.parent.name == "video" and service.store.media.video_ready(IDS[1]) is None
+    status = service.store.status()
+    assert status["collectionStates"][key] == "complete" and status["bytes"] > picture.stat().st_size
+    # The video goes with its download.
+    service.store.remove(key)
+    assert not picture.exists() and service.store.media.video_ready(IDS[0]) is None
+
+
+def test_a_video_that_fails_leaves_the_song_downloaded(service):
+    service, factory = video_service(service)
+    factory.video_error = RuntimeError("no video format")
+    key = service.store.schedule({**body("PLvideo", []), "items": [song(IDS[0], videoType="MUSIC_VIDEO_TYPE_UGC")]}, videos=True)
+    service.run(key)
+    assert service.store.media.ready(IDS[0]) and service.store.media.video_ready(IDS[0]) is None
+    assert service.store.status()["collectionStates"][key] == "complete"
+    assert not list((service.store.root / "staging").glob(IDS[0] + ".video.*"))
+    # Retrying doesn't keep asking for it; refreshing with videos on tries once more.
+    service.store.retry(key)
+    service.run(key)
+    assert factory.videos == [IDS[0]]
+    factory.video_error = None
+    service.store.schedule({**body("PLvideo", []), "items": [song(IDS[0], videoType="MUSIC_VIDEO_TYPE_UGC")]}, videos=True)
+    service.run(key)
+    assert factory.videos == [IDS[0], IDS[0]] and service.store.media.video_ready(IDS[0])
+
+
+def test_a_downloaded_video_resolves_for_the_video_switch(service):
+    from tubify.playback.sources import Sources
+
+    service, factory = video_service(service)
+    key = service.store.schedule({**body("PLvideo", []), "items": [song(IDS[0], videoType="MUSIC_VIDEO_TYPE_OMV")]}, videos=True)
+    service.run(key)
+    sources = Sources(SimpleNamespace(session=None), service.store.media)
+    audio = sources.resolve(IDS[0])
+    assert audio["kind"] == "local" and audio["hasVideo"] and not audio.get("video")
+    picture = sources.resolve(IDS[0], video=True)
+    assert picture == {"kind": "local", "video": True, "source": str(service.store.media.video_ready(IDS[0])), "headers": [], "videoId": IDS[0]}

@@ -8,12 +8,12 @@
 
 Your library, playlists and recommendations in a real desktop app with offline downloads, synced lyrics, music videos and full media-key support, without a browser tab.
 
-[![Latest release](https://img.shields.io/github/v/release/Sayarinu/Tubify?label=release&sort=semver)](https://github.com/Sayarinu/Tubify/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/Sayarinu/Tubify?label=stable&display_name=release)](https://github.com/Sayarinu/Tubify/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Sayarinu/Tubify/total)](https://github.com/Sayarinu/Tubify/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
-[**Download**](#download) · [Features](#features) · [Getting started](#getting-started) · [FAQ](#faq)
+[**Download**](#download) · [Features](#features) · [Guide](https://github.com/Sayarinu/Tubify/wiki) · [FAQ](#faq)
 
 </div>
 
@@ -21,92 +21,35 @@ Your library, playlists and recommendations in a real desktop app with offline d
 
 ## Features
 
-### Listening
-- **Home, Explore, charts, and moods & genres**, with a consistent home layout that doesn't reshuffle every visit.
-- **Search** with a top result, songs, videos, artists, albums and playlists, each in its own section.
-- **Music videos** play right in the full-screen player, with a Song/Video switch.
-- **Radio that keeps going.** When a playlist, album or artist finishes, Tubify continues with a matching radio and skips songs you've already heard.
-- **A queue that makes sense.** Play next, add to queue, drag to reorder, shuffle, repeat, and a history of what you played.
-- **Synced lyrics** in a side panel or full screen, from LRCLIB, Unison and Better Lyrics, with line, word or syllable highlighting.
-
-### Your library
-- Playlists, songs, albums, artists, subscriptions, liked songs and listening history.
-- Create, rename and edit playlists; like and dislike songs; save albums and follow artists.
-- **Sort any playlist or album** by title, artist, album or length.
-
-### Offline
-- **Download** songs, albums and playlists to listen without a connection.
-- Downloads play first automatically, even when you're signed out or offline.
-- Optionally **save downloads as audio files** too, tagged and with artwork, in a folder of your choice, for other apps and devices. The audio isn't re-encoded, and Tubify never overwrites or deletes those files.
-- **Local Music** plays music you already have, such as a Digital Audio Manager library or files from other apps. Tubify reads the folders you choose, shows their tags and artwork, and never changes, moves or deletes the files.
-
-### Made for the desktop
-- **Media keys** and the system now-playing controls on Windows, macOS and Linux (MPRIS).
-- **Global keyboard shortcuts**, a mini player in the system tray, launch at login, and recovery after sleep.
-- **Sleep timer**, a natural volume curve, stereo-to-surround speaker fill, and an option to skip disliked songs.
-
-### Look and feel
-- 12 built-in themes (including Catppuccin, Dracula, Nord, Gruvbox, Tokyo Night, Rosé Pine and Solarized), plus a custom theme editor with import and export.
-- An artwork-led full-screen player, smooth transitions, adjustable interface scale and a Reduce Motion option.
-
-### Connections
-- **Discord** Rich Presence and **Last.fm** scrobbling.
-
-### Always up to date
-- Tubify checks for new releases and shows an **update icon** in the top right when one is ready. One click installs it and relaunches the app, keeping your settings, queue and downloads.
+- **Browse** Home, Explore, charts, and moods and genres.
+- **Search** songs, videos, artists, albums and playlists.
+- **Music videos** in the full-screen player.
+- **Endless radio** that carries on after a playlist or album ends.
+- **Queue** with play next, reordering, shuffle, repeat and history.
+- **Synced lyrics**, in a side panel or full screen.
+- **Your library**: playlists, likes, albums, artists and history, with editing and sorting.
+- **Offline downloads**, optionally saved as tagged audio files.
+- **Local Music** from folders on your computer.
+- **Media keys**, system now-playing controls and global shortcuts.
+- **Mini player** in the system tray.
+- **Sleep timer** and audio options.
+- **Themes**, including a custom theme editor.
+- **Discord** and **Last.fm** connections.
+- **Automatic updates**, with an optional Experimental channel.
 
 ## Download
 
 Get the latest version from the **[Releases page](https://github.com/Sayarinu/Tubify/releases/latest)**.
 
-| Platform | File | Requirements |
-|---|---|---|
-| **Windows** | `Tubify-<version>-windows-x64-setup.exe` | Windows 10 or 11, 64-bit |
-| **macOS** | `Tubify-<version>-macos-arm64.dmg` | macOS 12 or later, Apple silicon |
-| **Linux** | `Tubify-<version>-linux-x86_64.pkg.tar.zst` | x86_64 Linux with pacman |
+| System | File |
+|---|---|
+| **Windows** 10 or 11, 64-bit | `Tubify-<version>-windows-x64-setup.exe` |
+| **macOS** 12 or later, Apple silicon | `Tubify-<version>-macos-arm64.dmg` |
+| **Linux** x86_64 with pacman | `Tubify-<version>-linux-x86_64.pkg.tar.zst` |
 
-<details>
-<summary><b>Windows</b></summary>
+Then open Tubify and choose **Sign in via Browser**. It reuses your YouTube Music sign-in from your browser, so you never type your password into Tubify.
 
-Run the installer. It installs for your user account only, without administrator rights, and adds Tubify to the Start menu. If Windows SmartScreen warns about an unrecognized app, choose **More info → Run anyway**.
-
-</details>
-
-<details>
-<summary><b>macOS</b></summary>
-
-Open the disk image and drag **Tubify** to **Applications**. Tubify isn't notarized by Apple yet, so the first time you open it, Control-click the app, choose **Open**, then confirm. Alternatively, open it from **System Settings → Privacy & Security → Open Anyway**.
-
-</details>
-
-<details>
-<summary><b>Linux</b></summary>
-
-```sh
-sudo pacman -U Tubify-<version>-linux-x86_64.pkg.tar.zst
-```
-
-Download only the `.pkg.tar.zst` file. If a `.pkg.tar.zst.sig` file from the release is in the same folder, pacman reads it as a GPG signature and reports a corrupted package; delete that file and try again.
-
-pacman installs everything Tubify needs. In-app updates install without a password for administrators (members of `wheel`) signed in at the machine. Tubify checks that each update is a newer release signed with its release key before installing it. Other accounts are asked for an administrator password. The first update from a version without this feature asks for your password one last time.
-
-**Updating from a version before 1.0:** the package used to be called `youtube-music-native`, and its update helper only accepts that name, so the in-app update to 1.0 can't install. Download the 1.0 package and install it once with `sudo pacman -U`, answering yes when pacman asks to remove `youtube-music-native`. Your settings, downloads and sign-in are kept, and later updates install from the app again.
-
-</details>
-
-## Getting started
-
-1. Sign in to [YouTube Music](https://music.youtube.com) in your usual browser (Firefox, Chrome, Edge, Safari and others are supported).
-2. Open Tubify and choose **Sign in via Browser**. Tubify reuses that sign-in; you never type your password into Tubify.
-3. Start listening. Open the queue and lyrics panels from the player bar, and choose the expanded-player arrow for the full-screen view.
-
-> **Tip:** Chrome and Edge lock their sign-in data while they're running on Windows. If sign-in fails, close the browser and try again, or sign in with Firefox.
-
-## Updates
-
-Tubify checks for new releases automatically. When one is available, an update icon with a dot appears in the top right. Click it to see what's new and choose **Update & Restart**. You can turn off automatic checks in **Settings → Updates**.
-
-Want new features early? Set **Update Channel** to **Experimental** in the same place. Experimental builds are published as [prereleases](https://github.com/Sayarinu/Tubify/releases) and may have rough edges. Switch back to **Stable** at any time to return to the latest full release.
+Install steps, first-launch warnings and sign-in tips for each system are in the **[guide](https://github.com/Sayarinu/Tubify/wiki/Install)**.
 
 ## FAQ
 
@@ -120,11 +63,11 @@ Tubify reuses your browser's existing sign-in and keeps the session in your syst
 Settings → Troubleshooting can save a privacy-safe diagnostics report. Please include it when you [open an issue](https://github.com/Sayarinu/Tubify/issues).
 
 **Can I build it myself?**
-Yes. See [Building from source](docs/building.md).
+Yes. See [Build from Source](https://github.com/Sayarinu/Tubify/wiki/Build-from-Source).
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. Please open an [issue](https://github.com/Sayarinu/Tubify/issues) first for larger changes. Development setup is in [docs/building.md](docs/building.md).
+Bug reports, ideas and pull requests are welcome. Please open an [issue](https://github.com/Sayarinu/Tubify/issues) first for larger changes. Development setup is in the [guide](https://github.com/Sayarinu/Tubify/wiki/Build-from-Source).
 
 ## License
 

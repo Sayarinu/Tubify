@@ -115,5 +115,5 @@ def test_release_inputs_cannot_skip_the_checks():
                  "packaging/signing-requirements.txt", ".github/workflows/native.yml", ".github/workflows/native-linux-build.yml",
                  "scripts/sign-native-macos.sh", "scripts/open-prs.py", "scripts/setup-release-protection.sh"):
         assert re.search(pattern, path), path
-    for path in ("docs/releases.md", "README.md", "AGENTS.md"):
+    for path in ("README.md", "AGENTS.md", "LICENSE"):
         assert not re.search(pattern, path), path

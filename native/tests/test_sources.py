@@ -13,7 +13,7 @@ def test_complete_local_audio_wins_even_with_expired_credentials_or_force(tmp_pa
     audio = tmp_path / "song.opus"
     audio.write_bytes(b"fixture audio")
     media = MediaFiles(tmp_path)
-    media.db.execute("INSERT INTO audio VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "song.opus", audio.stat().st_size))
+    media.db.execute("INSERT INTO audio (video_id, path, bytes, state) VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "song.opus", audio.stat().st_size))
     media.db.commit()
 
     def forbidden(*args):
@@ -39,7 +39,7 @@ def test_prepared_source_survives_worker_restart_but_local_audio_wins(tmp_path):
     assert service.resolve("abcdefghijk", prepared=prepared) == prepared
     audio = tmp_path / "local.opus"
     audio.write_bytes(b"complete")
-    media.db.execute("INSERT INTO audio VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "local.opus", 8))
+    media.db.execute("INSERT INTO audio (video_id, path, bytes, state) VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "local.opus", 8))
     media.db.commit()
     assert service.resolve("abcdefghijk", prepared=prepared)["kind"] == "local"
     audio.unlink()
@@ -78,7 +78,7 @@ def test_remote_url_cache_expires_and_local_file_still_takes_precedence(tmp_path
     assert len(calls) == 2
     audio = tmp_path / "complete.opus"
     audio.write_bytes(b"complete")
-    media.db.execute("INSERT INTO audio VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "complete.opus", 8))
+    media.db.execute("INSERT INTO audio (video_id, path, bytes, state) VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "complete.opus", 8))
     media.db.commit()
     assert service.resolve("abcdefghijk")["kind"] == "local" and len(calls) == 2
 
@@ -87,7 +87,7 @@ def test_invalid_index_paths_cannot_escape_the_media_directory(tmp_path):
     media = MediaFiles(tmp_path / "media")
     outside = tmp_path / "outside.opus"
     outside.write_bytes(b"outside")
-    media.db.execute("INSERT INTO audio VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "../outside.opus", 7))
+    media.db.execute("INSERT INTO audio (video_id, path, bytes, state) VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "../outside.opus", 7))
     media.db.commit()
     assert media.ready("abcdefghijk") is None
 

@@ -672,6 +672,13 @@ def main():
                         assert window.findChild(QObject, "browsePane")
                         assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                         for name, action in scenarios:
+                            # Item views build their off-screen rows in the background. Replacing a page
+                            # that is still building them makes Qt warn, so each page settles first, as
+                            # it would for a person who looks at it before moving on.
+                            incubation = engine.incubationController()
+                            deadline = time.monotonic() + 5
+                            while incubation is not None and incubation.incubatingObjectCount() and time.monotonic() < deadline:
+                                QTest.qWait(10)
                             action()
                             QTest.qWait(80)
                             # Let the expanded player finish sliding up or down before taking the snapshot.
@@ -685,6 +692,16 @@ def main():
                                 assert rows
                                 assert all(row.x() == collection.property("margin") for row in rows)
                                 assert all(row.property("showAlbum") == (name == "playlist" and not collection.property("compact")) for row in rows)
+                            if name == "downloads":
+                                # The download style choice shows, and deleting every saved file asks first.
+                                assert window.findChild(QObject, "downloadStyleChoice").isVisible()
+                                downloads.requestAllFilesDeletion()
+                                QTest.qWait(80)
+                                deletion = window.findChild(QObject, "audioFilesDeletionDialog")
+                                assert deletion and deletion.property("opened") and deletion.property("title") == "Delete All Audio Files?"
+                                deletion.setProperty("visible", False)
+                                QTest.qWait(80)
+                                assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                             if name == "localMusic":
                                 pane = window.findChild(QObject, "localMusicPane")
                                 rows = [item for item in visual_items(window.contentItem()) if item.metaObject().className().startswith("SongRow")]
@@ -692,9 +709,15 @@ def main():
                                 assert pane and rows and window.findChild(QObject, "localAddFolder")
                                 # The fixture's missing and disconnected songs say so in place of their album.
                                 assert {item.property("text") for item in states} >= {"File missing", "Drive not connected"}
+                                # Each local song's folder icon is a button that shows its file, off for files that aren't there.
+                                marks = [item for item in visual_items(window.contentItem()) if item.objectName() == "localFileMark" and item.isVisible()]
+                                assert marks and all(mark.property("tip") == "Show in Folder" for mark in marks)
+                                assert any(mark.property("enabled") for mark in marks) and any(not mark.property("enabled") for mark in marks)
                             if name == "localEmpty":
                                 empty = window.findChild(QObject, "localEmptyState")
                                 assert empty and empty.isVisible() and window.findChild(QObject, "localAddFirstFolder").isVisible()
+                                # Only the user's own folders are offered; no other app's library is suggested.
+                                assert window.findChild(QObject, "localAddSuggested") is None
                             if name == "localArtist":
                                 collection = window.findChild(QObject, "collectionPane")
                                 assert collection and collection.property("local") and collection.property("mixed")
@@ -729,6 +752,11 @@ def main():
                                     # Quick picks shows every song at once: nothing to page to and no Play All.
                                     songs = [item for item in visual_items(shelf) if item.metaObject().className().startswith("SongRow")]
                                     assert not overflowing and len(songs) == len(shelf.property("section")["items"]), (len(songs), size)
+                                    # Three columns filled top to bottom, fewer only where a column would be under 200 pixels.
+                                    count = len(shelf.property("section")["items"])
+                                    fit = max(1, min(count, 3, int((shelf.property("width") + 28) // 228)))
+                                    rows = -(-count // fit)
+                                    assert shelf.property("gridRows") == rows and shelf.property("gridColumns") == -(-count // rows), (shelf.property("gridColumns"), size)
                                     assert not controls["shelfPrimaryAction"].isVisible() and not controls["shelfNext"].isVisible()
                             if name == "queueSidebar":
                                 check_queue(window, shell, player, browse, downloads, args.output_dir, not state["queue_drag_checked"])

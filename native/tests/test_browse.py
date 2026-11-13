@@ -436,3 +436,21 @@ def test_sidebar_playlists_that_fail_on_a_lapsed_session_renew_it_instead_of_ret
     account.connected = True
     account.connectedChanged.emit()
     assert worker.requests[-1][1]["route"] == "library_playlists"
+
+
+def test_opening_the_collection_already_showing_does_not_reload_it(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    browse.open({"kind": "artist", "id": "UCartist"})
+    sent = len(worker.requests)
+    browse.open({"kind": "artist", "id": "UCartist"})  # Still loading: the load isn't restarted.
+    assert len(worker.requests) == sent
+    worker.succeeded.emit(sent, {"title": "Artist", "shelves": []})
+    browse.shell.setExpanded(True)
+    browse.open({"kind": "artist", "id": "UCartist"})
+    assert len(worker.requests) == sent and not browse.shell.expanded  # Only the full-screen player closes.
+    browse.open({"kind": "artist", "id": "UCother"})
+    assert len(worker.requests) == sent + 1  # A different page still opens.
+    worker.failed.emit(sent + 1, {"message": "offline"})
+    assert view.error
+    browse.open({"kind": "artist", "id": "UCother"})
+    assert len(worker.requests) == sent + 2  # A failed page can be retried by opening it again.

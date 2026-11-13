@@ -15,12 +15,16 @@ from ..catalog.catalog import items, text, thumbnail
 from ..artwork.artwork_sources import apply_artwork, media_variants
 from ..compat import ProbeError, extractor_options
 from ..playback.media import MediaFiles
+from ..playback.video_types import has_video
 from ..util import atomic_write
 from . import saved_files
 
 
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
 EXTENSIONS = {"webm", "m4a", "mp4", "opus", "ogg", "aac", "mp3", "mkv", "mka", "flac", "wav"}
+# A music video's picture alone, at up to 720p; it plays beside the downloaded song's audio.
+VIDEO_DOWNLOAD_FORMAT = "bestvideo[height<=720][vcodec^=avc1]/bestvideo[height<=720]"
+VIDEO_EXTENSIONS = {"mp4", "webm", "mkv"}
 
 
 class DownloadError(RuntimeError):
@@ -51,6 +55,8 @@ def clean_track(value):
         "duration": value.get("duration") if isinstance(value.get("duration"), (int, float)) else 0,
         "explicit": bool(value.get("explicit")), "available": bool(VIDEO_ID.fullmatch(video_id)) and value.get("available", True) is not False,
         "setVideoId": text(value.get("setVideoId")),
+        "videoType": text(value.get("videoType")),
+        "withVideo": bool(value.get("withVideo")),
     }
 
 
@@ -94,9 +100,12 @@ TABLES = """
     CREATE TABLE IF NOT EXISTS pending_delete (path TEXT PRIMARY KEY);
     CREATE TABLE IF NOT EXISTS exports (
         collection_id TEXT PRIMARY KEY REFERENCES collections(id) ON DELETE CASCADE,
-        folder TEXT NOT NULL, state TEXT NOT NULL, saved INTEGER NOT NULL, error TEXT NOT NULL);
+        folder TEXT NOT NULL, state TEXT NOT NULL, saved INTEGER NOT NULL, error TEXT NOT NULL,
+        move INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS saved_files (
         video_id TEXT NOT NULL, folder TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY (video_id, folder));
+    CREATE TABLE IF NOT EXISTS internalize (video_id TEXT PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS video_skipped (video_id TEXT PRIMARY KEY);
 """
 CANCELLED = "Download cancelled. Completed songs were kept."
 STOPPED = "Download stopped. Retry to continue; completed songs were kept."
@@ -119,9 +128,11 @@ class DownloadStore:
         self._migrate()
 
     def _migrate(self):
-        """Turn the old one-job-per-collection queue into song jobs."""
+        """Turn the old one-job-per-collection queue into song jobs, and add later columns."""
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
+            if "move" not in {row[1] for row in self.db.execute("PRAGMA table_info(exports)")}:
+                self.db.execute("ALTER TABLE exports ADD COLUMN move INTEGER NOT NULL DEFAULT 0")
             if not self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='download_jobs'").fetchone():
                 return
             ready = {row[0] for row in self.db.execute("SELECT video_id FROM audio WHERE state='ready'")}
@@ -139,7 +150,13 @@ class DownloadStore:
                 queued=excluded.queued, position=excluded.position, track=excluded.track
             WHERE song_jobs.state IN ('failed', 'cancelled')""",
             [(track["videoId"], state, error, when, index, json.dumps(track)) for index, track in enumerate(body["items"])
-             if VIDEO_ID.fullmatch(track["videoId"]) and track.get("available", True) and track["videoId"] not in ready])
+             if VIDEO_ID.fullmatch(track["videoId"]) and track.get("available", True)
+             and (track["videoId"] not in ready or self._wants_video(track))])
+
+    def _wants_video(self, track):
+        """A song whose music video was asked for and isn't downloaded yet."""
+        return (bool(track.get("withVideo")) and has_video(track) and self.media.video_ready(track["videoId"]) is None
+                and not self.db.execute("SELECT 1 FROM video_skipped WHERE video_id=?", (track["videoId"],)).fetchone())
 
     def _verified(self, body):
         return {video_id for video_id in {track["videoId"] for track in body["items"]} if VIDEO_ID.fullmatch(video_id) and self.media.ready(video_id)}
@@ -164,8 +181,13 @@ class DownloadStore:
             finally:
                 lock.unlock()
 
-    def schedule(self, body, files=""):
+    def schedule(self, body, files="", move=False, videos=False):
         identifier = body["kind"] + ":" + body["id"]
+        for track in body["items"]:
+            track["withVideo"] = bool(videos or track.get("withVideo")) and has_video(track)
+        if videos:
+            # Asking for videos again tries any that couldn't be downloaded before.
+            self.db.executemany("DELETE FROM video_skipped WHERE video_id=?", [(track["videoId"],) for track in body["items"]])
         previous = self.db.execute("SELECT body FROM collections WHERE id=?", (identifier,)).fetchone()
         if previous:
             old = json.loads(previous[0])
@@ -184,20 +206,45 @@ class DownloadStore:
             self.db.executemany("INSERT OR IGNORE INTO media_refs VALUES (?, ?)", [(identifier, track["videoId"]) for track in body["items"] if VIDEO_ID.fullmatch(track["videoId"])])
             self._queue(body, ready, now)
         if files:
-            self.request_files(identifier, files)
+            self.request_files(identifier, files, move)
         return identifier
 
     # Audio files saved to a folder the person chose, after a collection's songs are downloaded.
-    def request_files(self, identifier, folder):
+    # With move, the download is kept as those files alone and Tubify's private copies are deleted.
+    def request_files(self, identifier, folder, move=False):
         if not self.db.execute("SELECT 1 FROM collections WHERE id=?", (identifier,)).fetchone():
             raise DownloadError("This download was removed. Choose the music again.")
         with self.db:
-            self.db.execute("""INSERT INTO exports VALUES (?, ?, 'pending', 0, '') ON CONFLICT(collection_id)
-                DO UPDATE SET folder=excluded.folder, state='pending', saved=0, error=''""", (identifier, str(folder)))
+            self.db.execute("""INSERT INTO exports VALUES (?, ?, 'pending', 0, '', ?) ON CONFLICT(collection_id)
+                DO UPDATE SET folder=excluded.folder, state='pending', saved=0, error='', move=max(move, excluded.move)""",
+                            (identifier, str(folder), int(bool(move))))
 
     def export(self, identifier):
-        row = self.db.execute("SELECT folder, state, saved, error FROM exports WHERE collection_id=?", (identifier,)).fetchone()
-        return dict(zip(("folder", "state", "saved", "error"), row)) if row else None
+        row = self.db.execute("SELECT folder, state, saved, error, move FROM exports WHERE collection_id=?", (identifier,)).fetchone()
+        return dict(zip(("folder", "state", "saved", "error", "move"), row)) if row else None
+
+    def convert(self, style, folder=""):
+        """Keep every download as audio files in folder, or as private copies inside Tubify.
+
+        Becoming files reuses each private copy, so nothing is downloaded again. Coming back
+        copies each file into Tubify and leaves the person's files where they are.
+        """
+        with self.db:
+            if style == "files":
+                self.db.execute("DELETE FROM internalize")
+                for (identifier,) in self.db.execute("SELECT id FROM collections").fetchall():
+                    self.db.execute("""INSERT INTO exports VALUES (?, ?, 'pending', 0, '', 1) ON CONFLICT(collection_id)
+                        DO UPDATE SET folder=excluded.folder, state='pending', saved=0, error='', move=1""", (identifier, str(folder)))
+            else:
+                self.db.execute("DELETE FROM exports WHERE move=1 AND state NOT IN ('saved', 'saving')")
+                self.db.execute("UPDATE exports SET move=0")
+                self.db.execute("INSERT OR IGNORE INTO internalize SELECT video_id FROM audio WHERE external=1")
+
+    def next_internalize(self, exclude=()):
+        for (video_id,) in self.db.execute("SELECT video_id FROM internalize ORDER BY rowid"):
+            if video_id not in exclude:
+                return video_id
+        return None
 
     def next_export(self, collection=None, exclude=()):
         """A collection whose songs are all downloaded and whose files are still to save."""
@@ -218,6 +265,95 @@ class DownloadStore:
     def saved_file(self, video_id, folder):
         row = self.db.execute("SELECT path FROM saved_files WHERE video_id=? AND folder=?", (video_id, str(folder))).fetchone()
         return row[0] if row and Path(row[0]).is_file() else None
+
+    def adopt(self, identifier, video_id, path):
+        """While this download is still kept as audio files, play the song from the person's file
+        and delete Tubify's private copy. Checked and switched in one step, so switching back to
+        Tubify at the same moment can't leave a song outside Tubify without copying it back."""
+        path = Path(path).absolute()
+        if path.resolve().is_relative_to(self.root) or not path.is_file():
+            return False
+        with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            if not self.db.execute("SELECT 1 FROM exports WHERE collection_id=? AND move=1", (identifier,)).fetchone():
+                return False
+            row = self.db.execute("SELECT path, external FROM audio WHERE video_id=?", (video_id,)).fetchone()
+            self.db.execute("INSERT OR REPLACE INTO audio (video_id, path, bytes, state, external) VALUES (?, ?, ?, 'ready', 1)",
+                            (video_id, str(path), path.stat().st_size))
+            old = (self.root / row[0]).resolve() if row and not row[1] else None
+            if old is not None and old.is_relative_to(self.root / "audio"):
+                self._unlink(old)
+        return True
+
+    def _delete_saved(self, video_id, folder, path):
+        """Delete one audio file Tubify saved, then any folders that left empty inside folder."""
+        recorded, folder, target = str(folder), Path(folder).absolute(), Path(path).absolute()
+        if not target.resolve().is_relative_to(folder.resolve()) or target.resolve().is_relative_to(self.root):
+            return False
+        try:
+            target.unlink(missing_ok=True)
+        except OSError:
+            return False
+        self.db.execute("DELETE FROM saved_files WHERE video_id=? AND folder=?", (video_id, recorded))
+        self.db.execute("DELETE FROM audio WHERE video_id=? AND external=1 AND path=?", (video_id, str(target)))
+        parent = target.parent
+        while parent != folder and parent.is_relative_to(folder):
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+            parent = parent.parent
+        return True
+
+    def _still_needed(self, video_id, path, leaving):
+        """True when a song plays from this file and a download that isn't being removed holds it.
+
+        That includes a download kept in Tubify whose song hasn't been copied back yet: the file
+        is still its only copy.
+        """
+        if not self.db.execute("SELECT 1 FROM audio WHERE video_id=? AND external=1 AND path=?",
+                               (video_id, str(Path(path).absolute()))).fetchone():
+            return False
+        holders = {row[0] for row in self.db.execute("SELECT collection_id FROM media_refs WHERE video_id=?", (video_id,))}
+        return bool(holders - set(leaving))
+
+    def delete_files(self, identifier):
+        """Delete the audio files Tubify saved for this download.
+
+        A download kept as audio files has nothing left afterwards, so it is removed too.
+        A file another such download still plays from is kept.
+        """
+        export = self.export(identifier)
+        if not export:
+            return 0
+        body, deleted = self.collection(identifier), 0
+        with self.db:
+            for video_id in {track["videoId"] for track in body["items"]}:
+                row = self.db.execute("SELECT path FROM saved_files WHERE video_id=? AND folder=?", (video_id, export["folder"])).fetchone()
+                if not row:
+                    continue
+                leaving = {identifier} if export["move"] else set()
+                if not self._still_needed(video_id, row[0], leaving) and self._delete_saved(video_id, export["folder"], row[0]):
+                    deleted += 1
+            self.db.execute("DELETE FROM exports WHERE collection_id=?", (identifier,))
+        if export["move"]:
+            self.remove(identifier)
+        return deleted
+
+    def delete_all_files(self):
+        """Delete every audio file Tubify saved, removing downloads that were kept only as files."""
+        deleted = 0
+        with self.db:
+            moved = [row[0] for row in self.db.execute("SELECT collection_id FROM exports WHERE move=1")]
+            for video_id, folder, path in self.db.execute("SELECT video_id, folder, path FROM saved_files").fetchall():
+                if not self._still_needed(video_id, path, moved):
+                    deleted += self._delete_saved(video_id, folder, path)
+            self.db.execute("DELETE FROM exports")
+            for identifier in moved:
+                self.db.execute("DELETE FROM collections WHERE id=?", (identifier,))
+            self._prune()
+        self._collect_garbage()
+        return deleted
 
     def record_saved(self, video_id, folder, path):
         with self.db:
@@ -297,7 +433,7 @@ class DownloadStore:
         ready = self._verified(body)
         with self.db:
             self.db.execute("UPDATE collection_jobs SET cancelled=0, finished=0 WHERE collection_id=?", (identifier,))
-            self.db.execute("UPDATE exports SET state='pending', error='' WHERE collection_id=? AND state IN ('failed', 'cancelled')", (identifier,))
+            self.db.execute("UPDATE exports SET state='pending', error='' WHERE collection_id=? AND (state IN ('failed', 'cancelled') OR move=1)", (identifier,))
             self._queue(body, ready, time.time())
 
     def stop(self, message=STOPPED):
@@ -315,7 +451,12 @@ class DownloadStore:
             self._prune()
         self._collect_garbage()
 
-    def remove(self, identifier):
+    def remove(self, identifier, files=False):
+        if files and self.export(identifier):
+            # Its files go first, while the download still says which ones Tubify saved.
+            if (self.export(identifier) or {}).get("move"):
+                return self.delete_files(identifier)
+            self.delete_files(identifier)
         with self.db:
             self.db.execute("DELETE FROM collections WHERE id=?", (identifier,))
             self._prune()
@@ -396,6 +537,11 @@ class DownloadStore:
                 if path.is_relative_to(self.root / "audio"):
                     self._unlink(path)
                 self.db.execute("DELETE FROM audio WHERE video_id=?", (video_id,))
+            for video_id, relative in self.db.execute("SELECT video_id, path FROM video WHERE video_id NOT IN (SELECT video_id FROM media_refs)").fetchall():
+                path = (self.root / relative).resolve()
+                if path.is_relative_to(self.root / "video"):
+                    self._unlink(path)
+                self.db.execute("DELETE FROM video WHERE video_id=?", (video_id,))
             referenced = {row[0] for row in self.db.execute("SELECT video_id FROM media_refs")}
             staging = self.root / "staging"
             if staging.is_dir():
@@ -408,7 +554,7 @@ class DownloadStore:
                 body = json.loads(row[0])
                 images.add(body.get("localThumbnail", ""))
                 images.update(track.get("localThumbnail", "") for track in body["items"])
-            protected = images | {(self.root / row[0]).resolve().as_uri() for row in self.db.execute("SELECT path FROM audio")}
+            protected = images | {(self.root / row[0]).resolve().as_uri() for row in self.db.execute("SELECT path FROM audio UNION ALL SELECT path FROM video")}
             for row in self.db.execute("SELECT path FROM pending_delete").fetchall():
                 if Path(row[0]).resolve().as_uri() in protected:
                     self.db.execute("DELETE FROM pending_delete WHERE path=?", (row[0],))
@@ -425,7 +571,7 @@ class DownloadStore:
         jobs, ready = self._jobs(), {}
         collections, songs, collection_states = [], {}, {}
         track_states, track_progress, artwork = {}, {}, {}
-        exports = {row[0]: dict(zip(("folder", "state", "saved", "error"), row[1:])) for row in self.db.execute("SELECT collection_id, folder, state, saved, error FROM exports")}
+        exports = {row[0]: dict(zip(("folder", "state", "saved", "error", "move"), row[1:])) for row in self.db.execute("SELECT collection_id, folder, state, saved, error, move FROM exports")}
         for identifier, raw, cancelled, created in self.db.execute("""SELECT c.id, c.body, j.cancelled, j.created
                 FROM collections c JOIN collection_jobs j ON c.id=j.collection_id ORDER BY j.created DESC""").fetchall():
             body = json.loads(raw)
@@ -457,11 +603,15 @@ class DownloadStore:
             song["downloadState"] = track_states[video_id]
         queued = self.db.execute("SELECT video_id FROM song_jobs WHERE state='queued' ORDER BY queued, position LIMIT 1").fetchone()
         finishing = self.db.execute("SELECT 1 FROM collection_jobs WHERE finished=0 AND cancelled=0").fetchone()
-        next_row = queued[0] if queued else ("finish" if finishing and self.unfinished() else "save" if self.next_export() else None)
-        used = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready'").fetchone()[0]
+        next_row = queued[0] if queued else ("finish" if finishing and self.unfinished() else "save" if self.next_export()
+                                             else "internalize" if self.next_internalize() else None)
+        used = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready' AND external=0").fetchone()[0]
+        used += self.db.execute("SELECT coalesce(sum(bytes),0) FROM video").fetchone()[0]
+        files = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready' AND external=1").fetchone()[0]
         return {"collections": collections, "songs": list(songs.values()), "collectionStates": collection_states,
                 "trackStates": track_states, "trackProgress": track_progress, "artwork": artwork, "next": next_row,
-                "bytes": used, "freeBytes": shutil.disk_usage(self.root).free}
+                "bytes": used, "fileBytes": files, "freeBytes": shutil.disk_usage(self.root).free,
+                "savedFiles": self.db.execute("SELECT count(*) FROM saved_files").fetchone()[0]}
 
     def _artwork_uri(self, value):
         from PySide6.QtCore import QUrl
@@ -509,9 +659,9 @@ class Downloads:
         self.auth, self.store = auth, DownloadStore(data_dir)
         self.notify = progress or (lambda value: None)
         self.extractor_factory, self.artwork_fetch = extractor_factory, artwork_fetch
-        self._extractor, self._stack, self._hook = None, None, None
+        self._extractor, self._video_extractor, self._stack, self._hook = None, None, None, None
 
-    def schedule(self, media, files=""):
+    def schedule(self, media, files="", move=False, videos=False):
         kind, identifier = media.get("kind", "song"), text(media.get("id") or media.get("videoId"))
         if kind not in {"song", "album", "playlist"} or not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", identifier):
             raise DownloadError("Choose a song, album or playlist to download.")
@@ -539,9 +689,9 @@ class Downloads:
             raise DownloadError("This collection has no music available to download.")
         body = {"kind": kind, "id": identifier, "title": title, "thumbnail": art if art.startswith("https://") else "", "items": tracks}
         apply_artwork(body, artwork)
-        return self.store.schedule(body, files)
+        return self.store.schedule(body, files, move, videos)
 
-    def schedule_all(self, playlists, files=""):
+    def schedule_all(self, playlists, files="", move=False, videos=False):
         """Queue every playlist that is not already queued or downloaded, in one request."""
         scheduled, failed = 0, 0
         for media in playlists:
@@ -551,10 +701,10 @@ class Downloads:
             if self.store.state(key) in {"queued", "downloading", "complete"}:
                 if files and not self.store.export(key):
                     # Already downloaded, but its files weren't saved yet.
-                    self.store.request_files(key, files)
+                    self.store.request_files(key, files, move)
                 continue
             try:
-                self.schedule({**media, "kind": "playlist"}, files)
+                self.schedule({**media, "kind": "playlist"}, files, move, videos)
                 scheduled += 1
             except Exception:
                 # One unavailable or empty playlist must not stop the rest of the library.
@@ -585,9 +735,9 @@ class Downloads:
         lock.setStaleLockTime(0)
         if not lock.tryLock(0):
             raise DownloadBlocked("Another download is running. Wait for it to finish and retry.")
-        attempted, finished, exported = set(), set(), set()
+        attempted, finished, exported, copied = set(), set(), set(), set()
         try:
-            for folder in ("staging", "audio"):
+            for folder in ("staging", "audio", "video"):
                 (self.store.root / folder).mkdir(exist_ok=True, mode=0o700)
             with ExitStack() as stack:
                 self._stack = stack
@@ -610,33 +760,47 @@ class Downloads:
                         self._finish(identifier)
                         continue
                     identifier = self.store.next_export(collection, exported)
-                    if identifier is None:
+                    if identifier is not None:
+                        exported.add(identifier)
+                        self._save_files(identifier)
+                        continue
+                    video_id = None if collection else self.store.next_internalize(copied)
+                    if video_id is None:
                         break
-                    exported.add(identifier)
-                    self._save_files(identifier)
+                    copied.add(video_id)
+                    self._internalize(video_id)
         finally:
-            self._extractor, self._stack, self._hook = None, None, None
+            self._extractor, self._video_extractor, self._stack, self._hook = None, None, None, None
             lock.unlock()
         # Songs finished after their collection was removed are not kept.
         self.store._collect_garbage()
         return self.store.status()
 
-    def _open_extractor(self):
+    def _open_extractor(self, video=False):
+        if video:
+            if self._video_extractor is None:
+                self._video_extractor = self._new_extractor({"format": VIDEO_DOWNLOAD_FORMAT, "outtmpl": str(self.store.root / "staging" / "%(id)s.video.%(ext)s")})
+            return self._video_extractor
         if self._extractor is None:
-            if self.auth.session is None:
-                self.auth.restore()
-            if self.auth.session is None:
-                raise DownloadBlocked("Reconnect YouTube Music to finish this download. Completed songs were kept.")
-            from yt_dlp import YoutubeDL
-
-            staging = self.store.root / "staging"
-            options = extractor_options(staging)
-            options.update(outtmpl=str(staging / "%(id)s.%(ext)s"), noplaylist=True, continuedl=True,
-                           progress_hooks=[lambda value: self._hook(value)], cachedir=str(self.store.root / "extractor-cache"))
-            self._extractor = self._stack.enter_context((self.extractor_factory or YoutubeDL)(options))
-            for cookie in self.auth.session.cookie_jar():
-                self._extractor.cookiejar.set_cookie(cookie)
+            self._extractor = self._new_extractor({})
         return self._extractor
+
+    def _new_extractor(self, overrides):
+        if self.auth.session is None:
+            self.auth.restore()
+        if self.auth.session is None:
+            raise DownloadBlocked("Reconnect YouTube Music to finish this download. Completed songs were kept.")
+        from yt_dlp import YoutubeDL
+
+        staging = self.store.root / "staging"
+        options = extractor_options(staging)
+        options.update(outtmpl=str(staging / "%(id)s.%(ext)s"), noplaylist=True, continuedl=True,
+                       progress_hooks=[lambda value: self._hook(value)], cachedir=str(self.store.root / "extractor-cache"))
+        options.update(overrides)
+        extractor = self._stack.enter_context((self.extractor_factory or YoutubeDL)(options))
+        for cookie in self.auth.session.cookie_jar():
+            extractor.cookiejar.set_cookie(cookie)
+        return extractor
 
     def _download(self, video_id, track):
         if not self.store.start_song(video_id):
@@ -674,6 +838,8 @@ class Downloads:
                 with self.store.db:
                     for partial in staging.glob(video_id + ".*"):
                         self.store._unlink(partial)
+            if self.store._wants_video(track):
+                self._download_video(video_id)
             art = self.artwork_fetch(track.get("largeThumbnail") or track.get("thumbnail", ""), self.store.root / "artwork")
             self.store.song_done(video_id, art)
             self.notify({"videoId": video_id, "fraction": 1., "done": True})
@@ -694,6 +860,31 @@ class Downloads:
                 pass
             raise failure(message) from None
 
+    def _download_video(self, video_id):
+        """Download the music video's picture. A video that can't be downloaded leaves the song as it is."""
+        staging = self.store.root / "staging"
+        try:
+            info = self._open_extractor(video=True).extract_info("https://www.youtube.com/watch?v=" + video_id, download=True)
+            if not info or info.get("id") != video_id or info.get("ext") not in VIDEO_EXTENSIONS or info.get("vcodec") in {None, "none"}:
+                return
+            temporary = staging / (video_id + ".video." + info["ext"])
+            if temporary.is_file() and temporary.stat().st_size > 0:
+                self.store.media.publish_video(video_id, temporary, self.store.root / "video" / (video_id + "." + info["ext"]))
+        except (DownloadCancelled, DownloadBlocked):
+            raise
+        except Exception as error:
+            if getattr(error, "errno", None) == errno.ENOSPC:
+                raise DownloadBlocked("The disk is full. Free space and retry. Completed songs were kept.") from None
+            if self.store.song_state(video_id) != "downloading":
+                raise DownloadCancelled(CANCELLED) from None
+            # Not tried again on every retry; refreshing the download with videos on tries once more.
+            with self.store.db:
+                self.store.db.execute("INSERT OR IGNORE INTO video_skipped VALUES (?)", (video_id,))
+        finally:
+            with self.store.db:
+                for partial in staging.glob(video_id + ".video.*"):
+                    self.store._unlink(partial)
+
     def _save_files(self, identifier):
         """Copy a downloaded collection's songs into the chosen folder as tagged audio files."""
         from PySide6.QtCore import QUrl
@@ -710,7 +901,8 @@ class Downloads:
             source = self.store.media.ready(video_id) if VIDEO_ID.fullmatch(video_id) else None
             if source is None:
                 continue
-            if not self.store.saved_file(video_id, folder):
+            path = self.store.saved_file(video_id, folder)
+            if not path:
                 art = self.store._artwork_uri(track.get("localThumbnail", "")) or self.store._artwork_uri(body.get("localThumbnail", ""))
                 try:
                     path = saved_files.save(source, track, folder, index + 1 if numbered else 0, QUrl(art).toLocalFile() if art else "")
@@ -726,11 +918,36 @@ class Downloads:
                         raise DownloadBlocked(message) from None
                     return
                 self.store.record_saved(video_id, folder, path)
+            self.store.adopt(identifier, video_id, path)
             saved += 1
             self.store.set_export(identifier, "saving", saved)
             self.notify({"collection": identifier, "saved": saved})
         self.store.set_export(identifier, "saved", saved)
         self.notify({"collection": identifier, "filesSaved": folder, "done": True})
+
+    def _internalize(self, video_id):
+        """Copy the person's audio file back into Tubify, leaving their file where it is."""
+        # A file that can't be copied stays where it is and keeps playing from there; only a full
+        # disk keeps the song queued, so freeing space and retrying finishes the copy.
+        source = self.store.media.external(video_id)
+        temporary = None
+        try:
+            if source is not None and self.store.media.ready(video_id):
+                staging, audio = self.store.root / "staging", self.store.root / "audio"
+                temporary = staging / (video_id + source.suffix.lower())
+                shutil.copyfile(source, temporary)
+                self.store.media.publish(video_id, temporary, audio / temporary.name)
+        except OSError as error:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+            if getattr(error, "errno", None) == errno.ENOSPC:
+                raise DownloadBlocked("The disk is full. Free space and retry. Your audio files were kept.") from None
+        except (ProbeError, subprocess.CalledProcessError, ValueError):
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+        with self.store.db:
+            self.store.db.execute("DELETE FROM internalize WHERE video_id=?", (video_id,))
+        self.notify({"videoId": video_id, "fraction": 1., "done": True})
 
     def _finish(self, identifier):
         """Save the cover and any missing song covers once every song of a collection is here."""

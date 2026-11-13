@@ -183,3 +183,21 @@ def test_library_that_failed_while_the_session_lapsed_reloads_once_the_session_i
     assert [payload["route"] for number, payload in reloads] == ["library_playlists"] and reloads[0][1]["refresh"]
     worker.succeeded.emit(reloads[0][0], {"items": [{"kind": "playlist", "id": "PLfixture", "title": "Mix"}], "cursor": None})
     assert not view.error and view.data["items"]
+
+
+def test_choosing_the_section_already_showing_does_not_reload_it(tmp_path):
+    app, shell, worker, view, actions, library, updated = setup(tmp_path)
+    shell.navigate("Library")
+    library.choose("Playlists")
+    sent = len(worker.requests)
+    assert sent and library.showing("Playlists")
+    library.choose("Playlists")
+    assert len(worker.requests) == sent
+    library.choose("Albums")
+    assert len(worker.requests) == sent + 1 and library.selectedSection == "Albums"
+    library.history()
+    history = len(worker.requests)
+    library.history()
+    assert len(worker.requests) == history
+    library.sort("A to Z")  # Sorting still reloads the section on screen.
+    assert len(worker.requests) == history + 1

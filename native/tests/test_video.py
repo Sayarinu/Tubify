@@ -213,6 +213,25 @@ def test_downloaded_songs_offer_no_video(tmp_path):
     player.close()
 
 
+def test_a_download_with_its_video_plays_the_downloaded_picture(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    picture = tmp_path / "video.mp4"
+    picture.write_bytes(b"picture")
+    worker = FakeWorker()
+    player = Playback(tmp_path, worker, audio_factory=VideoAudio)
+    player.setVideoSurface(True)
+    player.playTracks([VIDEO])
+    worker.succeeded.emit(1, {"kind": "local", "source": "/music/song.opus", "headers": [], "videoId": VIDEO["videoId"], "hasVideo": True})
+    assert player.videoAvailable and worker.requests[-1][1]["video"] is True
+    local_video = {"kind": "local", "video": True, "source": str(picture), "headers": [], "videoId": VIDEO["videoId"]}
+    worker.succeeded.emit(len(worker.requests), local_video)
+    assert player.audio.attached == [local_video]
+    player.audio.videoAttached.emit(1, True)
+    player.audio.videoFirstFrame.emit()
+    assert player.showingVideo
+    player.close()
+
+
 def test_songs_without_video_never_request_it(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     worker = FakeWorker()
@@ -253,7 +272,7 @@ def test_video_resolution_returns_the_picture_stream_but_downloads_stay_audio(tm
     assert "height<=720" in seen[0]
     audio = tmp_path / "complete.opus"
     audio.write_bytes(b"complete")
-    media.db.execute("INSERT INTO audio VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "complete.opus", 8))
+    media.db.execute("INSERT INTO audio (video_id, path, bytes, state) VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "complete.opus", 8))
     media.db.commit()
     assert service.resolve("abcdefghijk", video=True)["kind"] == "local"
 

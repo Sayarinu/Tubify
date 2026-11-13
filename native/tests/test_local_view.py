@@ -23,10 +23,10 @@ def song(index, **values):
 FOLDERS = [{"id": 1, "path": "/music", "name": "music", "state": "ready", "scanned": time.time(), "added": 1., "songs": 0, "missing": 0}]
 
 
-def make(tmp_path, suggested=lambda: ""):
+def make(tmp_path):
     app = QCoreApplication.instance() or QCoreApplication([])
     control, scanner = FakeWorker(), ProgressWorker()
-    view = LocalView(tmp_path, control=control, scanner=scanner, suggested=suggested, settings_path=tmp_path / "settings.ini")
+    view = LocalView(tmp_path, control=control, scanner=scanner, settings_path=tmp_path / "settings.ini")
     QCoreApplication.processEvents()
     return view, control, scanner
 
@@ -142,16 +142,14 @@ def test_playing_opening_and_queueing_use_only_available_files(tmp_path):
     view.close()
 
 
-def test_folder_actions_and_suggestion(tmp_path):
-    suggestion = str(tmp_path / "Music" / "Digital Audio Manager" / "Library")
-    view, control, scanner = make(tmp_path, suggested=lambda: suggestion)
+def test_folder_actions(tmp_path):
+    chosen = str(tmp_path / "Music" / "Library")
+    view, control, scanner = make(tmp_path)
     reply(view, control, {"full": True, "revision": 1, "folders": FOLDERS, "songs": [], "removed": []})
-    assert view.suggestedFolder == suggestion
-    view.addSuggestedFolder()
-    assert control.requests[-1] == ("local_add_folder", {"data_dir": str(tmp_path), "path": suggestion})
-    added = {**FOLDERS[0], "id": 2, "path": suggestion, "name": "Library", "state": "new"}
+    view.addFolder(chosen)
+    assert control.requests[-1] == ("local_add_folder", {"data_dir": str(tmp_path), "path": chosen})
+    added = {**FOLDERS[0], "id": 2, "path": chosen, "name": "Library", "state": "new"}
     reply(view, control, {"folder": 2, "full": True, "revision": 2, "folders": FOLDERS + [added], "songs": [], "removed": []})
-    assert view.suggestedFolder == ""
     assert scanner.requests[-1] == ("local_scan", {"data_dir": str(tmp_path), "id": 2})
     # A second scan request waits for the first.
     view.rescan(1)
@@ -161,7 +159,7 @@ def test_folder_actions_and_suggestion(tmp_path):
     removals = []
     view.folderRemovalRequested.connect(removals.append)
     view.requestFolderRemoval(2)
-    assert removals[0]["path"] == suggestion
+    assert removals[0]["path"] == chosen
     view.removeFolder(2)
     assert control.requests[-1] == ("local_remove_folder", {"data_dir": str(tmp_path), "id": 2})
     assert "weren't changed" in view.message
