@@ -74,56 +74,48 @@ Item {
             ThemedTextField {
                 id: filterField
                 objectName: "downloadFilterField"
-                y: 132; width: Math.min(280, Math.max(160, parent.width * 0.38)); height: 40
+                y: 132; width: Math.min(280, Math.max(160, parent.width - 56)); height: 40
                 placeholderText: "Search downloaded " + downloadsState.filter.toLowerCase()
                 text: downloadsState.query
                 Accessible.name: "Search Downloads"
                 onTextEdited: downloadsState.setQuery(text)
                 Keys.onEscapePressed: { text = ""; downloadsState.setQuery("") }
             }
-            // The page's actions sit beside the search, or under it when both don't fit.
-            Row {
-                id: pageActions
-                objectName: "downloadActions"
-                readonly property bool wrapped: filterField.width + Theme.spacingLarge + width > parent.width
-                x: wrapped ? 0 : parent.width - width
-                y: wrapped ? filterField.y + filterField.height + Theme.spacingSmall : filterField.y + (filterField.height - height) / 2
-                spacing: Theme.spacingSmall
-                FilterChip {
-                    objectName: "retryFailedDownloads"
-                    choice: false
-                    visible: downloadsState.retryableCount > 0
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Retry Failed (" + downloadsState.retryableCount + ")"
-                    Accessible.description: "Download every failed song and audio file again"
-                    onClicked: downloadsState.retryFailed()
-                }
-                FilterChip {
-                    objectName: "downloadAllPlaylists"
-                    choice: false
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Download All Playlists"
-                    enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
-                    onClicked: downloadsState.downloadAll(appState.playlists)
-                }
-                IconButton { objectName: "refreshDownloads"; anchors.verticalCenter: parent.verticalCenter; iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
-                IconButton {
-                    id: moreActions
-                    objectName: "downloadsMore"
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconName: "more"; tip: "More Download Options"
-                    onClicked: moreMenu.popup(moreActions, moreActions.width - moreMenu.implicitWidth, moreActions.height, null)
-                    ThemedMenu {
-                        id: moreMenu
-                        ContextMenuItem { text: "Open Audio Files Folder"; onTriggered: downloadsState.openFilesFolder() }
-                        ThemedMenuSeparator {}
-                        ContextMenuItem {
-                            objectName: "deleteAllAudioFiles"
-                            text: "Delete Audio Files…"
-                            enabled: downloadsState.savedFileCount > 0
-                            Accessible.description: "Delete every audio file Tubify saved"
-                            onTriggered: downloadsState.requestAllFilesDeletion()
-                        }
+            // Every page action lives in this menu; its badge counts the downloads that failed.
+            IconButton {
+                id: moreActions
+                objectName: "downloadsMore"
+                x: parent.width - width
+                y: filterField.y + (filterField.height - height) / 2
+                iconName: "more"
+                tip: downloadsState.retryableCount > 0 ? "More Download Options · " + downloadsState.retryableCount + " failed" : "More Download Options"
+                onClicked: moreMenu.popup(moreActions, moreActions.width - moreMenu.implicitWidth, moreActions.height, null)
+                CountBadge { objectName: "downloadsMoreBadge"; x: parent.width - width + 2; y: -2; count: downloadsState.retryableCount }
+                ThemedMenu {
+                    id: moreMenu
+                    implicitWidth: 252
+                    ContextMenuItem {
+                        objectName: "retryFailedDownloads"
+                        text: "Retry Failed (" + downloadsState.retryableCount + ")"
+                        visible: downloadsState.retryableCount > 0; height: visible ? implicitHeight : 0
+                        Accessible.description: "Download every failed song and audio file again"
+                        onTriggered: downloadsState.retryFailed()
+                    }
+                    ContextMenuItem {
+                        objectName: "downloadAllPlaylists"
+                        text: "Download All Playlists"
+                        enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
+                        onTriggered: downloadsState.downloadAll(appState.playlists)
+                    }
+                    ContextMenuItem { objectName: "refreshDownloads"; text: "Refresh Download Status"; onTriggered: downloadsState.refresh() }
+                    ThemedMenuSeparator {}
+                    ContextMenuItem { text: "Open Audio Files Folder"; onTriggered: downloadsState.openFilesFolder() }
+                    ContextMenuItem {
+                        objectName: "deleteAllAudioFiles"
+                        text: "Delete Audio Files…"
+                        enabled: downloadsState.savedFileCount > 0
+                        Accessible.description: "Delete every audio file Tubify saved"
+                        onTriggered: downloadsState.requestAllFilesDeletion()
                     }
                 }
             }
@@ -132,7 +124,7 @@ Item {
             Row {
                 id: storageChoice
                 objectName: "downloadStyles"
-                y: Math.max(filterField.y + filterField.height, pageActions.y + pageActions.height) + Theme.spacingSmall
+                y: filterField.y + filterField.height + Theme.spacingSmall
                 spacing: Theme.spacingSmall
                 Text { anchors.verticalCenter: parent.verticalCenter; text: "Save as"; color: themeState.secondary; font.pixelSize: Theme.textBody }
                 DownloadStyleChoice { objectName: "downloadStyleChoice"; anchors.verticalCenter: parent.verticalCenter }

@@ -72,7 +72,6 @@ Rectangle {
                 padding: 0
                 leftInset: 0; rightInset: 0; topInset: 0; bottomInset: 0
                 text: modelData.label
-                Accessible.name: text
                 onClicked: { browseState.selectTab(text); sidebar.navigated() }
                 background: Rectangle {
                     objectName: "navigationBackground-" + nav.text
@@ -83,12 +82,20 @@ Rectangle {
                     border.color: themeState.accent
                     Rectangle { objectName: "navigationMarker-" + nav.text; x: 4; anchors.verticalCenter: parent.verticalCenter; width: 3; height: 24; radius: 2; color: themeState.accent; visible: nav.selected }
                 }
+                readonly property int failed: modelData.label === "Downloads" ? downloadsState.retryableCount : 0
+                Accessible.name: failed > 0 ? text + ", " + failed + " failed" : text
                 contentItem: Row {
                     leftPadding: 16; spacing: 20
-                    Symbol { anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon; color: nav.selected ? themeState.accent : themeState.secondary }
+                    Symbol {
+                        anchors.verticalCenter: parent.verticalCenter; name: nav.modelData.icon; color: nav.selected ? themeState.accent : themeState.secondary
+                        // A narrow sidebar has no room beside the name, so a dot on the icon stands in for the count.
+                        Rectangle { objectName: "navigationFailedDot-" + nav.text; visible: !sidebar.wide && nav.failed > 0; width: 9; height: 9; radius: 5; x: parent.width - 5; y: -2; color: themeState.accent; border.width: 1.5; border.color: themeState.background }
+                    }
                     Text { anchors.verticalCenter: parent.verticalCenter; visible: sidebar.wide; text: nav.text; color: themeState.foreground; font.pixelSize: 16 }
                 }
-                ToolTip.text: text
+                // How many downloads failed, at the end of the Downloads entry.
+                CountBadge { objectName: "navigationBadge-" + nav.text; anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; visible: sidebar.wide && count > 0; count: nav.failed }
+                ToolTip.text: Accessible.name
                 ToolTip.visible: !sidebar.wide && hovered
             }
         }
