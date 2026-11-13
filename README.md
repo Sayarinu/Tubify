@@ -49,7 +49,7 @@ Get the latest version from the **[Releases page](https://github.com/Sayarinu/Tu
 
 Then open Tubify and choose **Sign in via Browser**. It reuses your YouTube Music sign-in from your browser, so you never type your password into Tubify.
 
-Install steps, first-launch warnings and sign-in tips for each system are in the **[guide](https://github.com/Sayarinu/Tubify/wiki/Installing-Tubify)**.
+Install steps, first-launch warnings and sign-in tips for each system are in the **[guide](https://github.com/Sayarinu/Tubify/wiki/Install)**.
 
 ## FAQ
 
@@ -63,11 +63,11 @@ Tubify reuses your browser's existing sign-in and keeps the session in your syst
 Settings → Troubleshooting can save a privacy-safe diagnostics report. Please include it when you [open an issue](https://github.com/Sayarinu/Tubify/issues).
 
 **Can I build it myself?**
-Yes. See [Building from Source](https://github.com/Sayarinu/Tubify/wiki/Building-from-Source).
+Yes. See [Build from Source](https://github.com/Sayarinu/Tubify/wiki/Build-from-Source).
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. Please open an [issue](https://github.com/Sayarinu/Tubify/issues) first for larger changes. Development setup is in the [guide](https://github.com/Sayarinu/Tubify/wiki/Building-from-Source).
+Bug reports, ideas and pull requests are welcome. Please open an [issue](https://github.com/Sayarinu/Tubify/issues) first for larger changes. Development setup is in the [guide](https://github.com/Sayarinu/Tubify/wiki/Build-from-Source).
 
 ## License
 

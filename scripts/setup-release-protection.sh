@@ -3,7 +3,7 @@
 #
 #   scripts/setup-release-protection.sh [--sparkle-key-file FILE]    before merging the signing change
 #   scripts/setup-release-protection.sh --finish                     after it has merged
-#   scripts/setup-release-protection.sh --new-identity               only after a leak; see the Signing Keys and Security wiki page
+#   scripts/setup-release-protection.sh --new-identity               only after a leak; see the Signing Keys wiki page
 set -euo pipefail
 repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 sparkle_key_file=""
