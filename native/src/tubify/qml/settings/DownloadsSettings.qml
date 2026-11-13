@@ -26,8 +26,8 @@ SettingsPage {
             id: options
             width: optionsScroll.availableWidth
             spacing: Theme.spacingLarge
-            Text { Layout.fillWidth: true; text: "Save Downloads"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textTitle }
-            DownloadStyleChoice { Layout.fillWidth: true }
+            Text { Layout.fillWidth: true; text: "Download To"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textTitle }
+            DownloadStyleChoice {}
             Text {
                 objectName: "downloadStyleDescription"
                 Layout.fillWidth: true

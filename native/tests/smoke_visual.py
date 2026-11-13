@@ -694,7 +694,22 @@ def main():
                                 assert all(row.property("showAlbum") == (name == "playlist" and not collection.property("compact")) for row in rows)
                             if name == "downloads":
                                 # The download style choice shows, and deleting every saved file asks first.
-                                assert window.findChild(QObject, "downloadStyleChoice").isVisible()
+                                choice = window.findChild(QObject, "downloadStyleChoice")
+                                assert choice.isVisible() and [option["label"] for option in choice.property("options").toVariant()] == ["Tubify", "Local Files"]
+                                # On a wide page the search sits beside the sort order.
+                                field, order = window.findChild(QObject, "downloadFilterField"), window.findChild(QObject, "downloadSortOrder")
+                                if window.findChild(QObject, "downloadsPane").property("width") >= 700:
+                                    assert abs(field.property("y") + field.property("height") / 2 - order.property("y") - order.property("height") / 2) < 1
+                                    assert field.property("x") + field.property("width") <= order.property("x")
+                                # Page actions live in the More menu, whose badge counts failed downloads like the tab and sidebar do.
+                                assert window.findChild(QObject, "downloadsMore").isVisible()
+                                named = lambda name: next(item for item in visual_items(window.contentItem()) if item.objectName() == name)
+                                sidebar_badge = "navigationBadge-Downloads" if named("navigationButton-Downloads").property("badgeBeside") else None
+                                assert sidebar_badge or named("navigationFailedDot-Downloads").isVisible()
+                                for badge in ("downloadsMoreBadge", "downloadsTabBadge") + ((sidebar_badge,) if sidebar_badge else ()):
+                                    found = [item for item in visual_items(window.contentItem()) if item.objectName() == badge and item.isVisible()]
+                                    assert found and found[0].property("count") == downloads.retryableCount == 1, badge
+                                assert not [item for item in visual_items(window.contentItem()) if item.objectName() == "retryFailedDownloads" and item.isVisible()]
                                 downloads.requestAllFilesDeletion()
                                 QTest.qWait(80)
                                 deletion = window.findChild(QObject, "audioFilesDeletionDialog")
