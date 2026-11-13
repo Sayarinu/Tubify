@@ -295,6 +295,7 @@ ApplicationWindow {
             function syncPage() {
                 var route = catalogState.route
                 var target = route === "downloads" ? downloadsPage
+                    : route === "local" ? localPage
                     : route === "album" || route === "playlist" ? collectionPage
                     : route === "artist" ? artistPage
                     : route === "search" ? searchPage
@@ -307,6 +308,7 @@ ApplicationWindow {
             Connections { target: catalogState; function onChanged() { Qt.callLater(pages.syncPage) } }
             Connections { target: appState; function onPageChanged() { Qt.callLater(pages.syncPage) } }
             Component { id: downloadsPage; DownloadsPane {} }
+            Component { id: localPage; LocalMusicPane {} }
             Component { id: collectionPage; CollectionPane {} }
             Component { id: artistPage; ArtistPane {} }
             Component { id: searchPage; SearchPane {} }

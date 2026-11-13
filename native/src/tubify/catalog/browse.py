@@ -64,6 +64,8 @@ class Browse(QObject):
         self._message = ""
         self._history, self._play_shuffle = [], False
         self.downloads, self._download_request = downloads, None
+        # Set by the app once Local Music exists; its pages open through showCollection.
+        self.local_music = None
         self._download_open_request = None
         self.additions = QueueAdditions(account, player, cache_path, downloads, fixture, self)
         self.additions.changed.connect(self.changed)
@@ -234,7 +236,7 @@ class Browse(QObject):
     def _action(self, action):
         if action.startswith("playlist:"):
             self._cancel_local_navigation()
-            if self.shell.page == "Downloads":
+            if self.shell.page in {"Downloads", "Local Music"}:
                 self.shell.restoreNavigation("Library", self.shell.query)
             if self.fixture:
                 media = next((value for value in self.shell.playlists if value["id"] == action.split(":", 1)[1]), {})
@@ -252,7 +254,7 @@ class Browse(QObject):
             from .library import SECTIONS
 
             return route in SECTIONS.values()
-        return route == {"Home": "home", "Explore": "explore", "Downloads": "downloads"}.get(page)
+        return route == {"Home": "home", "Explore": "explore", "Downloads": "downloads", "Local Music": "local"}.get(page)
 
     @Slot(str)
     def selectTab(self, page):
@@ -274,6 +276,11 @@ class Browse(QObject):
             self.view.showLocal("downloads", {})
             if self.downloads:
                 self.downloads.refreshIfStale()
+            return
+        if page == "Local Music":
+            self.view.showLocal("local", {})
+            if self.local_music:
+                self.local_music.refreshIfStale()
             return
         if page not in {"Home", "Explore"}:
             return
@@ -547,7 +554,7 @@ class Browse(QObject):
 
     @Slot()
     def playView(self):
-        if self.view.data.get("downloadKey") or self.view.reordered:
+        if self.view.data.get("downloadKey") or self.view.data.get("local") or self.view.reordered:
             # A sorted view plays exactly in the order shown.
             self.playItems(self.view.data.get("items", []), self.view.data.get("title", ""))
         elif self.view.route in {"album", "playlist"} and not self.fixture:
@@ -557,7 +564,7 @@ class Browse(QObject):
 
     @Slot()
     def shuffleView(self):
-        if self.view.route in {"album", "playlist"} and not self.fixture and not self.view.data.get("downloadKey"):
+        if self.view.route in {"album", "playlist"} and not self.fixture and not self.view.data.get("downloadKey") and not self.view.data.get("local"):
             self.playCollection({"kind": self.view.route, "id": self.view.parameters.get("id", ""), "title": self.view.data.get("title", "")}, True)
         else:
             self._cancel_play_pages()

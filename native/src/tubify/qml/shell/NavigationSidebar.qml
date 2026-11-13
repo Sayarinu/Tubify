@@ -60,7 +60,7 @@ Rectangle {
         id: navigation
         x: 8; y: 8; width: sidebar.width - 16
         Repeater {
-            model: [{label:"Home",icon:"home"}, {label:"Explore",icon:"explore"}, {label:"Library",icon:"library"}, {label:"Downloads",icon:"download"}]
+            model: [{label:"Home",icon:"home"}, {label:"Explore",icon:"explore"}, {label:"Library",icon:"library"}, {label:"Downloads",icon:"download"}, {label:"Local Music",icon:"hardDrive"}]
             delegate: Button {
                 id: nav
                 required property var modelData

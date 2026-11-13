@@ -17,7 +17,7 @@ FocusScope {
     readonly property bool nowPlaying: (currentSong || currentAlbum) && playerState.playing
     readonly property var primaryArtist: media.artists && media.artists.length ? media.artists[0] : ({})
     // Only albums and artists name their kind; songs and playlists read clearly from the artist or owner alone.
-    readonly property string kindLabel: artist ? "Artist" : album ? (media.label || "Album") : ""
+    readonly property string kindLabel: artist ? "Artist" : album ? (media.label || "Album") : media.kind === "folder" ? "Folder" : ""
     // Clicks never move focus onto a card, so focus here always comes from the keyboard: only it shows the ring and holds the controls up.
     readonly property bool keyboardFocus: activeFocus
     readonly property bool engaged: cardHover.hovered || keyboardFocus
@@ -97,7 +97,7 @@ FocusScope {
             id: downloadButton
             anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 6
             width: 32; height: 32; iconSize: 18
-            visible: !root.artist && (root.engaged || downloadButton.activeFocus || ["complete", "ready", "downloading", "queued", "damaged"].indexOf(downloadButton.status) >= 0)
+            visible: !root.artist && !root.media.local && (root.engaged || downloadButton.activeFocus || ["complete", "ready", "downloading", "queued", "damaged"].indexOf(downloadButton.status) >= 0)
             iconColor: status === "complete" || status === "ready" ? themeState.accent : status === "damaged" ? themeState.error : "white"
             background: Rectangle { radius: width / 2; color: Qt.rgba(0, 0, 0, parent.hovered ? 0.65 : 0.4); border.width: parent.visualFocus ? 2 : 0; border.color: themeState.accent }
             media: ({kind: root.song ? "song" : root.media.kind, id: root.media.videoId || root.media.id || "", videoId: root.media.videoId || "", title: root.media.title || "", thumbnail: root.media.thumbnail || ""})

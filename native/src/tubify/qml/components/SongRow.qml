@@ -24,8 +24,11 @@ FocusScope {
     readonly property bool currentSong: playerState.hasTrack && (queueRow && media.key ? !!media.current : (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id))
     // A Local Music song plays from its file and has no YouTube Music download, radio or links.
     readonly property bool localSong: String(media.videoId || "").indexOf("local:") === 0
-    readonly property bool albumLinked: !!(media.album && (media.album.id || media.album.browseId))
-    function openAlbum() { browseState.open({kind: "album", id: media.album.id || media.album.browseId, title: media.album.name}) }
+    readonly property bool hasLocal: typeof localState !== "undefined"
+    readonly property bool albumLinked: !!(media.album && (media.album.id || media.album.browseId)) || localSong && hasLocal && !!media.albumName
+    function openAlbum() { if (localSong) localState.openAlbum(media.localId); else browseState.open({kind: "album", id: media.album.id || media.album.browseId, title: media.album.name}) }
+    // A local song whose file can't play right now says why, in place of its album.
+    readonly property string localProblem: localSong && hasLocal ? localState.stateLabel(media.state || "") : ""
     readonly property var artistItems: {
         if (media.artists && media.artists.length) return media.artists
         return (media.artist || "").split(" • ").filter(Boolean).map(name => ({name: name}))
@@ -93,8 +96,8 @@ FocusScope {
                     height: metadata.height; spacing: 0
                     InlineLink {
                         text: modelData.name || ""; font.pixelSize: Theme.textBody
-                        linked: !!text && !root.localSong
-                        onActivated: browseState.openArtist(modelData)
+                        linked: !!text && (!root.localSong || root.hasLocal)
+                        onActivated: root.localSong ? localState.openArtist(root.media.localId) : browseState.openArtist(modelData)
                     }
                     Text { text: index < root.artistItems.length - 1 ? " • " : ""; color: themeState.secondary; font.pixelSize: Theme.textBody }
                 }
@@ -109,9 +112,18 @@ FocusScope {
             objectName: "songAlbumMetadata-" + (root.media.videoId || root.media.id || "")
             width: parent.width
             height: 18
-            visible: root.showArtwork && !root.tableLayout && !root.queueRow && !!(root.media.album && root.media.album.name)
+            visible: root.showArtwork && !root.tableLayout && !root.queueRow && (!!(root.media.album && root.media.album.name) || !!root.localProblem)
             clip: true
+            Text {
+                objectName: "localSongState"
+                visible: !!root.localProblem
+                width: parent.width; height: parent.height
+                text: root.localProblem
+                textFormat: Text.PlainText; elide: Text.ElideRight
+                color: root.media.state === "unplayable" ? themeState.error : themeState.secondary; font.pixelSize: Theme.textBody
+            }
             InlineLink {
+                visible: !root.localProblem
                 width: Math.min(implicitWidth, parent.width)
                 height: parent.height
                 text: root.media.album ? root.media.album.name || "" : ""

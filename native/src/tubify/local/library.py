@@ -86,6 +86,15 @@ def walk(root):
                 continue
 
 
+def watch_paths(root):
+    """A folder and its first level of subfolders, which the view watches for new music."""
+    try:
+        subfolders = sorted(entry.path for entry in os.scandir(root) if entry.is_dir(follow_symlinks=False) and not entry.name.startswith("."))
+    except OSError:
+        return []
+    return [str(root)] + subfolders
+
+
 class LocalLibrary:
     def __init__(self, data_dir):
         self.root = Path(data_dir).resolve() / "local"
@@ -214,10 +223,13 @@ class LocalLibrary:
         counts = {}
         for folder, state, count in self.db.execute("SELECT folder, state, count(*) FROM songs GROUP BY folder, state"):
             counts.setdefault(folder, {})[state] = count
-        folders = [{"id": folder_id, "path": path, "name": Path(path).name or path, "state": state, "scanned": scanned,
+        folders = [{"id": folder_id, "path": path, "name": Path(path).name or path, "state": state, "scanned": scanned, "added": added,
                     "songs": sum(counts.get(folder_id, {}).values()), "missing": counts.get(folder_id, {}).get("missing", 0)}
-                   for folder_id, path, state, scanned in self.db.execute("SELECT id, path, state, scanned FROM folders ORDER BY added")]
-        return {"revision": revision, "full": since == 0, "folders": folders, "songs": songs, "removed": removed}
+                   for folder_id, path, state, scanned, added in self.db.execute("SELECT id, path, state, scanned, added FROM folders ORDER BY added")]
+        result = {"revision": revision, "full": since == 0, "folders": folders, "songs": songs, "removed": removed}
+        if since == 0:
+            result["watch"] = {str(folder["id"]): watch_paths(Path(folder["path"])) for folder in folders if folder["state"] != "offline"}
+        return result
 
     def _song(self, row):
         values = dict(zip(FIELDS, row))
@@ -336,6 +348,7 @@ class LocalLibrary:
         totals["scanned"] += total
         totals["waiting"] += waiting
         self._set_folder(folder_id, "ready", scanned=time.time(), device=current_device)
+        totals.setdefault("watch", {})[str(folder_id)] = watch_paths(root)
         report({"folder": folder_id, "phase": "done", "scanned": total, "total": total, "revision": self.revision()})
 
     def _apply(self, folder_id, batch, missing, totals):
