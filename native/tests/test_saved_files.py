@@ -142,11 +142,12 @@ def test_view_saves_files_through_the_worker_and_announces_the_folder(tmp_path):
     downloads.store.schedule(body, str(folder))
     downloads.close()
     view = DownloadView(tmp_path / "media" / "data", settings_path=tmp_path / "settings.ini")
-    # The option is off by default and remembered once chosen.
-    assert not view.filesEnabled and view.filesFolder.endswith("Tubify")
-    view.setFilesEnabled(True)
+    # Downloads stay inside Tubify by default; the chosen style and folder are remembered.
+    assert view.downloadStyle == "tubify" and view.filesFolder.endswith("Tubify")
     view.setFilesFolder(folder.as_uri())
-    assert DownloadView(tmp_path / "other", fixture=True, settings_path=tmp_path / "settings.ini").filesFolder == str(folder)
+    view.setDownloadStyle("files")
+    remembered = DownloadView(tmp_path / "other", fixture=True, settings_path=tmp_path / "settings.ini")
+    assert remembered.filesFolder == str(folder) and remembered.downloadStyle == "files"
     saved, loop = [], QEventLoop()
     view.filesSaved.connect(lambda path: (saved.append(path), loop.quit()))
     view.setAccountAvailable(True)
@@ -154,4 +155,72 @@ def test_view_saves_files_through_the_worker_and_announces_the_folder(tmp_path):
     loop.exec()
     assert saved == [str(folder)], view.message
     assert (folder / "Artist One" / "Album Name" / "01 Song 1.opus").is_file()
+    # Switching to audio files moved the existing download out of Tubify instead of copying it.
+    assert not list((tmp_path / "media" / "data" / "media" / "audio").iterdir())
     view.close()
+
+
+def files(downloads):
+    return sorted(path.name for path in (downloads.store.root / "audio").iterdir())
+
+
+def test_audio_files_style_keeps_one_copy_and_plays_it(tmp_path):
+    folder = tmp_path / "Music" / "Tubify"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS, IDS[1]: AAC})
+    key = downloads.store.schedule(body, str(folder), move=True)
+    downloads._drain()
+    saved = folder / "Artist One" / "Album Name" / "01 Song 1.opus"
+    assert saved.is_file() and files(downloads) == []
+    assert downloads.store.media.ready(IDS[0]) == saved
+    status = downloads.store.status()
+    assert status["collectionStates"][key] == "complete" and status["bytes"] == 0 and status["fileBytes"] > 0
+    # Retagging by another app changes the size; the file still plays.
+    with saved.open("ab") as handle:
+        handle.write(b"\0")
+    assert downloads.store.media.ready(IDS[0]) == saved
+    # A moved file needs repair, and is never deleted by cleanup or removal.
+    other = folder / "Artist One" / "Album Name" / "02 Song 2.m4a"
+    moved = other.rename(tmp_path / "moved.m4a")
+    assert downloads.store.status()["collectionStates"][key] == "damaged"
+    downloads.store.remove(key)
+    downloads.store._collect_garbage()
+    assert saved.is_file() and moved.is_file()
+    downloads.close()
+
+
+def test_switching_styles_converts_existing_downloads(tmp_path):
+    folder = tmp_path / "Music" / "Tubify"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS, IDS[1]: AAC})
+    key = downloads.store.schedule(body)
+    downloads._drain()
+    private = files(downloads)
+    assert len(private) == 2 and downloads.store.status()["fileBytes"] == 0
+    # To audio files: the private copies become files, with nothing downloaded again.
+    downloads.store.convert("files", str(folder))
+    assert downloads.store.status()["next"] == "save"
+    downloads._drain()
+    saved = sorted(path.name for path in folder.rglob("*") if path.is_file())
+    assert saved == ["01 Song 1.opus", "02 Song 2.m4a"] and files(downloads) == []
+    assert downloads.store.status()["collectionStates"][key] == "complete"
+    # Back into Tubify: each file is copied in, and the person's files stay.
+    downloads.store.convert("tubify")
+    assert downloads.store.status()["next"] == "internalize"
+    downloads._drain()
+    status = downloads.store.status()
+    assert len(files(downloads)) == 2 and status["fileBytes"] == 0 and status["bytes"] > 0 and status["next"] is None
+    assert sorted(path.name for path in folder.rglob("*") if path.is_file()) == saved
+    assert downloads.store.media.ready(IDS[0]).is_relative_to(downloads.store.root)
+    assert status["collectionStates"][key] == "complete"
+    downloads.close()
+
+
+def test_saving_one_item_as_files_in_tubify_style_keeps_its_offline_copy(tmp_path):
+    folder = tmp_path / "Saved"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS})
+    key = downloads.store.schedule(body)
+    downloads._drain()
+    downloads.store.request_files(key, str(folder))
+    downloads._drain()
+    assert len(files(downloads)) == 1 and len([path for path in folder.rglob("*") if path.is_file()]) == 1
+    assert downloads.store.media.ready(IDS[0]).is_relative_to(downloads.store.root)
+    downloads.close()
