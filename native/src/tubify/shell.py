@@ -177,7 +177,7 @@ class ShellController(QObject):
 
     @Slot(str)
     def navigate(self, page):
-        if page not in {"Home", "Explore", "Library", "Downloads", "Search"}:
+        if page not in {"Home", "Explore", "Library", "Downloads", "Local Music", "Search"}:
             return
         self._page = page
         self.setExpanded(False)
