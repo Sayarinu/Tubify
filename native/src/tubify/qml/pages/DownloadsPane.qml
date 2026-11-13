@@ -84,6 +84,15 @@ Item {
                     spacing: Theme.spacingSmall
                     IconButton { iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
                     FilterChip {
+                        objectName: "retryFailedDownloads"
+                        choice: false
+                        visible: downloadsState.retryableCount > 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Retry Failed (" + downloadsState.retryableCount + ")"
+                        Accessible.description: "Download every failed song and audio file again"
+                        onClicked: downloadsState.retryFailed()
+                    }
+                    FilterChip {
                         objectName: "deleteAllAudioFiles"
                         choice: false
                         visible: downloadsState.savedFileCount > 0

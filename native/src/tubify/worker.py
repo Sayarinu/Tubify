@@ -112,6 +112,7 @@ DOWNLOAD_OPERATIONS = {
     "downloads_run": _run_downloads,
     "downloads_cancel": _then_status(lambda store, payload: store.cancel(payload["id"])),
     "downloads_retry": _then_status(lambda store, payload: store.retry(payload["id"])),
+    "downloads_retry_failed": _then_status(lambda store, payload: store.retry_failed()),
     "downloads_remove": _then_status(lambda store, payload: store.remove(payload["id"], bool(payload.get("files")))),
     "downloads_delete_files": _then_status(lambda store, payload: store.delete_files(payload["id"])),
     "downloads_delete_all_files": _then_status(lambda store, payload: store.delete_all_files()),

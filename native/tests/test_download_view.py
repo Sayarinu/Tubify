@@ -226,3 +226,46 @@ def test_downloads_page_filters_sorts_remembers_order_and_plays_songs_once(tmp_p
     reopened.setFilter("Songs")
     assert reopened.order == "Artist"
     reopened.close()
+
+
+def test_a_failed_transfer_waits_until_resumed_or_retried(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    view = DownloadView(tmp_path)
+    started, sent = [], []
+    view.transfer.request = lambda operation, payload=None: started.append(operation) or 7
+    original = view._send
+    view._send = lambda operation, payload=None, authoritative=False: sent.append(operation) or original(operation, payload, authoritative)
+    view._pending.clear()
+    view._allow_network, view._active, view._transfer_request = True, "PLfirst", 7
+    view._transfer_failed(7, {"message": "YouTube couldn't be reached, so downloads paused."})
+    assert view.resume_timer.isActive() and "paused" in view.message
+    # The queue still has songs, but the transfer doesn't start again on its own straight away.
+    view._pending.clear()
+    view._next = "abcdefghijk"
+    view._pump()
+    assert started == []
+    view.resume_timer.timeout.emit()
+    assert not view.resume_timer.isActive() and sent[-1] == "status"
+    view._pending.clear()
+    view._next = "abcdefghijk"
+    view._pump()
+    assert started == ["downloads_run"]
+    # Retry Failed resumes at once and asks the worker to queue every failed download.
+    view._active, view._transfer_request = "abcdefghijk", 7
+    view._transfer_failed(7, {})
+    view.retryFailed()
+    assert sent[-1] == "retry_failed" and not view._paused and not view.resume_timer.isActive()
+    view.close()
+
+
+def test_status_reports_how_many_downloads_retry_failed_would_pick_up(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    view = DownloadView(tmp_path)
+    counts = []
+    view.retryableChanged.connect(lambda: counts.append(view.retryableCount))
+    request = view._send("status", authoritative=True)
+    view._result(request, {"collections": [], "songs": [], "retryable": 3})
+    request = view._send("status", authoritative=True)
+    view._result(request, {"collections": [], "songs": [], "retryable": 3})
+    assert view.retryableCount == 3 and counts == [3]
+    view.close()

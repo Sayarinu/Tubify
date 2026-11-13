@@ -39,6 +39,44 @@ class DownloadBlocked(DownloadError):
     """A cause (account, full disk, another transfer) that would fail every queued collection."""
 
 
+class DownloadPaused(DownloadBlocked):
+    """YouTube is out of reach for now; the songs still to download stay queued for later."""
+
+
+# Failures that say YouTube can't be used right now, rather than that one song is broken.
+# yt-dlp reports them only as text, so they are recognised by wording.
+TRANSIENT = (
+    (("http error 429", "too many requests", "rate-limit", "rate limit"),
+     "YouTube is limiting downloads for now, so downloads paused. They resume in a few minutes; completed songs were kept."),
+    (("sign in to confirm", "not a bot"),
+     "YouTube asked Tubify to confirm it isn't a bot, so downloads paused. They resume in a few minutes; completed songs were kept."),
+    (("unable to download webpage", "unable to download api page", "timed out", "name or service not known",
+      "temporary failure in name resolution", "nodename nor servname", "getaddrinfo", "failed to resolve",
+      "network is unreachable", "connection reset", "connection refused", "connection aborted", "remote end closed"),
+     "YouTube couldn't be reached, so downloads paused. They resume when your connection is back; completed songs were kept."),
+)
+PAUSED = "Several songs in a row failed, so downloads paused. They resume in a few minutes, or choose Retry Failed; completed songs were kept."
+# Songs failing back to back usually share one cause, so the queue stops before failing the rest.
+FAILURE_LIMIT = 3
+
+
+def transient_reason(error):
+    """The message for a failure that should pause the queue instead of failing the song, or ""."""
+    seen = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        if isinstance(error, (ConnectionError, TimeoutError)):
+            return TRANSIENT[2][1]
+        wording = str(error).casefold()
+        for phrases, message in TRANSIENT:
+            if any(phrase in wording for phrase in phrases):
+                return message
+        # yt-dlp keeps the original exception in exc_info.
+        info = getattr(error, "exc_info", None)
+        error = (info[1] if isinstance(info, tuple) and len(info) > 1 else None) or error.__cause__ or error.__context__
+    return ""
+
+
 def clean_track(value):
     video_id = text(value.get("videoId") or value.get("id"))
     album = value.get("album") or {}
@@ -495,6 +533,26 @@ class DownloadStore:
         with self.db:
             self.db.execute("UPDATE song_jobs SET fraction=? WHERE video_id=? AND state='downloading'", (min(1., max(0., fraction)), video_id))
 
+    def song_requeued(self, video_id):
+        """Put a song back in the queue, keeping its place, after a failure that wasn't its own."""
+        with self.db:
+            self.db.execute("UPDATE song_jobs SET state='queued', fraction=0, error='' WHERE video_id=? AND state='downloading'", (video_id,))
+
+    def retry_failed(self):
+        """Queue every song and audio-file save that failed or went missing, across every download.
+
+        Cancelled downloads stay cancelled; a song only they want is not queued again.
+        """
+        now = time.time()
+        with self.db:
+            self.db.execute("BEGIN IMMEDIATE")
+            for (raw,) in self.db.execute("""SELECT c.body FROM collections c JOIN collection_jobs j ON c.id=j.collection_id
+                    WHERE j.cancelled=0 ORDER BY j.created""").fetchall():
+                body = json.loads(raw)
+                self._queue(body, self._verified(body), now)
+            self.db.execute("UPDATE exports SET state='pending', error='' WHERE state='failed'")
+            self._prune()
+
     def song_failed(self, video_id, message):
         with self.db:
             self.db.execute("UPDATE song_jobs SET state='failed', fraction=0, error=? WHERE video_id=? AND state='downloading'", (message, video_id))
@@ -571,6 +629,8 @@ class DownloadStore:
         jobs, ready = self._jobs(), {}
         collections, songs, collection_states = [], {}, {}
         track_states, track_progress, artwork = {}, {}, {}
+        # Downloads that Retry Failed would pick up again.
+        retryable = 0
         exports = {row[0]: dict(zip(("folder", "state", "saved", "error", "move"), row[1:])) for row in self.db.execute("SELECT collection_id, folder, state, saved, error, move FROM exports")}
         for identifier, raw, cancelled, created in self.db.execute("""SELECT c.id, c.body, j.cancelled, j.created
                 FROM collections c JOIN collection_jobs j ON c.id=j.collection_id ORDER BY j.created DESC""").fetchall():
@@ -597,6 +657,8 @@ class DownloadStore:
                         songs[video_id] = {**{key: value for key, value in track.items() if key != "artworkVariants"},
                                            "thumbnail": local_art or track.get("thumbnail", ""), "added": created}
             collection_states[identifier] = summary["state"]
+            if not cancelled and (summary["state"] in {"failed", "damaged"} or exports.get(identifier, {}).get("state") == "failed"):
+                retryable += 1
             collections.append({"key": identifier, "id": body["id"], "kind": body["kind"], "title": body["title"],
                                 "thumbnail": body.get("localThumbnail") or body.get("thumbnail", ""), "added": created, **summary})
         for video_id, song in songs.items():
@@ -609,7 +671,7 @@ class DownloadStore:
         used += self.db.execute("SELECT coalesce(sum(bytes),0) FROM video").fetchone()[0]
         files = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready' AND external=1").fetchone()[0]
         return {"collections": collections, "songs": list(songs.values()), "collectionStates": collection_states,
-                "trackStates": track_states, "trackProgress": track_progress, "artwork": artwork, "next": next_row,
+                "trackStates": track_states, "trackProgress": track_progress, "artwork": artwork, "next": next_row, "retryable": retryable,
                 "bytes": used, "fileBytes": files, "freeBytes": shutil.disk_usage(self.root).free,
                 "savedFiles": self.db.execute("SELECT count(*) FROM saved_files").fetchone()[0]}
 
@@ -736,6 +798,7 @@ class Downloads:
         if not lock.tryLock(0):
             raise DownloadBlocked("Another download is running. Wait for it to finish and retry.")
         attempted, finished, exported, copied = set(), set(), set(), set()
+        failures = 0
         try:
             for folder in ("staging", "audio", "video"):
                 (self.store.root / folder).mkdir(exist_ok=True, mode=0o700)
@@ -747,12 +810,20 @@ class Downloads:
                         attempted.add(job[0])
                         try:
                             self._download(*job)
+                            failures = 0
+                        except DownloadCancelled:
+                            if collection:
+                                raise
                         except DownloadBlocked:
                             raise
                         except DownloadError:
-                            # The failure is recorded on that song and the rest of the queue continues.
+                            # The failure is recorded on that song and the rest of the queue continues,
+                            # unless several in a row failed: those usually share a cause, so stop there.
+                            failures += 1
                             if collection:
                                 raise
+                            if failures >= FAILURE_LIMIT:
+                                raise DownloadPaused(PAUSED) from None
                         continue
                     identifier = self.store.unfinished(collection, finished)
                     if identifier is not None:
@@ -850,6 +921,14 @@ class Downloads:
                 raise DownloadCancelled(CANCELLED) from None
             message = "The download failed. Check your connection, available space and account, then retry. Completed songs were kept."
             failure = DownloadError
+            paused = "" if isinstance(error, DownloadError) else transient_reason(error)
+            if paused:
+                # Not this song's fault: it goes back in the queue with the rest.
+                try:
+                    self.store.song_requeued(video_id)
+                except sqlite3.Error:
+                    pass
+                raise DownloadPaused(paused) from None
             if getattr(error, "errno", None) == errno.ENOSPC or getattr(error, "sqlite_errorcode", None) == sqlite3.SQLITE_FULL:
                 message, failure = "The disk is full. Free space and retry. Completed songs were kept.", DownloadBlocked
             elif isinstance(error, DownloadError):
