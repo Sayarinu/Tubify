@@ -36,6 +36,7 @@ def without_position(item):
 
 class Browse(QObject):
     changed = Signal()
+    historyChanged = Signal()
 
     def __init__(self, shell, account, view, player, cache_path, fixture=None, parent=None, downloads=None, pages=None):
         super().__init__(parent)
@@ -63,6 +64,8 @@ class Browse(QObject):
         self._identity = None
         self._message = ""
         self._history, self._play_shuffle = [], False
+        # Pages left by going Back, most recent last, so Forward can return to them.
+        self._forward = []
         self.downloads, self._download_request = downloads, None
         # Set by the app once Local Music exists; its pages open through showCollection.
         self.local_music = None
@@ -137,9 +140,27 @@ class Browse(QObject):
             self.worker.cancelQueued(self._mood_request)
         self._mood_request = None
 
+    def _here(self):
+        return {**self.view.snapshot(), "page": self.shell.page, "query": self.shell.query}
+
     def _remember(self):
-        self._history.append({**self.view.snapshot(), "page": self.shell.page, "query": self.shell.query})
+        # A new page starts a new path, so there is nothing ahead to go forward to.
+        self._history.append(self._here())
         self._history = self._history[-20:]
+        self._forward = []
+        self.historyChanged.emit()
+
+    def _clear_history(self):
+        self._history, self._forward = [], []
+        self.historyChanged.emit()
+
+    @Property(bool, notify=historyChanged)
+    def canGoBack(self):
+        return bool(self._history)
+
+    @Property(bool, notify=historyChanged)
+    def canGoForward(self):
+        return bool(self._forward)
 
     def _load(self, route, params):
         self._remember()
@@ -172,9 +193,28 @@ class Browse(QObject):
         self.shell.setExpanded(False)
         self._cancel_local_navigation()
         self._cancel_mood()
-        previous = self._history.pop()
-        self.shell.restoreNavigation(previous["page"], previous["query"])
-        self.view.showLocal(previous["route"], previous["data"], previous["params"], previous["scroll"])
+        self._forward = (self._forward + [self._here()])[-20:]
+        self._show(self._history.pop())
+
+    @Slot()
+    def forward(self):
+        if not self._forward:
+            return
+        self.shell.setExpanded(False)
+        self._cancel_local_navigation()
+        self._cancel_mood()
+        self._history = (self._history + [self._here()])[-20:]
+        self._show(self._forward.pop())
+
+    def _show(self, page):
+        """Show a page from history as it was left, without asking the provider again."""
+        self.shell.restoreNavigation(page["page"], page["query"])
+        if page["data"] or page["route"] in {"downloads", "local"}:
+            self.view.showLocal(page["route"], page["data"], page["params"], page["scroll"])
+        else:
+            # It was left before it finished loading, so load it now.
+            self.view.load(page["route"], page["params"])
+        self.historyChanged.emit()
 
     def _account_changed(self):
         identity = (self.account.profile.get("name"), self.account.profile.get("handle"))
@@ -275,7 +315,7 @@ class Browse(QObject):
     @Slot(str)
     def navigate(self, page):
         self._cancel_local_navigation()
-        self._history = []
+        self._clear_history()
         if page == "Downloads":
             self.view.showLocal("downloads", {})
             if self.downloads:
@@ -628,12 +668,12 @@ class Browse(QObject):
         context = result.get("contextId")
         if self.view.parameters.get("id") == context:
             self.view.patch({field: result["value"]})
-        for page in self._history:
+        for page in self._history + self._forward:
             if page["params"].get("id") == context:
                 page["data"][field] = result["value"]
 
     def updateTrack(self, identifier, values):
-        for data in [self.view.data] + [page["data"] for page in self._history]:
+        for data in [self.view.data] + [page["data"] for page in self._history + self._forward]:
             tracks = list(data.get("items", []))
             tracks.extend(track for section in data.get("shelves", []) for track in section.get("items", []))
             for track in tracks:
@@ -642,13 +682,16 @@ class Browse(QObject):
         self.view.patch({})
 
     def forgetPlaylist(self, identifier):
-        self._history = [page for page in self._history if not (page["route"] == "playlist" and page["params"].get("id") == identifier)]
-        for page in self._history:
+        gone = lambda page: page["route"] == "playlist" and page["params"].get("id") == identifier
+        self._history = [page for page in self._history if not gone(page)]
+        self._forward = [page for page in self._forward if not gone(page)]
+        self.historyChanged.emit()
+        for page in self._history + self._forward:
             if page["route"] == "library_playlists":
                 page["data"]["items"] = [item for item in page["data"].get("items", []) if item.get("id") != identifier]
 
     def updatePlaylist(self, result, added=None):
-        for page in [self.view.snapshot()] + self._history:
+        for page in [self.view.snapshot()] + self._history + self._forward:
             collection_id = page["params"].get("id") if page["route"] == "playlist" else None
             apply_change(page["data"], result, collection_id, added)
         self.view.patch({})

@@ -454,3 +454,37 @@ def test_opening_the_collection_already_showing_does_not_reload_it(tmp_path):
     assert view.error
     browse.open({"kind": "artist", "id": "UCother"})
     assert len(worker.requests) == sent + 2  # A failed page can be retried by opening it again.
+
+
+def test_forward_returns_to_the_page_back_left_until_a_new_page_opens(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    browse.shell.restoreNavigation("Search", "fixture query")
+    view.showLocal("search", {"title": "Fixture", "items": [{"kind": "album", "id": "MPREfixture"}]}, {"query": "fixture query"})
+    assert not browse.canGoBack and not browse.canGoForward
+    browse.open({"kind": "album", "id": "MPREfixture"})
+    worker.succeeded.emit(1, {"title": "Album", "items": [{"videoId": "abcdefghijk"}]})
+    view.saveScroll(120)
+    assert browse.canGoBack and not browse.canGoForward
+    browse.back()
+    assert view.route == "search" and browse.canGoForward and not browse.canGoBack
+    browse.forward()
+    # The album comes back as it was left, without asking the provider again.
+    assert view.route == "album" and view.data["title"] == "Album" and view.scrollPosition == 120
+    assert len(worker.requests) == 1 and browse.canGoBack and not browse.canGoForward
+    browse.back()
+    browse.open({"kind": "album", "id": "MPREother"})
+    assert not browse.canGoForward
+    browse.forward()
+    assert view.parameters["id"] == "MPREother"
+
+
+def test_forward_reloads_a_page_left_before_it_loaded_and_sidebar_navigation_clears_it(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    view.showLocal("search", {"title": "Fixture", "items": []}, {"query": "fixture"})
+    browse.open({"kind": "album", "id": "MPREfixture"})
+    browse.back()
+    browse.forward()
+    assert view.route == "album" and view.busy and worker.requests[-1][1]["route"] == "album"
+    browse.back()
+    browse.navigate("Downloads")
+    assert not browse.canGoBack and not browse.canGoForward

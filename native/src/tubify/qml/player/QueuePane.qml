@@ -369,6 +369,8 @@ Item {
                     if (event.modifiers & Qt.AltModifier) { queueList.restoreKey = queueEntry.modelData.key; playerState.moveKey(queueEntry.modelData.key, 1) }
                     else queueList.focusSong(queueEntry.index + 1, 1)
                 }
+                // A focused row keeps Alt+Right for adding to the queue instead of the window's Forward shortcut.
+                Keys.onShortcutOverride: event => { if (event.key === Qt.Key_Right && (event.modifiers & Qt.AltModifier)) event.accepted = true }
                 Keys.onRightPressed: event => {
                     if (event.modifiers & Qt.AltModifier) { queueList.restoreKey = queueEntry.modelData.key; root.appendToManual(queueEntry.modelData.key) }
                     else event.accepted = false

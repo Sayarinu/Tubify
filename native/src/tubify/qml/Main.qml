@@ -514,11 +514,12 @@ ApplicationWindow {
             width: shortcutScroll.availableWidth
             wrapMode: Text.Wrap
             color: themeState.foreground; lineHeight: 1.7
-            text: "Space — Play / pause\nShift+N / Shift+P — Next / previous\nLeft / Right — Seek 5 seconds\nShift+Left / Shift+Right — Seek 10 seconds\n+ / − — Volume\nM — Mute\nS / R — Shuffle / repeat\nF / Escape — Open / close immersive player\n/ or Ctrl+F — Search\nAlt+Left — Back\nAlt+Up / Alt+Down — Move focused queue entry\nDelete — Remove focused queue entry"
+            text: "Space — Play / pause\nShift+N / Shift+P — Next / previous\nLeft / Right — Seek 5 seconds\nShift+Left / Shift+Right — Seek 10 seconds\n+ / − — Volume\nM — Mute\nS / R — Shuffle / repeat\nF / Escape — Open / close immersive player\n/ or Ctrl+F — Search\nAlt+Left / Alt+Right — Back / forward\nAlt+Up / Alt+Down — Move focused queue entry\nDelete — Remove focused queue entry"
         }
         }
     }
     Shortcut { sequence: "Alt+Left"; enabled: window.playbackShortcuts; onActivated: { appState.setExpanded(false); browseState.back() } }
+    Shortcut { sequence: "Alt+Right"; enabled: window.playbackShortcuts; onActivated: { appState.setExpanded(false); browseState.forward() } }
     Shortcut { sequence: "/"; enabled: window.playbackShortcuts; onActivated: window.focusSearch() }
     Shortcut { sequence: "Ctrl+F"; enabled: !window.modalOpen; onActivated: window.focusSearch() }
     Shortcut { sequence: "Space"; enabled: window.playbackShortcuts; onActivated: playerState.togglePlayback() }
