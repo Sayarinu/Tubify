@@ -15,6 +15,7 @@ from .catalog.store import MetadataStore
 from .playback.media import MediaFiles
 from .playback.sources import SourceError, Sources
 from .downloads.downloads import DownloadError, Downloads
+from .local.library import LibraryError, LocalLibrary
 from .catalog.mutations import ActionError, perform
 from .catalog.playlist_ops import PlaylistError, perform as playlist_action
 from .lyrics.lyric_data import Lyrics, LyricsError
@@ -126,6 +127,25 @@ def _downloads(operation, service, payload, resources, progress):
     return action(downloads, payload, progress)
 
 
+LOCAL_OPERATIONS = {
+    "local_changes": lambda library, payload, progress: library.changes(int(payload.get("since") or 0)),
+    "local_add_folder": lambda library, payload, progress: {"folder": library.add_folder(str(payload["path"])), **library.changes()},
+    "local_remove_folder": lambda library, payload, progress: (library.remove_folder(int(payload["id"])), library.changes())[1],
+    "local_remove_songs": lambda library, payload, progress: (library.remove_songs([str(value) for value in payload.get("ids", [])]), library.changes())[1],
+    "local_forget_missing": lambda library, payload, progress: (library.forget_missing(payload.get("id")), library.changes())[1],
+    "local_scan": lambda library, payload, progress: library.scan(payload.get("id"), progress),
+}
+
+
+def _local(operation, service, payload, resources, progress):
+    """Local music works without an account: these operations never touch the session."""
+    library = _shared(resources, "local", payload, LocalLibrary)
+    action = LOCAL_OPERATIONS.get(operation)
+    if action is None:
+        raise LibraryError("This local music operation is unavailable.")
+    return action(library, payload, progress or (lambda value: None))
+
+
 def _account_change(change):
     """Run a sign-in change; cached workers belong to the previous account."""
     def action(service, payload, resources, progress):
@@ -233,6 +253,8 @@ def handle(service, request, resources=None, progress=None):
         raise AuthError("That account operation is unavailable.")
     if operation.startswith("downloads_"):
         return _downloads(operation, service, payload, resources, progress)
+    if operation.startswith("local_"):
+        return _local(operation, service, payload, resources, progress)
     action = OPERATIONS.get(operation)
     if action is None:
         raise AuthError("That account operation is unavailable.")
@@ -242,7 +264,7 @@ def handle(service, request, resources=None, progress=None):
 def safe_error(error):
     if isinstance(error, LastFmError):
         return {"code": "lastfm_" + error.code, "message": str(error)}
-    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError, ActionError, PlaylistError, LyricsError, ProviderUnavailable)):
+    if isinstance(error, (AuthError, CredentialError, SessionError, CatalogError, SourceError, DownloadError, LibraryError, ActionError, PlaylistError, LyricsError, ProviderUnavailable)):
         return {"code": type(error).__name__, "message": str(error)}
     import requests
 
