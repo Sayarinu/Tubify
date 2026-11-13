@@ -672,6 +672,13 @@ def main():
                         assert window.findChild(QObject, "browsePane")
                         assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
                         for name, action in scenarios:
+                            # Item views build their off-screen rows in the background. Replacing a page
+                            # that is still building them makes Qt warn, so each page settles first, as
+                            # it would for a person who looks at it before moving on.
+                            incubation = engine.incubationController()
+                            deadline = time.monotonic() + 5
+                            while incubation is not None and incubation.incubatingObjectCount() and time.monotonic() < deadline:
+                                QTest.qWait(10)
                             action()
                             QTest.qWait(80)
                             # Let the expanded player finish sliding up or down before taking the snapshot.
