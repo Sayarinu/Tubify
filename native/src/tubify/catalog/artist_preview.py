@@ -48,6 +48,9 @@ class ArtistPreview(QObject):
 
     def _current_artist(self):
         track = self.player.currentTrack
+        if str(track.get("videoId", "")).startswith("local:"):
+            # A local file's artist is only a tag; it has no YouTube Music artist page.
+            return "", ""
         artists = track.get("artists") or []
         first = artists[0] if artists and isinstance(artists[0], dict) else {}
         identifier = str(first.get("id") or first.get("browseId") or first.get("channelId") or "")
