@@ -179,15 +179,19 @@ FocusScope {
         quiet: root.queueRow
         media: ({kind: "song", id: root.media.videoId || root.media.id || "", videoId: root.media.videoId || "", title: root.media.title || "", thumbnail: root.media.thumbnail || ""})
     }
-    // Where a download indicator would be, a local song shows that it plays from a file.
-    Symbol {
+    // Where a download indicator would be, a local song shows its file in the file manager.
+    IconButton {
         objectName: "localFileMark"
         anchors.horizontalCenter: downloadButton.horizontalCenter
         anchors.verticalCenter: parent.verticalCenter
-        width: 18; height: 18
+        width: 32; height: 32; iconSize: 18
+        quiet: root.queueRow
         visible: root.localSong
-        name: "folder"
-        color: root.media.available === false ? themeState.muted : themeState.secondary
+        iconName: "folder"
+        tip: "Show in Folder"
+        iconColor: themeState.secondary
+        enabled: !!root.media.path && root.media.available !== false
+        onClicked: appState.showInFolder(root.media.path)
     }
     IconButton {
         width: root.queueRow ? 32 : implicitWidth
