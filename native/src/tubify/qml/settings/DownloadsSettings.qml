@@ -5,8 +5,7 @@ import QtQuick.Layouts
 import "../components"
 import "../Theme.js" as Theme
 
-// The two download styles: offline copies that play inside Tubify, and, if chosen,
-// tagged audio files in a folder for other apps and devices.
+// The two download styles: private offline copies inside Tubify, or tagged audio files in a folder.
 SettingsPage {
     id: root
     property alias scrollView: optionsScroll
@@ -27,11 +26,19 @@ SettingsPage {
             id: options
             width: optionsScroll.availableWidth
             spacing: Theme.spacingLarge
-            Text { Layout.fillWidth: true; text: "Offline Copies"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textTitle }
-            Text { Layout.fillWidth: true; text: "Every download is kept inside Tubify, so it plays without a connection, even when you're signed out. Remove Download deletes only this copy."; color: themeState.secondary; wrapMode: Text.Wrap }
+            Text { Layout.fillWidth: true; text: "Save Downloads"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textTitle }
+            DownloadStyleChoice { Layout.fillWidth: true }
+            Text {
+                objectName: "downloadStyleDescription"
+                Layout.fillWidth: true
+                text: downloadsState.downloadStyle === "files"
+                    ? "Each download is saved as a tagged audio file, with artwork, in the folder below. Tubify plays it from there, and other apps and devices can use it too. Switching moves your existing downloads into the folder without downloading them again."
+                    : "Downloads are kept privately inside Tubify and play without a connection, even when you're signed out. Switching copies any audio files back into Tubify and leaves them in their folder."
+                color: themeState.secondary; wrapMode: Text.Wrap
+            }
             Rectangle { Layout.fillWidth: true; height: 1; color: themeState.border }
-            SettingsCheckBox { objectName: "saveAudioFilesOption"; text: "Also Save Audio Files"; checked: downloadsState.filesEnabled; onToggled: downloadsState.setFilesEnabled(checked) }
-            Text { Layout.fillWidth: true; text: "New downloads are also saved as tagged audio files, with artwork, for other apps and devices. The audio isn't re-encoded. To save one song, album or playlist, choose Save Audio Files from its menu."; color: themeState.secondary; wrapMode: Text.Wrap }
+            Text { Layout.fillWidth: true; text: "Audio Files Folder"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textTitle }
+            Text { Layout.fillWidth: true; text: "Where audio files are saved. In either style, choose Save as Audio Files from a song, album or playlist's menu to save it here too."; color: themeState.secondary; wrapMode: Text.Wrap }
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.spacingMedium
@@ -39,7 +46,7 @@ SettingsPage {
                 ThemeActionButton { objectName: "audioFilesFolderChange"; text: "Change…"; onClicked: folderDialog.open() }
                 ThemeActionButton { text: "Open"; onClicked: downloadsState.openFilesFolder() }
             }
-            Text { Layout.fillWidth: true; text: "Saved files belong to you. Tubify never overwrites, moves or deletes them, and they appear in Local Music."; color: themeState.secondary; wrapMode: Text.Wrap }
+            Text { Layout.fillWidth: true; text: "Saved files belong to you. Tubify never overwrites or moves them, and they appear in Local Music."; color: themeState.secondary; wrapMode: Text.Wrap }
         }
     }
 }

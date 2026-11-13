@@ -69,56 +69,48 @@ Item {
                 Accessible.name: "Downloads sort order"
                 onActivated: downloadsState.sort(currentText)
             }
-            // Both download styles, side by side: offline copies inside Tubify, and audio files in a folder.
-            Column {
+            // Where downloads are kept and the page's actions, wrapping onto a second line when narrow.
+            Flow {
+                id: storageActions
                 objectName: "downloadStyles"
-                width: parent.width - storageActions.width - 16
-                anchors.verticalCenter: storageActions.verticalCenter
-                spacing: 2
-                Text {
-                    width: parent.width
-                    text: "Offline copies · " + root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + root.bytesLabel(downloadsState.freeBytes) + " free"
-                    color: themeState.secondary; elide: Text.ElideRight; font.pixelSize: Theme.textBody
+                y: 136; width: parent.width; spacing: Theme.spacingSmall
+                Row {
+                    spacing: Theme.spacingSmall
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: "Save downloads"; color: themeState.secondary; font.pixelSize: Theme.textBody }
+                    DownloadStyleChoice { objectName: "downloadStyleChoice"; anchors.verticalCenter: parent.verticalCenter }
                 }
                 Row {
-                    width: parent.width; spacing: 4
-                    Text {
-                        id: filesStatus
-                        objectName: "audioFilesStatus"
-                        width: Math.min(implicitWidth, parent.width - openFiles.width - 8)
-                        text: downloadsState.filesEnabled ? "Audio files · also saved to " + downloadsState.filesFolder : "Audio files · off for new downloads"
-                        textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
-                    }
-                    InlineLink {
-                        id: openFiles
-                        text: downloadsState.filesEnabled ? "Open" : ""
-                        visible: downloadsState.filesEnabled
-                        font.pixelSize: Theme.textBody
-                        onActivated: downloadsState.openFilesFolder()
+                    spacing: Theme.spacingSmall
+                    IconButton { iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
+                    FilterChip {
+                        objectName: "downloadAllPlaylists"
+                        choice: false
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Download All Playlists"
+                        enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
+                        onClicked: downloadsState.downloadAll(appState.playlists)
                     }
                 }
             }
+            // How much space each place uses.
             Row {
-                id: storageActions
-                anchors.right: parent.right; y: 136; spacing: Theme.spacingSmall
-                IconButton { iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
-                FilterChip {
-                    objectName: "saveAudioFilesToggle"
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Save Audio Files"
-                    selected: downloadsState.filesEnabled
-                    Accessible.description: "Also save new downloads as audio files in " + downloadsState.filesFolder
-                    onClicked: downloadsState.setFilesEnabled(!downloadsState.filesEnabled)
+                id: storageStatus
+                y: storageActions.y + storageActions.height + Theme.spacingSmall
+                width: parent.width; spacing: 4
+                Text {
+                    objectName: "audioFilesStatus"
+                    width: Math.min(implicitWidth, parent.width - openFiles.width - 8)
+                    text: root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + (downloadsState.fileBytes > 0 || downloadsState.downloadStyle === "files" ? root.bytesLabel(downloadsState.fileBytes) + " as audio files · " : "") + root.bytesLabel(downloadsState.freeBytes) + " free"
+                    textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
                 }
-                FilterChip {
-                    objectName: "downloadAllPlaylists"
-                    choice: false
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Download All Playlists"
-                    enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
-                    onClicked: downloadsState.downloadAll(appState.playlists)
+                InlineLink {
+                    id: openFiles
+                    text: "Open Folder"
+                    font.pixelSize: Theme.textBody
+                    onActivated: downloadsState.openFilesFolder()
                 }
             }
+            implicitHeight: storageStatus.y + storageStatus.height + 24
         }
     }
     GridView {
@@ -130,7 +122,7 @@ Item {
         property int columns: Math.max(1, Math.floor((width + 24) / (Theme.cardWidth + 24)))
         cellWidth: width / columns; cellHeight: cellWidth + 84
         model: downloadsState.collectionsModel; ScrollBar.vertical: ScrollBar {}
-        header: Loader { width: grid.width; height: 196; sourceComponent: controls; active: grid.visible }
+        header: Loader { width: grid.width; height: item ? item.implicitHeight : 220; sourceComponent: controls; active: grid.visible }
         delegate: MediaCard {
             required property var modelData
             width: grid.cellWidth - 24; height: grid.cellHeight - 24
@@ -149,7 +141,7 @@ Item {
         visible: root.songs; clip: true; bottomMargin: 32
         model: downloadsState.songsModel
         ScrollBar.vertical: ScrollBar {}
-        header: Loader { width: songList.width; height: 196; sourceComponent: controls; active: songList.visible }
+        header: Loader { width: songList.width; height: item ? item.implicitHeight : 220; sourceComponent: controls; active: songList.visible }
         delegate: SongRow {
             required property var modelData
             required property int index

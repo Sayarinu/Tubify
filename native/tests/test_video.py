@@ -253,7 +253,7 @@ def test_video_resolution_returns_the_picture_stream_but_downloads_stay_audio(tm
     assert "height<=720" in seen[0]
     audio = tmp_path / "complete.opus"
     audio.write_bytes(b"complete")
-    media.db.execute("INSERT INTO audio VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "complete.opus", 8))
+    media.db.execute("INSERT INTO audio (video_id, path, bytes, state) VALUES (?, ?, ?, 'ready')", ("abcdefghijk", "complete.opus", 8))
     media.db.commit()
     assert service.resolve("abcdefghijk", video=True)["kind"] == "local"
 

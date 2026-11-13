@@ -76,7 +76,7 @@ def _with_progress(downloads, progress, action):
 
 
 def _schedule(downloads, payload, progress):
-    identifier = downloads.schedule(payload["media"], str(payload.get("files") or ""))
+    identifier = downloads.schedule(payload["media"], str(payload.get("files") or ""), bool(payload.get("move")))
     return {**downloads.store.status(), "scheduled": identifier}
 
 
@@ -84,7 +84,7 @@ def _schedule_all(downloads, payload, progress):
     playlists = payload.get("playlists")
     if not isinstance(playlists, list) or len(playlists) > 10000:
         raise DownloadError("Choose playlists to download.")
-    return _with_progress(downloads, progress, lambda: {**downloads.store.status(), **downloads.schedule_all(playlists, str(payload.get("files") or ""))})
+    return _with_progress(downloads, progress, lambda: {**downloads.store.status(), **downloads.schedule_all(playlists, str(payload.get("files") or ""), bool(payload.get("move")))})
 
 
 def _run_downloads(downloads, payload, progress):
@@ -116,7 +116,8 @@ DOWNLOAD_OPERATIONS = {
     "downloads_collection": lambda downloads, payload, progress: downloads.store.view(payload["id"]),
     "downloads_lookup": lambda downloads, payload, progress: downloads.store.lookup(payload["kind"], payload["id"]),
     "downloads_fail": _stop_download,
-    "downloads_save_files": _then_status(lambda store, payload: store.request_files(payload["id"], str(payload["folder"]))),
+    "downloads_save_files": _then_status(lambda store, payload: store.request_files(payload["id"], str(payload["folder"]), bool(payload.get("move")))),
+    "downloads_convert": _then_status(lambda store, payload: store.convert("files" if payload.get("style") == "files" else "tubify", str(payload.get("folder") or ""))),
 }
 
 
