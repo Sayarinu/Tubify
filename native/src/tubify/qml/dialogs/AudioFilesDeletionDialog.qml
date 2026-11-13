@@ -19,7 +19,7 @@ ThemedDialog {
         Label {
             Layout.fillWidth: true
             text: root.all
-                ? "Delete all " + downloadsState.savedFileCount + " audio files Tubify saved in " + downloadsState.filesFolder + "? Downloads kept as audio files are removed too. Other files in the folder aren't touched."
+                ? "Delete all " + downloadsState.savedFileCount + " audio files Tubify saved? Downloads kept as audio files are removed too. Songs a download in Tubify still plays from, and files Tubify didn't save, aren't touched."
                 : "Delete the audio files Tubify saved for “" + (root.entry.title || "this music") + "”?" + (root.onlyFiles ? " This download is kept as those files, so it's removed too." : " Its download in Tubify stays.")
             textFormat: Text.PlainText; color: themeState.foreground; wrapMode: Text.Wrap
         }

@@ -287,6 +287,18 @@ class DownloadStore:
             parent = parent.parent
         return True
 
+    def _still_needed(self, video_id, path, leaving):
+        """True when a song plays from this file and a download that isn't being removed holds it.
+
+        That includes a download kept in Tubify whose song hasn't been copied back yet: the file
+        is still its only copy.
+        """
+        if not self.db.execute("SELECT 1 FROM audio WHERE video_id=? AND external=1 AND path=?",
+                               (video_id, str(Path(path).absolute()))).fetchone():
+            return False
+        holders = {row[0] for row in self.db.execute("SELECT collection_id FROM media_refs WHERE video_id=?", (video_id,))}
+        return bool(holders - set(leaving))
+
     def delete_files(self, identifier):
         """Delete the audio files Tubify saved for this download.
 
@@ -302,11 +314,8 @@ class DownloadStore:
                 row = self.db.execute("SELECT path FROM saved_files WHERE video_id=? AND folder=?", (video_id, export["folder"])).fetchone()
                 if not row:
                     continue
-                needed = self.db.execute("""SELECT 1 FROM audio a JOIN media_refs r ON r.video_id=a.video_id
-                    JOIN exports e ON e.collection_id=r.collection_id
-                    WHERE a.video_id=? AND a.external=1 AND a.path=? AND r.collection_id<>? AND e.move=1""",
-                                         (video_id, str(Path(row[0]).absolute()), identifier)).fetchone()
-                if not needed and self._delete_saved(video_id, export["folder"], row[0]):
+                leaving = {identifier} if export["move"] else set()
+                if not self._still_needed(video_id, row[0], leaving) and self._delete_saved(video_id, export["folder"], row[0]):
                     deleted += 1
             self.db.execute("DELETE FROM exports WHERE collection_id=?", (identifier,))
         if export["move"]:
@@ -317,9 +326,10 @@ class DownloadStore:
         """Delete every audio file Tubify saved, removing downloads that were kept only as files."""
         deleted = 0
         with self.db:
-            for video_id, folder, path in self.db.execute("SELECT video_id, folder, path FROM saved_files").fetchall():
-                deleted += self._delete_saved(video_id, folder, path)
             moved = [row[0] for row in self.db.execute("SELECT collection_id FROM exports WHERE move=1")]
+            for video_id, folder, path in self.db.execute("SELECT video_id, folder, path FROM saved_files").fetchall():
+                if not self._still_needed(video_id, path, moved):
+                    deleted += self._delete_saved(video_id, folder, path)
             self.db.execute("DELETE FROM exports")
             for identifier in moved:
                 self.db.execute("DELETE FROM collections WHERE id=?", (identifier,))
