@@ -17,6 +17,9 @@ Item {
     readonly property var rowItems: mixed ? songItems : (section.items || [])
     property bool alwaysShowMore: false
     property string moreLabel: "More"
+    // More only appears when it opens something beyond this shelf (an artist's full discography),
+    // never to repeat the shelf's own items on a page of their own.
+    readonly property bool opensMore: alwaysShowMore || !!section.browseId
     // A positive rowLimit shows the first songs as one full-width list (an artist's Top songs).
     property int rowLimit: 0
     readonly property int rowCount: rowLimit > 0 ? Math.min(rowLimit, rowItems.length) : rowItems.length
@@ -70,7 +73,7 @@ Item {
             id: more
             objectName: "shelfPrimaryAction"
             text: root.showAll ? "Show all" : root.rowMode ? "Play All" : root.moreLabel
-            visible: root.rowMode || root.overflowing || root.alwaysShowMore
+            visible: root.rowMode || root.opensMore
             implicitHeight: 36
             onClicked: root.rowMode && !root.showAll ? root.playAllRequested() : root.moreRequested()
         }
