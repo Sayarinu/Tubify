@@ -105,6 +105,7 @@ TABLES = """
     CREATE TABLE IF NOT EXISTS saved_files (
         video_id TEXT NOT NULL, folder TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY (video_id, folder));
     CREATE TABLE IF NOT EXISTS internalize (video_id TEXT PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS video_skipped (video_id TEXT PRIMARY KEY);
 """
 CANCELLED = "Download cancelled. Completed songs were kept."
 STOPPED = "Download stopped. Retry to continue; completed songs were kept."
@@ -154,7 +155,8 @@ class DownloadStore:
 
     def _wants_video(self, track):
         """A song whose music video was asked for and isn't downloaded yet."""
-        return bool(track.get("withVideo")) and has_video(track) and self.media.video_ready(track["videoId"]) is None
+        return (bool(track.get("withVideo")) and has_video(track) and self.media.video_ready(track["videoId"]) is None
+                and not self.db.execute("SELECT 1 FROM video_skipped WHERE video_id=?", (track["videoId"],)).fetchone())
 
     def _verified(self, body):
         return {video_id for video_id in {track["videoId"] for track in body["items"]} if VIDEO_ID.fullmatch(video_id) and self.media.ready(video_id)}
@@ -183,6 +185,9 @@ class DownloadStore:
         identifier = body["kind"] + ":" + body["id"]
         for track in body["items"]:
             track["withVideo"] = bool(videos or track.get("withVideo")) and has_video(track)
+        if videos:
+            # Asking for videos again tries any that couldn't be downloaded before.
+            self.db.executemany("DELETE FROM video_skipped WHERE video_id=?", [(track["videoId"],) for track in body["items"]])
         previous = self.db.execute("SELECT body FROM collections WHERE id=?", (identifier,)).fetchone()
         if previous:
             old = json.loads(previous[0])
@@ -872,6 +877,9 @@ class Downloads:
                 raise DownloadBlocked("The disk is full. Free space and retry. Completed songs were kept.") from None
             if self.store.song_state(video_id) != "downloading":
                 raise DownloadCancelled(CANCELLED) from None
+            # Not tried again on every retry; refreshing the download with videos on tries once more.
+            with self.store.db:
+                self.store.db.execute("INSERT OR IGNORE INTO video_skipped VALUES (?)", (video_id,))
         finally:
             with self.store.db:
                 for partial in staging.glob(video_id + ".video.*"):

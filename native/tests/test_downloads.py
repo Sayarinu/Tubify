@@ -475,6 +475,14 @@ def test_a_video_that_fails_leaves_the_song_downloaded(service):
     assert service.store.media.ready(IDS[0]) and service.store.media.video_ready(IDS[0]) is None
     assert service.store.status()["collectionStates"][key] == "complete"
     assert not list((service.store.root / "staging").glob(IDS[0] + ".video.*"))
+    # Retrying doesn't keep asking for it; refreshing with videos on tries once more.
+    service.store.retry(key)
+    service.run(key)
+    assert factory.videos == [IDS[0]]
+    factory.video_error = None
+    service.store.schedule({**body("PLvideo", []), "items": [song(IDS[0], videoType="MUSIC_VIDEO_TYPE_UGC")]}, videos=True)
+    service.run(key)
+    assert factory.videos == [IDS[0], IDS[0]] and service.store.media.video_ready(IDS[0])
 
 
 def test_a_downloaded_video_resolves_for_the_video_switch(service):

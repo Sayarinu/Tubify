@@ -74,11 +74,8 @@ class MediaFiles:
             valid = path.is_relative_to(self.root / "video") and path.is_file() and path.stat().st_size == row[1] and row[1] > 0
         except OSError:
             valid = False
-        if not valid:
-            with self.db:
-                self.db.execute("DELETE FROM video WHERE video_id=?", (video_id,))
-            return None
-        return path
+        # A missing video is replaced when downloaded again, or cleared with its download.
+        return path if valid else None
 
     def publish_video(self, video_id, path, final_path):
         path, final_path = Path(path).resolve(), Path(final_path).resolve()
