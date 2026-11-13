@@ -699,6 +699,14 @@ def main():
                                 QTest.qWait(80)
                                 deletion = window.findChild(QObject, "audioFilesDeletionDialog")
                                 assert deletion and deletion.property("opened") and deletion.property("title") == "Delete All Audio Files?"
+                                # The question stands on its own line, with what it touches beneath it.
+                                question = window.findChild(QObject, "audioFilesDeletionQuestion")
+                                detail = window.findChild(QObject, "audioFilesDeletionDetail")
+                                assert question.property("text").endswith("audio files Tubify saved?")
+                                assert detail.property("text").startswith("Downloads kept as audio files") and detail.property("y") > question.property("y")
+                                if args.output_dir:
+                                    QTest.qWait(250)
+                                    assert window.grabWindow().save(str(args.output_dir / ("audio-files-deletion-" + str(size[0]) + ".png")))
                                 deletion.setProperty("visible", False)
                                 QTest.qWait(80)
                                 assert not engine.property("qmlWarnings"), engine.property("qmlWarnings")
