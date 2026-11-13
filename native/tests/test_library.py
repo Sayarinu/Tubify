@@ -161,3 +161,25 @@ def test_playlist_edits_keep_row_numbers_in_order():
     apply_change(data, {"action": "playlist_remove", "id": "PL", "setVideoId": "0"}, "PL")
     assert data["items"] == [{"setVideoId": "1"}]
 
+
+
+def test_library_that_failed_while_the_session_lapsed_reloads_once_the_session_is_renewed(tmp_path):
+    app, shell, worker, view, actions, library, updated = setup(tmp_path)
+    account = library.account
+    account.connected = True
+    account.connectedChanged.emit()
+    shell.navigate("Library")
+    page = len(worker.requests)
+    assert worker.requests[-1][1]["route"] == "library_playlists" and worker.requests[-1][1]["params"]
+    # The saved session is rejected at launch while the browser's newer cookies are read in.
+    account.connected = False
+    account.connectedChanged.emit()
+    worker.failed.emit(page, {"code": "reconnect", "message": "Your session needs reconnecting."})
+    assert view.error
+    account.connected = True
+    account.connectedChanged.emit()
+    # The sidebar's playlists request has no params; the page's has its sort order.
+    reloads = [(number, payload) for number, (operation, payload) in enumerate(worker.requests, 1) if number > page and payload.get("params")]
+    assert [payload["route"] for number, payload in reloads] == ["library_playlists"] and reloads[0][1]["refresh"]
+    worker.succeeded.emit(reloads[0][0], {"items": [{"kind": "playlist", "id": "PLfixture", "title": "Mix"}], "cursor": None})
+    assert not view.error and view.data["items"]
