@@ -259,4 +259,88 @@ def test_a_file_that_cannot_be_copied_back_keeps_playing_from_its_folder(tmp_pat
     status = downloads.store.status()
     assert status["collectionStates"][key] == "complete" and status["next"] is None
     assert not downloads.store.media.ready(IDS[0]).is_relative_to(downloads.store.root)
+
+
+def saved_names(folder):
+    return sorted(str(path.relative_to(folder)).replace("\\", "/") for path in folder.rglob("*") if path.is_file())
+
+
+def test_deleting_one_downloads_audio_files_keeps_everything_else(tmp_path):
+    folder = tmp_path / "Music" / "Tubify"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS, IDS[1]: AAC})
+    key = downloads.store.schedule(body, str(folder))
+    downloads._drain()
+    mine = folder / "Notes.txt"
+    mine.write_text("not Tubify's")
+    assert downloads.store.status()["savedFiles"] == 2
+    assert downloads.store.delete_files(key) == 2
+    # Only Tubify's files and the folders they left empty go; the download stays in Tubify.
+    assert saved_names(folder) == ["Notes.txt"] and folder.is_dir()
+    status = downloads.store.status()
+    assert status["savedFiles"] == 0 and status["collectionStates"][key] == "complete" and len(files(downloads)) == 2
+    downloads.close()
+
+
+def test_deleting_files_of_a_download_kept_as_files_removes_it_but_keeps_shared_songs(tmp_path):
+    folder = tmp_path / "Music" / "Tubify"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS, IDS[1]: AAC}, kind="playlist")
+    first = downloads.store.schedule(body, str(folder), move=True)
+    second = downloads.store.schedule({**body, "id": "PLb", "title": "Second", "items": body["items"][:1]}, str(folder), move=True)
+    downloads._drain()
+    assert len(saved_names(folder)) == 2 and files(downloads) == []
+    downloads.store.delete_files(first)
+    # The first playlist is gone; the song the second still plays from stays.
+    status = downloads.store.status()
+    assert first not in status["collectionStates"] and status["collectionStates"][second] == "complete"
+    assert len(saved_names(folder)) == 1 and downloads.store.media.ready(IDS[0]) is not None
+    downloads.close()
+
+
+def test_removing_a_download_can_delete_its_files_too(tmp_path):
+    folder = tmp_path / "Saved"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS})
+    key = downloads.store.schedule(body, str(folder))
+    downloads._drain()
+    downloads.store.remove(key)
+    assert len(saved_names(folder)) == 1  # Removing alone leaves the files.
+    key = downloads.store.schedule(body, str(folder))
+    downloads._drain()
+    downloads.store.remove(key, files=True)
+    assert saved_names(folder) == [] and files(downloads) == []
+    downloads.close()
+
+
+def test_deleting_every_saved_file(tmp_path):
+    folder = tmp_path / "Music" / "Tubify"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS, IDS[1]: AAC}, kind="playlist")
+    kept = downloads.store.schedule(body, str(folder))
+    moved = downloads.store.schedule({**body, "id": "PLb", "title": "Second", "items": body["items"][:1]}, str(folder), move=True)
+    downloads._drain()
+    mine = folder / "Mine" / "song.mp3"
+    mine.parent.mkdir(parents=True)
+    mine.write_bytes(b"mine")
+    # The first song plays from the second playlist's file, which the playlist kept in Tubify still needs.
+    assert downloads.store.delete_all_files() == 1
+    status = downloads.store.status()
+    assert saved_names(folder) == ["Artist One/Album Name/Song 1.opus", "Mine/song.mp3"] and status["savedFiles"] == 1
+    # The download kept only as files is removed; the one in Tubify stays whole.
+    assert moved not in status["collectionStates"] and status["collectionStates"][kept] == "complete"
+    downloads.close()
+
+
+def test_deleting_files_never_deletes_a_song_tubify_has_not_copied_back(tmp_path):
+    folder = tmp_path / "Music" / "Tubify"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS})
+    key = downloads.store.schedule(body, str(folder), move=True)
+    downloads._drain()
+    # Back in Tubify, but the copy back hasn't run yet: the file is the song's only copy.
+    downloads.store.convert("tubify")
+    assert downloads.store.delete_files(key) == 0
+    assert downloads.store.delete_all_files() == 0
+    assert len(saved_names(folder)) == 1 and downloads.store.media.ready(IDS[0]) is not None
+    assert downloads.store.status()["collectionStates"][key] == "complete"
+    # Once copied back, the file can go.
+    downloads._drain()
+    assert downloads.store.delete_all_files() == 1 and saved_names(folder) == []
+    assert downloads.store.status()["collectionStates"][key] == "complete"
     downloads.close()

@@ -33,6 +33,8 @@ class DownloadView(QObject):
     storageChanged = Signal()
     pageChanged = Signal()
     removalRequested = Signal("QVariantMap")
+    # Asks to confirm deleting one download's audio files, or every saved file when the entry is empty.
+    filesDeletionRequested = Signal("QVariantMap")
     tracksRequested = Signal(list, int)
     collectionReady = Signal(dict)
     collectionFound = Signal(int, dict)
@@ -76,6 +78,7 @@ class DownloadView(QObject):
         self._fixture_bodies = {}
         self._active, self._transfer_request, self._next = None, None, None
         self._bytes, self._file_bytes, self._free, self._message = 0, 0, 0, ""
+        self._saved_count = 0
         # A planning outcome kept until the next download request replaces it.
         self._notice = ""
         self._minimum_request, self._status_pending = 0, False
@@ -349,6 +352,38 @@ class DownloadView(QObject):
     def fileBytes(self):
         return float(self._file_bytes)
 
+    @Property(int, notify=storageChanged)
+    def savedFileCount(self):
+        """How many audio files Tubify has saved, so the page can offer to delete them."""
+        return self._saved_count
+
+    @Slot(str)
+    def requestFilesDeletion(self, key):
+        if key in self._entries:
+            self.filesDeletionRequested.emit(self._entries[key])
+
+    @Slot()
+    def requestAllFilesDeletion(self):
+        if self._saved_count or self.fixture:
+            self.filesDeletionRequested.emit({})
+
+    @Slot(str)
+    def deleteFiles(self, key):
+        """Delete the audio files Tubify saved for this download."""
+        if self.fixture:
+            self._set_message("Deleting audio files preview")
+            return
+        self._send("delete_files", {"id": key}, authoritative=True)
+        self._set_message("Deleting audio files…")
+
+    @Slot()
+    def deleteAllFiles(self):
+        if self.fixture:
+            self._set_message("Deleting audio files preview")
+            return
+        self._send("delete_all_files", {}, authoritative=True)
+        self._set_message("Deleting every saved audio file…")
+
     @Property(str, notify=filesChanged)
     def downloadStyle(self):
         """"tubify" for private offline copies, "files" for audio files in the chosen folder."""
@@ -540,7 +575,8 @@ class DownloadView(QObject):
         self._stop_and_send("cancel", identifier)
 
     @Slot(str)
-    def remove(self, identifier):
+    @Slot(str, bool)
+    def remove(self, identifier, files=False):
         if self.fixture:
             self._collections = [entry for entry in self._collections if entry["key"] != identifier]
             self._fixture_bodies.pop(identifier, None)
@@ -548,7 +584,7 @@ class DownloadView(QObject):
             self.changed.emit()
             self._states_changed()
             return
-        self._stop_and_send("remove", identifier)
+        self._send("remove", {"id": identifier, "files": bool(files)}, authoritative=True)
 
     def _fixture_update(self, identifier, state):
         self._collections = [{**entry, "state": state, "ready": entry["total"] if state == "complete" else entry["ready"]} if entry["key"] == identifier else entry for entry in self._collections]
@@ -589,9 +625,9 @@ class DownloadView(QObject):
         listed_changed = (collections, songs, True) != (self._collections, self._songs, self._initialized)
         states_changed = listed_changed or result.get("trackStates", {}) != self._track_states
         self._track_states = result.get("trackStates", {})
-        storage = (result.get("bytes", 0), result.get("fileBytes", 0), result.get("freeBytes", 0))
-        if storage != (self._bytes, self._file_bytes, self._free):
-            self._bytes, self._file_bytes, self._free = storage
+        storage = (result.get("bytes", 0), result.get("fileBytes", 0), result.get("freeBytes", 0), result.get("savedFiles", 0))
+        if storage != (self._bytes, self._file_bytes, self._free, self._saved_count):
+            self._bytes, self._file_bytes, self._free, self._saved_count = storage
             self.storageChanged.emit()
         for entry in collections:
             files = entry.get("files") or {}
@@ -615,7 +651,7 @@ class DownloadView(QObject):
         self._pump()
 
     def _pump(self):
-        mutations = {"remove", "cancel", "retry", "initialize", "fail", "save_files", "convert"}
+        mutations = {"remove", "cancel", "retry", "initialize", "fail", "save_files", "convert", "delete_files", "delete_all_files"}
         # Saving and copying files back need no connection, so they run offline too.
         offline_ok = self._next in {"save", "internalize"}
         if self._closed or self._resetting or self._stopped or not (self._allow_network or offline_ok) or self._active or not self._next or any(op in mutations for op in self._pending.values()):
