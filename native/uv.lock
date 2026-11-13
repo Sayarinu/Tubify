@@ -722,6 +722,7 @@ source = { editable = "." }
 dependencies = [
     { name = "jeepney", marker = "sys_platform == 'linux'" },
     { name = "keyring" },
+    { name = "mutagen" },
     { name = "pycryptodomex" },
     { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
     { name = "pyobjc-framework-mediaplayer", marker = "sys_platform == 'darwin'" },
@@ -751,6 +752,7 @@ windows-build = [
 requires-dist = [
     { name = "jeepney", marker = "sys_platform == 'linux'", specifier = ">=0.9,<1" },
     { name = "keyring", specifier = ">=25.7,<26" },
+    { name = "mutagen", specifier = ">=1.47,<2" },
     { name = "pycryptodomex", specifier = ">=3.20,<4" },
     { name = "pyinstaller", marker = "extra == 'macos-build'", specifier = ">=6.10" },
     { name = "pyinstaller", marker = "extra == 'windows-build'", specifier = ">=6.10" },
