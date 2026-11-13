@@ -723,7 +723,8 @@ def main():
                                 controls = {child.objectName(): child for child in visual_items(shelf) if child.objectName() in {"shelfPrevious", "shelfNext", "shelfPrimaryAction"}}
                                 overflowing = shelf.property("overflowing")
                                 assert controls["shelfNext"].isVisible() == overflowing and controls["shelfPrevious"].isVisible() == overflowing
-                                assert controls["shelfPrimaryAction"].isVisible() == (overflowing or shelf.property("rowMode"))
+                                # More shows only where it opens more than the shelf already holds.
+                                assert controls["shelfPrimaryAction"].isVisible() == bool(shelf.property("rowMode") or shelf.property("opensMore"))
                             if name == "queueSidebar":
                                 check_queue(window, shell, player, browse, downloads, args.output_dir, not state["queue_drag_checked"])
                                 state["queue_drag_checked"] = True
