@@ -6,7 +6,7 @@ import time
 
 from PySide6.QtCore import QObject, Property, QProcess, QSettings, QTimer, Signal, Slot
 
-from ..catalog.catalog_view import sorted_items
+from ..catalog.catalog_view import searchable, sorted_items
 from ..catalog.page_model import PageModel
 from ..jobs import Worker
 
@@ -49,7 +49,10 @@ class DownloadView(QObject):
     def __init__(self, data_dir, fixture=False, parent=None, settings_path=None):
         super().__init__(parent)
         self._settings = QSettings(str(settings_path), QSettings.Format.IniFormat) if settings_path else None
-        self._filter = "Playlists"
+        self._filter, self._query = "Playlists", ""
+        # Typing filters after a short pause, so each key press doesn't re-sort every download.
+        self.query_timer = QTimer(self, singleShot=True, interval=150)
+        self.query_timer.timeout.connect(self._show)
         from .saved_files import default_folder
         # Downloads are kept either as private copies inside Tubify, or as audio files in a folder.
         style = str(self._settings.value("downloadStyle", "tubify")) if self._settings else "tubify"
@@ -214,6 +217,17 @@ class DownloadView(QObject):
             self._filter = name
             self._show()
 
+    @Property(str, notify=pageChanged)
+    def query(self):
+        return self._query
+
+    @Slot(str)
+    def setQuery(self, text):
+        text = str(text)[:200]
+        if text != self._query:
+            self._query = text
+            self.query_timer.start()
+
     @Slot(str)
     def sort(self, order):
         if order in (SONG_ORDERS if self._filter == "Songs" else ORDERS) and order != self.order:
@@ -227,6 +241,9 @@ class DownloadView(QObject):
             rows = [song for song in self._songs if song.get("downloadState") != "unavailable"]
         else:
             rows = [entry for entry in self._collections if entry.get("kind") == FILTERS[self._filter]]
+        words = self._query.casefold().split()
+        if words:
+            rows = [row for row in rows if all(word in searchable(row) for word in words)]
         order = self.order
         if order == "A to Z" or order == "Z to A":
             return sorted_items(rows, "title", order == "Z to A")
@@ -786,6 +803,7 @@ class DownloadView(QObject):
     def close(self):
         self._closed = True
         self.resume_timer.stop()
+        self.query_timer.stop()
         if self.artwork_worker:
             self.artwork_worker.close()
         if self.control:

@@ -70,21 +70,24 @@ Item {
                 Accessible.name: "Downloads sort order"
                 onActivated: downloadsState.sort(currentText)
             }
-            // Where downloads are kept on the left and the page's actions on the right; when both
-            // don't fit on one line, the actions move under the choice.
-            Row {
-                id: storageChoice
-                objectName: "downloadStyles"
-                y: 136; spacing: Theme.spacingSmall
-                Text { anchors.verticalCenter: parent.verticalCenter; text: "Save as"; color: themeState.secondary; font.pixelSize: Theme.textBody }
-                DownloadStyleChoice { objectName: "downloadStyleChoice"; anchors.verticalCenter: parent.verticalCenter }
+            // Filters this page's downloads; the search at the top still searches YouTube Music.
+            ThemedTextField {
+                id: filterField
+                objectName: "downloadFilterField"
+                y: 132; width: Math.min(280, Math.max(160, parent.width * 0.38)); height: 40
+                placeholderText: "Search downloaded " + downloadsState.filter.toLowerCase()
+                text: downloadsState.query
+                Accessible.name: "Search Downloads"
+                onTextEdited: downloadsState.setQuery(text)
+                Keys.onEscapePressed: { text = ""; downloadsState.setQuery("") }
             }
+            // The page's actions sit beside the search, or under it when both don't fit.
             Row {
                 id: pageActions
                 objectName: "downloadActions"
-                readonly property bool wrapped: storageChoice.width + Theme.spacingLarge + width > parent.width
+                readonly property bool wrapped: filterField.width + Theme.spacingLarge + width > parent.width
                 x: wrapped ? 0 : parent.width - width
-                y: wrapped ? storageChoice.y + storageChoice.height + Theme.spacingSmall : storageChoice.y + (storageChoice.height - height) / 2
+                y: wrapped ? filterField.y + filterField.height + Theme.spacingSmall : filterField.y + (filterField.height - height) / 2
                 spacing: Theme.spacingSmall
                 FilterChip {
                     objectName: "retryFailedDownloads"
@@ -124,16 +127,27 @@ Item {
                     }
                 }
             }
-            // How much space each place uses.
+            // Where downloads are kept, then how much space each place uses: beside the choice,
+            // or under it when narrow.
+            Row {
+                id: storageChoice
+                objectName: "downloadStyles"
+                y: Math.max(filterField.y + filterField.height, pageActions.y + pageActions.height) + Theme.spacingSmall
+                spacing: Theme.spacingSmall
+                Text { anchors.verticalCenter: parent.verticalCenter; text: "Save as"; color: themeState.secondary; font.pixelSize: Theme.textBody }
+                DownloadStyleChoice { objectName: "downloadStyleChoice"; anchors.verticalCenter: parent.verticalCenter }
+            }
             Text {
                 id: storageStatus
                 objectName: "audioFilesStatus"
-                y: Math.max(storageChoice.y + storageChoice.height, pageActions.y + pageActions.height) + Theme.spacingSmall
-                width: parent.width
+                readonly property bool below: parent.width - storageChoice.width - Theme.spacingLarge < Math.min(implicitWidth, 240)
+                x: below ? 0 : storageChoice.width + Theme.spacingLarge
+                y: below ? storageChoice.y + storageChoice.height + Theme.spacingSmall : storageChoice.y + (storageChoice.height - height) / 2
+                width: parent.width - x
                 text: root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + (downloadsState.fileBytes > 0 || downloadsState.downloadStyle === "files" ? root.bytesLabel(downloadsState.fileBytes) + " as audio files · " : "") + root.bytesLabel(downloadsState.freeBytes) + " free"
                 textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
             }
-            implicitHeight: storageStatus.y + storageStatus.height + 24
+            implicitHeight: Math.max(storageChoice.y + storageChoice.height, storageStatus.y + storageStatus.height) + 24
         }
     }
     GridView {
@@ -175,8 +189,8 @@ Item {
     Column {
         anchors.centerIn: parent; width: parent.width - 80; spacing: Theme.spacingLarge
         visible: downloadsState.count === 0
-        Text { width: parent.width; text: "Music Wherever You Go"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textHeading; horizontalAlignment: Text.AlignHCenter }
-        Text { width: parent.width; text: downloadsState.collections.length ? "No downloaded " + downloadsState.filter.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: Theme.textTitle }
+        Text { width: parent.width; visible: !downloadsState.query; text: "Music Wherever You Go"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textHeading; horizontalAlignment: Text.AlignHCenter }
+        Text { width: parent.width; text: downloadsState.query && downloadsState.collections.length ? "No downloaded " + downloadsState.filter.toLowerCase() + " match “" + downloadsState.query + "”." : downloadsState.collections.length ? "No downloaded " + downloadsState.filter.toLowerCase() + " yet." : "Download songs, albums and playlists from their menus.\nCompleted music stays available offline."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: Theme.textTitle }
     }
     ThemedDialog {
         id: removal
