@@ -752,12 +752,22 @@ def main():
                                     # Quick picks shows every song at once: nothing to page to and no Play All.
                                     songs = [item for item in visual_items(shelf) if item.metaObject().className().startswith("SongRow")]
                                     assert not overflowing and len(songs) == len(shelf.property("section")["items"]), (len(songs), size)
-                                    # Three columns filled top to bottom, fewer only where a column would be under 200 pixels.
+                                    # Three columns filled a row at a time, fewer only where a column would be under 200 pixels.
                                     count = len(shelf.property("section")["items"])
                                     fit = max(1, min(count, 3, int((shelf.property("width") + 28) // 228)))
                                     rows = -(-count // fit)
                                     assert shelf.property("gridRows") == rows and shelf.property("gridColumns") == -(-count // rows), (shelf.property("gridColumns"), size)
+                                    titles = [song["title"] for song in shelf.property("section")["items"]]
+                                    placed = sorted(songs, key=lambda song: (round(song.mapToScene(QPointF(0, 0)).y()), song.mapToScene(QPointF(0, 0)).x()))
+                                    assert [song.property("media")["title"] for song in placed] == titles, size
                                     assert not controls["shelfPrimaryAction"].isVisible() and not controls["shelfNext"].isVisible()
+                                if shelf.property("mixed"):
+                                    # Albums and playlists come first, then the songs, filling each row across.
+                                    collections = next(child for child in visual_items(shelf) if child.objectName() == "shelfCollections")
+                                    songs = [item for item in visual_items(shelf) if item.metaObject().className().startswith("SongRow") and item.isVisible()]
+                                    assert songs and all(song.mapToScene(QPointF(0, 0)).y() > collections.mapToScene(QPointF(0, 0)).y() + collections.height() for song in songs)
+                                    first_row = [song for song in songs if abs(song.mapToScene(QPointF(0, 0)).y() - songs[0].mapToScene(QPointF(0, 0)).y()) < 1]
+                                    assert len(first_row) == min(len(songs), shelf.property("visibleColumns"), shelf.property("columnCount")), (len(first_row), size)
                             if name == "queueSidebar":
                                 check_queue(window, shell, player, browse, downloads, args.output_dir, not state["queue_drag_checked"])
                                 state["queue_drag_checked"] = True

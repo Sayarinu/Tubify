@@ -10,7 +10,7 @@ Item {
     // A grid shelf (Quick picks) lays every song out at once: no paging, arrows or Play All.
     readonly property bool grid: section.layout === "grid"
     property bool compact: section.layout === "rows" || grid
-    // A mixed shelf shows its songs as rows, then its albums, playlists and artists as cards.
+    // A mixed shelf shows its albums, playlists and artists as cards, then its songs as rows.
     readonly property var songItems: (section.items || []).filter(item => (item.kind || "song") === "song")
     readonly property var collectionItems: (section.items || []).filter(item => (item.kind || "song") !== "song")
     readonly property bool mixed: !compact && section.layout === "mixed" && songItems.length > 0 && collectionItems.length > 0
@@ -25,17 +25,24 @@ Item {
     // A positive rowLimit shows the first songs as one full-width list (an artist's Top songs).
     property int rowLimit: 0
     readonly property int rowCount: rowLimit > 0 ? Math.min(rowLimit, rowItems.length) : rowItems.length
-    // Three columns filled top to bottom, so 20 songs are 3 columns of 7 with one gap in the last.
-    // Fewer only when a column would be too narrow to read.
-    readonly property int gridRows: Math.max(1, Math.ceil(rowCount / Math.max(1, Math.min(rowCount, 3, Math.floor((width + 28) / (200 + 28))))))
+    // Quick picks and a mixed shelf's songs fill each row across before the next. Quick picks has three
+    // columns, so 20 songs are 7 rows of 3 with one gap in the last row; fewer only where a column would
+    // be under 200 pixels. A mixed shelf uses as many columns as fit, up to four rows, then scrolls.
+    readonly property bool acrossFirst: rowLimit <= 0 && (grid || mixed)
+    readonly property int visibleColumns: Math.max(1, Math.min(rowCount, grid ? 3 : rowCount, Math.floor((width + 28) / ((grid ? 200 : 280) + 28))))
+    readonly property int gridRows: Math.max(1, Math.ceil(rowCount / visibleColumns))
     readonly property int gridColumns: Math.max(1, Math.ceil(rowCount / gridRows))
-    readonly property int rowsPerColumn: rowLimit > 0 ? rowLimit : grid ? gridRows : mixed ? Math.max(1, Math.min(4, rowCount)) : 4
+    readonly property int rowsPerColumn: rowLimit > 0 ? rowLimit : grid ? gridRows : mixed ? Math.min(4, gridRows) : 4
+    readonly property int columnCount: Math.max(1, Math.ceil(rowCount / rowsPerColumn))
+    // The song at a row of a column, in the shelf's own order.
+    function rowItemIndex(group, row) { return acrossFirst ? row * columnCount + group : group * rowsPerColumn + row }
+    function rowsIn(group) { return acrossFirst ? Math.min(rowsPerColumn, Math.ceil((rowCount - group) / columnCount)) : Math.min(rowsPerColumn, rowCount - group * rowsPerColumn) }
     readonly property real rowsHeight: rowLimit > 0 ? rowCount * 64 : rowsPerColumn * 64
     // Show all opens the full list (the artist's songs playlist) instead of playing the shelf.
     readonly property bool showAll: compact && !!section.showAll
     // Paging controls only make sense when part of the shelf is cut off.
     readonly property bool overflowing: cards.contentWidth > cards.width + 1
-    readonly property real itemWidth: compact && rowLimit > 0 ? cards.width : grid ? (cards.width - cards.spacing * (gridColumns - 1)) / gridColumns : rowMode ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
+    readonly property real itemWidth: compact && rowLimit > 0 ? cards.width : acrossFirst ? (cards.width - cards.spacing * (Math.min(visibleColumns, columnCount) - 1)) / Math.min(visibleColumns, columnCount) : rowMode ? Math.min(436, Math.max(280, cards.width * 0.53)) : Theme.cardWidth
     // Page by whole items and glide there, so arrows never land mid-card.
     function page(direction) {
         var stride = itemWidth + cards.spacing
@@ -55,7 +62,7 @@ Item {
     signal playRequested(var item)
     signal moreRequested()
     signal playAllRequested()
-    implicitHeight: heading.height + (rowMode ? 4 : 16) + (rowMode ? rowsHeight : Theme.cardHeight) + (mixed ? 32 + Theme.cardHeight : 0)
+    implicitHeight: mixed ? heading.height + 16 + Theme.cardHeight + 32 + rowsHeight : heading.height + (rowMode ? 4 : 16) + (rowMode ? rowsHeight : Theme.cardHeight)
     Row {
         id: heading
         width: parent.width - actions.width - 24
@@ -90,10 +97,10 @@ Item {
         // Route views may be replaced immediately; avoid unfinished offscreen delegates.
         cacheBuffer: 0
         id: cards
-        anchors.top: heading.bottom; anchors.topMargin: root.rowMode ? 4 : 16
+        anchors.top: root.mixed ? collections.bottom : heading.bottom; anchors.topMargin: root.mixed ? 32 : root.rowMode ? 4 : 16
         width: parent.width; height: root.rowMode ? root.rowsHeight : Theme.cardHeight
         clip: true; orientation: ListView.Horizontal; spacing: root.rowMode ? 28 : 24
-        model: root.rowMode ? Math.ceil(root.rowCount / root.rowsPerColumn) : (root.section.items || [])
+        model: root.rowMode ? root.columnCount : (root.section.items || [])
         boundsBehavior: Flickable.StopAtBounds
         interactive: !root.grid
         delegate: Loader {
@@ -108,12 +115,12 @@ Item {
                     property int group: parent.index
                     width: parent.width
                     Repeater {
-                        model: Math.min(root.rowsPerColumn, root.rowCount - parent.group * root.rowsPerColumn)
+                        model: Math.max(0, root.rowsIn(parent.group))
                         delegate: SongRow {
                             required property int index
                             width: parent.width
-                            media: root.rowItems[parent.group * root.rowsPerColumn + index]
-                            number: (root.section.title || "").toLowerCase() === "top songs" ? parent.group * root.rowsPerColumn + index + 1 : 0
+                            media: root.rowItems[root.rowItemIndex(parent.group, index)]
+                            number: (root.section.title || "").toLowerCase() === "top songs" ? root.rowItemIndex(parent.group, index) + 1 : 0
                             onActivated: item => root.activated(item)
                         }
                     }
@@ -128,7 +135,7 @@ Item {
         id: collections
         objectName: "shelfCollections"
         visible: root.mixed
-        anchors.top: cards.bottom; anchors.topMargin: 32
+        anchors.top: heading.bottom; anchors.topMargin: 16
         width: parent.width; height: root.mixed ? Theme.cardHeight : 0
         clip: true; orientation: ListView.Horizontal; spacing: 24
         boundsBehavior: Flickable.StopAtBounds
