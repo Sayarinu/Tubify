@@ -119,7 +119,8 @@ def shelves(rows):
 # Known shelves render first in a fixed order with a fixed layout, so Home looks the
 # same between visits even though YouTube Music reorders its personalized response.
 PINNED_SHELVES = ("quick picks", "listen again", "mixed for you", "forgotten favorites", "from your library", "new releases")
-SHELF_LAYOUTS = {"quick picks": "rows"}
+# Quick picks is a short list (about 20 songs), so it is laid out whole instead of paged.
+SHELF_LAYOUTS = {"quick picks": "grid"}
 HOME_SHELVES = 30
 HOME_TTL = 6 * 60 * 60
 # Routes whose content does not depend on likes, playlist edits or listening history.
@@ -260,6 +261,9 @@ class Catalog:
         page = dict(data)
         all_items = data.get(list_key, [])
         page[list_key] = all_items[offset:target]
+        if route == "home":
+            # Home is cached for hours; lay it out with the current shelf layouts, not those it was saved with.
+            page["shelves"] = [{**section, "layout": shelf_layout(section)} for section in page["shelves"]]
         page["cursor"] = target if route != "radio" and (len(all_items) > target or not data.get("complete", True)) else None
         page["stale"], page["warning"] = stale, warning
         return page

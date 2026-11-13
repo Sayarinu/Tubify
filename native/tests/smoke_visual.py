@@ -724,7 +724,12 @@ def main():
                                 overflowing = shelf.property("overflowing")
                                 assert controls["shelfNext"].isVisible() == overflowing and controls["shelfPrevious"].isVisible() == overflowing
                                 # More shows only where it opens more than the shelf already holds.
-                                assert controls["shelfPrimaryAction"].isVisible() == bool(shelf.property("rowMode") or shelf.property("opensMore"))
+                                assert controls["shelfPrimaryAction"].isVisible() == bool(shelf.property("rowMode") and not shelf.property("grid") or shelf.property("opensMore"))
+                                if shelf.property("grid"):
+                                    # Quick picks shows every song at once: nothing to page to and no Play All.
+                                    songs = [item for item in visual_items(shelf) if item.metaObject().className().startswith("SongRow")]
+                                    assert not overflowing and len(songs) == len(shelf.property("section")["items"]), (len(songs), size)
+                                    assert not controls["shelfPrimaryAction"].isVisible() and not controls["shelfNext"].isVisible()
                             if name == "queueSidebar":
                                 check_queue(window, shell, player, browse, downloads, args.output_dir, not state["queue_drag_checked"])
                                 state["queue_drag_checked"] = True
