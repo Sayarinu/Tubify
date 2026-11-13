@@ -50,6 +50,11 @@ class LyricView(QObject):
     def busy(self):
         return self._busy
 
+    @Property(bool, notify=changed)
+    def localFile(self):
+        """Lyrics come from YouTube Music and providers matched to its songs, so local files have none."""
+        return self._video.startswith("local:")
+
     @Property(str, notify=changed)
     def error(self):
         return self._error
@@ -120,7 +125,7 @@ class LyricView(QObject):
         self._data, self._starts, self._current = {}, [], -1
         self.changed.emit()
         self.currentLineChanged.emit()
-        if self._active and self._video:
+        if self._active and self._video and not self.localFile:
             self._fetch(refresh)
 
     @Slot("QVariantMap")
@@ -167,7 +172,7 @@ class LyricView(QObject):
     @Slot(bool)
     def setActive(self, value):
         self._active = value
-        if value and not self._loaded and not self._busy and self._video and not self._closed:
+        if value and not self._loaded and not self._busy and self._video and not self.localFile and not self._closed:
             self._fetch()
 
     def _track_changed(self):
@@ -180,12 +185,12 @@ class LyricView(QObject):
         self._data, self._starts, self._error, self._current = {}, [], "", -1
         self.changed.emit()
         self.currentLineChanged.emit()
-        if self._active and video:
+        if self._active and video and not self.localFile:
             self._fetch()
 
     @Slot()
     def refresh(self):
-        if self._video and not self._closed:
+        if self._video and not self.localFile and not self._closed:
             self._fetch(refresh=True)
 
     def _fetch(self, refresh=False):

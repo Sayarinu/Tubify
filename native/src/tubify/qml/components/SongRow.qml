@@ -19,9 +19,11 @@ FocusScope {
     property bool actionsHeld: false
     readonly property bool actionsShown: hover.hovered || actionsHeld
     // Queue text only gives up the actions' space while they show, or while a download indicator stays in it.
-    readonly property real trailingWidth: queueRow ? (actionsShown || root.activeFocus || downloadButton.visible ? 68 : 0) : showDuration ? durationRight + durationWidth + 8 + 44 + 4 : 104
+    readonly property real trailingWidth: queueRow ? (actionsShown || root.activeFocus || downloadButton.visible || localSong ? 68 : 0) : showDuration ? durationRight + durationWidth + 8 + 44 + 4 : 104
     property string downloadStatus: { downloadsState.revision; return downloadsState.songState(media.videoId || media.id || "") || media.downloadState || "" }
     readonly property bool currentSong: playerState.hasTrack && (queueRow && media.key ? !!media.current : (media.videoId || media.id) === (playerState.currentTrack.videoId || playerState.currentTrack.id))
+    // A Local Music song plays from its file and has no YouTube Music download, radio or links.
+    readonly property bool localSong: String(media.videoId || "").indexOf("local:") === 0
     readonly property bool albumLinked: !!(media.album && (media.album.id || media.album.browseId))
     function openAlbum() { browseState.open({kind: "album", id: media.album.id || media.album.browseId, title: media.album.name}) }
     readonly property var artistItems: {
@@ -38,7 +40,7 @@ FocusScope {
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: (media.title || "Song") + ", " + (media.artist || "")
-    Accessible.description: downloadStatus === "ready" ? "Downloaded" : downloadStatus === "damaged" || downloadStatus === "missing" ? "Download needs repair" : downloadStatus === "downloading" || downloadStatus === "queued" ? "Downloading" : ""
+    Accessible.description: localSong ? (media.available === false ? "Local file, unavailable" : "Local file") : downloadStatus === "ready" ? "Downloaded" : downloadStatus === "damaged" || downloadStatus === "missing" ? "Download needs repair" : downloadStatus === "downloading" || downloadStatus === "queued" ? "Downloading" : ""
     Accessible.onPressAction: activateSong()
     Keys.onReturnPressed: activateSong()
     function activateSong() { if (root.currentSong) playerState.togglePlayback(); else root.activated(root.media) }
@@ -91,7 +93,7 @@ FocusScope {
                     height: metadata.height; spacing: 0
                     InlineLink {
                         text: modelData.name || ""; font.pixelSize: Theme.textBody
-                        linked: !!text
+                        linked: !!text && !root.localSong
                         onActivated: browseState.openArtist(modelData)
                     }
                     Text { text: index < root.artistItems.length - 1 ? " • " : ""; color: themeState.secondary; font.pixelSize: Theme.textBody }
@@ -161,9 +163,19 @@ FocusScope {
         anchors.right: root.showDuration && !root.queueRow ? durationLabel.left : parent.right
         anchors.rightMargin: root.queueRow ? 32 : root.showDuration ? 8 : 56
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.actionsShown || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued"
+        visible: !root.localSong && (root.actionsShown || downloadButton.activeFocus || downloadButton.status === "complete" || downloadButton.status === "ready" || downloadButton.status === "downloading" || downloadButton.status === "queued")
         quiet: root.queueRow
         media: ({kind: "song", id: root.media.videoId || root.media.id || "", videoId: root.media.videoId || "", title: root.media.title || "", thumbnail: root.media.thumbnail || ""})
+    }
+    // Where a download indicator would be, a local song shows that it plays from a file.
+    Symbol {
+        objectName: "localFileMark"
+        anchors.horizontalCenter: downloadButton.horizontalCenter
+        anchors.verticalCenter: parent.verticalCenter
+        width: 18; height: 18
+        visible: root.localSong
+        name: "folder"
+        color: root.media.available === false ? themeState.muted : themeState.secondary
     }
     IconButton {
         width: root.queueRow ? 32 : implicitWidth

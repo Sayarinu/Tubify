@@ -269,7 +269,8 @@ class DownloadView(QObject):
     def ensureArtwork(self, media, pixels, retry=False):
         from ..artwork.artwork_sources import choose, media_variants, quality, with_resized
         video_id = media.get("videoId") or media.get("id", "")
-        if self.fixture or self._closed or not video_id or not self._initialized:
+        if self.fixture or self._closed or not video_id or not self._initialized or str(video_id).startswith("local:"):
+            # Local songs already carry their cached artwork.
             return
         pixels = max(1, min(4096, pixels))
         downloaded = video_id in self._artwork or video_id in self._track_states

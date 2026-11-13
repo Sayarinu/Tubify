@@ -220,6 +220,15 @@ def _warmup(service, payload, resources, progress):
 
 
 def _resolve(service, payload, resources, progress):
+    identifier = payload.get("videoId")
+    if isinstance(identifier, str) and identifier.startswith("local:"):
+        # A local file plays without the account or the network.
+        library = _shared(resources, "local", payload, LocalLibrary)
+        try:
+            path = library.resolve(identifier, damaged=bool(payload.get("damaged")))
+        except LibraryError as error:
+            raise SourceError(str(error)) from None
+        return {"kind": "local", "source": path, "headers": [], "videoId": identifier}
     sources = _sources(service, payload, resources)
     if payload.get("damaged"):
         sources.media.mark_damaged(payload["videoId"])

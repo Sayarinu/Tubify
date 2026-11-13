@@ -160,6 +160,34 @@ class LocalLibrary:
                     self.db.execute("INSERT OR REPLACE INTO removed VALUES (?, ?)", (song_id, rev))
         self._collect_artwork()
 
+    def resolve(self, song_id, damaged=False):
+        """The file to play for a song, checked on disk; a song marked missing may have come back since."""
+        row = self.db.execute("SELECT s.path, s.state, f.path FROM songs s JOIN folders f ON f.id=s.folder WHERE s.id=?", (song_id,)).fetchone()
+        if not row:
+            raise LibraryError("This song is no longer in Local Music. Add its folder again to play it.")
+        path, state, folder = row
+        if damaged:
+            # The playback backend opened the file and couldn't play it.
+            self._set_state(song_id, "unplayable")
+            raise LibraryError("Tubify can't play this file. Its format may not be supported.")
+        try:
+            present = os.path.isfile(path)
+        except OSError:
+            present = False
+        if not present:
+            connected = os.path.isdir(folder)
+            self._set_state(song_id, "missing" if connected else "offline")
+            raise LibraryError("This song's file can't be found. Rescan Local Music or locate the file." if connected
+                               else "The drive or folder holding this song isn't connected.")
+        if state in {"missing", "offline"}:
+            self._set_state(song_id, "ready")
+        return path
+
+    def _set_state(self, song_id, state):
+        with self.db:
+            rev = self._bump()
+            self.db.execute("UPDATE songs SET state=?, rev=? WHERE id=? AND state<>?", (state, rev, song_id, state))
+
     def forget_missing(self, folder_id=None):
         """Drop songs whose files are gone, once the user asks to."""
         query = "SELECT id FROM songs WHERE state='missing'" + (" AND folder=?" if folder_id is not None else "")
@@ -196,7 +224,9 @@ class LocalLibrary:
         artwork = values.pop("artwork")
         art = (self.artwork / artwork).as_uri() if artwork else ""
         album = values["albumName"]
-        return {**values, "kind": "song", "local": True, "localId": values["id"], "thumbnail": art,
+        # The player keys songs by videoId. A local id can never be mistaken for a YouTube one,
+        # because it contains a colon, which YouTube video ids never do.
+        return {**values, "kind": "song", "local": True, "localId": values["id"], "videoId": values["id"], "thumbnail": art,
                 "available": values["state"] == "ready", "tagsReadable": bool(values["tagsReadable"]),
                 "albumArtist": values["albumArtist"] or values["artist"], "album": {"id": "", "name": album},
                 "albumName": album}

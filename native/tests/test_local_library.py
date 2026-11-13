@@ -123,7 +123,7 @@ def test_hard_links_and_other_downloaders_names(tmp_path, library):
     titles = sorted(entry["title"] for entry in result["songs"])
     # The file name is never trusted as a YouTube identity; it is only a title fallback.
     assert titles == ["Title", "Untagged track"]
-    assert all("videoId" not in entry for entry in result["songs"])
+    assert all(entry["videoId"].startswith("local:") and "dQw4w9WgXcQ" not in entry["videoId"] for entry in result["songs"])
 
 
 def test_partial_and_hidden_files_are_skipped_until_settled(tmp_path, library):
