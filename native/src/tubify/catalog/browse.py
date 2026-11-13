@@ -304,9 +304,17 @@ class Browse(QObject):
         else:
             self.view.load(page.lower(), {})
 
+    def showing(self, kind, identifier):
+        """True when this album, playlist or artist is already on screen, or loading, and didn't fail."""
+        view = self.view
+        return (bool(identifier) and view.route == kind and view.parameters.get("id") == identifier
+                and not view.error and self._mood_request is None)
+
     @Slot("QVariantMap")
     def open(self, media):
         self.shell.setExpanded(False)
+        if media.get("kind") in {"album", "playlist", "artist"} and self.showing(media["kind"], media.get("id", "")):
+            return
         self._cancel_local_navigation()
         self._cancel_mood()
         kind = media.get("kind", "song")
