@@ -199,6 +199,10 @@ class Browse(QObject):
                 self.view.clearMemory()
             self._identity = identity
             self.navigate(self.shell.page)
+        elif self.account.connected and self.view.error and not self.view.busy:
+            # The session was renewed for the same account, often right after launch when the
+            # browser rotated its cookies; reload the page that failed while it was lapsed.
+            self.view.refresh()
         # Playlists are tracked separately so a failed or interrupted load is retried
         # on every reconnect or renewal, not only when the account changes.
         if self.account.connected and identity != self._playlists_identity:
