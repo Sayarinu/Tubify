@@ -3,6 +3,7 @@
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 from pathlib import Path
 import re
 import time
@@ -105,6 +106,8 @@ class Playback(QObject):
         # Video plays only while the expanded player shows it and the user prefers it.
         self._video_surface, self._video_preferred = False, True
         self._source_video, self._video_failed = False, ""
+        # The song plays from a download that also holds its music video.
+        self._local_video = False
         self._video_request, self._video_worker = None, None
         self._video_source, self._video_attach, self._video_attached, self._video_ready = None, None, False, False
         self._video_timeout = QTimer(self)
@@ -281,8 +284,9 @@ class Playback(QObject):
 
     @Property(bool, notify=changed)
     def videoAvailable(self):
-        # Downloads hold only audio, and they play instead of any stream.
-        return self._video_supported() and has_video(self.currentTrack) and self.currentTrack.get("videoId") != self._video_failed and self._source_kind != "local"
+        # A download plays instead of any stream, so its video shows only if that was downloaded too.
+        return (self._video_supported() and has_video(self.currentTrack) and self.currentTrack.get("videoId") != self._video_failed
+                and (self._source_kind != "local" or self._local_video))
 
     @Property(bool, notify=changed)
     def videoPreferred(self):
@@ -328,7 +332,7 @@ class Playback(QObject):
         if self._video_attached:
             self._source_video = self.audio.setVideo(True)
             self._video_timeout.start()
-        elif self._fresh(self._video_source, video_id):
+        elif self._fresh(self._video_source, video_id) or self._downloaded_video(self._video_source, video_id):
             self._video_attach = self.audio.attachVideo(self._video_source) or None
             if self._video_attach is None:
                 self._video_failed = video_id
@@ -637,7 +641,7 @@ class Playback(QObject):
                 self._video_source = source
                 self._sync_video()
             else:
-                # The song was downloaded in the meantime, and downloads hold only audio.
+                # The song was downloaded in the meantime, without its video.
                 self._video_failed = self.currentTrack.get("videoId", "") if self.hasTrack else ""
                 self.changed.emit()
             return
@@ -676,6 +680,7 @@ class Playback(QObject):
         try:
             self._ensure_audio()
             self._source_kind = source["kind"]
+            self._local_video = source["kind"] == "local" and bool(source.get("hasVideo"))
             self.audio.setVideo(False)
             self._source_expires = float(source.get("expires") or 0)
             self._last_progress = time.monotonic()
@@ -698,6 +703,11 @@ class Playback(QObject):
         return (isinstance(source, dict) and source.get("kind") == "remote" and source.get("videoId") == video_id
                 and isinstance(source.get("expires"), (int, float)) and source["expires"] > time.time() + SOURCE_MARGIN
                 and str(source.get("source", "")).startswith("https://"))
+
+    @staticmethod
+    def _downloaded_video(source, video_id):
+        return (isinstance(source, dict) and source.get("kind") == "local" and source.get("video") is True
+                and source.get("videoId") == video_id and os.path.isfile(str(source.get("source", ""))))
 
     def _usable(self, source, video_id):
         """Only an unexpired remote source for this song skips resolution."""

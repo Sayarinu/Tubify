@@ -36,6 +36,8 @@ SettingsPage {
                     : "Downloads are kept privately inside Tubify and play without a connection, even when you're signed out. Switching copies any audio files back into Tubify and leaves them in their folder."
                 color: themeState.secondary; wrapMode: Text.Wrap
             }
+            SettingsCheckBox { objectName: "downloadVideosOption"; text: "Also Download Music Videos"; checked: downloadsState.downloadVideos; onToggled: downloadsState.setDownloadVideos(checked) }
+            Text { Layout.fillWidth: true; text: "Songs that have a music video download it too, at up to 720p, so the Video switch works offline. A video takes about ten times the space of its song. Applies to new downloads; choose Refresh Download to add videos to one you have."; color: themeState.secondary; wrapMode: Text.Wrap }
             Rectangle { Layout.fillWidth: true; height: 1; color: themeState.border }
             Text { Layout.fillWidth: true; text: "Audio Files Folder"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textTitle }
             Text { Layout.fillWidth: true; text: "Where audio files are saved. In either style, choose Save as Audio Files from a song, album or playlist's menu to save it here too."; color: themeState.secondary; wrapMode: Text.Wrap }
