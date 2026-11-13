@@ -51,6 +51,8 @@ class DownloadView(QObject):
         # Downloads are kept either as private copies inside Tubify, or as audio files in a folder.
         style = str(self._settings.value("downloadStyle", "tubify")) if self._settings else "tubify"
         self._style = style if style in STYLES else "tubify"
+        # Music videos take roughly ten times a song's space, so they're downloaded only when asked for.
+        self._videos = str(self._settings.value("downloadVideos", "false")).lower() == "true" if self._settings else False
         self._files_folder = str(self._settings.value("audioFilesFolder", "") or "") if self._settings else ""
         self._files_folder = self._files_folder or default_folder()
         self._saved_folders = {}
@@ -384,6 +386,18 @@ class DownloadView(QObject):
         self._send("delete_all_files", {}, authoritative=True)
         self._set_message("Deleting every saved audio file…")
 
+    @Property(bool, notify=filesChanged)
+    def downloadVideos(self):
+        return self._videos
+
+    @Slot(bool)
+    def setDownloadVideos(self, value):
+        if bool(value) != self._videos:
+            self._videos = bool(value)
+            if self._settings is not None:
+                self._settings.setValue("downloadVideos", "true" if self._videos else "false")
+            self.filesChanged.emit()
+
     @Property(str, notify=filesChanged)
     def downloadStyle(self):
         """"tubify" for private offline copies, "files" for audio files in the chosen folder."""
@@ -447,7 +461,7 @@ class DownloadView(QObject):
         if key:
             self._send("save_files", {"id": key, "folder": self._files_folder, "move": self._style == "files"}, authoritative=True)
         else:
-            self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": self._files_folder, "move": self._style == "files"}))
+            self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": self._files_folder, "move": self._style == "files", "videos": self._videos}))
         self._set_message("Saving audio files to " + self._files_folder + "…")
 
     @Slot(bool)
@@ -474,7 +488,7 @@ class DownloadView(QObject):
             return
         self._notice = ""
         files = self._files_folder if self._style == "files" else ""
-        self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": files, "move": bool(files)}))
+        self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": files, "move": bool(files), "videos": self._videos}))
         self._set_message("Preparing download…")
 
     @Slot("QVariantList")
@@ -487,7 +501,7 @@ class DownloadView(QObject):
         if not values:
             return
         self._notice = ""
-        self._planning.add(self.planner.request("downloads_schedule_all", {"data_dir": self.data_dir, "playlists": values, "files": self._files_folder if self._style == "files" else "", "move": self._style == "files"}))
+        self._planning.add(self.planner.request("downloads_schedule_all", {"data_dir": self.data_dir, "playlists": values, "files": self._files_folder if self._style == "files" else "", "move": self._style == "files", "videos": self._videos}))
         self._set_message("Preparing downloads for every playlist…")
 
     def _planned_one(self, identifier, progress):

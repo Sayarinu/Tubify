@@ -23,6 +23,8 @@ class MediaFiles:
             self.db.execute("BEGIN IMMEDIATE")
             if "external" not in {row[1] for row in self.db.execute("PRAGMA table_info(audio)")}:
                 self.db.execute("ALTER TABLE audio ADD COLUMN external INTEGER NOT NULL DEFAULT 0")
+            # A music video's picture, downloaded alongside its song when the person asks for videos.
+            self.db.execute("CREATE TABLE IF NOT EXISTS video (video_id TEXT PRIMARY KEY, path TEXT NOT NULL, bytes INTEGER NOT NULL)")
 
     def ready(self, video_id):
         row = self.db.execute("SELECT path, bytes, external FROM audio WHERE video_id=? AND state='ready'", (video_id,)).fetchone()
@@ -61,6 +63,30 @@ class MediaFiles:
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO audio (video_id, path, bytes, state, external) VALUES (?, ?, ?, 'ready', 0)",
                             (video_id, str(path.relative_to(self.root)), path.stat().st_size))
+
+    def video_ready(self, video_id):
+        """The downloaded video picture for this song, or None."""
+        row = self.db.execute("SELECT path, bytes FROM video WHERE video_id=?", (video_id,)).fetchone()
+        if not row:
+            return None
+        path = (self.root / row[0]).resolve()
+        try:
+            valid = path.is_relative_to(self.root / "video") and path.is_file() and path.stat().st_size == row[1] and row[1] > 0
+        except OSError:
+            valid = False
+        if not valid:
+            with self.db:
+                self.db.execute("DELETE FROM video WHERE video_id=?", (video_id,))
+            return None
+        return path
+
+    def publish_video(self, video_id, path, final_path):
+        path, final_path = Path(path).resolve(), Path(final_path).resolve()
+        if not path.is_relative_to(self.root) or not final_path.is_relative_to(self.root / "video"):
+            raise ValueError("A downloaded video must be inside the media directory")
+        os.replace(path, final_path)
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO video VALUES (?, ?, ?)", (video_id, str(final_path.relative_to(self.root)), final_path.stat().st_size))
 
     def external(self, video_id):
         """The person's audio file this song plays from, or None for a private copy."""

@@ -15,12 +15,16 @@ from ..catalog.catalog import items, text, thumbnail
 from ..artwork.artwork_sources import apply_artwork, media_variants
 from ..compat import ProbeError, extractor_options
 from ..playback.media import MediaFiles
+from ..playback.video_types import has_video
 from ..util import atomic_write
 from . import saved_files
 
 
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
 EXTENSIONS = {"webm", "m4a", "mp4", "opus", "ogg", "aac", "mp3", "mkv", "mka", "flac", "wav"}
+# A music video's picture alone, at up to 720p; it plays beside the downloaded song's audio.
+VIDEO_DOWNLOAD_FORMAT = "bestvideo[height<=720][vcodec^=avc1]/bestvideo[height<=720]"
+VIDEO_EXTENSIONS = {"mp4", "webm", "mkv"}
 
 
 class DownloadError(RuntimeError):
@@ -51,6 +55,8 @@ def clean_track(value):
         "duration": value.get("duration") if isinstance(value.get("duration"), (int, float)) else 0,
         "explicit": bool(value.get("explicit")), "available": bool(VIDEO_ID.fullmatch(video_id)) and value.get("available", True) is not False,
         "setVideoId": text(value.get("setVideoId")),
+        "videoType": text(value.get("videoType")),
+        "withVideo": bool(value.get("withVideo")),
     }
 
 
@@ -143,7 +149,12 @@ class DownloadStore:
                 queued=excluded.queued, position=excluded.position, track=excluded.track
             WHERE song_jobs.state IN ('failed', 'cancelled')""",
             [(track["videoId"], state, error, when, index, json.dumps(track)) for index, track in enumerate(body["items"])
-             if VIDEO_ID.fullmatch(track["videoId"]) and track.get("available", True) and track["videoId"] not in ready])
+             if VIDEO_ID.fullmatch(track["videoId"]) and track.get("available", True)
+             and (track["videoId"] not in ready or self._wants_video(track))])
+
+    def _wants_video(self, track):
+        """A song whose music video was asked for and isn't downloaded yet."""
+        return bool(track.get("withVideo")) and has_video(track) and self.media.video_ready(track["videoId"]) is None
 
     def _verified(self, body):
         return {video_id for video_id in {track["videoId"] for track in body["items"]} if VIDEO_ID.fullmatch(video_id) and self.media.ready(video_id)}
@@ -168,8 +179,10 @@ class DownloadStore:
             finally:
                 lock.unlock()
 
-    def schedule(self, body, files="", move=False):
+    def schedule(self, body, files="", move=False, videos=False):
         identifier = body["kind"] + ":" + body["id"]
+        for track in body["items"]:
+            track["withVideo"] = bool(videos or track.get("withVideo")) and has_video(track)
         previous = self.db.execute("SELECT body FROM collections WHERE id=?", (identifier,)).fetchone()
         if previous:
             old = json.loads(previous[0])
@@ -519,6 +532,11 @@ class DownloadStore:
                 if path.is_relative_to(self.root / "audio"):
                     self._unlink(path)
                 self.db.execute("DELETE FROM audio WHERE video_id=?", (video_id,))
+            for video_id, relative in self.db.execute("SELECT video_id, path FROM video WHERE video_id NOT IN (SELECT video_id FROM media_refs)").fetchall():
+                path = (self.root / relative).resolve()
+                if path.is_relative_to(self.root / "video"):
+                    self._unlink(path)
+                self.db.execute("DELETE FROM video WHERE video_id=?", (video_id,))
             referenced = {row[0] for row in self.db.execute("SELECT video_id FROM media_refs")}
             staging = self.root / "staging"
             if staging.is_dir():
@@ -531,7 +549,7 @@ class DownloadStore:
                 body = json.loads(row[0])
                 images.add(body.get("localThumbnail", ""))
                 images.update(track.get("localThumbnail", "") for track in body["items"])
-            protected = images | {(self.root / row[0]).resolve().as_uri() for row in self.db.execute("SELECT path FROM audio")}
+            protected = images | {(self.root / row[0]).resolve().as_uri() for row in self.db.execute("SELECT path FROM audio UNION ALL SELECT path FROM video")}
             for row in self.db.execute("SELECT path FROM pending_delete").fetchall():
                 if Path(row[0]).resolve().as_uri() in protected:
                     self.db.execute("DELETE FROM pending_delete WHERE path=?", (row[0],))
@@ -583,6 +601,7 @@ class DownloadStore:
         next_row = queued[0] if queued else ("finish" if finishing and self.unfinished() else "save" if self.next_export()
                                              else "internalize" if self.next_internalize() else None)
         used = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready' AND external=0").fetchone()[0]
+        used += self.db.execute("SELECT coalesce(sum(bytes),0) FROM video").fetchone()[0]
         files = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready' AND external=1").fetchone()[0]
         return {"collections": collections, "songs": list(songs.values()), "collectionStates": collection_states,
                 "trackStates": track_states, "trackProgress": track_progress, "artwork": artwork, "next": next_row,
@@ -635,9 +654,9 @@ class Downloads:
         self.auth, self.store = auth, DownloadStore(data_dir)
         self.notify = progress or (lambda value: None)
         self.extractor_factory, self.artwork_fetch = extractor_factory, artwork_fetch
-        self._extractor, self._stack, self._hook = None, None, None
+        self._extractor, self._video_extractor, self._stack, self._hook = None, None, None, None
 
-    def schedule(self, media, files="", move=False):
+    def schedule(self, media, files="", move=False, videos=False):
         kind, identifier = media.get("kind", "song"), text(media.get("id") or media.get("videoId"))
         if kind not in {"song", "album", "playlist"} or not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", identifier):
             raise DownloadError("Choose a song, album or playlist to download.")
@@ -665,9 +684,9 @@ class Downloads:
             raise DownloadError("This collection has no music available to download.")
         body = {"kind": kind, "id": identifier, "title": title, "thumbnail": art if art.startswith("https://") else "", "items": tracks}
         apply_artwork(body, artwork)
-        return self.store.schedule(body, files, move)
+        return self.store.schedule(body, files, move, videos)
 
-    def schedule_all(self, playlists, files="", move=False):
+    def schedule_all(self, playlists, files="", move=False, videos=False):
         """Queue every playlist that is not already queued or downloaded, in one request."""
         scheduled, failed = 0, 0
         for media in playlists:
@@ -680,7 +699,7 @@ class Downloads:
                     self.store.request_files(key, files, move)
                 continue
             try:
-                self.schedule({**media, "kind": "playlist"}, files, move)
+                self.schedule({**media, "kind": "playlist"}, files, move, videos)
                 scheduled += 1
             except Exception:
                 # One unavailable or empty playlist must not stop the rest of the library.
@@ -713,7 +732,7 @@ class Downloads:
             raise DownloadBlocked("Another download is running. Wait for it to finish and retry.")
         attempted, finished, exported, copied = set(), set(), set(), set()
         try:
-            for folder in ("staging", "audio"):
+            for folder in ("staging", "audio", "video"):
                 (self.store.root / folder).mkdir(exist_ok=True, mode=0o700)
             with ExitStack() as stack:
                 self._stack = stack
@@ -746,28 +765,37 @@ class Downloads:
                     copied.add(video_id)
                     self._internalize(video_id)
         finally:
-            self._extractor, self._stack, self._hook = None, None, None
+            self._extractor, self._video_extractor, self._stack, self._hook = None, None, None, None
             lock.unlock()
         # Songs finished after their collection was removed are not kept.
         self.store._collect_garbage()
         return self.store.status()
 
-    def _open_extractor(self):
+    def _open_extractor(self, video=False):
+        if video:
+            if self._video_extractor is None:
+                self._video_extractor = self._new_extractor({"format": VIDEO_DOWNLOAD_FORMAT, "outtmpl": str(self.store.root / "staging" / "%(id)s.video.%(ext)s")})
+            return self._video_extractor
         if self._extractor is None:
-            if self.auth.session is None:
-                self.auth.restore()
-            if self.auth.session is None:
-                raise DownloadBlocked("Reconnect YouTube Music to finish this download. Completed songs were kept.")
-            from yt_dlp import YoutubeDL
-
-            staging = self.store.root / "staging"
-            options = extractor_options(staging)
-            options.update(outtmpl=str(staging / "%(id)s.%(ext)s"), noplaylist=True, continuedl=True,
-                           progress_hooks=[lambda value: self._hook(value)], cachedir=str(self.store.root / "extractor-cache"))
-            self._extractor = self._stack.enter_context((self.extractor_factory or YoutubeDL)(options))
-            for cookie in self.auth.session.cookie_jar():
-                self._extractor.cookiejar.set_cookie(cookie)
+            self._extractor = self._new_extractor({})
         return self._extractor
+
+    def _new_extractor(self, overrides):
+        if self.auth.session is None:
+            self.auth.restore()
+        if self.auth.session is None:
+            raise DownloadBlocked("Reconnect YouTube Music to finish this download. Completed songs were kept.")
+        from yt_dlp import YoutubeDL
+
+        staging = self.store.root / "staging"
+        options = extractor_options(staging)
+        options.update(outtmpl=str(staging / "%(id)s.%(ext)s"), noplaylist=True, continuedl=True,
+                       progress_hooks=[lambda value: self._hook(value)], cachedir=str(self.store.root / "extractor-cache"))
+        options.update(overrides)
+        extractor = self._stack.enter_context((self.extractor_factory or YoutubeDL)(options))
+        for cookie in self.auth.session.cookie_jar():
+            extractor.cookiejar.set_cookie(cookie)
+        return extractor
 
     def _download(self, video_id, track):
         if not self.store.start_song(video_id):
@@ -805,6 +833,8 @@ class Downloads:
                 with self.store.db:
                     for partial in staging.glob(video_id + ".*"):
                         self.store._unlink(partial)
+            if self.store._wants_video(track):
+                self._download_video(video_id)
             art = self.artwork_fetch(track.get("largeThumbnail") or track.get("thumbnail", ""), self.store.root / "artwork")
             self.store.song_done(video_id, art)
             self.notify({"videoId": video_id, "fraction": 1., "done": True})
@@ -824,6 +854,28 @@ class Downloads:
             except sqlite3.Error:
                 pass
             raise failure(message) from None
+
+    def _download_video(self, video_id):
+        """Download the music video's picture. A video that can't be downloaded leaves the song as it is."""
+        staging = self.store.root / "staging"
+        try:
+            info = self._open_extractor(video=True).extract_info("https://www.youtube.com/watch?v=" + video_id, download=True)
+            if not info or info.get("id") != video_id or info.get("ext") not in VIDEO_EXTENSIONS or info.get("vcodec") in {None, "none"}:
+                return
+            temporary = staging / (video_id + ".video." + info["ext"])
+            if temporary.is_file() and temporary.stat().st_size > 0:
+                self.store.media.publish_video(video_id, temporary, self.store.root / "video" / (video_id + "." + info["ext"]))
+        except (DownloadCancelled, DownloadBlocked):
+            raise
+        except Exception as error:
+            if getattr(error, "errno", None) == errno.ENOSPC:
+                raise DownloadBlocked("The disk is full. Free space and retry. Completed songs were kept.") from None
+            if self.store.song_state(video_id) != "downloading":
+                raise DownloadCancelled(CANCELLED) from None
+        finally:
+            with self.store.db:
+                for partial in staging.glob(video_id + ".video.*"):
+                    self.store._unlink(partial)
 
     def _save_files(self, identifier):
         """Copy a downloaded collection's songs into the chosen folder as tagged audio files."""

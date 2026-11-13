@@ -76,7 +76,7 @@ def _with_progress(downloads, progress, action):
 
 
 def _schedule(downloads, payload, progress):
-    identifier = downloads.schedule(payload["media"], str(payload.get("files") or ""), bool(payload.get("move")))
+    identifier = downloads.schedule(payload["media"], str(payload.get("files") or ""), bool(payload.get("move")), bool(payload.get("videos")))
     return {**downloads.store.status(), "scheduled": identifier}
 
 
@@ -84,7 +84,7 @@ def _schedule_all(downloads, payload, progress):
     playlists = payload.get("playlists")
     if not isinstance(playlists, list) or len(playlists) > 10000:
         raise DownloadError("Choose playlists to download.")
-    return _with_progress(downloads, progress, lambda: {**downloads.store.status(), **downloads.schedule_all(playlists, str(payload.get("files") or ""), bool(payload.get("move")))})
+    return _with_progress(downloads, progress, lambda: {**downloads.store.status(), **downloads.schedule_all(playlists, str(payload.get("files") or ""), bool(payload.get("move")), bool(payload.get("videos")))})
 
 
 def _run_downloads(downloads, payload, progress):
