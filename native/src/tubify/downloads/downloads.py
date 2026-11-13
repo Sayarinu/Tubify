@@ -16,6 +16,7 @@ from ..artwork.artwork_sources import apply_artwork, media_variants
 from ..compat import ProbeError, extractor_options
 from ..playback.media import MediaFiles
 from ..util import atomic_write
+from . import saved_files
 
 
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
@@ -91,6 +92,11 @@ TABLES = """
         collection_id TEXT REFERENCES collections(id) ON DELETE CASCADE,
         video_id TEXT NOT NULL, PRIMARY KEY (collection_id, video_id));
     CREATE TABLE IF NOT EXISTS pending_delete (path TEXT PRIMARY KEY);
+    CREATE TABLE IF NOT EXISTS exports (
+        collection_id TEXT PRIMARY KEY REFERENCES collections(id) ON DELETE CASCADE,
+        folder TEXT NOT NULL, state TEXT NOT NULL, saved INTEGER NOT NULL, error TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS saved_files (
+        video_id TEXT NOT NULL, folder TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY (video_id, folder));
 """
 CANCELLED = "Download cancelled. Completed songs were kept."
 STOPPED = "Download stopped. Retry to continue; completed songs were kept."
@@ -153,11 +159,12 @@ class DownloadStore:
             try:
                 with self.db:
                     self.db.execute("UPDATE song_jobs SET state='queued', fraction=0 WHERE state='downloading'")
+                    self.db.execute("UPDATE exports SET state='pending' WHERE state='saving'")
                 self._collect_garbage()
             finally:
                 lock.unlock()
 
-    def schedule(self, body):
+    def schedule(self, body, files=""):
         identifier = body["kind"] + ":" + body["id"]
         previous = self.db.execute("SELECT body FROM collections WHERE id=?", (identifier,)).fetchone()
         if previous:
@@ -176,7 +183,45 @@ class DownloadStore:
             # Retain the previous snapshot's files until its replacement completes.
             self.db.executemany("INSERT OR IGNORE INTO media_refs VALUES (?, ?)", [(identifier, track["videoId"]) for track in body["items"] if VIDEO_ID.fullmatch(track["videoId"])])
             self._queue(body, ready, now)
+        if files:
+            self.request_files(identifier, files)
         return identifier
+
+    # Audio files saved to a folder the person chose, after a collection's songs are downloaded.
+    def request_files(self, identifier, folder):
+        if not self.db.execute("SELECT 1 FROM collections WHERE id=?", (identifier,)).fetchone():
+            raise DownloadError("This download was removed. Choose the music again.")
+        with self.db:
+            self.db.execute("""INSERT INTO exports VALUES (?, ?, 'pending', 0, '') ON CONFLICT(collection_id)
+                DO UPDATE SET folder=excluded.folder, state='pending', saved=0, error=''""", (identifier, str(folder)))
+
+    def export(self, identifier):
+        row = self.db.execute("SELECT folder, state, saved, error FROM exports WHERE collection_id=?", (identifier,)).fetchone()
+        return dict(zip(("folder", "state", "saved", "error"), row)) if row else None
+
+    def next_export(self, collection=None, exclude=()):
+        """A collection whose songs are all downloaded and whose files are still to save."""
+        jobs, ready = self._jobs(), {}
+        for identifier, raw in self.db.execute("""SELECT c.id, c.body FROM exports e JOIN collections c ON c.id=e.collection_id
+                WHERE e.state='pending' ORDER BY c.rowid""").fetchall():
+            if identifier not in exclude and (collection is None or identifier == collection):
+                if self._summary(json.loads(raw), 0, jobs, ready)["state"] == "complete":
+                    return identifier
+        return None
+
+    def set_export(self, identifier, state, saved=None, error=""):
+        with self.db:
+            if saved is None:
+                return self.db.execute("UPDATE exports SET state=?, error=? WHERE collection_id=?", (state, error, identifier)).rowcount == 1
+            return self.db.execute("UPDATE exports SET state=?, saved=?, error=? WHERE collection_id=?", (state, saved, error, identifier)).rowcount == 1
+
+    def saved_file(self, video_id, folder):
+        row = self.db.execute("SELECT path FROM saved_files WHERE video_id=? AND folder=?", (video_id, str(folder))).fetchone()
+        return row[0] if row and Path(row[0]).is_file() else None
+
+    def record_saved(self, video_id, folder, path):
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO saved_files VALUES (?, ?, ?)", (video_id, str(folder), str(path)))
 
     def collection(self, identifier):
         row = self.db.execute("SELECT body FROM collections WHERE id=?", (identifier,)).fetchone()
@@ -244,6 +289,7 @@ class DownloadStore:
     def cancel(self, identifier):
         with self.db:
             self.db.execute("UPDATE collection_jobs SET cancelled=1 WHERE collection_id=?", (identifier,))
+            self.db.execute("UPDATE exports SET state='cancelled' WHERE collection_id=? AND state IN ('pending', 'saving')", (identifier,))
             self._prune()
 
     def retry(self, identifier):
@@ -251,12 +297,14 @@ class DownloadStore:
         ready = self._verified(body)
         with self.db:
             self.db.execute("UPDATE collection_jobs SET cancelled=0, finished=0 WHERE collection_id=?", (identifier,))
+            self.db.execute("UPDATE exports SET state='pending', error='' WHERE collection_id=? AND state IN ('failed', 'cancelled')", (identifier,))
             self._queue(body, ready, time.time())
 
     def stop(self, message=STOPPED):
         """Mark the song a lost transfer was downloading as failed so it can be retried."""
         with self.db:
             self.db.execute("UPDATE song_jobs SET state='failed', fraction=0, error=? WHERE state='downloading'", (message,))
+            self.db.execute("UPDATE exports SET state='failed', error=? WHERE state='saving'", (message,))
 
     def complete(self, identifier):
         videos = {track["videoId"] for track in self.collection(identifier)["items"] if VIDEO_ID.fullmatch(track["videoId"])}
@@ -377,10 +425,13 @@ class DownloadStore:
         jobs, ready = self._jobs(), {}
         collections, songs, collection_states = [], {}, {}
         track_states, track_progress, artwork = {}, {}, {}
+        exports = {row[0]: dict(zip(("folder", "state", "saved", "error"), row[1:])) for row in self.db.execute("SELECT collection_id, folder, state, saved, error FROM exports")}
         for identifier, raw, cancelled, created in self.db.execute("""SELECT c.id, c.body, j.cancelled, j.created
                 FROM collections c JOIN collection_jobs j ON c.id=j.collection_id ORDER BY j.created DESC""").fetchall():
             body = json.loads(raw)
             summary = self._summary(body, cancelled, jobs, ready)
+            if identifier in exports:
+                summary["files"] = {**exports[identifier], "total": summary["ready"]}
             artwork[identifier] = self._artwork_uri(body.get("localThumbnail", ""))
             for track in body["items"]:
                 video_id = track["videoId"]
@@ -406,7 +457,7 @@ class DownloadStore:
             song["downloadState"] = track_states[video_id]
         queued = self.db.execute("SELECT video_id FROM song_jobs WHERE state='queued' ORDER BY queued, position LIMIT 1").fetchone()
         finishing = self.db.execute("SELECT 1 FROM collection_jobs WHERE finished=0 AND cancelled=0").fetchone()
-        next_row = queued[0] if queued else ("finish" if finishing and self.unfinished() else None)
+        next_row = queued[0] if queued else ("finish" if finishing and self.unfinished() else "save" if self.next_export() else None)
         used = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready'").fetchone()[0]
         return {"collections": collections, "songs": list(songs.values()), "collectionStates": collection_states,
                 "trackStates": track_states, "trackProgress": track_progress, "artwork": artwork, "next": next_row,
@@ -460,7 +511,7 @@ class Downloads:
         self.extractor_factory, self.artwork_fetch = extractor_factory, artwork_fetch
         self._extractor, self._stack, self._hook = None, None, None
 
-    def schedule(self, media):
+    def schedule(self, media, files=""):
         kind, identifier = media.get("kind", "song"), text(media.get("id") or media.get("videoId"))
         if kind not in {"song", "album", "playlist"} or not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", identifier):
             raise DownloadError("Choose a song, album or playlist to download.")
@@ -488,9 +539,9 @@ class Downloads:
             raise DownloadError("This collection has no music available to download.")
         body = {"kind": kind, "id": identifier, "title": title, "thumbnail": art if art.startswith("https://") else "", "items": tracks}
         apply_artwork(body, artwork)
-        return self.store.schedule(body)
+        return self.store.schedule(body, files)
 
-    def schedule_all(self, playlists):
+    def schedule_all(self, playlists, files=""):
         """Queue every playlist that is not already queued or downloaded, in one request."""
         scheduled, failed = 0, 0
         for media in playlists:
@@ -498,9 +549,12 @@ class Downloads:
                 continue
             key = "playlist:" + text(media.get("id"))
             if self.store.state(key) in {"queued", "downloading", "complete"}:
+                if files and not self.store.export(key):
+                    # Already downloaded, but its files weren't saved yet.
+                    self.store.request_files(key, files)
                 continue
             try:
-                self.schedule({**media, "kind": "playlist"})
+                self.schedule({**media, "kind": "playlist"}, files)
                 scheduled += 1
             except Exception:
                 # One unavailable or empty playlist must not stop the rest of the library.
@@ -531,7 +585,7 @@ class Downloads:
         lock.setStaleLockTime(0)
         if not lock.tryLock(0):
             raise DownloadBlocked("Another download is running. Wait for it to finish and retry.")
-        attempted, finished = set(), set()
+        attempted, finished, exported = set(), set(), set()
         try:
             for folder in ("staging", "audio"):
                 (self.store.root / folder).mkdir(exist_ok=True, mode=0o700)
@@ -551,10 +605,15 @@ class Downloads:
                                 raise
                         continue
                     identifier = self.store.unfinished(collection, finished)
+                    if identifier is not None:
+                        finished.add(identifier)
+                        self._finish(identifier)
+                        continue
+                    identifier = self.store.next_export(collection, exported)
                     if identifier is None:
                         break
-                    finished.add(identifier)
-                    self._finish(identifier)
+                    exported.add(identifier)
+                    self._save_files(identifier)
         finally:
             self._extractor, self._stack, self._hook = None, None, None
             lock.unlock()
@@ -634,6 +693,44 @@ class Downloads:
             except sqlite3.Error:
                 pass
             raise failure(message) from None
+
+    def _save_files(self, identifier):
+        """Copy a downloaded collection's songs into the chosen folder as tagged audio files."""
+        from PySide6.QtCore import QUrl
+
+        export = self.store.export(identifier)
+        if not export or not self.store.set_export(identifier, "saving", 0):
+            return
+        folder, body = export["folder"], self.store.collection(identifier)
+        numbered, saved = body["kind"] == "album", 0
+        for index, track in enumerate(body["items"]):
+            if (self.store.export(identifier) or {}).get("state") != "saving":
+                return
+            video_id = track["videoId"]
+            source = self.store.media.ready(video_id) if VIDEO_ID.fullmatch(video_id) else None
+            if source is None:
+                continue
+            if not self.store.saved_file(video_id, folder):
+                art = self.store._artwork_uri(track.get("localThumbnail", "")) or self.store._artwork_uri(body.get("localThumbnail", ""))
+                try:
+                    path = saved_files.save(source, track, folder, index + 1 if numbered else 0, QUrl(art).toLocalFile() if art else "")
+                except saved_files.SaveError as error:
+                    self.store.set_export(identifier, "failed", saved, str(error))
+                    self.notify({"collection": identifier, "done": True})
+                    return
+                except OSError as error:
+                    full = getattr(error, "errno", None) == errno.ENOSPC
+                    message = "The disk is full. Free space and retry. Saved files were kept." if full else "Audio files couldn't be saved. Retry."
+                    self.store.set_export(identifier, "failed", saved, message)
+                    if full:
+                        raise DownloadBlocked(message) from None
+                    return
+                self.store.record_saved(video_id, folder, path)
+            saved += 1
+            self.store.set_export(identifier, "saving", saved)
+            self.notify({"collection": identifier, "saved": saved})
+        self.store.set_export(identifier, "saved", saved)
+        self.notify({"collection": identifier, "filesSaved": folder, "done": True})
 
     def _finish(self, identifier):
         """Save the cover and any missing song covers once every song of a collection is here."""

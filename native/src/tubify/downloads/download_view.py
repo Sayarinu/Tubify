@@ -36,11 +36,20 @@ class DownloadView(QObject):
     collectionReady = Signal(dict)
     collectionFound = Signal(int, dict)
     playRequested = Signal(dict, bool)
+    filesChanged = Signal()
+    # A collection's audio files finished saving to this folder.
+    filesSaved = Signal(str)
 
     def __init__(self, data_dir, fixture=False, parent=None, settings_path=None):
         super().__init__(parent)
         self._settings = QSettings(str(settings_path), QSettings.Format.IniFormat) if settings_path else None
         self._filter = "Playlists"
+        from .saved_files import default_folder
+        # Downloads are always offline copies; saving audio files as well is the person's choice.
+        self._files_enabled = str(self._settings.value("saveAudioFiles", "false")).lower() == "true" if self._settings else False
+        self._files_folder = str(self._settings.value("audioFilesFolder", "") or "") if self._settings else ""
+        self._files_folder = self._files_folder or default_folder()
+        self._saved_folders = {}
         saved = self._settings.value("downloadOrders", "{}") if self._settings else "{}"
         try:
             self._orders = {key: value for key, value in json.loads(saved).items() if key in FILTERS and value in SONG_ORDERS}
@@ -334,6 +343,61 @@ class DownloadView(QObject):
     def freeBytes(self):
         return float(self._free)
 
+    @Property(bool, notify=filesChanged)
+    def filesEnabled(self):
+        return self._files_enabled
+
+    @Property(str, notify=filesChanged)
+    def filesFolder(self):
+        return self._files_folder
+
+    @Slot(bool)
+    def setFilesEnabled(self, enabled):
+        if bool(enabled) != self._files_enabled:
+            self._files_enabled = bool(enabled)
+            if self._settings is not None:
+                self._settings.setValue("saveAudioFiles", "true" if self._files_enabled else "false")
+            self.filesChanged.emit()
+
+    @Slot("QVariant")
+    def setFilesFolder(self, value):
+        from PySide6.QtCore import QUrl
+
+        path = value.toLocalFile() if isinstance(value, QUrl) else QUrl(value).toLocalFile() if str(value).startswith("file:") else str(value or "")
+        # QUrl gives forward slashes on Windows; keep the system's own spelling.
+        path = str(Path(path)) if path else ""
+        if path and Path(path).is_absolute() and path != self._files_folder:
+            self._files_folder = path
+            if self._settings is not None:
+                self._settings.setValue("audioFilesFolder", path)
+            self.filesChanged.emit()
+
+    @Slot()
+    def openFilesFolder(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        if Path(self._files_folder).is_dir():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(self._files_folder))
+        else:
+            self._set_message("No audio files have been saved yet.")
+
+    @Slot("QVariantMap")
+    def saveFiles(self, media):
+        """Download this music if needed, then save it as audio files in the chosen folder."""
+        if self.fixture:
+            self._set_message("Saving audio files preview")
+            return
+        key = media.get("downloadKey") or media.get("key") or ""
+        if not key:
+            kind, identifier = media.get("kind", "song"), media.get("id") or media.get("videoId") or ""
+            key = kind + ":" + identifier if kind + ":" + identifier in self._entries else ""
+        if key:
+            self._send("save_files", {"id": key, "folder": self._files_folder}, authoritative=True)
+        else:
+            self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": self._files_folder}))
+        self._set_message("Saving audio files to " + self._files_folder + "…")
+
     @Slot(bool)
     def setAccountAvailable(self, available):
         self._allow_network = available
@@ -357,7 +421,8 @@ class DownloadView(QObject):
             self._set_message("Download preview")
             return
         self._notice = ""
-        self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media)}))
+        files = self._files_folder if self._files_enabled else ""
+        self._planning.add(self.planner.request("downloads_schedule", {"data_dir": self.data_dir, "media": dict(media), "files": files}))
         self._set_message("Preparing download…")
 
     @Slot("QVariantList")
@@ -370,7 +435,7 @@ class DownloadView(QObject):
         if not values:
             return
         self._notice = ""
-        self._planning.add(self.planner.request("downloads_schedule_all", {"data_dir": self.data_dir, "playlists": values}))
+        self._planning.add(self.planner.request("downloads_schedule_all", {"data_dir": self.data_dir, "playlists": values, "files": self._files_folder if self._files_enabled else ""}))
         self._set_message("Preparing downloads for every playlist…")
 
     def _planned_one(self, identifier, progress):
@@ -511,6 +576,11 @@ class DownloadView(QObject):
         if storage != (self._bytes, self._free):
             self._bytes, self._free = storage
             self.storageChanged.emit()
+        for entry in collections:
+            files = entry.get("files") or {}
+            if files.get("state") == "saved" and self._saved_folders.get(entry["key"]) not in {None, "saved"}:
+                self.filesSaved.emit(files.get("folder", ""))
+            self._saved_folders[entry["key"]] = files.get("state", "")
         if listed_changed:
             self._collections, self._songs, self._initialized = collections, songs, True
             self._index()
@@ -528,7 +598,7 @@ class DownloadView(QObject):
         self._pump()
 
     def _pump(self):
-        mutations = {"remove", "cancel", "retry", "initialize", "fail"}
+        mutations = {"remove", "cancel", "retry", "initialize", "fail", "save_files"}
         if self._closed or self._resetting or self._stopped or not self._allow_network or self._active or not self._next or any(op in mutations for op in self._pending.values()):
             return
         self._active, self._next = self._next, None
