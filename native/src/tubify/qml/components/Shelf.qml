@@ -25,8 +25,9 @@ Item {
     // A positive rowLimit shows the first songs as one full-width list (an artist's Top songs).
     property int rowLimit: 0
     readonly property int rowCount: rowLimit > 0 ? Math.min(rowLimit, rowItems.length) : rowItems.length
-    // As many columns as fit, then filled evenly: 20 songs in 3 columns are 7 rows over 3 columns, not 4.
-    readonly property int gridRows: Math.max(1, Math.ceil(rowCount / Math.max(1, Math.min(rowCount, Math.floor((width + 28) / (280 + 28))))))
+    // Three columns filled top to bottom, so 20 songs are 3 columns of 7 with one gap in the last.
+    // Fewer only when a column would be too narrow to read.
+    readonly property int gridRows: Math.max(1, Math.ceil(rowCount / Math.max(1, Math.min(rowCount, 3, Math.floor((width + 28) / (200 + 28))))))
     readonly property int gridColumns: Math.max(1, Math.ceil(rowCount / gridRows))
     readonly property int rowsPerColumn: rowLimit > 0 ? rowLimit : grid ? gridRows : mixed ? Math.max(1, Math.min(4, rowCount)) : 4
     readonly property real rowsHeight: rowLimit > 0 ? rowCount * 64 : rowsPerColumn * 64

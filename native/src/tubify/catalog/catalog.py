@@ -127,7 +127,8 @@ def shelves(rows):
 
 # Known shelves render first in a fixed order with a fixed layout, so Home looks the
 # same between visits even though YouTube Music reorders its personalized response.
-PINNED_SHELVES = ("quick picks", "listen again", "mixed for you", "forgotten favorites", "from your library", "new releases")
+# Listen again leads when Home has it: music the person already chose comes before new picks.
+PINNED_SHELVES = ("listen again", "quick picks", "mixed for you", "forgotten favorites", "from your library", "new releases")
 # Quick picks is a short list (about 20 songs), so it is laid out whole instead of paged.
 SHELF_LAYOUTS = {"quick picks": "grid"}
 HOME_SHELVES = 30

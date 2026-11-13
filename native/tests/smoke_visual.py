@@ -752,6 +752,11 @@ def main():
                                     # Quick picks shows every song at once: nothing to page to and no Play All.
                                     songs = [item for item in visual_items(shelf) if item.metaObject().className().startswith("SongRow")]
                                     assert not overflowing and len(songs) == len(shelf.property("section")["items"]), (len(songs), size)
+                                    # Three columns filled top to bottom, fewer only where a column would be under 200 pixels.
+                                    count = len(shelf.property("section")["items"])
+                                    fit = max(1, min(count, 3, int((shelf.property("width") + 28) // 228)))
+                                    rows = -(-count // fit)
+                                    assert shelf.property("gridRows") == rows and shelf.property("gridColumns") == -(-count // rows), (shelf.property("gridColumns"), size)
                                     assert not controls["shelfPrimaryAction"].isVisible() and not controls["shelfNext"].isVisible()
                             if name == "queueSidebar":
                                 check_queue(window, shell, player, browse, downloads, args.output_dir, not state["queue_drag_checked"])
