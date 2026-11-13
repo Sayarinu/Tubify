@@ -29,11 +29,12 @@ Item {
     IconButton { id: navigationToggle; objectName: "navigationToggle"; visible: header.compactNavigation; x: 8; y: 10; width: 36; height: 44; iconName: "menu"; tip: "Open Navigation"; Keys.onShortcutOverride: function(event) { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return) event.accepted = true }; Keys.onReturnPressed: header.navigationRequested(); onClicked: header.navigationRequested() }
     IconButton { id: backButton; objectName: "backButton"; x: header.compactNavigation ? 44 : header.width < 480 ? 8 : 40; y: 10; width: 44; height: 44; iconName: "back"; tip: "Back"; outlined: true; enabled: browseState.canGoBack; onClicked: { appState.setExpanded(false); browseState.back() } }
     // Returns to the page Back left; there is nothing to return to after opening a new page.
-    IconButton { id: forwardButton; objectName: "forwardButton"; x: backButton.x + 48; y: 10; width: 44; height: 44; iconName: "forward"; tip: "Forward"; outlined: true; enabled: browseState.canGoForward; onClicked: { appState.setExpanded(false); browseState.forward() } }
+    // A narrow header keeps its room for search; Alt+Right still goes forward.
+    IconButton { id: forwardButton; objectName: "forwardButton"; visible: header.width >= 560; x: backButton.x + 48; y: 10; width: 44; height: 44; iconName: "forward"; tip: "Forward"; outlined: true; enabled: browseState.canGoForward; onClicked: { appState.setExpanded(false); browseState.forward() } }
     ThemedTextField {
         id: search
         objectName: "searchField"
-        x: forwardButton.x + forwardButton.width + (header.width < 480 ? 4 : 8)
+        x: (forwardButton.visible ? forwardButton.x + forwardButton.width : backButton.x + backButton.width) + (header.width < 480 ? 4 : 8)
         y: 11
         width: Math.max(80, Math.min(480, (updateButton.visible ? updateButton.x : historyButton.visible ? historyButton.x : settingsButton.x) - x - 12))
         height: 42
