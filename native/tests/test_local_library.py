@@ -133,7 +133,7 @@ def test_partial_and_hidden_files_are_skipped_until_settled(tmp_path, library):
     write_wave(music / "song.wav.ytdl")
     write_wave(music / ".hidden.wav")
     song(music / ".staging-1234" / "staged.wav", "Staged")
-    song(music / "Digital Audio Manager" / ".previous-99" / "old.wav", "Old")
+    song(music / "Other App" / ".previous-99" / "old.wav", "Old")
     fresh = song(music / "fresh.wav", "Fresh")
     library.add_folder(music)
     now = fresh.stat().st_mtime + SETTLE_SECONDS / 2

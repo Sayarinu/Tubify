@@ -158,23 +158,12 @@ Item {
             objectName: "localEmptyState"
             anchors.centerIn: parent; width: Math.min(520, parent.width - 80); spacing: Theme.spacingLarge
             Text { width: parent.width; text: "Play Your Own Music"; color: themeState.foreground; font.bold: true; font.pixelSize: Theme.textHeading; horizontalAlignment: Text.AlignHCenter }
-            Text { width: parent.width; text: "Add a folder with music you already have, such as your Digital Audio Manager library or music from other apps. Tubify plays the files where they are and never changes them."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: Theme.textTitle }
+            Text { width: parent.width; text: "Add a folder with music you already have. Tubify plays the files where they are and never changes them."; color: themeState.secondary; wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter; font.pixelSize: Theme.textTitle }
             ThemeActionButton {
                 objectName: "localAddFirstFolder"
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Add Music Folder"; primary: true
                 onClicked: folderDialog.open()
-            }
-            Column {
-                width: parent.width; spacing: Theme.spacingSmall
-                visible: !!localState.suggestedFolder
-                ThemeActionButton {
-                    objectName: "localAddSuggested"
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "Add Digital Audio Manager Library"
-                    onClicked: localState.addSuggestedFolder()
-                }
-                Text { width: parent.width; text: localState.suggestedFolder; textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; horizontalAlignment: Text.AlignHCenter; font.pixelSize: Theme.textSmall }
             }
         }
     }

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import time
 
-from PySide6.QtCore import QFileSystemWatcher, QObject, Property, QSettings, QStandardPaths, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QFileSystemWatcher, QObject, Property, QSettings, QTimer, QUrl, Signal, Slot
 
 from ..catalog.page_model import PageModel
 from ..jobs import Worker
@@ -31,15 +31,6 @@ def folded(value):
     return str(value or "").casefold()
 
 
-def dam_library():
-    """Digital Audio Manager's default library, which Tubify can offer to add. Only its existence is checked."""
-    music = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.MusicLocation)
-    if not music:
-        return ""
-    path = Path(music) / "Digital Audio Manager" / "Library"
-    return str(path) if path.is_dir() else ""
-
-
 def album_key(song):
     return folded(song.get("albumArtist") or song.get("artist")) + "\0" + folded(song.get("albumName"))
 
@@ -59,7 +50,7 @@ class LocalView(QObject):
     queueRequested = Signal(list, bool)
     collectionReady = Signal(dict)
 
-    def __init__(self, data_dir, fixture=False, parent=None, settings_path=None, suggested=dam_library, control=None, scanner=None):
+    def __init__(self, data_dir, fixture=False, parent=None, settings_path=None, control=None, scanner=None):
         super().__init__(parent)
         self.data_dir, self.fixture = str(Path(data_dir)), fixture
         self._settings = QSettings(str(settings_path), QSettings.Format.IniFormat) if settings_path else None
@@ -76,7 +67,6 @@ class LocalView(QObject):
         self._scanning, self._scan_progress, self._scan_label = False, 0., ""
         self._scan_request, self._control_requests, self._pending_scans = None, set(), []
         self._last_fetch, self._fetching = 0., False
-        self._suggested = suggested
         self._closed = False
         # Scans run on their own worker, so adding or removing a folder never waits behind one.
         self.control = None if fixture else control or Worker(self, idle_ms=30000)
@@ -145,17 +135,6 @@ class LocalView(QObject):
         if missing:
             text += f" · {missing:,} missing"
         return text
-
-    @Property(str, notify=changed)
-    def suggestedFolder(self):
-        """Digital Audio Manager's library, offered when it exists and isn't chosen yet."""
-        if self.fixture:
-            return ""
-        path = self._suggested()
-        if not path:
-            return ""
-        key = os.path.normcase(os.path.abspath(path))
-        return "" if any(os.path.normcase(folder["path"]) == key for folder in self._folders) else path
 
     @Property(bool, notify=scanChanged)
     def scanning(self):
@@ -506,11 +485,6 @@ class LocalView(QObject):
             self.rescan(owner["id"])
         elif self._initialized:
             self.addFolder(path)
-
-    @Slot()
-    def addSuggestedFolder(self):
-        if self.suggestedFolder:
-            self.addFolder(self.suggestedFolder)
 
     @Slot(int)
     def requestFolderRemoval(self, folder_id):
