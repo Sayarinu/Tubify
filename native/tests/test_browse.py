@@ -410,3 +410,29 @@ def test_play_skips_the_downloads_lookup_for_collections_never_downloaded(tmp_pa
         browse.play({"kind": "playlist", "id": "PLsaved"})
         assert bool(downloads.lookups) is looked_up
         assert (len(worker.requests) > before) is not looked_up
+
+
+def test_sidebar_playlists_from_a_lapsed_session_renew_it_and_reload_instead_of_emptying(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    account.connectedChanged.emit()
+    first = next(index + 1 for index, (_, payload) in enumerate(worker.requests) if payload.get("route") == "library_playlists")
+    worker.succeeded.emit(first, {"items": [{"id": "PLfixture", "title": "Saved"}]})
+    browse.refreshPlaylists()
+    # A signed-out reply falls back to the cache and says so; the sidebar keeps its playlists.
+    worker.succeeded.emit(len(worker.requests), {"items": [], "warning": "reconnect"})
+    assert browse.shell.playlists[0]["title"] == "Saved" and not account.connected
+    # The renewed session, still the same account, reloads them.
+    account.connected = True
+    account.connectedChanged.emit()
+    assert worker.requests[-1][1]["route"] == "library_playlists"
+
+
+def test_sidebar_playlists_that_fail_on_a_lapsed_session_renew_it_instead_of_retrying(tmp_path):
+    app, browse, worker, account, view, played, queued, resets = setup(tmp_path)
+    account.connectedChanged.emit()
+    request = next(index + 1 for index, (_, payload) in enumerate(worker.requests) if payload.get("route") == "library_playlists")
+    worker.failed.emit(request, {"code": "AuthError", "message": "Your session needs reconnecting."})
+    assert not account.connected and not browse.playlist_retry.isActive()
+    account.connected = True
+    account.connectedChanged.emit()
+    assert worker.requests[-1][1]["route"] == "library_playlists"

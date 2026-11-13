@@ -333,3 +333,20 @@ def test_cached_home_takes_the_current_shelf_layouts(tmp_path):
     store.write(key, {"shelves": [{"title": "Quick picks", "items": [song], "layout": "rows"}], "items": [], "complete": True})
     provider.get_home = None
     assert catalog.fetch("home")["shelves"][0]["layout"] == "grid"
+
+
+def test_a_signed_out_library_reply_is_a_lapsed_session_not_an_empty_library(tmp_path):
+    from tubify.account.auth import AuthError
+
+    def signed_out():
+        raise KeyError("accountName")
+
+    provider = SimpleNamespace(get_library_playlists=lambda limit: [], get_account_info=signed_out)
+    store = MetadataStore(tmp_path / "metadata.sqlite3")
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), store)
+    with pytest.raises(AuthError, match="reconnecting"):
+        catalog.fetch("library_playlists")
+    assert not list(store.db.execute("SELECT key FROM views"))
+    # Signed in with no playlists is simply an empty library.
+    provider.get_account_info = lambda: {"accountName": "Fixture"}
+    assert catalog.fetch("library_playlists")["items"] == []
