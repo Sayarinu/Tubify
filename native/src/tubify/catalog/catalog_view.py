@@ -5,7 +5,7 @@ import time
 from collections import OrderedDict
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Property, Signal, Slot
+from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .library import SECTIONS
 from .page_model import PageModel
@@ -50,6 +50,13 @@ def sort_value(item, key):
     return (not value, value)
 
 
+def searchable(row):
+    """A row's title, artists and album as one lowercase string to look for typed words in."""
+    album = row.get("album")
+    album = album.get("name", "") if isinstance(album, dict) else album
+    return " ".join(str(value or "") for value in (row.get("title"), row.get("artist"), album)).casefold()
+
+
 def sorted_items(items, key, descending=False):
     """Sort a stable copy; empty values always sink to the end, ties keep source order."""
     if key not in SORT_KEYS:
@@ -66,6 +73,7 @@ class CatalogView(QObject):
     navigationStarted = Signal()
     revalidatingChanged = Signal()
     scrollToTopRequested = Signal()
+    queryChanged = Signal()
 
     def __init__(self, worker, cache_path, account, parent=None):
         super().__init__(parent)
@@ -82,6 +90,10 @@ class CatalogView(QObject):
         self._fresh_route = None
         self._items_model, self._shelves_model = PageModel(self), PageModel(self, snapshots=True)
         self._model_revision, self._reset_models, self._rows_touched = 0, False, False
+        # Words the Library page is filtered by; the rows themselves stay whole in data.
+        self._query = ""
+        self.query_timer = QTimer(self, singleShot=True, interval=150)
+        self.query_timer.timeout.connect(self._apply_query)
         # Connected first, so the models are current before anything else hears of a change.
         self.changed.connect(self._sync_models)
         settings = getattr(account, "settings", None)
@@ -113,8 +125,40 @@ class CatalogView(QObject):
         # Another page or order starts afresh; anything else keeps the rows and the list's place.
         reset = self._reset_models or self._revision != self._model_revision
         touched, self._model_revision, self._reset_models, self._rows_touched = self._rows_touched, self._revision, False, False
-        self._items_model.sync(self._data.get("items") or [], reset, touched)
+        self._items_model.sync(self._visible_items(), reset, touched)
         self._shelves_model.sync(self._data.get("shelves") or [], reset)
+
+    def _filtered(self):
+        return bool(self._query.split()) and self._route.startswith("library_")
+
+    def _visible_items(self):
+        items = self._data.get("items") or []
+        if not self._filtered():
+            return items
+        words = self._query.casefold().split()
+        return [item for item in items if isinstance(item, dict) and all(word in searchable(item) for word in words)]
+
+    @Property(str, notify=queryChanged)
+    def query(self):
+        return self._query
+
+    @Slot(str)
+    def setQuery(self, text):
+        text = str(text)[:200]
+        if text != self._query:
+            self._query = text
+            self.queryChanged.emit()
+            # Typing filters after a short pause, so each key press doesn't rebuild a long list.
+            self.query_timer.start()
+
+    def _apply_query(self):
+        if self._filtered() and self._data.get("cursor") is not None and self.worker and not self._loading_all:
+            # The filter covers the whole section, so fetch every remaining page first.
+            self._loading_all = True
+            self._send(offset=self._data["cursor"], page_size=100000)
+            return
+        self._reset_models = True
+        self.changed.emit()
 
     @Property(bool, notify=changed)
     def busy(self):
@@ -266,9 +310,17 @@ class CatalogView(QObject):
             self._revalidating = value
             self.revalidatingChanged.emit()
 
+    def _leave_query(self, route):
+        """The Library filter stays while moving between its sections and clears anywhere else."""
+        if self._query and not route.startswith("library_"):
+            self._query = ""
+            self.query_timer.stop()
+            self.queryChanged.emit()
+
     @Slot(str, "QVariantMap")
     def load(self, route, params):
         self.navigationStarted.emit()
+        self._leave_query(route)
         self._route, self._params = route, dict(params)
         self._revision, self._scroll = self._revision + 1, None
         self._loading_all = False
@@ -295,6 +347,7 @@ class CatalogView(QObject):
 
     def showLocal(self, route, data, params=None, scroll=None):
         self.navigationStarted.emit()
+        self._leave_query(route)
         if self.worker and self._request is not None:
             self.worker.cancelQueued(self._request)
         self._request, self._busy, self._error = None, False, ""

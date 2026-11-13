@@ -193,3 +193,38 @@ def test_more_waits_for_a_background_refresh_it_would_cancel(tmp_path):
     requests = len(worker.requests)
     view.more()
     assert len(worker.requests) == requests
+
+
+def test_library_search_filters_the_whole_section_and_clears_outside_library(tmp_path):
+    worker, account, view = memory_view(tmp_path)
+    model = view.itemsModel
+    shown = lambda: [model.data(model.index(row), model.ROW)["title"] for row in range(model.rowCount())]
+    view.load("library_songs", {"order": "recently_added"})
+    worker.succeeded.emit(1, {"title": "Songs", "cursor": 2, "items": [
+        {"videoId": "a", "title": "Evening Light", "artist": "Quiet Band", "album": {"id": "x", "name": "Dusk"}},
+        {"videoId": "b", "title": "Morning", "artist": "Loud Band"}]})
+    view.setQuery("quiet dusk")
+    view.query_timer.timeout.emit()
+    # A filter covers the whole section, so the rest of it is fetched before filtering.
+    assert worker.requests[-1][1]["offset"] == 2 and worker.requests[-1][1]["page_size"] == 100000
+    worker.succeeded.emit(2, {"title": "Songs", "cursor": None, "items": [{"videoId": "c", "title": "Quiet Dusk Again", "artist": "Other"}]})
+    assert shown() == ["Evening Light", "Quiet Dusk Again"]
+    # The rows stay whole underneath, numbered as they are in the library.
+    assert len(view.data["items"]) == 3 and model.data(model.index(1), model.ROW)["position"] == 2
+    view.setQuery("")
+    view.query_timer.timeout.emit()
+    assert shown() == ["Evening Light", "Morning", "Quiet Dusk Again"]
+    view.setQuery("morning")
+    view.load("library_albums", {"order": "recently_added"})
+    assert view.query == "morning"
+    view.load("home", {})
+    assert view.query == ""
+
+
+def test_search_outside_library_does_not_filter_rows(tmp_path):
+    worker, account, view = memory_view(tmp_path)
+    view.load("playlist", {"id": "PL"})
+    worker.succeeded.emit(1, {"title": "Playlist", "cursor": None, "items": songs("a", "b")})
+    view.setQuery("zzz")
+    view.query_timer.timeout.emit()
+    assert view.itemsModel.rowCount() == 2

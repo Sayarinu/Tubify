@@ -269,3 +269,29 @@ def test_status_reports_how_many_downloads_retry_failed_would_pick_up(tmp_path):
     view._result(request, {"collections": [], "songs": [], "retryable": 3})
     assert view.retryableCount == 3 and counts == [3]
     view.close()
+
+
+def test_downloads_search_filters_each_chip_and_plays_the_filtered_songs(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    view = DownloadView(tmp_path, fixture=True)
+    rows = lambda model: [model.data(model.index(row), model.ROW) for row in range(model.rowCount())]
+    view.setQuery("evening")
+    view.query_timer.timeout.emit()
+    assert [entry["title"] for entry in rows(view.collectionsModel)] == ["Evening focus"]
+    view.setFilter("Albums")
+    assert [entry["title"] for entry in rows(view.collectionsModel)] == []
+    view.setFilter("Songs")
+    view._songs = [
+        {"videoId": IDS[0], "title": "Beta", "artist": "Zed", "added": 1.},
+        {"videoId": IDS[1], "title": "alpha", "artist": "Amy", "album": {"id": "x", "name": "Evening"}, "added": 3.},
+    ]
+    view._show()
+    assert [song["videoId"] for song in rows(view.songsModel)] == [IDS[1]] and view.count == 1
+    played = []
+    view.tracksRequested.connect(lambda tracks, index: played.append((tracks, index)))
+    view.playSongs(0)
+    assert [track["videoId"] for track in played[0][0]] == [IDS[1]]
+    view.setQuery("")
+    view.query_timer.timeout.emit()
+    assert view.count == 2
+    view.close()
