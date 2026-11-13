@@ -10,6 +10,12 @@ from PySide6.QtTest import QTest
 from tubify import app
 
 
+def visual_items(item):
+    yield item
+    for child in item.childItems():
+        yield from visual_items(child)
+
+
 def main():
     original = app.load_window
     passed = []
@@ -43,6 +49,40 @@ def main():
                 downloads.playSongs(0)
                 assert len(player.entries) == len(downloads.songs) and len({entry.get("videoId") or entry["id"] for entry in player.entries}) == len(player.entries)
                 downloads.setFilter("Playlists")
+                # A queued download shows an empty ring, a downloading one fills it, and finishing
+                # fills it the rest of the way before the check takes its place.
+                finished = next(entry for entry in downloads.collections if entry["state"] == "complete")
+
+                def show(state, progress):
+                    downloads._collections = [{**entry, "state": state, "progress": progress} if entry["key"] == finished["key"] else entry for entry in downloads._collections]
+                    downloads._index()
+                    downloads.changed.emit()
+                    downloads._states_changed()
+                    QTest.qWait(400)
+
+                def ring():
+                    found = [item for item in visual_items(window.contentItem()) if item.objectName() == "downloadProgressRing" and item.isVisible()]
+                    return found[0] if found else None
+
+                show("queued", 0.)
+                assert ring() and ring().parentItem().property("ringValue") == 0
+                assert ring().parentItem().property("tip") == "Waiting to Download · Cancel Download"
+                button = ring().parentItem()
+                assert button.property("contentItem").property("opacity") == 0
+                show("downloading", 0.5)
+                assert abs(button.property("ringValue") - 0.5) < 0.01 and button.property("tip").startswith("Downloading 50%")
+                motion = not window.property("reducedMotion") and not shell.reducedMotion
+                downloads._collections = [{**entry, "state": "complete", "progress": 1.} if entry["key"] == finished["key"] else entry for entry in downloads._collections]
+                downloads._index()
+                downloads.changed.emit()
+                downloads._states_changed()
+                QTest.qWait(60)
+                if motion:
+                    assert button.property("finishing") and ring() and button.property("contentItem").property("opacity") == 0
+                QTest.qWait(700)
+                assert not ring() and not button.property("finishing")
+                assert button.property("contentItem").property("opacity") == 1 and button.property("contentItem").property("scale") == 1
+                assert button.property("iconName") == "circleCheck"
                 pending = next(entry for entry in downloads.collections if entry["state"] == "downloading")
                 downloads.cancel(pending["key"])
                 assert next(entry for entry in downloads.collections if entry["key"] == pending["key"])["state"] == "cancelled"
