@@ -70,64 +70,68 @@ Item {
                 Accessible.name: "Downloads sort order"
                 onActivated: downloadsState.sort(currentText)
             }
-            // Where downloads are kept and the page's actions, wrapping onto a second line when narrow.
-            Flow {
-                id: storageActions
+            // Where downloads are kept on the left and the page's actions on the right; when both
+            // don't fit on one line, the actions move under the choice.
+            Row {
+                id: storageChoice
                 objectName: "downloadStyles"
-                y: 136; width: parent.width; spacing: Theme.spacingSmall
-                Row {
-                    spacing: Theme.spacingSmall
-                    Text { anchors.verticalCenter: parent.verticalCenter; text: "Save downloads"; color: themeState.secondary; font.pixelSize: Theme.textBody }
-                    DownloadStyleChoice { objectName: "downloadStyleChoice"; anchors.verticalCenter: parent.verticalCenter }
+                y: 136; spacing: Theme.spacingSmall
+                Text { anchors.verticalCenter: parent.verticalCenter; text: "Save as"; color: themeState.secondary; font.pixelSize: Theme.textBody }
+                DownloadStyleChoice { objectName: "downloadStyleChoice"; anchors.verticalCenter: parent.verticalCenter }
+            }
+            Row {
+                id: pageActions
+                objectName: "downloadActions"
+                readonly property bool wrapped: storageChoice.width + Theme.spacingLarge + width > parent.width
+                x: wrapped ? 0 : parent.width - width
+                y: wrapped ? storageChoice.y + storageChoice.height + Theme.spacingSmall : storageChoice.y + (storageChoice.height - height) / 2
+                spacing: Theme.spacingSmall
+                FilterChip {
+                    objectName: "retryFailedDownloads"
+                    choice: false
+                    visible: downloadsState.retryableCount > 0
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Retry Failed (" + downloadsState.retryableCount + ")"
+                    Accessible.description: "Download every failed song and audio file again"
+                    onClicked: downloadsState.retryFailed()
                 }
-                Row {
-                    spacing: Theme.spacingSmall
-                    IconButton { iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
-                    FilterChip {
-                        objectName: "retryFailedDownloads"
-                        choice: false
-                        visible: downloadsState.retryableCount > 0
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "Retry Failed (" + downloadsState.retryableCount + ")"
-                        Accessible.description: "Download every failed song and audio file again"
-                        onClicked: downloadsState.retryFailed()
-                    }
-                    FilterChip {
-                        objectName: "deleteAllAudioFiles"
-                        choice: false
-                        visible: downloadsState.savedFileCount > 0
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "Delete Audio Files…"
-                        Accessible.description: "Delete every audio file Tubify saved"
-                        onClicked: downloadsState.requestAllFilesDeletion()
-                    }
-                    FilterChip {
-                        objectName: "downloadAllPlaylists"
-                        choice: false
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "Download All Playlists"
-                        enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
-                        onClicked: downloadsState.downloadAll(appState.playlists)
+                FilterChip {
+                    objectName: "downloadAllPlaylists"
+                    choice: false
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Download All Playlists"
+                    enabled: (accountState.connected || appState.fixtureMode) && appState.playlists.length > 0
+                    onClicked: downloadsState.downloadAll(appState.playlists)
+                }
+                IconButton { objectName: "refreshDownloads"; anchors.verticalCenter: parent.verticalCenter; iconName: "refresh"; tip: "Refresh Download Status"; onClicked: downloadsState.refresh() }
+                IconButton {
+                    id: moreActions
+                    objectName: "downloadsMore"
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconName: "more"; tip: "More Download Options"
+                    onClicked: moreMenu.popup(moreActions, moreActions.width - moreMenu.implicitWidth, moreActions.height, null)
+                    ThemedMenu {
+                        id: moreMenu
+                        ContextMenuItem { text: "Open Audio Files Folder"; onTriggered: downloadsState.openFilesFolder() }
+                        ThemedMenuSeparator {}
+                        ContextMenuItem {
+                            objectName: "deleteAllAudioFiles"
+                            text: "Delete Audio Files…"
+                            enabled: downloadsState.savedFileCount > 0
+                            Accessible.description: "Delete every audio file Tubify saved"
+                            onTriggered: downloadsState.requestAllFilesDeletion()
+                        }
                     }
                 }
             }
             // How much space each place uses.
-            Row {
+            Text {
                 id: storageStatus
-                y: storageActions.y + storageActions.height + Theme.spacingSmall
-                width: parent.width; spacing: 4
-                Text {
-                    objectName: "audioFilesStatus"
-                    width: Math.min(implicitWidth, parent.width - openFiles.width - 8)
-                    text: root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + (downloadsState.fileBytes > 0 || downloadsState.downloadStyle === "files" ? root.bytesLabel(downloadsState.fileBytes) + " as audio files · " : "") + root.bytesLabel(downloadsState.freeBytes) + " free"
-                    textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
-                }
-                InlineLink {
-                    id: openFiles
-                    text: "Open Folder"
-                    font.pixelSize: Theme.textBody
-                    onActivated: downloadsState.openFilesFolder()
-                }
+                objectName: "audioFilesStatus"
+                y: Math.max(storageChoice.y + storageChoice.height, pageActions.y + pageActions.height) + Theme.spacingSmall
+                width: parent.width
+                text: root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + (downloadsState.fileBytes > 0 || downloadsState.downloadStyle === "files" ? root.bytesLabel(downloadsState.fileBytes) + " as audio files · " : "") + root.bytesLabel(downloadsState.freeBytes) + " free"
+                textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
             }
             implicitHeight: storageStatus.y + storageStatus.height + 24
         }
