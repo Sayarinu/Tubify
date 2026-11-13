@@ -35,7 +35,7 @@ The Linux package doesn't bundle these. pacman installs Qt, mpv, FFmpeg, Deno an
 | jeepney (Linux only) | MPRIS media controls and sleep handling | MIT | https://gitlab.com/takluyver/jeepney |
 | SecretStorage (Linux only) | Keyring backend | BSD-3-Clause | https://github.com/mitya57/secretstorage |
 | cryptography, cffi, pycparser | Keyring and cookie decryption support | Apache-2.0 OR BSD-3-Clause; MIT-0; BSD-3-Clause | https://github.com/pyca/cryptography |
-| mutagen | Audio metadata (yt-dlp dependency) | GPL-2.0-or-later | https://github.com/quodlibet/mutagen |
+| mutagen | Local music tags and artwork, and audio metadata for yt-dlp | GPL-2.0-or-later | https://github.com/quodlibet/mutagen |
 | pycryptodomex | Verifies signed Linux updates (direct dependency); also used by yt-dlp | BSD-2-Clause and Public Domain | https://github.com/Legrandin/pycryptodome |
 | requests, urllib3, idna, charset-normalizer | HTTP | Apache-2.0; MIT; BSD-3-Clause; MIT | https://github.com/psf/requests |
 | certifi | Trusted certificate authorities | MPL-2.0 | https://github.com/certifi/python-certifi |

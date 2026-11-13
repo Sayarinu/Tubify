@@ -88,7 +88,7 @@ Item {
         BusyIndicator { anchors.horizontalCenter: parent.horizontalCenter; width: 28; height: 28; running: lyricState.busy; visible: running }
         Text {
             width: parent.width
-            text: lyricState.busy ? "Loading lyrics…" : lyricState.error || "Lyrics aren’t available for this song."
+            text: lyricState.busy ? "Loading lyrics…" : lyricState.localFile ? "Lyrics aren’t available for local files." : lyricState.error || "Lyrics aren’t available for this song."
             textFormat: Text.PlainText
             color: themeState.secondary
             wrapMode: Text.Wrap

@@ -204,7 +204,7 @@ def test_home_pins_known_shelves_and_chooses_layout_by_content(tmp_path):
         {"title": "Quick picks", "items": [album]},
     ])
     assert [section["title"] for section in sections] == ["Quick picks", "Listen again", "Fall vibes", "Long listening"]
-    assert [section["layout"] for section in sections] == ["rows", "mixed", "cards", "rows"]
+    assert [section["layout"] for section in sections] == ["grid", "mixed", "cards", "rows"]
 
 
 def test_listening_history_keeps_cached_home_and_actions_keep_stable_routes(tmp_path):
@@ -310,3 +310,43 @@ def test_each_simple_route_reaches_its_provider_method(tmp_path):
         with pytest.raises(CatalogError, match="unavailable"):
             catalog.fetch(route)
     catalog.store.close()
+
+
+def test_an_artist_page_ytmusicapi_cannot_read_names_the_artist_page_not_the_session(tmp_path):
+    def unreadable(identifier):
+        raise KeyError("header")
+
+    provider = SimpleNamespace(get_artist=unreadable)
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "metadata.sqlite3"))
+    with pytest.raises(CatalogError, match="artist page in a layout"):
+        catalog.fetch("artist", {"id": "UCartist"})
+
+
+def test_cached_home_takes_the_current_shelf_layouts(tmp_path):
+    song = {**track(1), "kind": "song"}
+    store = MetadataStore(tmp_path / "metadata.sqlite3")
+    provider = SimpleNamespace(get_home=lambda limit: [{"title": "Quick picks", "contents": [track(1)]}])
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), store)
+    catalog.fetch("home")
+    # A Home saved by an earlier version, when Quick picks paged as rows.
+    key = next(row[0] for row in store.db.execute("SELECT key FROM views"))
+    store.write(key, {"shelves": [{"title": "Quick picks", "items": [song], "layout": "rows"}], "items": [], "complete": True})
+    provider.get_home = None
+    assert catalog.fetch("home")["shelves"][0]["layout"] == "grid"
+
+
+def test_a_signed_out_library_reply_is_a_lapsed_session_not_an_empty_library(tmp_path):
+    from tubify.account.auth import AuthError
+
+    def signed_out():
+        raise KeyError("accountName")
+
+    provider = SimpleNamespace(get_library_playlists=lambda limit: [], get_account_info=signed_out)
+    store = MetadataStore(tmp_path / "metadata.sqlite3")
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), store)
+    with pytest.raises(AuthError, match="reconnecting"):
+        catalog.fetch("library_playlists")
+    assert not list(store.db.execute("SELECT key FROM views"))
+    # Signed in with no playlists is simply an empty library.
+    provider.get_account_info = lambda: {"accountName": "Fixture"}
+    assert catalog.fetch("library_playlists")["items"] == []

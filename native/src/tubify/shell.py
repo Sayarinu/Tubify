@@ -177,12 +177,23 @@ class ShellController(QObject):
 
     @Slot(str)
     def navigate(self, page):
-        if page not in {"Home", "Explore", "Library", "Downloads", "Search"}:
+        if page not in {"Home", "Explore", "Library", "Downloads", "Local Music", "Search"}:
             return
         self._page = page
         self.setExpanded(False)
         self.pageChanged.emit()
         self.navigationRequested.emit(page)
+
+    @Slot(str)
+    def showInFolder(self, path):
+        """Open the folder holding a local file in the system file manager."""
+        import os
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        folder = os.path.dirname(path) if isinstance(path, str) and os.path.isabs(path) else ""
+        if folder and os.path.isdir(folder):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
 
     @Slot(str)
     def search(self, query):

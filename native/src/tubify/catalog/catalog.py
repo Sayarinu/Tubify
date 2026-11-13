@@ -42,6 +42,15 @@ def _session_problem(error):
     return isinstance(error, AuthError) or user_error or session_rejected(error)
 
 
+def _signed_in(client):
+    try:
+        account = client.get_account_info()
+    except (KeyError, IndexError, TypeError):
+        # A signed-out reply has no account section; network errors pass through.
+        return False
+    return isinstance(account, dict) and bool(account.get("accountName"))
+
+
 def duration(value):
     return int(parse_duration(value))
 
@@ -119,7 +128,8 @@ def shelves(rows):
 # Known shelves render first in a fixed order with a fixed layout, so Home looks the
 # same between visits even though YouTube Music reorders its personalized response.
 PINNED_SHELVES = ("quick picks", "listen again", "mixed for you", "forgotten favorites", "from your library", "new releases")
-SHELF_LAYOUTS = {"quick picks": "rows"}
+# Quick picks is a short list (about 20 songs), so it is laid out whole instead of paged.
+SHELF_LAYOUTS = {"quick picks": "grid"}
 HOME_SHELVES = 30
 HOME_TTL = 6 * 60 * 60
 # Routes whose content does not depend on likes, playlist edits or listening history.
@@ -260,6 +270,9 @@ class Catalog:
         page = dict(data)
         all_items = data.get(list_key, [])
         page[list_key] = all_items[offset:target]
+        if route == "home":
+            # Home is cached for hours; lay it out with the current shelf layouts, not those it was saved with.
+            page["shelves"] = [{**section, "layout": shelf_layout(section)} for section in page["shelves"]]
         page["cursor"] = target if route != "radio" and (len(all_items) > target or not data.get("complete", True)) else None
         page["stale"], page["warning"] = stale, warning
         return page
@@ -364,7 +377,11 @@ class Catalog:
 
     def _artist(self, client, route, params, limit, data):
         identifier = params.get("id", "")
-        raw = client.get_artist(identifier)
+        try:
+            raw = client.get_artist(identifier)
+        except (KeyError, IndexError, TypeError):
+            # ytmusicapi could not read this page's layout; the session is fine.
+            raise CatalogError("YouTube Music sent this artist page in a layout Tubify cannot read yet. Search for the artist's songs and albums instead.") from None
         if not isinstance(raw, dict) or not raw.get("name"):
             raise CatalogError("This artist is unavailable. Go back and choose another artist.")
         data.update(title=text(raw.get("name")), subtitle=text(raw.get("description")), thumbnail=thumbnail(raw.get("thumbnails")))
@@ -397,6 +414,11 @@ class Catalog:
         data["items"] = items(raw.get("tracks", []) if isinstance(raw, dict) else raw, kind)
         data["title"] = "Liked songs" if route == "library_liked" else route.removeprefix("library_").title()
         data["complete"] = len(data["items"]) < limit
+        if not data["items"] and not _signed_in(client):
+            # A lapsed session gets a "Sign in" page, which ytmusicapi reads as an empty library.
+            from ..account.auth import AuthError
+
+            raise AuthError("Your session needs reconnecting. Your library will reload once it is renewed.")
 
     def _history(self, client, route, params, limit, data):
         data["items"] = items(client.get_history(), "song")

@@ -24,6 +24,7 @@ from .playback.playback import Playback
 from .playback.playback_options import PlaybackOptions
 from .catalog.browse import Browse
 from .downloads.download_view import DownloadView
+from .local.local_view import LocalView
 from .catalog.actions import Actions
 from .catalog.search import Search
 from .catalog.library import Library
@@ -63,6 +64,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
     engine.rootContext().setContextProperty("playerState", player)
     if hasattr(controller, "maintenanceState"):
         engine.rootContext().setContextProperty("maintenanceState", controller.maintenanceState)
+    if hasattr(controller, "localState"):
+        engine.rootContext().setContextProperty("localState", controller.localState)
     if hasattr(controller, "discordState"):
         engine.rootContext().setContextProperty("discordState", controller.discordState)
     if hasattr(controller, "artistPreview"):
@@ -250,6 +253,16 @@ def main(argv=None):
     if pages:
         on_quit(pages.close)
     browse = Browse(controller, account, catalog, player, cache / "metadata.sqlite3", fixture=fixture, parent=controller, downloads=downloads, pages=pages)
+    # Local Music needs no account: it plays files from folders the person chose.
+    local_music = controller.localState = LocalView(media_data, fixture=args.fixture, parent=controller, settings_path=data / "settings.ini")
+    local_music.tracksRequested.connect(lambda tracks, index: player.playTracks(tracks, index, "Local Music"))
+    local_music.shuffleRequested.connect(lambda tracks, label: player.playShuffledTracks(tracks, source_label=label))
+    local_music.queueRequested.connect(lambda tracks, next: player.enqueue(tracks, next))
+    local_music.collectionReady.connect(browse.showCollection)
+    browse.local_music = local_music
+    # Audio files saved from downloads appear in Local Music.
+    downloads.filesSaved.connect(local_music.ensureFolder)
+    on_quit(local_music.close)
     controller.linkState = DeepLinks(browse, account, downloads, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
     on_quit(controller.linkState.close)
     controller.handoffState = Handoff(player, parent=controller)

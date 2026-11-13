@@ -37,6 +37,8 @@ Your library, playlists and recommendations in a real desktop app with offline d
 ### Offline
 - **Download** songs, albums and playlists to listen without a connection.
 - Downloads play first automatically, even when you're signed out or offline.
+- Optionally **save downloads as audio files** too, tagged and with artwork, in a folder of your choice, for other apps and devices. The audio isn't re-encoded, and Tubify never overwrites or deletes those files.
+- **Local Music** plays music you already have, such as a Digital Audio Manager library or files from other apps. Tubify reads the folders you choose, shows their tags and artwork, and never changes, moves or deletes the files.
 
 ### Made for the desktop
 - **Media keys** and the system now-playing controls on Windows, macOS and Linux (MPRIS).

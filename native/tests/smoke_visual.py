@@ -350,6 +350,12 @@ def main():
                 ("queue", lambda: (shell.setLyricsOpen(False), shell.setQueueOpen(True), shell.setExpanded(True))),
                 ("lyrics", lambda: (shell.setQueueOpen(False), shell.setLyricsOpen(True), shell.setExpanded(True))),
                 ("downloads", lambda: shell.navigate("Downloads")),
+                ("localMusic", lambda: (shell.localState._load_fixture(), shell.localState.setFilter("Songs"), shell.navigate("Local Music"))),
+                ("localAlbums", lambda: shell.localState.setFilter("Albums")),
+                ("localFolders", lambda: shell.localState.setFilter("Folders")),
+                ("localArtist", lambda: shell.localState.openArtistNamed(shell.localState.songsModel.data(shell.localState.songsModel.index(0), shell.localState.songsModel.ROW)["artist"])),
+                # Last: it empties the fixture's Local Music to show the first-run state.
+                ("localEmpty", lambda: (shell.localState._apply({"full": True, "revision": 2, "folders": [], "songs": [], "removed": []}), shell.navigate("Local Music"))),
             ]
             state = {"index": 0, "done": False, "started": time.monotonic(), "audio_position": 0., "rounded_artwork": 0, "queue_drag_checked": False}
 
@@ -388,7 +394,7 @@ def main():
                 assert abs(duration.x() + duration.width() - seek.x() - seek.width() + seek.property("rightPadding")) < 0.1
                 assert transport.y() + transport.height() <= seek.y()
                 assert content.y() + content.height() == player_bar.y()
-                for label in ("Home", "Explore", "Library", "Downloads"):
+                for label in ("Home", "Explore", "Library", "Downloads", "Local Music"):
                     button = next(item for item in visual_items(window.contentItem()) if item.objectName() == "navigationButton-" + label)
                     background = button.findChild(QObject, "navigationBackground-" + label)
                     marker = button.findChild(QObject, "navigationMarker-" + label)
@@ -679,6 +685,19 @@ def main():
                                 assert rows
                                 assert all(row.x() == collection.property("margin") for row in rows)
                                 assert all(row.property("showAlbum") == (name == "playlist" and not collection.property("compact")) for row in rows)
+                            if name == "localMusic":
+                                pane = window.findChild(QObject, "localMusicPane")
+                                rows = [item for item in visual_items(window.contentItem()) if item.metaObject().className().startswith("SongRow")]
+                                states = [item for item in visual_items(window.contentItem()) if item.objectName() == "localSongState" and item.isVisible()]
+                                assert pane and rows and window.findChild(QObject, "localAddFolder")
+                                # The fixture's missing and disconnected songs say so in place of their album.
+                                assert {item.property("text") for item in states} >= {"File missing", "Drive not connected"}
+                            if name == "localEmpty":
+                                empty = window.findChild(QObject, "localEmptyState")
+                                assert empty and empty.isVisible() and window.findChild(QObject, "localAddFirstFolder").isVisible()
+                            if name == "localArtist":
+                                collection = window.findChild(QObject, "collectionPane")
+                                assert collection and collection.property("local") and collection.property("mixed")
                             if name == "artist":
                                 hero = window.findChild(QObject, "artistHero")
                                 assert hero.isVisible()
@@ -704,7 +723,13 @@ def main():
                                 controls = {child.objectName(): child for child in visual_items(shelf) if child.objectName() in {"shelfPrevious", "shelfNext", "shelfPrimaryAction"}}
                                 overflowing = shelf.property("overflowing")
                                 assert controls["shelfNext"].isVisible() == overflowing and controls["shelfPrevious"].isVisible() == overflowing
-                                assert controls["shelfPrimaryAction"].isVisible() == (overflowing or shelf.property("rowMode"))
+                                # More shows only where it opens more than the shelf already holds.
+                                assert controls["shelfPrimaryAction"].isVisible() == bool(shelf.property("rowMode") and not shelf.property("grid") or shelf.property("opensMore"))
+                                if shelf.property("grid"):
+                                    # Quick picks shows every song at once: nothing to page to and no Play All.
+                                    songs = [item for item in visual_items(shelf) if item.metaObject().className().startswith("SongRow")]
+                                    assert not overflowing and len(songs) == len(shelf.property("section")["items"]), (len(songs), size)
+                                    assert not controls["shelfPrimaryAction"].isVisible() and not controls["shelfNext"].isVisible()
                             if name == "queueSidebar":
                                 check_queue(window, shell, player, browse, downloads, args.output_dir, not state["queue_drag_checked"])
                                 state["queue_drag_checked"] = True

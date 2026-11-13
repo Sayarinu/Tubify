@@ -47,6 +47,16 @@ Column {
             onClicked: appState.showMenu(root.track, {nowPlaying: true})
         }
     }
+    Text {
+        objectName: "nowPlayingLocalFormat"
+        readonly property bool localSong: String(root.track.videoId || "").indexOf("local:") === 0
+        visible: localSong
+        width: parent.width
+        // For example "Local file · FLAC · 44.1 kHz".
+        text: ["Local file", root.track.codec || "", root.track.sampleRate ? (root.track.sampleRate / 1000).toFixed(1).replace(/\.0$/, "") + " kHz" : ""].filter(Boolean).join(" · ")
+        textFormat: Text.PlainText; elide: Text.ElideRight
+        color: themeState.secondary; font.pixelSize: Theme.textBody
+    }
     Rectangle {
         id: artistCard
         objectName: "queueArtistPreview"

@@ -16,6 +16,8 @@ dependencies = [
   "ytmusicapi>=1.12.3,<2",
   "yt-dlp[default]>=2026.8.19",
   "python-mpv>=1.0.8,<2",
+  # Reads tags and embedded artwork from local music.
+  "mutagen>=1.47,<2",
   # Verifies signed Linux update packages (also used by yt-dlp).
   "pycryptodomex>=3.20,<4",
   "jeepney>=0.9,<1; sys_platform == 'linux'",

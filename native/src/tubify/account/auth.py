@@ -18,10 +18,37 @@ def make_catalog(session):
     http = requests.Session()
     http.request = partial(http.request, timeout=30)
     try:
-        return YTMusic(auth=session.headers, requests_session=http)
+        client = YTMusic(auth=session.headers, requests_session=http)
     except Exception:
         http.close()
         raise
+    skip_untitled_shelves(client.parser)
+    return client
+
+
+def skip_untitled_shelves(parser):
+    """Read artist pages that open with an untitled promo carousel ("Watch the new music video").
+
+    ytmusicapi reads every carousel's title to find albums, singles and related artists,
+    so one untitled carousel fails the whole page; it belongs to no section, so drop it.
+    It also only looks for the Top songs shelf first on the page, which the promo displaces.
+    Fixed upstream (sigma67/ytmusicapi#1032) after 1.12.3; drop this once a release includes it.
+    """
+    from ytmusicapi.navigation import NAVIGATION_BROWSE_ID, TITLE, nav
+    from ytmusicapi.parsers.playlists import parse_playlist_items
+
+    original = parser.parse_channel_contents
+
+    def titled(results):
+        sections = original([row for row in results if "musicCarouselShelfRenderer" not in row
+                             or "header" in row["musicCarouselShelfRenderer"]])
+        songs = next((row["musicShelfRenderer"] for row in results if "musicShelfRenderer" in row), None)
+        if results and "musicShelfRenderer" not in results[0] and songs:
+            sections["songs"] = {"browseId": nav(songs, TITLE + NAVIGATION_BROWSE_ID, True),
+                                 "results": parse_playlist_items(songs.get("contents", []))}
+        return sections
+
+    parser.parse_channel_contents = titled
 
 
 def profile_from_account(account):

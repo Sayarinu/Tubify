@@ -4,14 +4,14 @@ import QtQuick.Controls
 // Library / Downloads switch at the top of both panes, with an accent underline on the current tab.
 Item {
     id: root
-    // "Library" or "Downloads".
+    // "Library", "Downloads" or "Local Music".
     required property string current
     height: 53
     Row {
         height: 52
         spacing: 24
         Repeater {
-            model: ["Library", "Downloads"]
+            model: ["Library", "Downloads", "Local Music"]
             Button {
                 id: tab
                 required property string modelData
@@ -19,7 +19,7 @@ Item {
                 flat: true
                 height: parent.height
                 palette.windowText: root.current === modelData ? themeState.foreground : themeState.secondary
-                onClicked: modelData === "Library" ? libraryState.select("Playlists") : root.current !== "Downloads" && appState.navigate("Downloads")
+                onClicked: modelData === "Library" ? libraryState.select("Playlists") : root.current !== modelData && appState.navigate(modelData)
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 2; color: themeState.accent; visible: root.current === tab.modelData }
             }
         }

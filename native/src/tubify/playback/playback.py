@@ -15,6 +15,11 @@ from ..util import atomic_write, needs_reconnect, parse_duration
 from .video import has_video
 
 
+def is_local(track):
+    """A song from Local Music, played from its file rather than from YouTube Music."""
+    return isinstance(track, dict) and str(track.get("videoId", "")).startswith("local:")
+
+
 def track_duration(track):
     """Seconds from a track's duration, which may be a number or a "3:41" label."""
     return parse_duration(track.get("duration") if isinstance(track, dict) else None)
@@ -988,7 +993,9 @@ class Playback(QObject):
         self._queue_changed()
 
     def _continues_with_radio(self):
-        return self._autoplay and self.repeat == "off" and self.radio_worker is not None and self.hasTrack
+        # A radio needs a YouTube Music song to start from; local files have none.
+        return (self._autoplay and self.repeat == "off" and self.radio_worker is not None and self.hasTrack
+                and not is_local(self.currentTrack))
 
     def _radio_params(self):
         params = {"id": self.currentTrack.get("videoId", "")}

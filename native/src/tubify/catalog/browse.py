@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .playlist_ops import apply_change
 from ..playback.queue_additions import QueueAdditions
-from ..util import atomic_write
+from ..util import atomic_write, needs_reconnect
 
 
 PLAYLIST_RETRY_MS = (2000, 5000, 15000, 30000, 60000)
@@ -64,6 +64,8 @@ class Browse(QObject):
         self._message = ""
         self._history, self._play_shuffle = [], False
         self.downloads, self._download_request = downloads, None
+        # Set by the app once Local Music exists; its pages open through showCollection.
+        self.local_music = None
         self._download_open_request = None
         self.additions = QueueAdditions(account, player, cache_path, downloads, fixture, self)
         self.additions.changed.connect(self.changed)
@@ -197,6 +199,10 @@ class Browse(QObject):
                 self.view.clearMemory()
             self._identity = identity
             self.navigate(self.shell.page)
+        elif self.account.connected and self.view.error and not self.view.busy:
+            # The session was renewed for the same account, often right after launch when the
+            # browser rotated its cookies; reload the page that failed while it was lapsed.
+            self.view.refresh()
         # Playlists are tracked separately so a failed or interrupted load is retried
         # on every reconnect or renewal, not only when the account changes.
         if self.account.connected and identity != self._playlists_identity:
@@ -234,7 +240,7 @@ class Browse(QObject):
     def _action(self, action):
         if action.startswith("playlist:"):
             self._cancel_local_navigation()
-            if self.shell.page == "Downloads":
+            if self.shell.page in {"Downloads", "Local Music"}:
                 self.shell.restoreNavigation("Library", self.shell.query)
             if self.fixture:
                 media = next((value for value in self.shell.playlists if value["id"] == action.split(":", 1)[1]), {})
@@ -252,7 +258,7 @@ class Browse(QObject):
             from .library import SECTIONS
 
             return route in SECTIONS.values()
-        return route == {"Home": "home", "Explore": "explore", "Downloads": "downloads"}.get(page)
+        return route == {"Home": "home", "Explore": "explore", "Downloads": "downloads", "Local Music": "local"}.get(page)
 
     @Slot(str)
     def selectTab(self, page):
@@ -274,6 +280,11 @@ class Browse(QObject):
             self.view.showLocal("downloads", {})
             if self.downloads:
                 self.downloads.refreshIfStale()
+            return
+        if page == "Local Music":
+            self.view.showLocal("local", {})
+            if self.local_music:
+                self.local_music.refreshIfStale()
             return
         if page not in {"Home", "Explore"}:
             return
@@ -489,6 +500,10 @@ class Browse(QObject):
 
     def _playlists_loaded(self, result):
         self._playlist_request = None
+        if result.get("warning") == "reconnect":
+            # Cached playlists from a lapsed session: keep the sidebar as it is and reload once renewed.
+            self.account.requireReconnect("Your session needs reconnecting. Your playlists will reload once it is renewed.")
+            return
         self._playlist_attempts = 0
         identity = (self.account.profile.get("name"), self.account.profile.get("handle"))
         self._playlists_identity = identity
@@ -498,7 +513,10 @@ class Browse(QObject):
 
     def _playlists_failed(self, error):
         self._playlist_request = None
-        if self.account.connected and error.get("code") != "cancelled":
+        if needs_reconnect(error):
+            # Renewing the session reloads the playlists; retrying the lapsed one would not.
+            self.account.requireReconnect(error.get("message", "Your session needs reconnecting."))
+        elif self.account.connected and error.get("code") != "cancelled":
             delay = PLAYLIST_RETRY_MS[min(self._playlist_attempts, len(PLAYLIST_RETRY_MS) - 1)]
             self._playlist_attempts += 1
             self.playlist_retry.start(delay)
@@ -547,7 +565,7 @@ class Browse(QObject):
 
     @Slot()
     def playView(self):
-        if self.view.data.get("downloadKey") or self.view.reordered:
+        if self.view.data.get("downloadKey") or self.view.data.get("local") or self.view.reordered:
             # A sorted view plays exactly in the order shown.
             self.playItems(self.view.data.get("items", []), self.view.data.get("title", ""))
         elif self.view.route in {"album", "playlist"} and not self.fixture:
@@ -557,7 +575,7 @@ class Browse(QObject):
 
     @Slot()
     def shuffleView(self):
-        if self.view.route in {"album", "playlist"} and not self.fixture and not self.view.data.get("downloadKey"):
+        if self.view.route in {"album", "playlist"} and not self.fixture and not self.view.data.get("downloadKey") and not self.view.data.get("local"):
             self.playCollection({"kind": self.view.route, "id": self.view.parameters.get("id", ""), "title": self.view.data.get("title", "")}, True)
         else:
             self._cancel_play_pages()
