@@ -544,12 +544,13 @@ class DownloadStore:
         Cancelled downloads stay cancelled; a song only they want is not queued again.
         """
         now = time.time()
+        # Checking files can mark one damaged, which writes too, so it happens before the update.
+        bodies = [json.loads(raw) for (raw,) in self.db.execute("""SELECT c.body FROM collections c
+            JOIN collection_jobs j ON c.id=j.collection_id WHERE j.cancelled=0 ORDER BY j.created""").fetchall()]
+        ready = [self._verified(body) for body in bodies]
         with self.db:
-            self.db.execute("BEGIN IMMEDIATE")
-            for (raw,) in self.db.execute("""SELECT c.body FROM collections c JOIN collection_jobs j ON c.id=j.collection_id
-                    WHERE j.cancelled=0 ORDER BY j.created""").fetchall():
-                body = json.loads(raw)
-                self._queue(body, self._verified(body), now)
+            for body, verified in zip(bodies, ready):
+                self._queue(body, verified, now)
             self.db.execute("UPDATE exports SET state='pending', error='' WHERE state='failed'")
             self._prune()
 
