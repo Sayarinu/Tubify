@@ -695,6 +695,12 @@ def main():
                             if name == "downloads":
                                 # The download style choice shows, and deleting every saved file asks first.
                                 assert window.findChild(QObject, "downloadStyleChoice").isVisible()
+                                # Page actions live in the More menu, whose badge counts failed downloads like the tab and sidebar do.
+                                assert window.findChild(QObject, "downloadsMore").isVisible()
+                                for badge in ("downloadsMoreBadge", "downloadsTabBadge", "navigationBadge-Downloads"):
+                                    found = [item for item in visual_items(window.contentItem()) if item.objectName() == badge and item.isVisible()]
+                                    assert found and found[0].property("count") == downloads.retryableCount == 1, badge
+                                assert not [item for item in visual_items(window.contentItem()) if item.objectName() == "retryFailedDownloads" and item.isVisible()]
                                 downloads.requestAllFilesDeletion()
                                 QTest.qWait(80)
                                 deletion = window.findChild(QObject, "audioFilesDeletionDialog")

@@ -105,6 +105,8 @@ class DownloadView(QObject):
                 self._fixture_bodies[key] = {"kind": kind, "id": key.split(":", 1)[1], "title": title, "items": values, "downloadKey": key, "cursor": None, "trackCount": len(values), "duration": sum(track["duration"] for track in values)}
                 self._collections.append({"key": key, "id": key.split(":", 1)[1], "kind": kind, "title": title, "state": state, "ready": len(values) if state == "complete" else 1, "total": len(values), "progress": 0.42 if state == "downloading" else 1., "error": ""})
             self._bytes, self._free = 127000000, 32000000000
+            # The fixture's download that needs repair counts as failed, so its badges show.
+            self._retryable = sum(entry["state"] in {"failed", "damaged"} for entry in self._collections)
             songs = {}
             for key, value in self._fixture_bodies.items():
                 for track in value["items"]:
@@ -421,6 +423,8 @@ class DownloadView(QObject):
             for entry in list(self._collections):
                 if entry["state"] in {"failed", "damaged"}:
                     self._fixture_update(entry["key"], "complete")
+            self._retryable = 0
+            self.retryableChanged.emit()
             return
         self._resume(send=False)
         self._send("retry_failed", authoritative=True)
