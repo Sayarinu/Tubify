@@ -126,23 +126,24 @@ Item {
                     }
                 }
             }
-            // Where downloads are kept, then how much space each place uses: beside the choice,
-            // or under it when narrow. The More menu ends the row.
-            Row {
+            // Where downloads are kept, labelled from above, just left of the More menu. How much space
+            // each place uses fills the rest of the row, or drops under it when narrow.
+            Column {
                 id: storageChoice
                 objectName: "downloadStyles"
+                x: moreActions.x - Theme.spacingMedium - width
                 y: toolbar.secondRow
-                spacing: Theme.spacingMedium
-                Text { anchors.verticalCenter: parent.verticalCenter; text: "Download"; color: themeState.secondary; font.pixelSize: Theme.textBody }
-                DownloadStyleChoice { objectName: "downloadStyleChoice"; anchors.verticalCenter: parent.verticalCenter }
+                spacing: Theme.spacingSmall
+                Text { text: "Download"; color: themeState.secondary; font.pixelSize: Theme.textBody }
+                DownloadStyleChoice { objectName: "downloadStyleChoice" }
             }
             Text {
                 id: storageStatus
                 objectName: "audioFilesStatus"
-                readonly property bool below: moreActions.x - storageChoice.width - 2 * Theme.spacingLarge < Math.min(implicitWidth, 240)
-                x: below ? 0 : storageChoice.width + Theme.spacingLarge
+                readonly property bool below: storageChoice.x - Theme.spacingLarge < Math.min(implicitWidth, 240)
+                x: 0
                 y: below ? storageChoice.y + storageChoice.height + Theme.spacingSmall : storageChoice.y + (storageChoice.height - height) / 2
-                width: (below ? parent.width : moreActions.x - Theme.spacingLarge) - x
+                width: below ? parent.width : storageChoice.x - Theme.spacingLarge
                 text: root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + (downloadsState.fileBytes > 0 || downloadsState.downloadStyle === "files" ? root.bytesLabel(downloadsState.fileBytes) + " as audio files · " : "") + root.bytesLabel(downloadsState.freeBytes) + " free"
                 textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
             }

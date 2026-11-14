@@ -703,6 +703,9 @@ def main():
                                     assert field.property("x") + field.property("width") <= order.property("x")
                                 # Page actions live in the More menu, whose badge counts failed downloads like the tab and sidebar do.
                                 assert window.findChild(QObject, "downloadsMore").isVisible()
+                                # The labelled download style choice ends just left of the More menu.
+                                styles, more = window.findChild(QObject, "downloadStyles"), window.findChild(QObject, "downloadsMore")
+                                assert 0 < more.property("x") - styles.property("x") - styles.property("width") <= 16
                                 named = lambda name: next(item for item in visual_items(window.contentItem()) if item.objectName() == name)
                                 sidebar_badge = "navigationBadge-Downloads" if named("navigationButton-Downloads").property("badgeBeside") else None
                                 assert sidebar_badge or named("navigationFailedDot-Downloads").isVisible()
