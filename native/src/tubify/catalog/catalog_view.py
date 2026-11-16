@@ -104,6 +104,10 @@ class CatalogView(QObject):
                            if isinstance(value, list) and len(value) == 2 and value[0] in SORT_KEYS}
         except (ValueError, TypeError, AttributeError):
             self._sorts = {}
+        # A page that failed on a lapsed session stays loading while the session renews in the background.
+        self._awaiting_session = False
+        if hasattr(account, "renewalFinished"):
+            account.renewalFinished.connect(self._session_renewed)
         if worker:
             worker.succeeded.connect(self._succeeded)
             worker.failed.connect(self._failed)
@@ -401,6 +405,7 @@ class CatalogView(QObject):
             self.worker.cancelQueued(self._request)
         # Revalidation keeps the visible page interactive; only real loads are busy.
         self._busy, self._error, self._append = not revalidate, "", offset > 0
+        self._awaiting_session = False
         self._set_revalidating(revalidate)
         self._request_key = self._memory_key()
         self._request = self.worker.request("catalog", {"cache_path": self.cache_path, "route": self._route, "params": self._params, "offset": offset, "refresh": refresh, "page_size": page_size})
@@ -454,8 +459,23 @@ class CatalogView(QObject):
             if needs_reconnect(error):
                 self.account.requireReconnect(error.get("message", "Your session needs reconnecting."))
             return
-        self._busy, self._request, self._loading_all = False, None, False
-        self._error = error.get("message", "This page could not be loaded. Retry.")
+        self._request, self._loading_all = None, False
+        message = error.get("message", "This page could not be loaded. Retry.")
         if needs_reconnect(error):
-            self.account.requireReconnect(self._error)
+            self.account.requireReconnect(message)
+            if getattr(self.account, "renewing", False):
+                # Keep showing the page as loading; it reloads once the session is renewed.
+                self._awaiting_session = True
+                return
+        self._busy, self._error = False, message
         self.changed.emit()
+
+    def _session_renewed(self, renewed):
+        if not self._awaiting_session:
+            return
+        self._awaiting_session = False
+        if renewed:
+            self.refresh()
+        else:
+            self._busy, self._error = False, "Your session needs reconnecting. Cached music remains available."
+            self.changed.emit()

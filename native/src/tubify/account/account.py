@@ -16,6 +16,8 @@ RENEW_COOLDOWN = 10 * 60
 POLL_MS = 4000
 OLD_ENTRIES_REMOVED = "oldKeyringEntriesRemoved"
 WAIT_LIMIT = 5 * 60
+# A renewal that takes longer than this is holding something up, so it gets a notice.
+RENEWAL_NOTICE_MS = 2000
 
 
 class Account(QObject):
@@ -23,6 +25,8 @@ class Account(QObject):
     connectedChanged = Signal()
     sessionChanged = Signal()
     signedOut = Signal()
+    # A silent renewal finished: True when the session was renewed.
+    renewalFinished = Signal(bool)
 
     def __init__(self, settings_path, fixture=False, worker=None, parent=None, clock=time.time,
                  open_url=QDesktopServices.openUrl, default_browser=browsers.default_browser):
@@ -36,6 +40,11 @@ class Account(QObject):
         self._poll = QTimer(self)
         self._poll.setInterval(POLL_MS)
         self._poll.timeout.connect(self._check_browser)
+        self._renewal_slow = False
+        self._renewal_notice = QTimer(self)
+        self._renewal_notice.setSingleShot(True)
+        self._renewal_notice.setInterval(RENEWAL_NOTICE_MS)
+        self._renewal_notice.timeout.connect(self._renewal_delayed)
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
         self._fixture = fixture
         self.worker = None if fixture else (worker if worker is not None else Worker(self))
@@ -91,6 +100,16 @@ class Account(QObject):
     @Property(bool, constant=True)
     def signInAvailable(self):
         return not self._fixture
+
+    @Property(bool, notify=changed)
+    def renewing(self):
+        """The session is being renewed from the browser in the background."""
+        return self._mode == "silent"
+
+    @Property(bool, notify=changed)
+    def renewalSlow(self):
+        """A renewal something is waiting on has taken over two seconds."""
+        return self._renewal_slow
 
     @Property(bool, notify=changed)
     def signingIn(self):
@@ -172,11 +191,25 @@ class Account(QObject):
         self._last_renewal = now
         self._renew_message = message
         self._mode = "silent"
+        if message:
+            # Only a renewal something is waiting on may need a notice; a routine refresh never does.
+            self._renewal_notice.start()
         self._send("import_browser", {"browsers": [browser]}, keep_message=True)
         return True
 
+    def _renewal_delayed(self):
+        if self._mode == "silent":
+            self._renewal_slow = True
+            self.changed.emit()
+
+    def _end_renewal(self, renewed):
+        self._renewal_notice.stop()
+        self._renewal_slow = False
+        self.renewalFinished.emit(renewed)
+
     def _renewal_failed(self):
         message, self._renew_message = self._renew_message, ""
+        self._end_renewal(False)
         if message:
             # Only a renewal triggered by an expired session raises the banner.
             self._set_reconnect(message)
@@ -223,9 +256,13 @@ class Account(QObject):
         if result.get("oldEntriesRemoved"):
             self.settings.setValue(OLD_ENTRIES_REMOVED, True)
         self.settings.setValue("accountProfile", json.dumps(self._profile))
+        renewed = self._operation == "import_browser" and self._mode == "silent"
         if self._operation == "import_browser":
             self._poll.stop()
             self._mode, self._renew_message = "", ""
+            if renewed:
+                self._renewal_notice.stop()
+                self._renewal_slow = False
             self.settings.setValue("signInBrowser", result.get("browser", ""))
         self.settings.sync()
         self.changed.emit()
@@ -234,6 +271,8 @@ class Account(QObject):
             self.sessionChanged.emit()
         if self._operation == "sign_out":
             self.signedOut.emit()
+        if renewed:
+            self.renewalFinished.emit(self._connected)
         if self._operation == "restore" and self._connected:
             # The browser may have rotated the saved cookies while the app was closed. This doesn't hold
             # up the account state, and being offline says nothing about the session.
@@ -280,5 +319,6 @@ class Account(QObject):
 
     def close(self):
         self._poll.stop()
+        self._renewal_notice.stop()
         if self.worker:
             self.worker.close()

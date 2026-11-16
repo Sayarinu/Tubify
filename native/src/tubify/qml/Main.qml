@@ -241,23 +241,27 @@ ApplicationWindow {
 
     Rectangle {
         id: reconnectBanner
+        objectName: "reconnectBanner"
         anchors.left: navigationEdge.right
         anchors.right: parent.right
         anchors.top: header.bottom
-        visible: accountState.reconnect
+        // A session renews itself in the background; the bar only appears once a renewal
+        // has held something up for two seconds, or when the person has to sign in again.
+        readonly property bool renewing: accountState.renewalSlow && !accountState.reconnect
+        visible: accountState.reconnect || renewing
         height: visible ? 44 : 0
         // A light wash of the error colour keeps the primary text readable on light and dark themes.
-        color: Qt.tint(themeState.surface, Qt.alpha(themeState.error, 0.16))
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Qt.alpha(themeState.error, 0.4) }
+        color: renewing ? themeState.surface : Qt.tint(themeState.surface, Qt.alpha(themeState.error, 0.16))
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: reconnectBanner.renewing ? themeState.border : Qt.alpha(themeState.error, 0.4) }
         Text {
             anchors.left: parent.left; anchors.leftMargin: 24
             anchors.right: reconnectButton.left; anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            text: "Reconnect your account. Downloaded music remains available."
+            text: reconnectBanner.renewing ? "Reconnecting to YouTube Music…" : "Reconnect your account. Downloaded music remains available."
             textFormat: Text.PlainText
             color: themeState.foreground; font.pixelSize: Theme.textBody; elide: Text.ElideRight
         }
-        ThemeActionButton { id: reconnectButton; primary: true; implicitHeight: 32; anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: accountState.signInAvailable ? "Sign In Again" : "Reconnect"; enabled: !accountState.busy && !accountState.signingIn; onClicked: accountState.signInAvailable ? accountState.signIn() : appState.openAccount() }
+        ThemeActionButton { id: reconnectButton; visible: !reconnectBanner.renewing; primary: true; implicitHeight: 32; anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: parent.verticalCenter; text: accountState.signInAvailable ? "Sign In Again" : "Reconnect"; enabled: !accountState.busy && !accountState.signingIn; onClicked: accountState.signInAvailable ? accountState.signIn() : appState.openAccount() }
     }
 
     Item {

@@ -753,12 +753,15 @@ class Playback(QObject):
         if identifier != self._request or worker is not self._request_worker:
             return
         self._request, self._request_worker, self._busy = None, None, False
-        self._message = error.get("message", "This song could not be played.")
+        reconnect = needs_reconnect(error)
+        # A lapsed session renews in the background and the song resumes; a renewal that
+        # fails raises the Reconnect banner, so the song needs no message of its own.
+        self._message = "" if reconnect else error.get("message", "This song could not be played.")
         self.changed.emit()
-        if needs_reconnect(error):
+        if reconnect:
             # Every other song would fail the same way, so wait for the renewed session.
             self._resume_after_session = not self._want_paused
-            self.reconnectNeeded.emit(self._message)
+            self.reconnectNeeded.emit(error.get("message", "Your session needs reconnecting."))
         elif not self._want_paused:
             QTimer.singleShot(0, self._skip_failed)
 

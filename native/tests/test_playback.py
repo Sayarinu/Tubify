@@ -1039,6 +1039,8 @@ def test_expired_session_waits_for_renewal_and_resumes_the_same_song(tmp_path):
     app.processEvents()
     # No skip through a queue that would fail the same way.
     assert asked == ["Your session needs reconnecting."] and player.currentTrack == TRACKS[0]
+    # The session renews in the background, so the song shows no error meanwhile.
+    assert player.message == ""
     count = len(worker.requests)
     player.resetSession()
     app.processEvents()
