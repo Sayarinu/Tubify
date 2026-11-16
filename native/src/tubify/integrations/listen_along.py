@@ -12,12 +12,21 @@ import re
 
 from PySide6.QtCore import QObject, Property, QSettings, QTimer, Signal, Slot
 
-from .lounge import Lounge, SCREEN_ID, state_payload
+from .cast_receiver import details_from, request_details
+from .lounge import STATES, Lounge, SCREEN_ID, number, state_payload
 
 SECRET_PREFIX = "tl1:"
 SYNC_MS = 10000
 NAME = "Tubify Listen Along"
 VIDEO = re.compile(r"[A-Za-z0-9_-]{11}")
+# A follower within this many seconds of the host is left alone.
+DRIFT_S = 3.
+# The host resyncs every 10 seconds while playing; this much silence means it is gone.
+SILENCE_MS = 45000
+# When a different song starts here, wait this long for the host's next song before deciding the
+# listener chose it themselves (autoplay can start a radio song just before the host moves on).
+GRACE_MS = 8000
+LABEL = "Listening Along"
 
 
 def secret_for(screen_id):
@@ -80,6 +89,8 @@ class ListenAlongHost(QObject):
         self.changed.emit()
 
     def stop(self):
+        if not self.lounge:
+            return
         self.sync.stop()
         if self.lounge:
             lounge, self.lounge = self.lounge, None
@@ -159,3 +170,139 @@ class ListenAlongHost(QObject):
     def _sync(self):
         if self.player.playing:
             self._send_state(force=True)
+
+
+class ListenAlongFollower(QObject):
+    """Plays what a friend's Tubify plays, from the join secret Discord hands over."""
+    changed = Signal()
+
+    def __init__(self, player, settings_path, worker=None, cache_path="", parent=None, lounge_factory=Lounge, fixture=False):
+        super().__init__(parent)
+        self.player, self.worker, self.cache_path, self.fixture = player, worker, str(cache_path), fixture
+        self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+        self.lounge_factory, self.lounge = lounge_factory, None
+        self._video, self._host_state, self._status, self._lookups = "", STATES["idle"], "", {}
+        self.silence = QTimer(self)
+        self.silence.setSingleShot(True)
+        self.silence.setInterval(SILENCE_MS)
+        self.silence.timeout.connect(lambda: self.leave("Lost the connection to your friend. Stopped listening along."))
+        self.grace = QTimer(self)
+        self.grace.setSingleShot(True)
+        self.grace.setInterval(GRACE_MS)
+        self.grace.timeout.connect(lambda: self.leave("Stopped listening along."))
+        player.trackStarted.connect(self._track_started)
+        if worker:
+            worker.succeeded.connect(self._lookup_done)
+            worker.failed.connect(lambda identifier, _error: self._lookups.pop(identifier, None))
+
+    @Property(bool, notify=changed)
+    def following(self):
+        return self.lounge is not None
+
+    @Property(str, notify=changed)
+    def status(self):
+        return self._status
+
+    def _set_status(self, text):
+        if text != self._status:
+            self._status = text
+            self.changed.emit()
+
+    @Slot(str)
+    def join(self, secret):
+        screen = screen_from_secret(secret)
+        if not screen:
+            self._set_status("That Listen Along invitation isn't valid.")
+            return
+        if self.fixture:
+            self._set_status("Listen Along is disabled in the visual fixture.")
+            return
+        self._close_lounge()
+        self._video, self._host_state = "", STATES["idle"]
+        self.lounge = self.lounge_factory(self.settings, "Tubify", self, prefix="listenAlongRemote", role="remote", screen_id=screen)
+        self.lounge.command.connect(self._command)
+        self.lounge.stateChanged.connect(self._lounge_state)
+        self._status = "Joining your friend…"
+        self.changed.emit()
+        self.lounge.start()
+
+    @Slot()
+    def stop(self):
+        self.leave("Stopped listening along.")
+
+    def leave(self, message=""):
+        was = self.lounge is not None
+        self._close_lounge()
+        if was or message != self._status:
+            self._status = message
+            self.changed.emit()
+
+    def close(self):
+        self._close_lounge()
+
+    def _close_lounge(self):
+        self.silence.stop()
+        self.grace.stop()
+        if self.lounge:
+            lounge, self.lounge = self.lounge, None
+            lounge.stop()
+            lounge.deleteLater()
+
+    def _lounge_state(self, state):
+        if state == "unavailable":
+            self.leave("Your friend stopped sharing. Stopped listening along.")
+        elif state == "retrying":
+            self._set_status("Reconnecting to your friend…")
+        elif state == "ready":
+            self._set_status("Listening along with a friend.")
+
+    # --- Host → follower ---------------------------------------------------------------------
+    def _command(self, name, payload):
+        if name not in {"nowPlaying", "onStateChange"} or not self.lounge:
+            return
+        state = int(number(payload.get("state"), STATES["idle"]))
+        position = max(0., number(payload.get("currentTime")))
+        video = str(payload.get("videoId", "")) if name == "nowPlaying" else self._video
+        if (name == "nowPlaying" and not VIDEO.fullmatch(video)) or state == STATES["idle"]:
+            self.leave("Your friend stopped playing. Stopped listening along.")
+            return
+        self._host_state = state
+        if state == STATES["playing"]:
+            self.silence.start()
+        else:
+            self.silence.stop()
+        if video != self._video:
+            self.grace.stop()
+            self._video = video
+            self.player.playTracks([{"kind": "song", "videoId": video}], 0, LABEL, position)
+            if state == STATES["paused"]:
+                self.player.pause()
+            return
+        if self.grace.isActive() or state == STATES["loading"]:
+            # The listener is on another song for now; don't steer it.
+            return
+        if abs(number(self.player.position) - position) > DRIFT_S:
+            self.player.seek(position)
+        if state == STATES["playing"] and not self.player.playing:
+            self.player.resume()
+        elif state == STATES["paused"] and self.player.playing:
+            self.player.pause()
+
+    # --- Follower → local player ---------------------------------------------------------------
+    def _track_started(self, track):
+        if not self.lounge:
+            return
+        video = str(track.get("videoId", ""))
+        if video != self._video:
+            # Either autoplay ran ahead of the host or the listener picked something else.
+            self.grace.start()
+            return
+        self.grace.stop()
+        if self.worker and not track.get("title"):
+            self._lookups[request_details(self.worker, self.cache_path, video)] = video
+
+    def _lookup_done(self, identifier, result):
+        video = self._lookups.pop(identifier, None)
+        details = details_from(result, video) if video else {}
+        if details:
+            self.player.updateTrack(video, details)

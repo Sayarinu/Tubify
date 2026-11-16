@@ -37,6 +37,7 @@ from .system.desktop import Desktop
 from .catalog.artist_preview import ArtistPreview
 from .integrations.cast_receiver import CastReceiver
 from .integrations.discord_presence import DiscordPresence
+from .integrations.listen_along import ListenAlongFollower, ListenAlongHost
 from .integrations.handoff import Handoff
 from .system.tray import TrayPlayer
 from .system.lifecycle import Lifecycle
@@ -68,6 +69,8 @@ def load_window(controller, account, player, catalog=None, artwork_path=None, br
         engine.rootContext().setContextProperty("localState", controller.localState)
     if hasattr(controller, "discordState"):
         engine.rootContext().setContextProperty("discordState", controller.discordState)
+    if hasattr(controller, "listenAlongState"):
+        engine.rootContext().setContextProperty("listenAlongState", controller.listenAlongState)
     if hasattr(controller, "artistPreview"):
         engine.rootContext().setContextProperty("artistPreview", controller.artistPreview)
     if hasattr(controller, "castState"):
@@ -229,7 +232,11 @@ def main(argv=None):
     player.reconnectNeeded.connect(account.requireReconnect)
     if source_worker and not (args.smoke_test or args.screenshot):
         start_resolvers(app, player, source_worker, prefetch_worker)
-    controller.discordState = DiscordPresence(player, data / "settings.ini", parent=controller, fixture=args.fixture)
+    # Listen Along: the host broadcasts on its own Lounge screen; the follower joins a friend's from Discord.
+    listen_host = ListenAlongHost(player, data / "settings.ini", parent=controller)
+    controller.listenAlongState = ListenAlongFollower(player, data / "settings.ini", account.worker, cache / "metadata.sqlite3", parent=controller, fixture=args.fixture)
+    on_quit(controller.listenAlongState.close)
+    controller.discordState = DiscordPresence(player, data / "settings.ini", parent=controller, fixture=args.fixture, host=listen_host, follower=controller.listenAlongState)
     on_quit(controller.discordState.close)
     controller.playbackOptions = PlaybackOptions(data / "settings.ini", player, parent=controller)
     controller.trayState = TrayPlayer(controller, player, data / "settings.ini", PACKAGE / "assets" / "music.svg", parent=controller)
