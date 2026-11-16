@@ -1,7 +1,6 @@
 import json
 
 from PySide6.QtCore import QCoreApplication, QObject, Signal
-from PySide6.QtTest import QTest
 
 from tubify.integrations.listen_along import ListenAlongHost, party_for, screen_from_secret, secret_for
 
@@ -247,7 +246,6 @@ def test_a_follower_stops_when_the_host_stops_or_goes_away(tmp_path):
 def test_choosing_another_song_ends_following_but_autoplay_waits_for_the_host(tmp_path):
     player, follower = follower_for(tmp_path)
     follower.join("tl1:" + SCREEN)
-    follower.grace.setInterval(30)
     follower.lounge.command.emit("nowPlaying", {"videoId": "abcdefghijk", "currentTime": "0", "state": "1"})
     player.trackStarted.emit({"videoId": "radiosong01"})
     follower.lounge.command.emit("onStateChange", {"currentTime": "100", "state": "1"})
@@ -255,7 +253,8 @@ def test_choosing_another_song_ends_following_but_autoplay_waits_for_the_host(tm
     follower.lounge.command.emit("nowPlaying", {"videoId": "bcdefghijkl", "currentTime": "0", "state": "1"})
     assert follower.following and not follower.grace.isActive()
     player.trackStarted.emit({"videoId": "mychoice001"})
-    QTest.qWait(80)
+    assert follower.following and follower.grace.isActive()
+    follower.grace.timeout.emit()
     assert not follower.following and follower.status == "Stopped listening along."
 
 
