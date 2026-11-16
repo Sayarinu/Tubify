@@ -5,14 +5,13 @@ shows what Tubify is playing. Local controls in Tubify always win and are report
 """
 
 import json
-import math
 import re
 import uuid
 
 from PySide6.QtCore import QObject, Property, QSettings, QTimer, Signal, Slot
 
 from .cast_dial import DialServer
-from .lounge import Lounge
+from .lounge import Lounge, number, player_state, state_payload
 
 VIDEO = re.compile(r"[A-Za-z0-9_-]{11}")
 MAX_CAST_TRACKS = 500
@@ -21,7 +20,6 @@ DESCRIPTION_WAIT_MS = 5000
 # A phone gives up on a pairing code quickly, so a request nobody answered goes away.
 PAIRING_WAIT_MS = 60000
 DEFAULT_NAME = "Tubify"
-STATES = {"idle": -1, "playing": 1, "paused": 2, "loading": 3}
 
 
 def clean_name(value):
@@ -35,14 +33,6 @@ def cast_ids(payload):
     if not ids and VIDEO.fullmatch(str(payload.get("videoId", ""))):
         ids = [payload["videoId"]]
     return ids
-
-
-def number(value, default=0.):
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return default
-    return result if math.isfinite(result) else default
 
 
 class CastReceiver(QObject):
@@ -346,19 +336,10 @@ class CastReceiver(QObject):
             self.lounge.send(name, payload)
 
     def _state(self):
-        player = self.player
-        if not player.hasTrack:
-            return STATES["idle"]
-        if player.busy:
-            return STATES["loading"]
-        return STATES["playing"] if player.playing else STATES["paused"]
+        return player_state(self.player)
 
     def _state_payload(self):
-        duration = max(0., number(self.player.duration))
-        return {
-            "currentTime": f"{max(0., number(self.player.position)):.3f}", "duration": f"{duration:.3f}", "cpn": "tubify",
-            "loadedTime": f"{duration:.3f}", "state": self._state(), "seekableStartTime": 0, "seekableEndTime": f"{duration:.3f}",
-        }
+        return state_payload(self.player)
 
     def _send_now_playing(self):
         video = str(self.player.currentTrack.get("videoId", "")) if self.player.hasTrack else ""
