@@ -30,7 +30,7 @@ SettingsPage {
                 ThemeActionButton { text: "Save ID"; onClicked: discordState.setClientId(client.text) }
                 Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Tubify includes its own Application ID. Only change this if you use a separately registered Discord application. No bot token or client secret is needed."; color: themeState.secondary; font.pixelSize: Theme.textSmall }
             }
-            SettingsCheckBox { text: "Show Listen on YouTube Music Button"; checked: discordState.buttons; onClicked: discordState.setButtons(checked) }
+            SettingsCheckBox { text: "Show Listen on Tubify Button"; checked: discordState.buttons; onClicked: discordState.setButtons(checked) }
             Label { objectName: "discordStatus"; Layout.fillWidth: true; wrapMode: Text.Wrap; text: discordState.status; color: themeState.foreground }
             ThemeActionButton { text: "Retry"; enabled: discordState.enabled; onClicked: discordState.retry() }
         }

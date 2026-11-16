@@ -54,9 +54,13 @@ def activity_for(player, buttons=False, now=None):
     if not player.hasTrack or not player.playing:
         return None
     track = player.currentTrack
-    artist = " · ".join(str(row.get("name", "")) for row in track.get("artists", []) if isinstance(row, dict) and row.get("name")) or str(track.get("artist") or "")
-    title = str(track.get("title") or "Unknown track")[:128]
-    activity = {"type": 2, "name": title, "status_display_type": 2, "details": title, "state": (artist or "Tubify")[:128]}
+    names = [str(row["name"]) for row in track.get("artists", []) if isinstance(row, dict) and row.get("name")]
+    artist = " · ".join(names) or str(track.get("artist") or "")
+    primary = names[0] if names else artist
+    title = str(track.get("title") or "Unknown track")
+    # The member list shows details, so it carries "Primary Artist - Song".
+    details = (primary + " - " + title if primary else title)[:128]
+    activity = {"type": 2, "name": title[:128], "status_display_type": 2, "details": details, "state": (artist or "Tubify")[:128]}
     artwork = public_artwork_url(track)
     if artwork:
         activity["assets"] = {"large_image": artwork}
@@ -67,7 +71,7 @@ def activity_for(player, buttons=False, now=None):
     video = track.get("videoId") or track.get("id")
     url = share_url(video)
     if buttons and url:
-        activity["buttons"] = [{"label": "Listen on YouTube Music", "url": url}]
+        activity["buttons"] = [{"label": "Listen on Tubify", "url": url}]
     return activity
 
 
