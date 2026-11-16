@@ -228,3 +228,29 @@ def test_search_outside_library_does_not_filter_rows(tmp_path):
     view.setQuery("zzz")
     view.query_timer.timeout.emit()
     assert view.itemsModel.rowCount() == 2
+
+
+class RenewingAccount(QObject):
+    renewalFinished = Signal(bool)
+
+    def __init__(self):
+        super().__init__()
+        self.renewing, self.profile = False, {}
+
+    def requireReconnect(self, message):
+        self.renewing = True
+
+
+def test_page_keeps_loading_while_the_session_renews_then_reloads(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    worker, account = FakeWorker(), RenewingAccount()
+    view = CatalogView(worker, tmp_path / "cache.sqlite3", account)
+    view.load("search", {"query": "song"})
+    worker.failed.emit(1, {"code": "reconnect", "message": "Reconnect"})
+    assert view.busy and not view.error
+    account.renewing = False
+    account.renewalFinished.emit(True)
+    assert len(worker.requests) == 2 and view.busy and not view.error
+    worker.failed.emit(2, {"code": "reconnect", "message": "Reconnect"})
+    account.renewalFinished.emit(False)
+    assert not view.busy and "reconnecting" in view.error and len(worker.requests) == 2

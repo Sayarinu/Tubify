@@ -398,3 +398,36 @@ def test_old_keyring_entries_are_only_removed_until_it_has_worked(tmp_path):
     assert worker.requests[-1] == ("restore", None)
     worker.succeeded.emit(3, {"connected": False, "profile": {}})
     assert Account(tmp_path / "settings.ini", worker=FakeWorker()).settings.value("oldKeyringEntriesRemoved", False, type=bool)
+
+
+def test_renewal_shows_a_notice_only_after_two_seconds(tmp_path):
+    account, worker = restored_account(tmp_path)
+    finished = []
+    account.renewalFinished.connect(finished.append)
+    account.requireReconnect("Session expired")
+    assert account.renewing and not account.renewalSlow and not account.reconnect
+    assert account._renewal_notice.isActive() and account._renewal_notice.interval() == 2000
+    account._renewal_notice.timeout.emit()
+    assert account.renewalSlow and not account.reconnect
+    worker.succeeded.emit(3, {"connected": True, "profile": {"name": "Listener"}, "browser": "firefox"})
+    assert not account.renewing and not account.renewalSlow and account.connected and finished == [True]
+
+
+def test_failed_renewal_drops_the_notice_and_asks_to_sign_in(tmp_path):
+    account, worker = restored_account(tmp_path)
+    finished = []
+    account.renewalFinished.connect(finished.append)
+    account.requireReconnect("Session expired")
+    account._renewal_notice.timeout.emit()
+    worker.failed.emit(3, {"code": "NoBrowserSession", "message": "none"})
+    assert not account.renewalSlow and account.reconnect and finished == [False]
+    assert not account._renewal_notice.isActive()
+
+
+def test_routine_refresh_never_shows_a_notice(tmp_path):
+    clock = [10 * 24 * 3600.]
+    account, worker, _ = browser_account(tmp_path, clock)
+    account.settings.setValue("signInBrowser", "firefox")
+    worker.succeeded.emit(1, {"connected": True, "profile": {"name": "Listener"}, "captured": 1.})
+    worker.succeeded.emit(2, {"captured": 1.})
+    assert account.renewing and not account._renewal_notice.isActive()

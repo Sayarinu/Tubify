@@ -4,11 +4,22 @@ from pathlib import Path
 import tempfile
 import traceback
 
-from PySide6.QtCore import QObject, QMetaObject, QTimer, Qt
+from PySide6.QtCore import QObject, QMetaObject, QPointF, QTimer, Qt
 from PySide6.QtGui import QColor, QGuiApplication, QImage
 from PySide6.QtTest import QTest
 
 from tubify import app
+
+
+def shown_item(window, name):
+    """The visible scene item with this object name."""
+    items = [window.contentItem()]
+    while items:
+        item = items.pop()
+        if item.objectName() == name and item.isVisible():
+            return item
+        items.extend(item.childItems())
+    raise AssertionError(name + " is not shown")
 
 
 def main():
@@ -75,6 +86,22 @@ def main():
                 assert QMetaObject.invokeMethod(item, "triggered")
                 assert len(player.entries) == count + 1
                 QMetaObject.invokeMethod(menu, "close")
+                # Right-clicking the player bar or its song opens the playing song's menu.
+                player.playTracks([track])
+                QTest.qWait(50)
+                for name in ("playerTitleText", "playerBar"):
+                    target = shown_item(window, name)
+                    QTest.mouseClick(window, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, target.mapToScene(QPointF(4, 4)).toPoint())
+                    QTest.qWait(50)
+                    assert menu.property("opened") and menu.property("context") == {"nowPlaying": True}, name
+                    QMetaObject.invokeMethod(menu, "close")
+                    QTest.qWait(50)
+                # A sidebar playlist's artwork plays it where it is; the row itself still opens it.
+                route, queued = view.route, len(player.entries)
+                artwork = shown_item(window, "sidebarPlaylistPlay")
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, artwork.mapToScene(QPointF(20, 20)).toPoint())
+                QTest.qWait(100)
+                assert view.route == route and player.playing and len(player.entries) != queued, (view.route, len(player.entries))
                 # The playlist picker uses the same themed shell as other dialogs and focuses its search.
                 library.choosePlaylist(track)
                 QTest.qWait(50)
