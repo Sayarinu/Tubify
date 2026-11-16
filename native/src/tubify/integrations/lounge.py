@@ -6,6 +6,7 @@ stay inside this module: they never reach logs, status text or exceptions.
 """
 
 import json
+import math
 import random
 import re
 import time
@@ -17,6 +18,8 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequ
 
 BASE = "https://www.youtube.com/api/lounge"
 SCREEN_APP = "tubify"
+REMOTE_APP = "tubify-listen-along"
+SCREEN_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 RETRY_MS = (2000, 5000, 15000, 30000, 60000)
 POLL_TIMEOUT_MS = 330000
 REQUEST_TIMEOUT_MS = 20000
@@ -26,6 +29,34 @@ DEVICE_INFO = json.dumps({
     "brand": "Nouvelle Lune", "model": "Tubify", "year": 0, "os": "Desktop", "osVersion": "", "chipset": "",
     "clientName": "TVHTML5", "dialAdditionalDataSupportLevel": "unsupported", "mdxDialServerType": "MDX_DIAL_SERVER_TYPE_UNKNOWN",
 }, separators=(",", ":"))
+
+
+STATES = {"idle": -1, "playing": 1, "paused": 2, "loading": 3}
+
+
+def number(value, default=0.):
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
+def player_state(player):
+    if not player.hasTrack:
+        return STATES["idle"]
+    if player.busy:
+        return STATES["loading"]
+    return STATES["playing"] if player.playing else STATES["paused"]
+
+
+def state_payload(player):
+    """The onStateChange body a screen reports for the player's current position."""
+    duration = max(0., number(player.duration))
+    return {
+        "currentTime": f"{max(0., number(player.position)):.3f}", "duration": f"{duration:.3f}", "cpn": "tubify",
+        "loadedTime": f"{duration:.3f}", "state": player_state(player), "seekableStartTime": 0, "seekableEndTime": f"{duration:.3f}",
+    }
 
 
 class FrameParser:
@@ -70,8 +101,8 @@ def encode_messages(ofs, messages):
 class LoungeSession:
     """Session values for the bind URL; the network-free half of the Lounge client."""
 
-    def __init__(self, device_id, name, theme="m"):
-        self.device_id, self.name, self.theme = device_id, name, theme
+    def __init__(self, device_id, name, theme="m", role="screen"):
+        self.device_id, self.name, self.theme, self.role = device_id, name, theme, role
         self.token, self.token_expiry = "", 0.
         self.reset()
 
@@ -84,6 +115,12 @@ class LoungeSession:
         return bool(self.token and self.sid and self.gsessionid)
 
     def common(self):
+        if self.role == "remote":
+            # A remote binds to someone else's screen and only listens; it has no screen capabilities.
+            return {
+                "device": "REMOTE_CONTROL", "id": self.device_id, "name": self.name, "app": REMOTE_APP, "mdx-version": 3,
+                "loungeIdToken": self.token, "VER": 8, "v": 2, "zx": uuid.uuid4().hex[:12], "t": 1,
+            }
         return {
             "device": "LOUNGE_SCREEN", "id": self.device_id, "obfuscatedGaiaId": "", "name": self.name, "app": SCREEN_APP,
             "theme": self.theme, "capabilities": "dsp,mic,dpa,ntb", "cst": "m", "mdxVersion": 2, "loungeIdToken": self.token,
@@ -92,11 +129,12 @@ class LoungeSession:
 
     def query(self, kind):
         params = self.common()
+        device = {} if self.role == "remote" else {"deviceInfo": DEVICE_INFO}
         if kind == "init":
-            params.update(deviceInfo=DEVICE_INFO, RID=self.rid, CVER=1)
+            params.update(device, RID=self.rid, CVER=1)
             self.rid += 1
         elif kind == "send":
-            params.update(deviceInfo=DEVICE_INFO, SID=self.sid, RID=self.rid, AID=self.aid, gsessionid=self.gsessionid)
+            params.update(device, SID=self.sid, RID=self.rid, AID=self.aid, gsessionid=self.gsessionid)
             self.rid += 1
         else:
             params.update(RID="rpc", SID=self.sid, CI=0, AID=self.aid, gsessionid=self.gsessionid, TYPE="xmlhttp")
@@ -117,20 +155,25 @@ class LoungeSession:
 
 
 class Lounge(QObject):
-    """Keeps one screen session bound and forwards commands; reconnects with backoff."""
+    """Keeps one session bound and forwards commands; reconnects with backoff.
+
+    As a screen (cast, Listen Along host) it owns a screen ID stored under `prefix`. As a remote
+    (a Listen Along follower) it binds to the screen ID it was given and never creates one.
+    """
 
     command = Signal(str, "QVariantMap")
     connected = Signal()
     stateChanged = Signal(str)
 
-    def __init__(self, settings, name, parent=None, network=None, clock=time.time):
+    def __init__(self, settings, name, parent=None, network=None, clock=time.time, prefix="cast", role="screen", screen_id=""):
         super().__init__(parent)
-        self.settings, self.clock = settings, clock
-        device_id = str(settings.value("cast/deviceId", "") or "")
+        self.settings, self.clock, self.prefix, self.role = settings, clock, prefix, role
+        self._remote_screen = screen_id if role == "remote" and SCREEN_ID.fullmatch(screen_id or "") else ""
+        device_id = str(settings.value(prefix + "/deviceId", "") or "")
         if not re.fullmatch(r"[0-9a-f-]{36}", device_id):
             device_id = str(uuid.uuid4())
-            settings.setValue("cast/deviceId", device_id)
-        self.session = LoungeSession(device_id, name)
+            settings.setValue(prefix + "/deviceId", device_id)
+        self.session = LoungeSession(device_id, name, role=role)
         self.network = network or QNetworkAccessManager(self)
         self.parser = FrameParser()
         self._poll_reply = self._send_reply = None
@@ -143,8 +186,10 @@ class Lounge(QObject):
     # --- Public -----------------------------------------------------------------------------
     @property
     def screen_id(self):
-        value = str(self.settings.value("cast/screenId", "") or "")
-        return value if re.fullmatch(r"[A-Za-z0-9_-]{8,64}", value) else ""
+        if self.role == "remote":
+            return self._remote_screen
+        value = str(self.settings.value(self.prefix + "/screenId", "") or "")
+        return value if SCREEN_ID.fullmatch(value) else ""
 
     @property
     def ready(self):
@@ -177,7 +222,8 @@ class Lounge(QObject):
         """Drop this screen's identity; a new one is created on the next connection, with no phones paired."""
         running = self._running
         self.stop()
-        self.settings.remove("cast/screenId")
+        if self.role != "remote":
+            self.settings.remove(self.prefix + "/screenId")
         self.session.token, self.session.token_expiry = "", 0
         if running:
             self.start()
@@ -202,7 +248,10 @@ class Lounge(QObject):
         if not self._running:
             return
         self.stateChanged.emit("connecting")
-        if not self.screen_id:
+        if not self.screen_id and self.role == "remote":
+            self.stateChanged.emit("unavailable")
+            self._running = False
+        elif not self.screen_id:
             self._get(f"{BASE}/pairing/generate_screen_id", self._screen_created)
         elif not self.session.token or self.session.token_expiry - self.clock() < TOKEN_MARGIN_S:
             self._post(f"{BASE}/pairing/get_lounge_token_batch", {"screen_ids": self.screen_id}, self._token_received)
@@ -213,7 +262,7 @@ class Lounge(QObject):
         screen = body.strip()
         if status != 200 or not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", screen):
             return self._fail()
-        self.settings.setValue("cast/screenId", screen)
+        self.settings.setValue(self.prefix + "/screenId", screen)
         self._connect()
 
     def _token_received(self, status, body):
@@ -223,8 +272,14 @@ class Lounge(QObject):
         except (ValueError, KeyError, IndexError, TypeError):
             token, expiry = "", 0
         if status != 200 or not token:
+            if status in {400, 404} and self.role == "remote":
+                # The host reset or retired its screen, so this invitation no longer works.
+                self._running = False
+                self.session.reset()
+                self.stateChanged.emit("unavailable")
+                return
             if status in {400, 404}:
-                self.settings.remove("cast/screenId")
+                self.settings.remove(self.prefix + "/screenId")
             return self._fail()
         self.session.token, self.session.token_expiry = token, expiry or self.clock() + 13 * 86400
         self._connect()

@@ -26,6 +26,7 @@ class Pipe(QObject):
     ready = Signal()
     failed = Signal(str)
     acknowledged = Signal()
+    joinRequested = Signal(str)
     def __init__(self, client, parent):
         super().__init__(parent)
         self.client, self.connected, self.sent, self.closed = client, False, [], False
@@ -48,7 +49,7 @@ def wait_for(predicate):
 def test_public_payload_has_only_allowlisted_metadata():
     player = Player()
     result = activity_for(player, True, now=1000)
-    assert result == {"type": 2, "name": "Fixture song", "status_display_type": 2, "details": "Fixture song", "state": "Fixture artist", "timestamps": {"start": 970, "end": 1150}, "buttons": [{"label": "Listen on YouTube Music", "url": "https://music.youtube.com/watch?v=abcdefghijk"}]}
+    assert result == {"type": 2, "name": "Fixture song", "status_display_type": 2, "details": "Fixture artist - Fixture song", "state": "Fixture artist", "timestamps": {"start": 970, "end": 1150}, "buttons": [{"label": "Listen on Tubify", "url": "https://music.youtube.com/watch?v=abcdefghijk"}]}
     assert "private" not in json.dumps(result)
 
 
@@ -56,15 +57,25 @@ def test_a_song_without_an_artist_shows_tubify():
     player = Player()
     player.currentTrack = {"videoId": "abcdefghijk", "title": "Fixture song"}
     assert activity_for(player, now=1000)["state"] == "Tubify"
+    assert activity_for(player, now=1000)["details"] == "Fixture song"
     player.currentTrack = {"title": "A" * 300, "artist": "Fallback", "videoId": "invalid&token=private"}
     assert len(activity_for(player)["details"]) == 128
-    assert activity_for(player)["name"] == activity_for(player)["details"]
+    assert activity_for(player)["details"].startswith("Fallback - AAA")
+    assert activity_for(player)["name"] == "A" * 128
     assert activity_for(player)["status_display_type"] == 2
     assert "buttons" not in activity_for(player, True)
     player.currentTrack = {}
     assert activity_for(player)["name"] == "Unknown track"
     player.playing = False
     assert activity_for(player) is None
+
+
+def test_the_status_names_only_the_primary_artist():
+    player = Player()
+    player.currentTrack = {"videoId": "abcdefghijk", "title": "Duet", "artists": [{"name": "First"}, {"name": "Second"}]}
+    result = activity_for(player)
+    assert result["details"] == "First - Duet"
+    assert result["state"] == "First · Second"
 
 
 def test_public_album_art_is_allowlisted_and_falls_back_safely():
@@ -211,8 +222,20 @@ def test_actual_local_ipc_framing_ack_coalescing_and_invalid_length(tmp_path):
         peer.write(struct.pack("<II", opcode, len(data)) + data)
         peer.flush()
     assert receive() == (0, {"v": 1, "client_id": "123456789012345678"})
+    joins = []
+    pipe.joinRequested.connect(joins.append)
     send(1, {"evt": "READY"})
     wait_for(lambda: bool(ready))
+    opcode, subscribe = receive()
+    assert opcode == 1 and subscribe["cmd"] == "SUBSCRIBE" and subscribe["evt"] == "ACTIVITY_JOIN"
+    # A refused subscription is not a broken connection.
+    send(1, {"evt": "ERROR", "nonce": subscribe["nonce"], "data": {"message": "no"}})
+    send(1, {"cmd": "DISPATCH", "evt": "ACTIVITY_JOIN", "data": {"secret": "tl1:host-screen-identity"}})
+    send(1, {"cmd": "DISPATCH", "evt": "ACTIVITY_JOIN", "data": {"secret": "x" * 129}})
+    send(1, {"cmd": "DISPATCH", "evt": "ACTIVITY_JOIN", "data": "bad"})
+    wait_for(lambda: bool(joins))
+    QTest.qWait(20)
+    assert joins == ["tl1:host-screen-identity"] and not errors
     pipe.publish({"details": "First"})
     opcode, first = receive()
     assert opcode == 1 and first["cmd"] == "SET_ACTIVITY"
@@ -288,4 +311,66 @@ def test_default_id_restores_empty_settings_and_reset_preserves_consent(tmp_path
     service.close()
     restored = DiscordPresence(player, path, pipe_factory=Pipe)
     assert restored.clientId == DEFAULT_APPLICATION_ID and restored.enabled
+    restored.close()
+
+
+def test_listen_along_replaces_the_button_with_a_join_invitation():
+    player = Player()
+    result = activity_for(player, True, now=1000, listen={"party": "p" * 32, "secret": "tl1:host-screen-identity", "size": 3})
+    assert result["party"] == {"id": "p" * 32, "size": [3, 16]} and result["secrets"] == {"join": "tl1:host-screen-identity"}
+    assert "buttons" not in result
+    assert "buttons" in activity_for(player, True, listen={"party": "", "secret": "", "size": 1})
+
+
+class Host(QObject):
+    changed = Signal()
+    def __init__(self):
+        super().__init__()
+        self.running, self.followers, self.resets = False, 2, 0
+        self.secret, self.party_id = "tl1:host-screen-identity", "p" * 32
+    def start(self):
+        self.running = True
+    def stop(self):
+        self.running = False
+    def reset(self):
+        self.resets += 1
+
+
+class Follower:
+    def __init__(self):
+        self.joined, self.closed = [], 0
+    def join(self, secret):
+        self.joined.append(secret)
+    def close(self):
+        self.closed += 1
+
+
+def test_listen_along_stays_connected_while_idle_and_forwards_joins(tmp_path):
+    app = QCoreApplication.instance() or QCoreApplication([])
+    player, host, follower = Player(), Host(), Follower()
+    player.playing = False
+    service = DiscordPresence(player, tmp_path / "settings.ini", pipe_factory=Pipe, host=host, follower=follower)
+    service.setEnabled(True)
+    assert service.pipe is None and not host.running
+    service.setListenAlong(True)
+    pipe = service.pipe
+    assert pipe and host.running and service.listenFollowers == 2
+    pipe.connected = True
+    pipe.ready.emit()
+    assert pipe.sent == [None]
+    pipe.joinRequested.emit("tl1:friend-screen-identity")
+    assert follower.joined == ["tl1:friend-screen-identity"]
+    player.playing = True
+    player.changed.emit()
+    QTest.qWait(5)
+    assert pipe.sent[-1]["secrets"] == {"join": "tl1:host-screen-identity"} and pipe.sent[-1]["party"]["size"] == [3, 16]
+    service.resetListenAlong()
+    assert host.resets == 1
+    service.setListenAlong(False)
+    assert not host.running and follower.closed == 1
+    pipe.joinRequested.emit("tl1:friend-screen-identity")
+    assert len(follower.joined) == 1
+    service.close()
+    restored = DiscordPresence(player, tmp_path / "settings.ini", pipe_factory=Pipe)
+    assert not restored.listenAlong
     restored.close()

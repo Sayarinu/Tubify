@@ -174,6 +174,15 @@ Rectangle {
         id: tools
         anchors.right: parent.right; anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
+        FilterChip {
+            objectName: "listenAlongStop"
+            anchors.verticalCenter: parent.verticalCenter
+            visible: typeof listenAlongState !== "undefined" && listenAlongState.following
+            choice: false
+            text: "Listening Along · Stop"
+            Accessible.name: "Stop Listening Along"
+            onClicked: listenAlongState.stop()
+        }
         IconButton { implicitWidth: root.dense ? 36 : 44; iconName: "more"; tip: "Current Song Options"; enabled: playerState.hasTrack; onClicked: appState.showMenu(playerState.currentTrack, {nowPlaying: true}) }
         IconButton {
             id: sleepButton

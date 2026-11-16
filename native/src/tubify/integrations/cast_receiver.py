@@ -5,14 +5,13 @@ shows what Tubify is playing. Local controls in Tubify always win and are report
 """
 
 import json
-import math
 import re
 import uuid
 
 from PySide6.QtCore import QObject, Property, QSettings, QTimer, Signal, Slot
 
 from .cast_dial import DialServer
-from .lounge import Lounge
+from .lounge import Lounge, number, player_state, state_payload
 
 VIDEO = re.compile(r"[A-Za-z0-9_-]{11}")
 MAX_CAST_TRACKS = 500
@@ -21,7 +20,19 @@ DESCRIPTION_WAIT_MS = 5000
 # A phone gives up on a pairing code quickly, so a request nobody answered goes away.
 PAIRING_WAIT_MS = 60000
 DEFAULT_NAME = "Tubify"
-STATES = {"idle": -1, "playing": 1, "paused": 2, "loading": 3}
+
+
+DETAIL_KEYS = {"title", "artist", "artists", "album", "thumbnail", "largeThumbnail", "artworkVariants", "duration", "available"}
+
+
+def request_details(worker, cache_path, video):
+    """Ask the catalog for a bare video ID's title, artists and artwork; returns the request ID."""
+    return worker.request("catalog", {"cache_path": str(cache_path), "route": "radio", "params": {"id": video, "radio": False}})
+
+
+def details_from(result, video):
+    row = next((item for item in result.get("items", []) if isinstance(item, dict) and item.get("videoId") == video), None) if isinstance(result, dict) else None
+    return {key: value for key, value in row.items() if key in DETAIL_KEYS} if row else {}
 
 
 def clean_name(value):
@@ -35,14 +46,6 @@ def cast_ids(payload):
     if not ids and VIDEO.fullmatch(str(payload.get("videoId", ""))):
         ids = [payload["videoId"]]
     return ids
-
-
-def number(value, default=0.):
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return default
-    return result if math.isfinite(result) else default
 
 
 class CastReceiver(QObject):
@@ -329,16 +332,15 @@ class CastReceiver(QObject):
         video = str(track.get("videoId", ""))
         if not self.worker or track.get("title") or video not in self._ids:
             return
-        identifier = self.worker.request("catalog", {"cache_path": self.cache_path, "route": "radio", "params": {"id": video, "radio": False}})
-        self._lookups[identifier] = video
+        self._lookups[request_details(self.worker, self.cache_path, video)] = video
 
     def _lookup_done(self, identifier, result):
         video = self._lookups.pop(identifier, None)
         if video is None:
             return
-        row = next((item for item in result.get("items", []) if isinstance(item, dict) and item.get("videoId") == video), None)
-        if row:
-            self.player.updateTrack(video, {key: value for key, value in row.items() if key in {"title", "artist", "artists", "album", "thumbnail", "largeThumbnail", "artworkVariants", "duration", "available"}})
+        details = details_from(result, video)
+        if details:
+            self.player.updateTrack(video, details)
 
     # --- Tubify → phone -------------------------------------------------------------------
     def _send(self, name, payload):
@@ -346,19 +348,10 @@ class CastReceiver(QObject):
             self.lounge.send(name, payload)
 
     def _state(self):
-        player = self.player
-        if not player.hasTrack:
-            return STATES["idle"]
-        if player.busy:
-            return STATES["loading"]
-        return STATES["playing"] if player.playing else STATES["paused"]
+        return player_state(self.player)
 
     def _state_payload(self):
-        duration = max(0., number(self.player.duration))
-        return {
-            "currentTime": f"{max(0., number(self.player.position)):.3f}", "duration": f"{duration:.3f}", "cpn": "tubify",
-            "loadedTime": f"{duration:.3f}", "state": self._state(), "seekableStartTime": 0, "seekableEndTime": f"{duration:.3f}",
-        }
+        return state_payload(self.player)
 
     def _send_now_playing(self):
         video = str(self.player.currentTrack.get("videoId", "")) if self.player.hasTrack else ""
