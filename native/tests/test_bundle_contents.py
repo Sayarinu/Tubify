@@ -98,3 +98,10 @@ def test_finished_bundle_check_reports_unneeded_files_and_limits(tmp_path, capsy
     assert bundle_contents.main(arguments) == 1
     output = capsys.readouterr().out
     assert "Unneeded: PySide6/Qt6WebEngineCore.dll" in output and "over the limit of 1." in output
+
+
+def test_windows_update_clears_the_previous_bundle_before_installing():
+    # A leftover tubify-*.dist-info from the old build could report the old version after an update.
+    script = (ROOT / "packaging" / "windows" / "Tubify.iss").read_text()
+    section = script.split("[InstallDelete]", 1)[1].split("\n[", 1)[0]
+    assert 'Type: filesandordirs; Name: "{app}\\_internal"' in section
