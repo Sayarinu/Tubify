@@ -28,6 +28,11 @@ CloseApplications=yes
 RestartApplications=no
 UninstallDisplayName=Tubify
 
+[InstallDelete]
+; Clear the previous build first. Its leftover tubify-*.dist-info would otherwise sit beside the
+; new one, and Tubify could read its version from the old build and offer the same update again.
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
