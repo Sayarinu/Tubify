@@ -15,6 +15,7 @@ FocusScope {
     Accessible.role: Accessible.Button
     Accessible.name: "Top result: " + (media.title || "") + ", " + kindLabel
     Keys.onReturnPressed: browseState.open(root.media)
+    Keys.onPressed: event => { if (event.key === Qt.Key_Menu || event.key === Qt.Key_F10 && event.modifiers & Qt.ShiftModifier) { appState.showMenu(root.media, {}); event.accepted = true } }
     HoverHandler { id: hover }
     Rectangle {
         anchors.fill: parent; radius: Theme.radiusMedium
@@ -22,7 +23,11 @@ FocusScope {
         border.width: root.activeFocus ? 2 : 0; border.color: themeState.accent
         Behavior on color { enabled: !appState.reducedMotion; ColorAnimation { duration: Theme.motionFast } }
     }
-    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.forceActiveFocus(); browseState.open(root.media) } }
+    MouseArea {
+        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: mouse => { if (mouse.button === Qt.RightButton) appState.showMenu(root.media, {}); else { root.forceActiveFocus(); browseState.open(root.media) } }
+    }
     Column {
         x: 24; y: 24; width: parent.width - 48; spacing: Theme.spacingLarge
         Cover {
