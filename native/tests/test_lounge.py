@@ -68,3 +68,39 @@ def test_forgetting_drops_the_screen_and_its_token_then_reconnects(tmp_path):
     lounge.stop()
     lounge.forget()
     assert len(connects) == 2
+
+
+def test_a_remote_session_binds_without_screen_capabilities():
+    session = LoungeSession("00000000-0000-4000-8000-000000000000", "Tubify", role="remote")
+    session.token = "TOKEN"
+    init = parse_qs(session.query("init"))
+    assert init["device"] == ["REMOTE_CONTROL"] and init["app"] == ["tubify-listen-along"] and init["mdx-version"] == ["3"]
+    assert "deviceInfo" not in init and "capabilities" not in init and init["loungeIdToken"] == ["TOKEN"]
+
+
+def test_prefixes_keep_screens_apart_and_cast_keeps_its_keys(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    settings.setValue("cast/screenId", "cast-screen-identity")
+    cast = Lounge(settings, "Tubify")
+    host = Lounge(settings, "Tubify", prefix="listenAlong")
+    assert cast.screen_id == "cast-screen-identity" and host.screen_id == ""
+    assert settings.contains("cast/deviceId") and settings.contains("listenAlong/deviceId")
+    assert settings.value("cast/deviceId") != settings.value("listenAlong/deviceId")
+    host.forget()
+    assert settings.value("cast/screenId") == "cast-screen-identity"
+
+
+def test_a_remote_uses_its_given_screen_and_stops_when_the_host_retires_it(tmp_path):
+    QCoreApplication.instance() or QCoreApplication([])
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    remote = Lounge(settings, "Tubify", prefix="listenAlongRemote", role="remote", screen_id="host-screen-identity")
+    assert remote.screen_id == "host-screen-identity" and not settings.contains("listenAlongRemote/screenId")
+    posts, states = [], []
+    remote._post = lambda url, form, done, track=True: posts.append((url, form, done))
+    remote.stateChanged.connect(states.append)
+    remote.start()
+    assert posts[0][0].endswith("/pairing/get_lounge_token_batch") and posts[0][1] == {"screen_ids": "host-screen-identity"}
+    posts[0][2](404, "")
+    assert states[-1] == "unavailable" and not remote._running and not remote.retry.isActive()
+    assert Lounge(settings, "Tubify", role="remote", screen_id="bad id!").screen_id == ""
