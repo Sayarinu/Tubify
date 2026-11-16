@@ -140,3 +140,127 @@ def test_reset_revokes_old_invitations(tmp_path):
     host.lounge.command.emit("remoteConnected", {})
     host.reset()
     assert host.lounge.forgotten == 1 and host.followers == 0
+
+
+class FollowerPlayer(QObject):
+    changed = Signal()
+    seeked = Signal(float)
+    trackStarted = Signal("QVariantMap")
+
+    def __init__(self):
+        super().__init__()
+        self.track, self.position, self.playing, self.calls = {}, 0., False, []
+
+    def playTracks(self, tracks, index, label, position):
+        self.calls.append(("playTracks", tracks[index]["videoId"], label, position))
+        self.track, self.position, self.playing = dict(tracks[index]), position, True
+        self.trackStarted.emit(self.track)
+
+    def pause(self):
+        self.calls.append(("pause",))
+        self.playing = False
+
+    def resume(self):
+        self.calls.append(("resume",))
+        self.playing = True
+
+    def seek(self, position):
+        self.calls.append(("seek", position))
+        self.position = position
+
+    def updateTrack(self, video, values):
+        self.calls.append(("updateTrack", video, values))
+
+
+class Worker(QObject):
+    succeeded = Signal(int, "QVariantMap")
+    failed = Signal(int, "QVariantMap")
+
+    def __init__(self):
+        super().__init__()
+        self.requests = []
+
+    def request(self, kind, payload):
+        self.requests.append((kind, payload))
+        return len(self.requests)
+
+
+def follower_for(tmp_path, worker=None):
+    from tubify.integrations.listen_along import ListenAlongFollower
+    QCoreApplication.instance() or QCoreApplication([])
+    player = FollowerPlayer()
+    return player, ListenAlongFollower(player, tmp_path / "settings.ini", worker=worker, lounge_factory=Lounge)
+
+
+def test_a_follower_binds_as_a_remote_and_rejects_bad_secrets(tmp_path):
+    player, follower = follower_for(tmp_path)
+    follower.join("tl1:bad screen!")
+    assert not follower.following and "isn't valid" in follower.status
+    follower.join("tl1:" + SCREEN)
+    assert follower.following
+    assert follower.lounge.options == {"prefix": "listenAlongRemote", "role": "remote", "screen_id": SCREEN}
+    assert SCREEN not in follower.status
+
+
+def test_a_follower_plays_the_hosts_song_and_fills_in_details(tmp_path):
+    worker = Worker()
+    player, follower = follower_for(tmp_path, worker)
+    follower.join("tl1:" + SCREEN)
+    follower.lounge.command.emit("nowPlaying", {"videoId": "abcdefghijk", "currentTime": "42.5", "state": "1"})
+    assert player.calls == [("playTracks", "abcdefghijk", "Listening Along", 42.5)]
+    assert worker.requests[0][1]["params"] == {"id": "abcdefghijk", "radio": False}
+    worker.succeeded.emit(1, {"items": [{"videoId": "abcdefghijk", "title": "Song", "artists": [{"name": "Artist"}], "source": "private"}]})
+    assert player.calls[-1] == ("updateTrack", "abcdefghijk", {"title": "Song", "artists": [{"name": "Artist"}]})
+
+
+def test_a_follower_follows_pauses_seeks_and_new_songs(tmp_path):
+    player, follower = follower_for(tmp_path)
+    follower.join("tl1:" + SCREEN)
+    lounge = follower.lounge
+    lounge.command.emit("nowPlaying", {"videoId": "abcdefghijk", "currentTime": "10", "state": "2"})
+    assert player.calls[-1] == ("pause",)
+    player.calls.clear()
+    lounge.command.emit("onStateChange", {"currentTime": "11", "state": "1"})
+    assert player.calls == [("resume",)]
+    lounge.command.emit("onStateChange", {"currentTime": "90", "state": "1"})
+    assert player.calls[-1] == ("seek", 90.)
+    player.calls.clear()
+    lounge.command.emit("onStateChange", {"currentTime": "91", "state": "1"})
+    assert player.calls == []
+    lounge.command.emit("setPlaylist", {"videoId": "zzzzzzzzzzz"})
+    assert player.calls == []
+    lounge.command.emit("nowPlaying", {"videoId": "bcdefghijkl", "currentTime": "0", "state": "1"})
+    assert player.calls[-1][:2] == ("playTracks", "bcdefghijkl") and follower.following
+
+
+def test_a_follower_stops_when_the_host_stops_or_goes_away(tmp_path):
+    player, follower = follower_for(tmp_path)
+    follower.join("tl1:" + SCREEN)
+    follower.lounge.command.emit("nowPlaying", {})
+    assert not follower.following and "stopped playing" in follower.status
+    follower.join("tl1:" + SCREEN)
+    follower.lounge.stateChanged.emit("unavailable")
+    assert not follower.following and "stopped sharing" in follower.status
+
+
+def test_choosing_another_song_ends_following_but_autoplay_waits_for_the_host(tmp_path):
+    player, follower = follower_for(tmp_path)
+    follower.join("tl1:" + SCREEN)
+    follower.lounge.command.emit("nowPlaying", {"videoId": "abcdefghijk", "currentTime": "0", "state": "1"})
+    player.trackStarted.emit({"videoId": "radiosong01"})
+    follower.lounge.command.emit("onStateChange", {"currentTime": "100", "state": "1"})
+    assert ("seek", 100.) not in player.calls
+    follower.lounge.command.emit("nowPlaying", {"videoId": "bcdefghijkl", "currentTime": "0", "state": "1"})
+    assert follower.following and not follower.grace.isActive()
+    player.trackStarted.emit({"videoId": "mychoice001"})
+    assert follower.following and follower.grace.isActive()
+    follower.grace.timeout.emit()
+    assert not follower.following and follower.status == "Stopped listening along."
+
+
+def test_stop_ends_following(tmp_path):
+    player, follower = follower_for(tmp_path)
+    follower.join("tl1:" + SCREEN)
+    lounge = follower.lounge
+    follower.stop()
+    assert not follower.following and not lounge.ready

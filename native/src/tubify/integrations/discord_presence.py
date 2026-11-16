@@ -50,7 +50,8 @@ def ipc_paths(platform=sys.platform, environment=None):
     return [str(PurePosixPath(root) / ("discord-ipc-" + str(index))) for root in dict.fromkeys(roots) for index in range(10)]
 
 
-def activity_for(player, buttons=False, now=None):
+def activity_for(player, buttons=False, now=None, listen=None):
+    """The activity for the current song. `listen` ({party, secret, size}) adds a Join invitation."""
     if not player.hasTrack or not player.playing:
         return None
     track = player.currentTrack
@@ -70,7 +71,11 @@ def activity_for(player, buttons=False, now=None):
         activity["timestamps"] = {"start": int(now - max(0., position)), "end": int(now + max(0., duration - position))}
     video = track.get("videoId") or track.get("id")
     url = share_url(video)
-    if buttons and url:
+    if listen and listen.get("party") and listen.get("secret"):
+        # Discord refuses secrets and buttons together, so Listen Along replaces the button.
+        activity["party"] = {"id": listen["party"], "size": [max(1, min(16, int(listen.get("size", 1)))), 16]}
+        activity["secrets"] = {"join": listen["secret"][:128]}
+    elif buttons and url:
         activity["buttons"] = [{"label": "Listen on Tubify", "url": url}]
     return activity
 
@@ -80,6 +85,7 @@ class DiscordPipe(QObject):
     ready = Signal()
     failed = Signal(str)
     acknowledged = Signal()
+    joinRequested = Signal(str)
 
     def __init__(self, client_id, parent=None, paths=None):
         super().__init__(parent)
@@ -90,6 +96,7 @@ class DiscordPipe(QObject):
         self.connected = False
         self.closed = False
         self.pending = ""
+        self.subscription = ""
         self.latest = None
         self.has_latest = False
         self.connect_timer = QTimer(self)
@@ -175,7 +182,14 @@ class DiscordPipe(QObject):
             except (ValueError, UnicodeError, RecursionError):
                 self._fail("Discord returned an invalid response.")
                 return
-            if opcode == 3:
+            if opcode == 1 and isinstance(body, dict) and body.get("cmd") == "DISPATCH" and body.get("evt") == "ACTIVITY_JOIN":
+                secret = body.get("data", {}).get("secret") if isinstance(body.get("data"), dict) else None
+                if isinstance(secret, str) and 0 < len(secret) <= 128:
+                    self.joinRequested.emit(secret)
+            elif opcode == 1 and isinstance(body, dict) and self.subscription and body.get("nonce") == self.subscription:
+                # A refused subscription only means friends' invitations can't reach this client.
+                self.subscription = ""
+            elif opcode == 3:
                 self._write(4, body)
             elif opcode == 2 or not isinstance(body, dict):
                 self._fail("Discord rejected the connection. Check your application ID.")
@@ -186,6 +200,8 @@ class DiscordPipe(QObject):
             elif opcode == 1 and body.get("evt") == "READY" and not self.connected:
                 self.connected = True
                 self.deadline.stop()
+                self.subscription = uuid.uuid4().hex
+                self._write(1, {"cmd": "SUBSCRIBE", "evt": "ACTIVITY_JOIN", "args": {}, "nonce": self.subscription})
                 self.ready.emit()
             elif opcode == 1 and self.pending and body.get("nonce") == self.pending:
                 self.pending = ""
@@ -226,13 +242,16 @@ class DiscordPipe(QObject):
 class DiscordPresence(QObject):
     changed = Signal()
 
-    def __init__(self, player, settings_path, parent=None, pipe_factory=DiscordPipe, fixture=False):
+    def __init__(self, player, settings_path, parent=None, pipe_factory=DiscordPipe, fixture=False, host=None, follower=None):
         super().__init__(parent)
         self.player, self.factory, self.fixture = player, pipe_factory, fixture
+        self.host, self.follower = host, follower
         self.settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
         self._enabled = self.settings.value("discord/enabled", False, type=bool)
         self._client = str(self.settings.value("discord/clientId", "") or DEFAULT_APPLICATION_ID)
         self._buttons = self.settings.value("discord/buttons", False, type=bool)
+        self._listen = self.settings.value("discord/listenAlong", False, type=bool)
+        self._sent_playing = False
         self._status, self.pipe, self._attempts = "Disabled", None, 0
         self._closed, self._last_sent = False, 0.
         self.update_timer = QTimer(self)
@@ -244,6 +263,8 @@ class DiscordPresence(QObject):
         self.retry_timer.timeout.connect(self._connect)
         player.changed.connect(self._refresh)
         player.seeked.connect(self._refresh)
+        if host:
+            host.changed.connect(self._host_changed)
         self._refresh()
 
     @Property(bool, notify=changed)
@@ -261,6 +282,14 @@ class DiscordPresence(QObject):
     @Property(bool, notify=changed)
     def buttons(self):
         return self._buttons
+
+    @Property(bool, notify=changed)
+    def listenAlong(self):
+        return self._listen
+
+    @Property(int, notify=changed)
+    def listenFollowers(self):
+        return self.host.followers if self.host else 0
 
     @Property(str, notify=changed)
     def status(self):
@@ -298,6 +327,22 @@ class DiscordPresence(QObject):
         self.changed.emit()
         self._refresh()
 
+    @Slot(bool)
+    def setListenAlong(self, value):
+        self._listen = value
+        self.settings.setValue("discord/listenAlong", value)
+        if not value and self.follower:
+            self.follower.close()
+        self.changed.emit()
+        self._schedule(now=True)
+        self._refresh()
+
+    @Slot()
+    def resetListenAlong(self):
+        if self.host:
+            self.host.reset()
+        self._schedule(now=True)
+
     @Slot()
     def retry(self):
         self._disconnect()
@@ -312,26 +357,54 @@ class DiscordPresence(QObject):
             pipe.close(clear=True)
             pipe.deleteLater()
 
+    def _configured(self):
+        return bool(re.fullmatch(r"[0-9]{17,20}", self._client))
+
+    def _playing(self):
+        return bool(self.player.playing and self.player.hasTrack)
+
+    def _active(self):
+        # Listen Along keeps Discord connected while idle so a friend's Join can still arrive.
+        return self._enabled and self._configured() and (self._playing() or self._listen)
+
+    def _sync_host(self):
+        if not self.host:
+            return
+        if self._enabled and self._listen and self._configured() and not self.fixture and not self._closed:
+            self.host.start()
+        else:
+            self.host.stop()
+
+    def _host_changed(self):
+        self.changed.emit()
+        self._schedule()
+
+    def _schedule(self, now=False):
+        if self.pipe and self.pipe.connected and not self._closed:
+            if now or self._playing() != self._sent_playing:
+                self.update_timer.start(0)
+            elif not self.update_timer.isActive():
+                self.update_timer.start(max(0, round((15 - (time.monotonic() - self._last_sent)) * 1000)))
+
     def _refresh(self, *args):
         if self._closed:
             return
-        configured = bool(re.fullmatch(r"[0-9]{17,20}", self._client))
-        if not self._enabled or not configured or not self.player.playing or not self.player.hasTrack:
+        self._sync_host()
+        if not self._active():
             self._disconnect()
             self._attempts = 0
             self._set_status("Disabled" if not self._enabled else
-                             "Setup Required — save your Discord Application ID." if not configured else
+                             "Setup Required — save your Discord Application ID." if not self._configured() else
                              "Ready — presence appears while music plays.")
         elif self.fixture:
             self._set_status("Presence is disabled in the visual fixture.")
         elif self.pipe and self.pipe.connected:
-            if not self.update_timer.isActive():
-                self.update_timer.start(max(0, round((15 - (time.monotonic() - self._last_sent)) * 1000)))
+            self._schedule()
         elif not self.pipe and not self.retry_timer.isActive() and self._attempts < 5:
             self._connect()
 
     def _connect(self):
-        if self._closed or not self._enabled or not self.player.playing or self.fixture or self.pipe:
+        if self._closed or not self._active() or self.fixture or self.pipe:
             return
         self._attempts += 1
         self._set_status("Connecting to Discord…")
@@ -339,6 +412,7 @@ class DiscordPresence(QObject):
         pipe.ready.connect(self._ready)
         pipe.failed.connect(self._failed)
         pipe.acknowledged.connect(self._acknowledged)
+        pipe.joinRequested.connect(self._join)
         pipe.start()
 
     @Slot()
@@ -350,12 +424,19 @@ class DiscordPresence(QObject):
     def _acknowledged(self):
         if self.sender() is self.pipe:
             self._attempts = 0
-            self._set_status("Sharing listening activity")
+            self._set_status("Sharing listening activity" if self._sent_playing else "Ready — friends can join while music plays.")
+
+    @Slot(str)
+    def _join(self, secret):
+        if self.sender() is self.pipe and self._listen and self.follower:
+            self.follower.join(secret)
 
     def _publish(self):
         if self.pipe and self.pipe.connected and self._enabled and not self._closed:
             self._last_sent = time.monotonic()
-            self.pipe.publish(activity_for(self.player, self._buttons))
+            activity = activity_for(self.player, self._buttons, listen=self._listen_info())
+            self._sent_playing = activity is not None
+            self.pipe.publish(activity)
 
     @Slot(str)
     def _failed(self, message):
@@ -366,9 +447,15 @@ class DiscordPresence(QObject):
         pipe.deleteLater()
         self.update_timer.stop()
         self._set_status(message if self._attempts < 5 else "Discord is unavailable. Use Retry after opening the desktop app.")
-        if self._enabled and self.player.playing and self._attempts < 5:
+        if self._active() and self._attempts < 5:
             self.retry_timer.start()
+
+    def _listen_info(self):
+        secret = self.host.secret if self._listen and self.host else ""
+        return {"party": self.host.party_id, "secret": secret, "size": self.host.followers + 1} if secret else None
 
     def close(self):
         self._closed = True
         self._disconnect()
+        if self.host:
+            self.host.stop()

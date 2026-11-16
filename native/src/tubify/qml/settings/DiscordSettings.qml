@@ -30,7 +30,18 @@ SettingsPage {
                 ThemeActionButton { text: "Save ID"; onClicked: discordState.setClientId(client.text) }
                 Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Tubify includes its own Application ID. Only change this if you use a separately registered Discord application. No bot token or client secret is needed."; color: themeState.secondary; font.pixelSize: Theme.textSmall }
             }
-            SettingsCheckBox { text: "Show Listen on Tubify Button"; checked: discordState.buttons; onClicked: discordState.setButtons(checked) }
+            SettingsCheckBox { text: "Show Listen on Tubify Button"; enabled: !discordState.listenAlong; checked: discordState.buttons; onClicked: discordState.setButtons(checked) }
+            SettingsCheckBox { objectName: "discordListenAlongOption"; text: "Let Friends Listen Along"; checked: discordState.listenAlong; onClicked: discordState.setListenAlong(checked) }
+            Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: "Friends who click Join on your Discord activity play what you play in their Tubify, and you can join theirs. Tubify stays connected to Discord while this is on. Discord can't show the Listen on Tubify button alongside Join, so it is hidden."; color: themeState.secondary; font.pixelSize: Theme.textSmall }
+            RowLayout {
+                visible: discordState.listenAlong
+                Layout.fillWidth: true
+                spacing: Theme.spacingMedium
+                Label { objectName: "discordListenFollowers"; Layout.fillWidth: true; text: discordState.listenFollowers === 1 ? "1 friend listening along" : discordState.listenFollowers + " friends listening along"; color: themeState.foreground }
+                ThemeActionButton { text: "Reset Listen Along Link"; onClicked: discordState.resetListenAlong() }
+            }
+            Label { objectName: "listenAlongStatus"; visible: typeof listenAlongState !== "undefined" && listenAlongState.status !== ""; Layout.fillWidth: true; wrapMode: Text.Wrap; text: visible ? listenAlongState.status : ""; color: themeState.foreground }
+            ThemeActionButton { visible: typeof listenAlongState !== "undefined" && listenAlongState.following; text: "Stop Listening Along"; onClicked: listenAlongState.stop() }
             Label { objectName: "discordStatus"; Layout.fillWidth: true; wrapMode: Text.Wrap; text: discordState.status; color: themeState.foreground }
             ThemeActionButton { text: "Retry"; enabled: discordState.enabled; onClicked: discordState.retry() }
         }
