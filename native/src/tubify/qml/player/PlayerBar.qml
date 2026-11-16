@@ -21,12 +21,14 @@ Rectangle {
     }
     readonly property var primaryArtist: playerState.currentTrack.artists && playerState.currentTrack.artists.length ? playerState.currentTrack.artists[0] : ({})
     // Empty bar space acts like the immersive toggle; it sits below the seek slider (z: -1) and every control.
+    // A right-click anywhere on the bar, the playing song included, opens that song's menu.
     MouseArea {
         objectName: "playerBarBackground"
         anchors.fill: parent; z: -2
         enabled: playerState.hasTrack
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: appState.requestAction("expandPlayer")
+        onClicked: mouse => { if (mouse.button === Qt.RightButton) appState.showMenu(playerState.currentTrack, {nowPlaying: true}); else appState.requestAction("expandPlayer") }
     }
 
     Item {
