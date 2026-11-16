@@ -143,7 +143,24 @@ Rectangle {
             ToolTip.text: modelData.title
             ToolTip.visible: hovered && !sidebar.wide
             contentItem: Item {
-                Cover { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: Theme.radiusSmall; source: modelData.thumbnail || ""; mediaKey: "playlist:" + modelData.id; accent: themeState.selected }
+                Cover {
+                    x: 8; anchors.verticalCenter: parent.verticalCenter; width: 40; height: 40; radius: Theme.radiusSmall; source: modelData.thumbnail || ""; mediaKey: "playlist:" + modelData.id; accent: themeState.selected
+                    // The artwork plays the playlist; the rest of the row opens it.
+                    Rectangle {
+                        anchors.fill: parent; radius: parent.radius
+                        color: Qt.rgba(0, 0, 0, 0.45)
+                        visible: artworkPlay.containsMouse
+                        Symbol { anchors.centerIn: parent; width: 18; height: 18; name: "play"; color: "white" }
+                    }
+                    MouseArea {
+                        id: artworkPlay
+                        objectName: "sidebarPlaylistPlay"
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: browseState.play({kind: modelData.kind === "album" ? "album" : "playlist", id: modelData.id, title: modelData.title})
+                    }
+                }
                 Column {
                     x: 60; anchors.verticalCenter: parent.verticalCenter; width: parent.width - 72; spacing: 4
                     visible: sidebar.wide

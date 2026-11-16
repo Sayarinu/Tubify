@@ -96,6 +96,12 @@ def main():
                     assert menu.property("opened") and menu.property("context") == {"nowPlaying": True}, name
                     QMetaObject.invokeMethod(menu, "close")
                     QTest.qWait(50)
+                # A sidebar playlist's artwork plays it where it is; the row itself still opens it.
+                route, queued = view.route, len(player.entries)
+                artwork = shown_item(window, "sidebarPlaylistPlay")
+                QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, artwork.mapToScene(QPointF(20, 20)).toPoint())
+                QTest.qWait(100)
+                assert view.route == route and player.playing and len(player.entries) != queued, (view.route, len(player.entries))
                 # The playlist picker uses the same themed shell as other dialogs and focuses its search.
                 library.choosePlaylist(track)
                 QTest.qWait(50)
