@@ -144,7 +144,7 @@ Item {
                 x: 0
                 y: below ? storageChoice.y + storageChoice.height + Theme.spacingSmall : storageChoice.y + (storageChoice.height - height) / 2
                 width: below ? parent.width : storageChoice.x - Theme.spacingLarge
-                text: root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + (downloadsState.fileBytes > 0 || downloadsState.downloadStyle === "files" ? root.bytesLabel(downloadsState.fileBytes) + " as audio files · " : "") + root.bytesLabel(downloadsState.freeBytes) + " free"
+                text: root.bytesLabel(downloadsState.usedBytes + downloadsState.videoBytes) + " in Tubify · " + (downloadsState.fileBytes > 0 || downloadsState.downloadStyle === "files" ? root.bytesLabel(downloadsState.fileBytes) + " as audio files · " : "") + root.bytesLabel(downloadsState.freeBytes) + " free"
                 textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
             }
             implicitHeight: Math.max(storageChoice.y + storageChoice.height, storageStatus.y + storageStatus.height) + 24
