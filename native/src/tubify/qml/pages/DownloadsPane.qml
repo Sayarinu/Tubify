@@ -93,7 +93,8 @@ Item {
                 iconName: "more"
                 tip: downloadsState.retryableCount > 0 ? "More Download Options · " + downloadsState.retryableCount + " failed" : "More Download Options"
                 onClicked: moreMenu.popup(moreActions, moreActions.width - moreMenu.implicitWidth, moreActions.height, null)
-                CountBadge { objectName: "downloadsMoreBadge"; x: parent.width - width + 2; y: -2; count: downloadsState.retryableCount }
+                // Inside the button's right edge: the page clips there, right beside an open panel.
+                CountBadge { objectName: "downloadsMoreBadge"; x: parent.width - width; y: -2; count: downloadsState.retryableCount }
                 ThemedMenu {
                     id: moreMenu
                     implicitWidth: 252

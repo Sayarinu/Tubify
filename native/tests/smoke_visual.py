@@ -712,6 +712,14 @@ def main():
                                 for badge in ("downloadsMoreBadge", "downloadsTabBadge") + ((sidebar_badge,) if sidebar_badge else ()):
                                     found = [item for item in visual_items(window.contentItem()) if item.objectName() == badge and item.isVisible()]
                                     assert found and found[0].property("count") == downloads.retryableCount == 1, badge
+                                # The More menu's badge is never cut off by the page's right edge, panel open or not.
+                                badge, grid = named("downloadsMoreBadge"), named("downloadsGrid")
+                                lyrics_open = shell.lyricsOpen
+                                for panel in (lyrics_open, not lyrics_open, lyrics_open):
+                                    shell.setLyricsOpen(panel)
+                                    QTest.qWait(80)
+                                    shown, page = badge.mapRectToScene(badge.boundingRect()), grid.mapRectToScene(grid.boundingRect())
+                                    assert page.contains(shown), (panel, shown, page)
                                 assert not [item for item in visual_items(window.contentItem()) if item.objectName() == "retryFailedDownloads" and item.isVisible()]
                                 downloads.requestAllFilesDeletion()
                                 QTest.qWait(80)
