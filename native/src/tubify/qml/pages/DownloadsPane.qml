@@ -16,10 +16,6 @@ Item {
     readonly property bool songs: downloadsState.filter === "Songs"
     property var selectedEntry: ({})
     property bool blockingShortcuts: removal.opened
-    function bytesLabel(value) {
-        if (value >= 1073741824) return (value / 1073741824).toFixed(1) + " GB"
-        return (value / 1048576).toFixed(1) + " MB"
-    }
     function songCount(entry) { return entry.total + (entry.total === 1 ? " song" : " songs") }
     // Saved audio files are reported after the download itself.
     function filesLabel(entry) {
@@ -50,7 +46,6 @@ Item {
             id: toolbar
             // Wide enough for the search beside the sort order; otherwise it takes a row of its own.
             readonly property bool roomy: width >= 640
-            readonly property real secondRow: roomy ? 132 : 184
             LibraryTabs { width: parent.width; current: "Downloads" }
             ListView {
                 id: filters
@@ -69,7 +64,7 @@ Item {
             ThemedComboBox {
                 id: sortOrder
                 objectName: "downloadSortOrder"
-                x: parent.width - width; y: 84; width: 200; height: 36
+                x: moreActions.x - Theme.spacingMedium - width; y: 84; width: 200; height: 36
                 model: downloadsState.orders; currentIndex: downloadsState.orders.indexOf(downloadsState.order)
                 Accessible.name: "Downloads sort order"
                 onActivated: downloadsState.sort(currentText)
@@ -88,16 +83,18 @@ Item {
                 onTextEdited: downloadsState.setQuery(text)
                 Keys.onEscapePressed: { text = ""; downloadsState.setQuery("") }
             }
-            // Every page action lives in this menu; its badge counts the downloads that failed.
+            // Every page action lives in this menu, after the sort order; its badge counts the downloads that failed.
+            // Where downloads are kept, and the space they use, are in Settings → Downloads.
             IconButton {
                 id: moreActions
                 objectName: "downloadsMore"
                 x: parent.width - width
-                y: toolbar.secondRow + (storageChoice.height - height) / 2
+                y: sortOrder.y + (sortOrder.height - height) / 2
                 iconName: "more"
                 tip: downloadsState.retryableCount > 0 ? "More Download Options · " + downloadsState.retryableCount + " failed" : "More Download Options"
                 onClicked: moreMenu.popup(moreActions, moreActions.width - moreMenu.implicitWidth, moreActions.height, null)
-                CountBadge { objectName: "downloadsMoreBadge"; x: parent.width - width + 2; y: -2; count: downloadsState.retryableCount }
+                // Inside the button's right edge: the page clips there, right beside an open panel.
+                CountBadge { objectName: "downloadsMoreBadge"; x: parent.width - width; y: -2; count: downloadsState.retryableCount }
                 ThemedMenu {
                     id: moreMenu
                     implicitWidth: 252
@@ -126,28 +123,7 @@ Item {
                     }
                 }
             }
-            // Where downloads are kept, labelled from above, just left of the More menu. How much space
-            // each place uses fills the rest of the row, or drops under it when narrow.
-            Column {
-                id: storageChoice
-                objectName: "downloadStyles"
-                x: moreActions.x - Theme.spacingMedium - width
-                y: toolbar.secondRow
-                spacing: Theme.spacingSmall
-                Text { text: "Download"; color: themeState.secondary; font.pixelSize: Theme.textBody }
-                DownloadStyleChoice { objectName: "downloadStyleChoice" }
-            }
-            Text {
-                id: storageStatus
-                objectName: "audioFilesStatus"
-                readonly property bool below: storageChoice.x - Theme.spacingLarge < Math.min(implicitWidth, 240)
-                x: 0
-                y: below ? storageChoice.y + storageChoice.height + Theme.spacingSmall : storageChoice.y + (storageChoice.height - height) / 2
-                width: below ? parent.width : storageChoice.x - Theme.spacingLarge
-                text: root.bytesLabel(downloadsState.usedBytes) + " in Tubify · " + (downloadsState.fileBytes > 0 || downloadsState.downloadStyle === "files" ? root.bytesLabel(downloadsState.fileBytes) + " as audio files · " : "") + root.bytesLabel(downloadsState.freeBytes) + " free"
-                textFormat: Text.PlainText; color: themeState.secondary; elide: Text.ElideMiddle; font.pixelSize: Theme.textBody
-            }
-            implicitHeight: Math.max(storageChoice.y + storageChoice.height, storageStatus.y + storageStatus.height) + 24
+            implicitHeight: (toolbar.roomy ? sortOrder.y + sortOrder.height : filterField.y + filterField.height) + 24
         }
     }
     GridView {

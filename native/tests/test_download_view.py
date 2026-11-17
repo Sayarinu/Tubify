@@ -184,11 +184,13 @@ def test_song_progress_only_announces_progress_and_lookups_need_no_map_copies(tm
     assert view.collectionEntry(key)["state"] == "complete" and view.collectionEntry("playlist:missing") == {}
     assert view.known(*key.split(":", 1)) and not view.known("playlist", "missing")
     emitted.clear()
-    status = {"collections": view.collections, "songs": view.songs, "trackStates": view.trackStates, "trackProgress": view.trackProgress, "artwork": {}, "bytes": 1, "freeBytes": 2}
+    status = {"collections": view.collections, "songs": view.songs, "trackStates": view.trackStates, "trackProgress": view.trackProgress, "artwork": {}, "bytes": 1, "freeBytes": 2, "videoBytes": 3}
     view._pending[9] = "status"
     view._result(9, status)
     # Only storage moved, so lists, rows and covers are left alone.
     assert emitted == ["storageChanged"]
+    # Music videos are reported apart from the songs kept in Tubify.
+    assert (view.usedBytes, view.videoBytes, view.freeBytes) == (1, 3, 2)
     view.close()
 
 

@@ -285,12 +285,17 @@ class DownloadStore:
         return None
 
     def next_export(self, collection=None, exclude=()):
-        """A collection whose songs are all downloaded and whose files are still to save."""
+        """A collection whose files are still to save, once its songs are downloaded.
+
+        Kept as audio files, a download that stopped short (failed, or needing repair) still saves
+        the songs it has, so none stay inside Tubify; a retry saves the rest once they download.
+        """
         jobs, ready = self._jobs(), {}
-        for identifier, raw in self.db.execute("""SELECT c.id, c.body FROM exports e JOIN collections c ON c.id=e.collection_id
+        for identifier, raw, move in self.db.execute("""SELECT c.id, c.body, e.move FROM exports e JOIN collections c ON c.id=e.collection_id
                 WHERE e.state='pending' ORDER BY c.rowid""").fetchall():
             if identifier not in exclude and (collection is None or identifier == collection):
-                if self._summary(json.loads(raw), 0, jobs, ready)["state"] == "complete":
+                state = self._summary(json.loads(raw), 0, jobs, ready)["state"]
+                if state == "complete" or (move and state in {"failed", "damaged"}):
                     return identifier
         return None
 
@@ -668,12 +673,13 @@ class DownloadStore:
         finishing = self.db.execute("SELECT 1 FROM collection_jobs WHERE finished=0 AND cancelled=0").fetchone()
         next_row = queued[0] if queued else ("finish" if finishing and self.unfinished() else "save" if self.next_export()
                                              else "internalize" if self.next_internalize() else None)
+        # Music videos always stay inside Tubify, so they're counted apart from the songs.
         used = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready' AND external=0").fetchone()[0]
-        used += self.db.execute("SELECT coalesce(sum(bytes),0) FROM video").fetchone()[0]
-        files = self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready' AND external=1").fetchone()[0]
+        videos = self.db.execute("SELECT coalesce(sum(bytes),0) FROM video").fetchone()[0]
+        files =self.db.execute("SELECT coalesce(sum(bytes),0) FROM audio WHERE state='ready' AND external=1").fetchone()[0]
         return {"collections": collections, "songs": list(songs.values()), "collectionStates": collection_states,
                 "trackStates": track_states, "trackProgress": track_progress, "artwork": artwork, "next": next_row, "retryable": retryable,
-                "bytes": used, "fileBytes": files, "freeBytes": shutil.disk_usage(self.root).free,
+                "bytes": used, "videoBytes": videos, "fileBytes": files,"freeBytes": shutil.disk_usage(self.root).free,
                 "savedFiles": self.db.execute("SELECT count(*) FROM saved_files").fetchone()[0]}
 
     def _artwork_uri(self, value):
