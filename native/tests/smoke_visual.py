@@ -693,9 +693,8 @@ def main():
                                 assert all(row.x() == collection.property("margin") for row in rows)
                                 assert all(row.property("showAlbum") == (name == "playlist" and not collection.property("compact")) for row in rows)
                             if name == "downloads":
-                                # The download style choice shows, and deleting every saved file asks first.
-                                choice = window.findChild(QObject, "downloadStyleChoice")
-                                assert choice.isVisible() and [option["label"] for option in choice.property("options").toVariant()] == ["Tubify", "Local Files"]
+                                # The download style and the space it uses live in Settings, not on the page.
+                                assert not [item for item in visual_items(window.contentItem()) if item.objectName() in {"downloadStyles", "audioFilesStatus"}]
                                 # On a wide page the search sits beside the sort order.
                                 field, order = window.findChild(QObject, "downloadFilterField"), window.findChild(QObject, "downloadSortOrder")
                                 if window.findChild(QObject, "downloadsPane").property("width") >= 700:
@@ -703,9 +702,10 @@ def main():
                                     assert field.property("x") + field.property("width") <= order.property("x")
                                 # Page actions live in the More menu, whose badge counts failed downloads like the tab and sidebar do.
                                 assert window.findChild(QObject, "downloadsMore").isVisible()
-                                # The labelled download style choice ends just left of the More menu.
-                                styles, more = window.findChild(QObject, "downloadStyles"), window.findChild(QObject, "downloadsMore")
-                                assert 0 < more.property("x") - styles.property("x") - styles.property("width") <= 16
+                                # The More menu ends the row, just right of the sort order.
+                                more = window.findChild(QObject, "downloadsMore")
+                                assert 0 < more.property("x") - order.property("x") - order.property("width") <= 16
+                                assert abs(more.property("y") + more.property("height") / 2 - order.property("y") - order.property("height") / 2) < 1
                                 named = lambda name: next(item for item in visual_items(window.contentItem()) if item.objectName() == name)
                                 sidebar_badge = "navigationBadge-Downloads" if named("navigationButton-Downloads").property("badgeBeside") else None
                                 assert sidebar_badge or named("navigationFailedDot-Downloads").isVisible()

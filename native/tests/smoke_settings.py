@@ -65,6 +65,11 @@ def main():
                         click(nav)
                         assert nav.property("checked") and page.property("opened"), (name, scale, nav.property("checked"), page.property("opened"))
                         assert page.property("title") == nav.property("text") == title
+                        if name == "downloadsSettings":
+                            # Where downloads are kept and the space they use are chosen and read here.
+                            used, free = find("downloadStorageUsed"), find("downloadStorageFree")
+                            assert used.isVisible() and used.property("text").startswith("Songs: ")
+                            assert free.isVisible() and free.property("text").endswith(" free")
                         assert sum(find(key).property("opened") for key in PAGES) == 1
                         assert sum(find("settingsNav-" + key).property("checked") for key in PAGES) == 1
                         for item in (nav, page.property("contentItem")):
