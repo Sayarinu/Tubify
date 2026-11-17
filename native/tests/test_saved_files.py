@@ -218,6 +218,44 @@ def test_switching_styles_converts_existing_downloads(tmp_path):
     downloads.close()
 
 
+def test_audio_files_style_moves_the_songs_of_a_download_that_stopped_short(tmp_path):
+    folder = tmp_path / "Music" / "Tubify"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS, IDS[1]: AAC})
+    # The third song can't be downloaded, so the download never completes.
+    body["items"].append(track(IDS[2], "Song 3"))
+    key = downloads.store.schedule(body)
+    downloads._drain()
+    assert downloads.store.status()["collectionStates"][key] in {"failed", "damaged"} and len(files(downloads)) == 2
+    # Kept as audio files, the songs it has still leave Tubify instead of waiting for the last one.
+    downloads.store.convert("files", str(folder))
+    downloads._drain()
+    status = downloads.store.status()
+    assert files(downloads) == [] and status["bytes"] == 0 and status["fileBytes"] > 0
+    assert sorted(path.name for path in folder.rglob("*") if path.is_file()) == ["01 Song 1.opus", "02 Song 2.m4a"]
+    assert status["next"] is None
+    # A retry that downloads the last song saves it as a file too.
+    audio = downloads.store.root / "audio"
+    downloads.store.media.publish(IDS[2], encode(audio / f"{IDS[2]}.webm", *OPUS[:2]))
+    downloads.store.retry(key)
+    downloads._drain()
+    status = downloads.store.status()
+    assert files(downloads) == [] and status["collectionStates"][key] == "complete"
+    assert (folder / "Artist One" / "Album Name" / "03 Song 3.opus").is_file()
+    downloads.close()
+
+
+def test_saving_one_unfinished_item_as_files_waits_for_every_song(tmp_path):
+    folder = tmp_path / "Saved"
+    downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS})
+    body["items"].append(track(IDS[1], "Song 2"))
+    key = downloads.store.schedule(body)
+    downloads._drain()
+    downloads.store.request_files(key, str(folder))
+    downloads._drain()
+    assert not folder.exists() and downloads.store.export(key)["state"] == "pending"
+    downloads.close()
+
+
 def test_saving_one_item_as_files_in_tubify_style_keeps_its_offline_copy(tmp_path):
     folder = tmp_path / "Saved"
     downloads, body = downloads_with(tmp_path, {IDS[0]: OPUS})

@@ -86,7 +86,7 @@ class DownloadView(QObject):
         self._fixture_bodies = {}
         self._active, self._transfer_request, self._next = None, None, None
         self._bytes, self._file_bytes, self._free, self._message = 0, 0, 0, ""
-        self._saved_count = 0
+        self._saved_count, self._video_bytes = 0, 0
         # Downloads Retry Failed would pick up, and whether transfers wait after a failure.
         self._retryable, self._paused = 0, False
         self.resume_timer = QTimer(self, singleShot=True, interval=RESUME_MS)
@@ -379,6 +379,11 @@ class DownloadView(QObject):
     @Property(float, notify=storageChanged)
     def fileBytes(self):
         return float(self._file_bytes)
+
+    @Property(float, notify=storageChanged)
+    def videoBytes(self):
+        """Music videos, which stay inside Tubify in either download style."""
+        return float(self._video_bytes)
 
     @Property(int, notify=storageChanged)
     def savedFileCount(self):
@@ -696,12 +701,12 @@ class DownloadView(QObject):
         listed_changed = (collections, songs, True) != (self._collections, self._songs, self._initialized)
         states_changed = listed_changed or result.get("trackStates", {}) != self._track_states
         self._track_states = result.get("trackStates", {})
-        storage = (result.get("bytes", 0), result.get("fileBytes", 0), result.get("freeBytes", 0), result.get("savedFiles", 0))
+        storage = (result.get("bytes", 0), result.get("fileBytes", 0), result.get("freeBytes", 0), result.get("savedFiles", 0), result.get("videoBytes", 0))
         if result.get("retryable", 0) != self._retryable:
             self._retryable = result.get("retryable", 0)
             self.retryableChanged.emit()
-        if storage != (self._bytes, self._file_bytes, self._free, self._saved_count):
-            self._bytes, self._file_bytes, self._free, self._saved_count = storage
+        if storage != (self._bytes, self._file_bytes, self._free, self._saved_count, self._video_bytes):
+            self._bytes, self._file_bytes, self._free, self._saved_count, self._video_bytes = storage
             self.storageChanged.emit()
         for entry in collections:
             files = entry.get("files") or {}
