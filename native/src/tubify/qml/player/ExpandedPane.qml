@@ -80,6 +80,14 @@ Item {
             mediaKey: root.track.videoId || root.track.id || ""
             Accessible.role: Accessible.Graphic
             Accessible.name: "Artwork for " + (root.track.title || "current song")
+            // A right-click opens the playing song's menu, as it does on the player bar.
+            MouseArea {
+                objectName: "immersiveArtworkMenuArea"
+                anchors.fill: parent
+                enabled: playerState.hasTrack
+                acceptedButtons: Qt.RightButton
+                onClicked: appState.showMenu(playerState.currentTrack, {nowPlaying: true})
+            }
             Rectangle {
                 objectName: "videoLoading"
                 anchors.centerIn: parent
