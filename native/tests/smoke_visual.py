@@ -781,7 +781,7 @@ def main():
                                 overflowing = shelf.property("overflowing")
                                 assert controls["shelfNext"].isVisible() == overflowing and controls["shelfPrevious"].isVisible() == overflowing
                                 # More shows only where it opens more than the shelf already holds.
-                                assert controls["shelfPrimaryAction"].isVisible() == bool(shelf.property("rowMode") and not shelf.property("grid") or shelf.property("opensMore"))
+                                assert controls["shelfPrimaryAction"].isVisible() == bool(shelf.property("compact") and not shelf.property("grid") or shelf.property("opensMore"))
                                 if shelf.property("grid"):
                                     # Quick picks shows every song at once: nothing to page to and no Play All.
                                     songs = [item for item in visual_items(shelf) if item.metaObject().className().startswith("SongRow")]
@@ -796,6 +796,8 @@ def main():
                                     assert [song.property("media")["title"] for song in placed] == titles, size
                                     assert not controls["shelfPrimaryAction"].isVisible() and not controls["shelfNext"].isVisible()
                                 if shelf.property("mixed"):
+                                    # Listen again has no Play All: it would play the songs and skip the cards.
+                                    assert controls["shelfPrimaryAction"].property("text") != "Play All"
                                     # Albums and playlists come first, then the songs, filling each row across.
                                     collections = next(child for child in visual_items(shelf) if child.objectName() == "shelfCollections")
                                     songs = [item for item in visual_items(shelf) if item.metaObject().className().startswith("SongRow") and item.isVisible()]

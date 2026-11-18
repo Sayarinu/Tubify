@@ -8,6 +8,7 @@ Item {
     required property var section
     property var profile: ({})
     // A grid shelf (Quick picks) lays every song out at once: no paging, arrows or Play All.
+    // A mixed shelf (Listen again) has no Play All either: it would skip the shelf's cards.
     readonly property bool grid: section.layout === "grid"
     property bool compact: section.layout === "rows" || grid
     // A mixed shelf shows its albums, playlists and artists as cards, then its songs as rows.
@@ -85,10 +86,10 @@ Item {
         ThemeActionButton {
             id: more
             objectName: "shelfPrimaryAction"
-            text: root.showAll ? "Show all" : root.rowMode ? "Play All" : root.moreLabel
-            visible: root.rowMode && !root.grid || root.opensMore
+            text: root.showAll ? "Show all" : root.compact ? "Play All" : root.moreLabel
+            visible: root.compact && !root.grid || root.opensMore
             implicitHeight: 36
-            onClicked: root.rowMode && !root.showAll ? root.playAllRequested() : root.moreRequested()
+            onClicked: root.compact && !root.showAll ? root.playAllRequested() : root.moreRequested()
         }
         IconButton { objectName: "shelfPrevious"; visible: root.overflowing && !root.grid; iconName: "left"; tip: "Previous Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXBeginning; onClicked: root.page(-1) }
         IconButton { objectName: "shelfNext"; visible: root.overflowing && !root.grid; iconName: "right"; tip: "More Items"; outlined: true; width: 36; height: 36; enabled: !cards.atXEnd; onClicked: root.page(1) }
