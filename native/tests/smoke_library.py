@@ -96,6 +96,16 @@ def main():
                     assert menu.property("opened") and menu.property("context") == {"nowPlaying": True}, name
                     QMetaObject.invokeMethod(menu, "close")
                     QTest.qWait(50)
+                # So does right-clicking the full-screen artwork.
+                shell.setExpanded(True)
+                QTest.qWait(300)
+                artwork = shown_item(window, "immersiveArtwork")
+                QTest.mouseClick(window, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, artwork.mapToScene(QPointF(artwork.width() / 2, artwork.height() / 2)).toPoint())
+                QTest.qWait(50)
+                assert menu.property("opened") and menu.property("context") == {"nowPlaying": True}
+                QMetaObject.invokeMethod(menu, "close")
+                shell.setExpanded(False)
+                QTest.qWait(300)
                 # A sidebar playlist's artwork plays it where it is; the row itself still opens it.
                 route, queued = view.route, len(player.entries)
                 artwork = shown_item(window, "sidebarPlaylistPlay")
