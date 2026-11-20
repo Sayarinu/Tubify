@@ -357,3 +357,20 @@ def test_a_signed_out_library_reply_is_a_lapsed_session_not_an_empty_library(tmp
     # Signed in with no playlists is simply an empty library.
     provider.get_account_info = lambda: {"accountName": "Fixture"}
     assert catalog.fetch("library_playlists")["items"] == []
+
+
+def test_refreshed_home_keeps_the_shelves_it_showed_in_place(tmp_path):
+    def home(*titles):
+        return lambda limit: [{"title": title, "contents": [track(index)]} for index, title in enumerate(titles)]
+
+    provider = SimpleNamespace(get_home=home("Fall vibes", "Quick picks", "Mixed for you", "Workout", "Throwbacks"), get_album=lambda identifier: None)
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "metadata.sqlite3"))
+    first = [section["title"] for section in catalog.fetch("home", page_size=10)["shelves"]]
+    assert first == ["Quick picks", "Mixed for you", "Fall vibes", "Workout", "Throwbacks"]
+    # YouTube Music reshuffles the rest, drops Workout and adds Chill; pinned shelves still lead.
+    provider.get_home = home("Throwbacks", "Chill", "Listen again", "Fall vibes", "Quick picks")
+    refreshed = [section["title"] for section in catalog.fetch("home", refresh=True, page_size=10)["shelves"]]
+    assert refreshed == ["Listen again", "Quick picks", "Fall vibes", "Throwbacks", "Chill"]
+    # The remembered order carries to the next refresh too.
+    provider.get_home = home("Chill", "New one", "Throwbacks", "Fall vibes")
+    assert [section["title"] for section in catalog.fetch("home", refresh=True, page_size=10)["shelves"]] == ["Fall vibes", "Throwbacks", "Chill", "New one"]
