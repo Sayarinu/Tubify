@@ -170,11 +170,22 @@ def shelf_layout(section):
     return "rows" if all(songs) else "mixed" if any(songs) else "cards"
 
 
-def arrange_home(sections):
+def arrange_home(sections, previous=()):
+    """Pinned shelves first, then the rest in the order Home last showed them, new ones last.
+
+    previous is the shelf titles of the Home being replaced, so a refresh doesn't reshuffle
+    the shelves YouTube Music sends in a different order each time.
+    """
+    shown = {}
+    for title in previous:
+        shown.setdefault(title.strip().casefold(), len(shown))
+
     def rank(indexed):
         index, section = indexed
         title = section["title"].strip().casefold()
-        return (PINNED_SHELVES.index(title), 0) if title in PINNED_SHELVES else (len(PINNED_SHELVES), index)
+        if title in PINNED_SHELVES:
+            return (PINNED_SHELVES.index(title), 0, 0)
+        return (len(PINNED_SHELVES), shown.get(title, len(shown)), index)
 
     ordered = [section for _, section in sorted(enumerate(sections), key=rank)]
     return [{**section, "layout": shelf_layout(section)} for section in ordered]
@@ -262,6 +273,9 @@ class Catalog:
                 data, stale = cached["data"], True
                 warning = "reconnect" if _session_problem(error) else "offline"
             else:
+                if route == "home" and cached:
+                    # Keep the shelves this Home already showed where they were, so a refresh doesn't reshuffle them.
+                    data["shelves"] = arrange_home(data["shelves"], [section["title"] for section in cached["data"].get("shelves", [])])
                 self._apply_changes(data, route, params)
                 try:
                     self.store.write(key, data)
