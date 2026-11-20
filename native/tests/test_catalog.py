@@ -324,17 +324,22 @@ def test_an_artist_page_ytmusicapi_cannot_read_names_the_artist_page_not_the_ses
         catalog.fetch("artist", {"id": "UCartist"})
 
 
-def test_cached_home_takes_the_current_shelf_layouts(tmp_path):
+def test_cached_home_takes_the_current_shelf_order_and_layouts(tmp_path):
     song = {**track(1), "kind": "song"}
     store = MetadataStore(tmp_path / "metadata.sqlite3")
     provider = SimpleNamespace(get_home=lambda limit: [{"title": "Quick picks", "contents": [track(1)]}])
     catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), store)
     catalog.fetch("home")
-    # A Home saved by an earlier version, when Quick picks paged as rows.
+    # A Home saved by an earlier version, when Quick picks led Home and paged as rows.
     key = next(row[0] for row in store.db.execute("SELECT key FROM views"))
-    store.write(key, {"shelves": [{"title": "Quick picks", "items": [song], "layout": "rows"}], "items": [], "complete": True})
+    store.write(key, {"shelves": [{"title": "Quick picks", "items": [song], "layout": "rows"},
+                                  {"title": "Listen again", "items": [song], "layout": "rows"}], "items": [], "complete": True})
     provider.get_home = None
-    assert catalog.fetch("home")["shelves"][0]["layout"] == "grid"
+    home = catalog.fetch("home")["shelves"]
+    assert [section["title"] for section in home] == ["Listen again", "Quick picks"]
+    assert [section["layout"] for section in home] == ["rows", "grid"]
+    # The order holds across pages of a cached Home too.
+    assert catalog.fetch("home", page_size=1)["shelves"][0]["title"] == "Listen again"
 
 
 def test_a_signed_out_library_reply_is_a_lapsed_session_not_an_empty_library(tmp_path):
@@ -352,3 +357,20 @@ def test_a_signed_out_library_reply_is_a_lapsed_session_not_an_empty_library(tmp
     # Signed in with no playlists is simply an empty library.
     provider.get_account_info = lambda: {"accountName": "Fixture"}
     assert catalog.fetch("library_playlists")["items"] == []
+
+
+def test_refreshed_home_keeps_the_shelves_it_showed_in_place(tmp_path):
+    def home(*titles):
+        return lambda limit: [{"title": title, "contents": [track(index)]} for index, title in enumerate(titles)]
+
+    provider = SimpleNamespace(get_home=home("Fall vibes", "Quick picks", "Mixed for you", "Workout", "Throwbacks"), get_album=lambda identifier: None)
+    catalog = Catalog(SimpleNamespace(profile={"name": "Fixture"}, catalog=lambda: provider), MetadataStore(tmp_path / "metadata.sqlite3"))
+    first = [section["title"] for section in catalog.fetch("home", page_size=10)["shelves"]]
+    assert first == ["Quick picks", "Mixed for you", "Fall vibes", "Workout", "Throwbacks"]
+    # YouTube Music reshuffles the rest, drops Workout and adds Chill; pinned shelves still lead.
+    provider.get_home = home("Throwbacks", "Chill", "Listen again", "Fall vibes", "Quick picks")
+    refreshed = [section["title"] for section in catalog.fetch("home", refresh=True, page_size=10)["shelves"]]
+    assert refreshed == ["Listen again", "Quick picks", "Fall vibes", "Throwbacks", "Chill"]
+    # The remembered order carries to the next refresh too.
+    provider.get_home = home("Chill", "New one", "Throwbacks", "Fall vibes")
+    assert [section["title"] for section in catalog.fetch("home", refresh=True, page_size=10)["shelves"]] == ["Fall vibes", "Throwbacks", "Chill", "New one"]
