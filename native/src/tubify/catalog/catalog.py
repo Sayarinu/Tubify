@@ -270,10 +270,10 @@ class Catalog:
         self._apply_changes(data, route, params)
         page = dict(data)
         all_items = data.get(list_key, [])
-        page[list_key] = all_items[offset:target]
         if route == "home":
-            # Home is cached for hours; lay it out with the current shelf layouts, not those it was saved with.
-            page["shelves"] = [{**section, "layout": shelf_layout(section)} for section in page["shelves"]]
+            # Home is cached for hours; show it in the current shelf order and layouts, not those it was saved with.
+            all_items = arrange_home(all_items)
+        page[list_key] = all_items[offset:target]
         page["cursor"] = target if route != "radio" and (len(all_items) > target or not data.get("complete", True)) else None
         page["stale"], page["warning"] = stale, warning
         return page
