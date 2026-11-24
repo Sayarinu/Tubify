@@ -14,7 +14,7 @@ dependencies = [
   "PySide6-Essentials>=6.8,<7",
   "keyring>=25.7,<26",
   "ytmusicapi>=1.12.3,<2",
-  "yt-dlp[default]>=2026.8.19",
+  "yt-dlp[default]>=2026.11.23",
   "python-mpv>=1.0.8,<2",
   # Reads tags and embedded artwork from local music.
   "mutagen>=1.47,<2",
